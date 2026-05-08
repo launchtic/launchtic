@@ -1,0 +1,1137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// env file: packages/database reads from ../../.env (root)
+
+// ─────────────────────────────────────────
+// AUTH & MULTI-TENANCY
+// ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedWorkspaces Workspace[]
+  memberships     WorkspaceMember[]
+  refundedOrders  Order[]           @relation("OrderRefundedBy")
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User              @relation(fields: [ownerId], references: [id])
+  members WorkspaceMember[]
+
+  funnels             Funnel[]
+  contacts            Contact[]
+  tags                Tag[]
+  physicalProducts    PhysicalProduct[]
+  domains             Domain[]
+  settings            WorkspaceSettings?
+  orders              Order[]
+  subscriptions       Subscription[]
+  coupons             Coupon[]
+  emailTemplates      EmailTemplate[]
+  broadcasts          Broadcast[]
+  emailSends          EmailSend[]
+  automations         Automation[]
+  automationRuns      AutomationRun[]
+  emailSequences      EmailSequence[]
+  sequenceEnrollments ContactSequenceEnrollment[]
+  senderIdentities    SenderIdentity[]
+  aiConversations     AiConversation[]
+  savedBlocks         SavedBlock[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        Role     @default(EDITOR)
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+}
+
+// ─────────────────────────────────────────
+// DOMAINS
+// ─────────────────────────────────────────
+
+model Domain {
+  id          String   @id @default(cuid())
+  workspaceId String
+  domain      String   @unique
+  verified    Boolean  @default(false)
+  // The PAGES_DOMAIN configured at install time — exactly one Domain per
+  // workspace is flagged isDefault=true. Funnels without explicit FunnelDomain
+  // assignments are served on this domain. Custom domains use isDefault=false
+  // and require FunnelDomain entries to be reachable.
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  funnelDomains FunnelDomain[]
+}
+
+// Junction: multiple funnels can share a single domain
+// Unique: domain + slug (enforced at app level)
+model FunnelDomain {
+  funnelId  String
+  domainId  String
+  createdAt DateTime @default(now())
+
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  domain Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@id([funnelId, domainId])
+  @@index([domainId])
+}
+
+// ─────────────────────────────────────────
+// FUNNELS & PAGES
+// ─────────────────────────────────────────
+
+model Funnel {
+  id          String       @id @default(cuid())
+  workspaceId String
+  name        String
+  currency    String       @default("usd")
+  status      FunnelStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps     FunnelStep[]
+  domains   FunnelDomain[]
+
+  @@index([workspaceId, status])
+}
+
+model FunnelStep {
+  id       String   @id @default(cuid())
+  funnelId String
+  name     String
+  slug     String
+  type     StepType
+  order    Int
+
+  // Offer config (only meaningful for CHECKOUT / UPSELL / DOWNSELL)
+  offerType         OfferType?
+  physicalProductId String?
+  shippingFee       Int        @default(0) // cents
+  couponIds         String[]   @default([])
+
+  // Craft.js JSON — stored as JSONB
+  pageJson Json
+
+  // SEO + Tracking metadata
+  meta Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funnel          Funnel               @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  physicalProduct PhysicalProduct?     @relation(fields: [physicalProductId], references: [id])
+  pricePlans      StepPricePlan[]
+  orders          Order[]
+  subscriptions   Subscription[]
+  resources       FunnelStepResource[]
+  orderBumps      OrderBump[]
+
+  @@unique([funnelId, slug])
+  @@index([funnelId, order])
+}
+
+model PageTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  thumbnailUrl String?
+  type         StepType
+  // Multi-dimensional tags driving AI template selection: niche, style,
+  // mood, layout, features. Free-form but conventions documented in
+  // scripts_test/page-templates.seed.json. AI matches by tag overlap.
+  tags         String[] @default([])
+  pageJson     Json     @default("{}")
+  // Page-level metadata mirroring FunnelStep.meta — { seo, tracking, font, ... }.
+  // Cloned onto a FunnelStep when the template is applied so things like the
+  // page-default font carry over to new pages.
+  meta         Json     @default("{}")
+  // When set, this template is auto-selected for new steps of `type` (e.g.
+  // when AI assistant scaffolds a funnel). Only one template per type should
+  // be marked default; app-level enforcement (no DB partial-unique).
+  isDefault    Boolean  @default(false)
+  // Inactive templates are hidden from the template picker but kept in the
+  // admin list so they can be re-enabled or referenced for cloning.
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([type, isDefault])
+  @@index([isActive])
+  @@index([tags], type: Gin)
+}
+
+// User-saved reusable blocks (Section / Row subtree from the editor).
+// Scoped per workspace — shared across team members.
+model SavedBlock {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  kind        String   // 'section' | 'row'
+  tags        String[] @default([])
+  contentJson Json     // serialized Craft.js node tree
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, kind])
+  @@index([workspaceId, createdAt])
+  @@index([tags], type: Gin)
+}
+
+// ─────────────────────────────────────────
+// PRODUCTS & PRICING
+// ─────────────────────────────────────────
+
+// Physical product catalog (SKU, inventory, shipping)
+model PhysicalProduct {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  sku         String?
+  price       Int      @default(0) // cents — reference/base price
+  currency    String   @default("usd")
+  weight      Float? // grams
+  limitStock  Boolean  @default(false)
+  stockLimit  Int?
+  images      String[]
+  hasOptions  Boolean  @default(false)
+  options     Json? // [{ id, name, values: string[] }]
+  variants    Json? // [{ id, name, combination: string[], sku, price (cents|null), image }]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  funnelSteps FunnelStep[]
+  orderBumps  OrderBump[]
+}
+
+// Price plans inline per funnel step — no shared catalog
+model StepPricePlan {
+  id            String    @id @default(cuid())
+  funnelStepId  String
+  name          String
+  description   String?
+  type          PriceType
+  amount        Int // cents
+  currency      String    @default("usd")
+  interval      String? // month | year (SUBSCRIPTION only)
+  trialDays     Int? // SUBSCRIPTION trial period in days
+  stripePriceId String? // cached Stripe Price ID
+  paypalPlanId  String? // cached PayPal Billing Plan ID
+  createdAt     DateTime  @default(now())
+
+  funnelStep    FunnelStep     @relation(fields: [funnelStepId], references: [id], onDelete: Cascade)
+  orders        Order[]
+  subscriptions Subscription[]
+}
+
+// Order bumps — add-on offers shown at checkout
+model OrderBump {
+  id                String     @id @default(cuid())
+  funnelStepId      String
+  label             String
+  headline          String?
+  offerType         OfferType?
+  physicalProductId String?
+  shippingFee       Int        @default(0) // cents
+  order             Int        @default(0)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  funnelStep      FunnelStep           @relation(fields: [funnelStepId], references: [id], onDelete: Cascade)
+  physicalProduct PhysicalProduct?     @relation(fields: [physicalProductId], references: [id])
+  pricePlans      OrderBumpPricePlan[]
+  resources       OrderBumpResource[]
+
+  @@index([funnelStepId, order])
+}
+
+model OrderBumpPricePlan {
+  id            String    @id @default(cuid())
+  orderBumpId   String
+  name          String
+  description   String?
+  type          PriceType
+  amount        Int // cents
+  currency      String    @default("usd")
+  interval      String? // month | year (SUBSCRIPTION only)
+  trialDays     Int?
+  stripePriceId String?
+  paypalPlanId  String? // cached PayPal Billing Plan ID
+  createdAt     DateTime  @default(now())
+
+  orderBump     OrderBump      @relation(fields: [orderBumpId], references: [id], onDelete: Cascade)
+  orders        Order[]
+  subscriptions Subscription[]
+}
+
+model OrderBumpResource {
+  id          String       @id @default(cuid())
+  orderBumpId String
+  type        ResourceType
+  resourceId  String
+  createdAt   DateTime     @default(now())
+
+  orderBump OrderBump @relation(fields: [orderBumpId], references: [id], onDelete: Cascade)
+
+  @@unique([orderBumpId, type, resourceId])
+  @@index([type, resourceId])
+}
+
+// ─────────────────────────────────────────
+// CONTACTS & CRM
+// ─────────────────────────────────────────
+
+model Contact {
+  id                  String  @id @default(cuid())
+  workspaceId         String
+  email               String
+  firstName           String?
+  lastName            String?
+  phone               String?
+  country             String?
+  streetAddress       String?
+  streetNumber        String?
+  neighborhood        String?
+  postalCode          String?
+  city                String?
+  state               String?
+  company             String?
+  taxNumber           String?
+  language            String? @default("en")
+  ip                  String?
+  customFields        Json?
+  providerCustomerIds Json? // { stripe: { usd: "cus_xxx", jpy: "cus_yyy" }, paypal: "PAYPAL-xxx" } — Stripe is per-currency (Customer is currency-pinned at first charge)
+
+  // Email & GDPR
+  consentedAt    DateTime?
+  consentSource  String? // "form" | "import" | "manual" | "purchase"
+  unsubscribedAt DateTime?
+  bouncedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace           Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tags                ContactTag[]
+  events              ContactEvent[]
+  orders              Order[]
+  subscriptions       Subscription[]
+  resourceAccesses    ContactResourceAccess[]
+  emailSends          EmailSend[]
+  automationRuns      AutomationRun[]
+  sequenceEnrollments ContactSequenceEnrollment[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, createdAt])
+}
+
+model Tag {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String?
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  ContactTag[]
+
+  @@unique([workspaceId, name])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+  addedAt   DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@index([tagId])
+}
+
+// Behavior timeline — the largest table in the system
+model ContactEvent {
+  id        String    @id @default(cuid())
+  contactId String
+  type      EventType
+  data      Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, createdAt])
+  @@index([type, createdAt])
+}
+
+// ─────────────────────────────────────────
+// ORDERS & TRANSACTIONS
+// ─────────────────────────────────────────
+
+model Order {
+  id                   String  @id @default(cuid())
+  workspaceId          String
+  contactId            String
+  funnelStepId         String?
+  stepPricePlanId      String?
+  orderBumpPricePlanId String? // set when the order originates from a bump
+  subscriptionId       String?
+  physicalProductId    String?
+  variantId            String?
+  quantity             Int     @default(1)
+  couponCode           String?
+  orderItemSnapshot    Json? // snapshot of product/variant/plan at time of order
+  bumpItems            Json? // ONE_TIME bump line items merged into this order
+
+  status          OrderStatus
+  paymentProvider String      @default("stripe") // stripe | paypal
+  paymentMethod   String?
+
+  // Provider-agnostic order/intent reference
+  providerOrderId String? // PaymentIntent ID or PayPal order ID
+  paymentMethodId String? // saved for 1-click upsells
+  invoiceId       String? // Stripe invoice ID for subscription renewals
+  isRenewal       Boolean @default(false)
+
+  // Financials
+  subtotal       Int // cents, before discount
+  discountAmount Int    @default(0)
+  shippingFee    Int    @default(0)
+  total          Int // cents, final charged
+  currency       String
+
+  // Refund tracking
+  refundAmount     Int       @default(0) // cents, cumulative refunded
+  refundedAt       DateTime?
+  refundedByUserId String?
+
+  // Snapshot & shipping
+  contactSnapshot Json? // name/email at time of purchase
+  shippingAddress Json? // { line1, city, state, postal_code, country }
+
+  // Raw gateway response
+  gatewayData Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace          Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact            Contact                 @relation(fields: [contactId], references: [id])
+  funnelStep         FunnelStep?             @relation(fields: [funnelStepId], references: [id])
+  stepPricePlan      StepPricePlan?          @relation(fields: [stepPricePlanId], references: [id])
+  orderBumpPricePlan OrderBumpPricePlan?     @relation(fields: [orderBumpPricePlanId], references: [id])
+  subscription       Subscription?           @relation(fields: [subscriptionId], references: [id])
+  refundedBy         User?                   @relation("OrderRefundedBy", fields: [refundedByUserId], references: [id])
+  transactions       Transaction[]
+  resourceAccesses   ContactResourceAccess[]
+
+  @@index([workspaceId, status])
+  @@index([contactId])
+  @@index([providerOrderId])
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  orderId   String
+  type      TxType
+  amount    Int // cents
+  currency  String
+  reference String? // Stripe charge_id
+  status    TxStatus
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+model Subscription {
+  id                   String  @id @default(cuid())
+  workspaceId          String
+  contactId            String
+  funnelStepId         String?
+  stepPricePlanId      String?
+  orderBumpPricePlanId String?
+
+  status          SubscriptionStatus
+  paymentProvider String             @default("stripe")
+  providerSubId   String // e.g. Stripe sub_xxx
+
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  trialEnd           DateTime?
+  planSnapshot       Json? // snapshot of plan at subscription creation time
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact            Contact             @relation(fields: [contactId], references: [id])
+  funnelStep         FunnelStep?         @relation(fields: [funnelStepId], references: [id])
+  stepPricePlan      StepPricePlan?      @relation(fields: [stepPricePlanId], references: [id])
+  orderBumpPricePlan OrderBumpPricePlan? @relation(fields: [orderBumpPricePlanId], references: [id])
+  orders             Order[]
+
+  @@index([workspaceId, status])
+  @@index([providerSubId])
+  @@index([contactId])
+}
+
+model ProcessedWebhookEvent {
+  eventId     String // provider's event ID, e.g. Stripe evt_xxx
+  workspaceId String
+  provider    String
+  processedAt DateTime @default(now())
+
+  @@id([workspaceId, provider, eventId])
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  workspaceId String
+  code        String
+  type        String // "percentage" | "fixed"
+  discount    Int // percentage (0-100) for type=percentage, cents for type=fixed
+  maxUses     Int?
+  usedCount   Int       @default(0)
+  expiresAt   DateTime?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, code])
+  @@index([workspaceId])
+}
+
+// ─────────────────────────────────────────
+// WORKSPACE SETTINGS (unified)
+// ─────────────────────────────────────────
+
+model WorkspaceSettings {
+  workspaceId String @id
+  // Each field is a JSONB blob — no migration needed when adding fields
+  stripe      Json? // { publishableKey, secretKey, webhookSecret, mode }
+  paypal      Json? // { clientId, clientSecret, webhookId, mode }
+  smtp        Json? // { provider, host, port, username, passwordEnc, maxPerDay }
+  storage     Json? // { driver, endpoint, region, bucket, accessKey, secretKeyEnc, publicUrl }
+  ai          Json? // { provider: "anthropic", model, apiKeyEnc, enabled }
+  emailFooter Json? // { customText?, physicalAddress? } — appended to every marketing email above the unsubscribe link
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────
+// AI ASSISTANT
+// ─────────────────────────────────────────
+// Per-user conversation with the workspace AI assistant. One conversation
+// per user per workspace — each user has their own chat history. Cleared
+// explicitly via /api/ai/clear.
+model AiConversation {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String   // FK without back-relation to keep User model untouched
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, userId])
+}
+
+model AiMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  // role: "user" | "assistant" | "tool_use" | "tool_result"
+  // - user: text from operator
+  // - assistant: text from LLM (no tool call)
+  // - tool_use: LLM proposes a tool call (content = { name, args })
+  // - tool_result: outcome of executing the tool (content = result JSON)
+  role    String
+  content Json
+  // Set when role = tool_use. Tracks the lifecycle:
+  //   pending_confirm → user must confirm (write tools)
+  //   approved → user approved, server is executing
+  //   rejected → user dismissed
+  //   executed → ran successfully (paired tool_result follows)
+  //   error → ran but failed (paired tool_result follows with error)
+  // Read-only tools skip pending_confirm and go straight to executed.
+  toolCallId String?
+  toolName   String?
+  toolStatus String?
+  createdAt  DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// ─────────────────────────────────────────
+// RESOURCES
+// ─────────────────────────────────────────
+
+// Config: what a funnel step grants after purchase
+model FunnelStepResource {
+  id           String       @id @default(cuid())
+  funnelStepId String
+  type         ResourceType
+  resourceId   String
+  createdAt    DateTime     @default(now())
+
+  funnelStep FunnelStep @relation(fields: [funnelStepId], references: [id], onDelete: Cascade)
+
+  @@unique([funnelStepId, type, resourceId])
+  @@index([type, resourceId]) // reverse lookup: "which steps currently grant resource X?"
+}
+
+// State: which contact has which access from which order (used for revoke)
+model ContactResourceAccess {
+  id          String       @id @default(cuid())
+  workspaceId String
+  contactId   String
+  orderId     String
+  type        ResourceType
+  resourceId  String
+  grantedAt   DateTime     @default(now())
+  revokedAt   DateTime?
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id])
+
+  @@unique([contactId, type, resourceId, orderId])
+  @@index([orderId]) // revoke: find all access entries for a single order
+  @@index([contactId, type]) // check: does this contact have access to resource X?
+}
+
+// ─────────────────────────────────────────
+// EMAIL TEMPLATES, BROADCASTS & SEND LOG
+// ─────────────────────────────────────────
+
+// Reusable email template — used by broadcasts, sequences, transactional sends.
+// System templates (isSystem=true) are pre-seeded per workspace and cannot be deleted.
+model EmailTemplate {
+  id          String                @id @default(cuid())
+  workspaceId String
+  name        String
+  subject     String
+  htmlBody    String
+  category    EmailTemplateCategory @default(MARKETING)
+
+  isSystem  Boolean @default(false)
+  systemKey String? // null for user templates; e.g. "order_confirmation"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  broadcasts        Broadcast[]
+  emailSends        EmailSend[]
+  automationActions AutomationAction[]
+  sequenceSteps     SequenceStep[]
+
+  @@unique([workspaceId, systemKey])
+  @@index([workspaceId, category])
+}
+
+// One-time email campaign sent to all contacts or a tag-based audience.
+model Broadcast {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  subject     String
+  htmlBody    String
+  templateId  String?
+  fromName    String
+  fromEmail   String
+
+  status      BroadcastStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  // Targeting
+  targetType          BroadcastTarget @default(ALL_CONTACTS)
+  targetTagIds        String[]        @default([])
+  excludeUnsubscribed Boolean         @default(true)
+
+  // Stats
+  totalRecipients Int @default(0)
+  sentCount       Int @default(0)
+  failedCount     Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template   EmailTemplate? @relation(fields: [templateId], references: [id])
+  emailSends EmailSend[]
+
+  @@index([workspaceId, status])
+  @@index([scheduledAt, status])
+}
+
+// Audit log of every email queued/sent — required for GDPR data export
+// and basic per-contact email history.
+model EmailSend {
+  id          String  @id @default(cuid())
+  workspaceId String
+  contactId   String?
+  toEmail     String
+
+  // Source — exactly one of broadcastId / templateId / automationId / sequenceId / transactionalKey is set
+  broadcastId        String?
+  templateId         String?
+  automationId       String?
+  automationRunId    String?
+  automationActionId String?
+  sequenceId         String?
+  sequenceStepId     String?
+  enrollmentId       String?
+  transactionalKey   String? // e.g. "order_confirmation" for ad-hoc transactional sends
+
+  subject  String
+  bodyHtml String? // Rendered HTML at send time. Snapshot for support / audit / debug.
+                   // Nullable for legacy rows; new sends always populate.
+  status   EmailSendStatus @default(QUEUED)
+
+  errorMessage      String?
+  providerMessageId String? // SMTP Message-ID — used to correlate bounces
+
+  queuedAt DateTime  @default(now())
+  sentAt   DateTime?
+  failedAt DateTime?
+
+  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact          Contact?                   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  broadcast        Broadcast?                 @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
+  template         EmailTemplate?             @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  automation       Automation?                @relation(fields: [automationId], references: [id], onDelete: SetNull)
+  automationRun    AutomationRun?             @relation(fields: [automationRunId], references: [id], onDelete: SetNull)
+  automationAction AutomationAction?          @relation(fields: [automationActionId], references: [id], onDelete: SetNull)
+  sequence         EmailSequence?             @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  sequenceStep     SequenceStep?              @relation(fields: [sequenceStepId], references: [id], onDelete: SetNull)
+  enrollment       ContactSequenceEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status, queuedAt])
+  @@index([contactId, queuedAt])
+  @@index([broadcastId])
+  @@index([automationId])
+  @@index([sequenceId])
+  @@index([enrollmentId])
+}
+
+// ─────────────────────────────────────────
+// AUTOMATIONS — Multi-action IF/THEN rules
+// ─────────────────────────────────────────
+//
+// One trigger fires N actions in defined order. For example:
+//   trigger:  NEW_SALE
+//   actions:  [SEND_EMAIL "welcome", ADD_TAG "customer", WEBHOOK "notify slack"]
+//
+// Visual canvas builder (with branching/decision nodes) is a separate Phase 4 model.
+
+model Automation {
+  id          String           @id @default(cuid())
+  workspaceId String
+  name        String
+  status      AutomationStatus @default(DRAFT)
+
+  // Trigger — one per automation
+  triggerType   TriggerType
+  triggerConfig Json        @default("{}") // { tagId? funnelId? funnelStepId? } — depends on triggerType
+
+  // Stats
+  timesTriggered  Int       @default(0)
+  lastTriggeredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actions    AutomationAction[]
+  runs       AutomationRun[]
+  emailSends EmailSend[]
+
+  @@index([workspaceId, status])
+  @@index([triggerType, status])
+}
+
+// One action within an automation. Actions execute sequentially in `order`.
+// Failure of one action does NOT halt subsequent actions (best-effort) — the
+// failure is recorded on AutomationRun.errorMessage as the first error seen.
+model AutomationAction {
+  id           String @id @default(cuid())
+  automationId String
+  order        Int    @default(0) // 0-based execution order within automation
+
+  actionType   ActionType
+  actionConfig Json       @default("{}") // { tagId? webhookUrl? sequenceId? ... }
+
+  // For SEND_EMAIL action — snapshot at save time (editing template later
+  // does not affect already-saved actions). Sender fields are guaranteed
+  // non-null for SEND_EMAIL by the API save handler (resolves to default
+  // SenderIdentity if user didn't pick one). Null for non-email actions.
+  emailTemplateId String?
+  emailSubject    String?
+  emailHtmlBody   String?
+  emailFromName   String?
+  emailFromEmail  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  automation Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  template   EmailTemplate? @relation(fields: [emailTemplateId], references: [id])
+  emailSends EmailSend[]
+
+  @@index([automationId, order])
+}
+
+// Per-execution log. One row per (automation, trigger event) — needed for
+// audit trail, idempotency, and surfacing failures to the user.
+model AutomationRun {
+  id           String  @id @default(cuid())
+  automationId String
+  workspaceId  String
+  contactId    String?
+
+  status       AutomationRunStatus @default(PENDING)
+  triggerData  Json                @default("{}") // { orderId? tagId? } — context that fired the trigger
+  errorMessage String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  automation Automation  @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact    Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  emailSends EmailSend[]
+
+  @@index([automationId, startedAt])
+  @@index([contactId, startedAt])
+  @@index([workspaceId, status])
+}
+
+// ─────────────────────────────────────────
+// SENDER IDENTITIES
+// ─────────────────────────────────────────
+//
+// Per-workspace list of "From" addresses that user can pick when composing
+// broadcasts / automation emails / sequence steps. We do NOT verify these
+// ourselves — the underlying SMTP provider (SES, SendGrid, Postmark, etc.)
+// performs the real authentication. If the user picks an unauthorized
+// address, the SMTP send fails and surfaces in EmailSend.errorMessage.
+
+model SenderIdentity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String   // "Brand Support"
+  email       String   // "support@brand.com"
+  isDefault   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+}
+
+// ─────────────────────────────────────────
+// SEQUENCES — Drip campaigns (M6)
+// ─────────────────────────────────────────
+//
+// EmailSequence:  Definition. N steps with delays.
+// SequenceStep:   One email + delay-from-previous-step.
+// ContactSequenceEnrollment: Per-contact instance. Tracks which step is next
+//                  and when (`nextSendAt`) — the scheduler tick polls this.
+
+model EmailSequence {
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  status      SequenceStatus @default(DRAFT)
+
+  // Exit conditions are NOT stored on the sequence — unsubscribed/bounced
+  // contacts are always excluded (compliance, hardcoded in worker), and any
+  // other "exit" logic (purchase, tag, segment, manual) is composed via an
+  // automation with the END_SEQUENCE action.
+
+  // Stats — denormalized counters for the list view.
+  totalEnrolled  Int @default(0)
+  activeCount    Int @default(0)
+  completedCount Int @default(0)
+  exitedCount    Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps       SequenceStep[]
+  enrollments ContactSequenceEnrollment[]
+  emailSends  EmailSend[]
+
+  @@index([workspaceId, status])
+}
+
+model SequenceStep {
+  id           String @id @default(cuid())
+  sequenceId   String
+  order        Int    @default(0) // 0-based execution order
+  delayMinutes Int    @default(0) // minutes to wait after previous step (0 for step 1 = send immediately)
+
+  // Email content — snapshot at save time, like AutomationAction. Sender
+  // fields are NOT NULL (resolved from default SenderIdentity at save time).
+  emailTemplateId String?
+  emailSubject    String
+  emailHtmlBody   String
+  emailFromName   String
+  emailFromEmail  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sequence   EmailSequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  template   EmailTemplate? @relation(fields: [emailTemplateId], references: [id])
+  emailSends EmailSend[]
+
+  @@index([sequenceId, order])
+}
+
+model ContactSequenceEnrollment {
+  id          String @id @default(cuid())
+  sequenceId  String
+  contactId   String
+  workspaceId String
+
+  status           EnrollmentStatus @default(ACTIVE)
+  currentStepIndex Int              @default(0) // next step to send (0-based)
+  nextSendAt       DateTime // scheduler tick polls this
+  exitReason       String? // "unsubscribed" | "purchased" | "tag_added" | "manual" | ...
+
+  enrolledAt  DateTime  @default(now())
+  completedAt DateTime?
+  lastSentAt  DateTime?
+
+  // Provenance — which automation/run enrolled this contact (null = manual).
+  enrolledByAutomationId String?
+  enrolledByRunId        String?
+
+  sequence   EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  contact    Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  emailSends EmailSend[]
+
+  // One active enrollment per (sequence, contact) — enforced via partial index in migration.
+  // (Prisma can't model partial unique, so the unique is enforced in SQL.)
+  @@index([status, nextSendAt])
+  @@index([sequenceId, status])
+  @@index([contactId, status])
+  @@index([workspaceId, status])
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum Plan {
+  FREE
+  GROWTH
+  PRO
+  AGENCY
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum FunnelStatus {
+  ACTIVE
+  TRASHED
+}
+
+enum StepType {
+  OPTIN
+  SALES
+  CHECKOUT
+  UPSELL
+  DOWNSELL
+  THANKYOU
+  CUSTOM     // Generic static page — about / privacy / terms / contact / FAQ.
+             // No offer config, no price plan, no form submit by default.
+}
+
+enum OfferType {
+  DIGITAL
+  PHYSICAL
+}
+
+enum ResourceType {
+  COURSE
+  COURSE_BUNDLE
+  TAG
+  COMMUNITY
+  CALENDAR_EVENT
+}
+
+enum PriceType {
+  ONE_TIME
+  SUBSCRIPTION
+}
+
+enum OrderStatus {
+  PENDING
+  TRIAL
+  PAID
+  FAILED
+  REFUNDED
+  CANCELED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+enum TxType {
+  SALE
+  REFUND
+  CHARGEBACK
+}
+
+enum TxStatus {
+  COMPLETED
+  FAILED
+  PENDING
+}
+
+enum EventType {
+  PAGE_VIEW
+  FORM_SUBMIT
+  PURCHASE
+  TAG_ADDED
+  TAG_REMOVED
+  EMAIL_SENT
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  EMAIL_BOUNCED
+  EMAIL_UNSUBSCRIBED
+  SEQUENCE_ENROLLED
+  SEQUENCE_COMPLETED
+  SEQUENCE_EXITED
+}
+
+enum EmailTemplateCategory {
+  TRANSACTIONAL
+  MARKETING
+  SYSTEM
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+  CANCELED
+}
+
+enum BroadcastTarget {
+  ALL_CONTACTS
+  TAG
+  SEGMENT
+}
+
+enum EmailSendStatus {
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+}
+
+enum AutomationStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+enum TriggerType {
+  NEW_SALE
+  SALE_CANCELED              // refund completed (full) OR subscription canceled (immediate or scheduled)
+  SUBSCRIPTION_PAYMENT_FAILED // subscription renewal payment failed → status PAST_DUE
+  FORM_SUBMIT
+  TAG_ADDED
+  TAG_REMOVED
+  EMAIL_LINK_CLICKED
+}
+
+enum ActionType {
+  SEND_EMAIL
+  ADD_TAG
+  REMOVE_TAG
+  WEBHOOK
+  START_SEQUENCE
+  END_SEQUENCE
+}
+
+enum AutomationRunStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum SequenceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  EXITED
+  FAILED
+}

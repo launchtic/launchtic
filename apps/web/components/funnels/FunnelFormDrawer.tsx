@@ -1,0 +1,322 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Users, ShoppingCart, Wrench, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { SUPPORTED_CURRENCIES } from "@launchtic/types";
+import FormDrawer from "../ui/FormDrawer";
+
+const CURRENCIES = SUPPORTED_CURRENCIES;
+
+type GoalId = "audience" | "sell" | "custom";
+
+const GOAL_STEPS: Record<GoalId, { name: string; slugSuffix: string; type: string }[]> = {
+  audience: [
+    { name: "Opt-in Page",  slugSuffix: "optin",    type: "OPTIN"    },
+    { name: "Thank You",    slugSuffix: "thankyou",  type: "THANKYOU" },
+  ],
+  sell: [
+    { name: "Sales Page",   slugSuffix: "sales",     type: "SALES"    },
+    { name: "Order Form",   slugSuffix: "checkout",  type: "CHECKOUT" },
+    { name: "Thank You",    slugSuffix: "thankyou",  type: "THANKYOU" },
+  ],
+  custom: [],
+};
+
+function slugify(str: string) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "funnel";
+}
+
+type Domain = { id: string; domain: string; verified: boolean };
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  mode: "create" | "edit";
+  editId?: string;
+  onSuccess?: (funnelId: string) => void;
+};
+
+const inputCls = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base sm:text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400";
+
+export default function FunnelFormDrawer({ open, onClose, mode, editId, onSuccess }: Props) {
+  const isEdit = mode === "edit";
+  const t = useTranslations("funnels.form");
+
+  const GOALS = [
+    { id: "audience" as GoalId, label: t("goal.audience.label"), description: t("goal.audience.description"), icon: <Users size={22} className="text-violet-500" /> },
+    { id: "sell"     as GoalId, label: t("goal.sell.label"),     description: t("goal.sell.description"),     icon: <ShoppingCart size={22} className="text-blue-500" /> },
+    { id: "custom"   as GoalId, label: t("goal.custom.label"),   description: t("goal.custom.description"),   icon: <Wrench size={22} className="text-gray-500" /> },
+  ];
+
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState<GoalId>("audience");
+  const [currency, setCurrency] = useState("usd");
+  const [currencyLocked, setCurrencyLocked] = useState(false);
+  const [domains, setDomains] = useState<Domain[]>([]);
+  const [assignedDomainId, setAssignedDomainId] = useState("");
+  const [initialAssignedIds, setInitialAssignedIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setName("");
+    setGoal("audience");
+    setCurrency("usd");
+    setCurrencyLocked(false);
+    setAssignedDomainId("");
+    setInitialAssignedIds([]);
+
+    if (!isEdit) return;
+
+    if (!editId) return;
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/funnels/${editId}`).then((r) => r.json()),
+      fetch(`/api/domains`).then((r) => r.json()),
+      fetch(`/api/funnel-domains?funnelId=${editId}`).then((r) => r.json()),
+    ])
+      .then(([funnelRes, domainsRes, funnelDomainsRes]) => {
+        const funnel = funnelRes?.data ?? funnelRes;
+        if (!funnel?.id) throw new Error(funnel?.error ?? "Failed to load funnel");
+        setName(funnel.name ?? "");
+        setCurrency(funnel.currency ?? "usd");
+        setCurrencyLocked(!!funnel.currencyLocked);
+        const domainList: Domain[] = Array.isArray(domainsRes) ? domainsRes : [];
+        setDomains(domainList);
+        const assigned: Domain[] = Array.isArray(funnelDomainsRes) ? funnelDomainsRes : [];
+        const ids = assigned.map((d) => d.id);
+        setInitialAssignedIds(ids);
+        setAssignedDomainId(ids[0] ?? "");
+      })
+      .catch((err) => setError(err.message ?? t("errorLoad")))
+      .finally(() => setLoading(false));
+  }, [open, isEdit, editId]);
+
+  async function handleSubmit() {
+    const trimmed = name.trim();
+    if (!trimmed) { setError(t("errorNameRequired")); return; }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      if (!isEdit) {
+        const res = await fetch("/api/funnels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed, currency }),
+        });
+        const json = await res.json();
+        if (!res.ok) { setError(json.error ?? t("errorCreate")); return; }
+
+        const funnelId: string = json.data.id;
+        const baseSlug = slugify(trimmed);
+
+        // Suggest a base slug per step (e.g. "my-funnel-optin"). Server will
+        // append -2/-3 if it collides with another funnel on the same URL space.
+        const stepErrors: string[] = [];
+        for (const step of GOAL_STEPS[goal]) {
+          const stepRes = await fetch(`/api/funnels/${funnelId}/steps`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: step.name,
+              slug: `${baseSlug}-${step.slugSuffix}`,
+              type: step.type,
+            }),
+          });
+          if (!stepRes.ok) {
+            const j = await stepRes.json().catch(() => ({}));
+            stepErrors.push(`${step.name}: ${j.error ?? "failed"}`);
+          }
+        }
+        // Funnel itself was created. Navigate to editor regardless so the user
+        // can add/fix any missing step manually. Console log for diagnostics.
+        if (stepErrors.length > 0) {
+          console.warn("[funnel create] step errors:", stepErrors);
+        }
+
+        onSuccess?.(funnelId);
+        return;
+      }
+
+      if (!editId) return;
+
+      const patchRes = await fetch(`/api/funnels/${editId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed, currency }),
+      });
+      if (!patchRes.ok) {
+        const json = await patchRes.json();
+        setError(json.error ?? t("errorUpdate"));
+        return;
+      }
+
+      const currentAssigned = initialAssignedIds[0] ?? "";
+      if (assignedDomainId !== currentAssigned) {
+        for (const id of initialAssignedIds) {
+          const delRes = await fetch("/api/funnel-domains", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ funnelId: editId, domainId: id }),
+          });
+          if (!delRes.ok) {
+            const j = await delRes.json().catch(() => ({}));
+            setError(j.error ?? t("errorUpdate"));
+            return;
+          }
+        }
+        if (assignedDomainId) {
+          const postRes = await fetch("/api/funnel-domains", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ funnelId: editId, domainId: assignedDomainId }),
+          });
+          if (!postRes.ok) {
+            const j = await postRes.json().catch(() => ({}));
+            // Slug-conflict 409 from assertAllStepSlugsAvailable — surface
+            // verbatim so user sees which slug + funnel collides.
+            setError(j.error ?? t("errorUpdate"));
+            return;
+          }
+        }
+      }
+
+      onSuccess?.(editId);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const verifiedDomains = domains.filter((d) => d.verified);
+  const hasNoVerified = domains.length > 0 && verifiedDomains.length === 0;
+
+  return (
+    <FormDrawer
+      open={open}
+      onClose={onClose}
+      title={isEdit ? t("titleEdit") : t("titleCreate")}
+      description={isEdit ? t("descriptionEdit") : undefined}
+      width={isEdit ? "md" : "lg"}
+      submitLabel={isEdit ? t("submitEdit") : t("submitCreate")}
+      submitting={submitting}
+      submitDisabled={loading || !name.trim()}
+      onSubmit={handleSubmit}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 size={20} className="animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              {t("nameLabel")} <span className="text-red-500">*</span>
+            </label>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("namePlaceholder")}
+              className={inputCls}
+            />
+          </div>
+
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t("goalLabel")}</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {GOALS.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setGoal(g.id)}
+                    className={`flex flex-col items-start gap-2 p-3 rounded-xl border text-left transition-colors ${
+                      goal === g.id
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                      goal === g.id ? "bg-white shadow-sm" : "bg-gray-100"
+                    }`}>
+                      {g.icon}
+                    </div>
+                    <div>
+                      <p className={`text-xs font-semibold leading-tight ${goal === g.id ? "text-blue-700" : "text-gray-800"}`}>
+                        {g.label}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5 leading-tight">{g.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {goal !== "custom" && (
+                <p className="text-xs text-gray-400 mt-2">
+                  {t("willCreate")}{" "}
+                  <span className="text-gray-600 font-medium">
+                    {GOAL_STEPS[goal].map((s) => s.name).join(" → ")}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("currencyLabel")}</label>
+            <p className="text-xs text-gray-400 mb-2">{t("currencyHint")}</p>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className={`${inputCls} ${currencyLocked ? "bg-gray-50 text-gray-500 cursor-not-allowed" : ""}`}
+              disabled={currencyLocked}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+            {currencyLocked && (
+              <p className="text-xs text-amber-600 mt-1.5">
+                Currency is locked because this funnel already has price plans, order bumps, or physical products. Remove them first to change the currency.
+              </p>
+            )}
+          </div>
+
+          {isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("domainLabel")}</label>
+              <p className="text-xs text-gray-400 mb-2">
+                {t("domainHint")}{" "}
+                <a href="/settings" className="text-blue-600 hover:underline">{t("manageDomains")}</a>
+              </p>
+              <select
+                value={assignedDomainId}
+                onChange={(e) => setAssignedDomainId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">{t("noDomain")}</option>
+                {verifiedDomains.map((d) => (
+                  <option key={d.id} value={d.id}>{d.domain}</option>
+                ))}
+              </select>
+              {hasNoVerified && (
+                <p className="text-xs text-amber-600 mt-1.5">{t("noVerifiedDomains")}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </FormDrawer>
+  );
+}

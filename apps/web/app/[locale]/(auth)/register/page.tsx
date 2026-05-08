@@ -1,0 +1,116 @@
+"use client";
+
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Link } from "../../../../navigation";
+import { useTranslations } from "next-intl";
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const t = useTranslations("auth");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const form = new FormData(e.currentTarget);
+    const name = form.get("name") as string;
+    const email = form.get("email") as string;
+    const password = form.get("password") as string;
+    const workspaceName = form.get("workspaceName") as string;
+
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password, workspaceName }),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      setError(json.error ?? t("registrationFailed"));
+      setLoading(false);
+      return;
+    }
+
+    await signIn("credentials", { email, password, redirect: false });
+    router.push("/funnels");
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">{t("createAccount")}</h1>
+        <p className="text-gray-500 text-sm mb-6">{t("startBuilding")}</p>
+
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("fullName")}</label>
+            <input
+              type="text"
+              name="name"
+              required
+              placeholder="John Doe"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("email")}</label>
+            <input
+              type="email"
+              name="email"
+              required
+              placeholder="you@example.com"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("password")}</label>
+            <input
+              type="password"
+              name="password"
+              required
+              minLength={6}
+              placeholder={t("passwordMin")}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t("workspaceName")}</label>
+            <input
+              type="text"
+              name="workspaceName"
+              required
+              placeholder="My Business"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+          >
+            {loading ? t("creatingAccount") : t("createAccountBtn")}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-gray-500">
+          {t("alreadyHaveAccount")}{" "}
+          <Link href="/login" className="text-blue-600 hover:underline font-medium">
+            {t("signInLink")}
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}

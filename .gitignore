@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+.next
+dist
+build
+out
+*.tsbuildinfo
+
+# Turbo
+.turbo
+
+# Test coverage
+coverage
+
+# Prisma
+*.db
+*.db-journal
+
+# Env files — KHÔNG commit
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode
+.idea
+.cursor
+.continue
+
+# Docker volumes (nếu mount local)
+postgres_data
+redis_data
+
+# Local uploads — keep folder, ignore contents (production typically uses S3)
+apps/web/public/uploads/*
+!apps/web/public/uploads/.gitkeep
+
+# Personal Claude Code config + dev test fixtures
+.claude/
+scripts_test/

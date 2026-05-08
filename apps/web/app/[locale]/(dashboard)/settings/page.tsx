@@ -1,0 +1,91 @@
+import { auth } from "../../../../lib/auth";
+import { redirect } from "next/navigation";
+import { db } from "@launchtic/database";
+import SettingsClient from "../../../../components/settings/SettingsClient";
+import { decrypt } from "../../../../lib/crypto";
+import { ensureDefaultDomain } from "../../../../lib/domains/default-domain";
+
+export const metadata = { title: "Settings" };
+
+export default async function SettingsPage() {
+  const session = await auth();
+  if (!session) redirect("/login");
+
+  const workspaceId = (session as any).workspaceId as string | null;
+  if (!workspaceId) redirect("/login");
+
+  // Lazy-seed PAGES_DOMAIN as the workspace's default Domain on first visit.
+  await ensureDefaultDomain(workspaceId);
+
+  const [domains, settings, senderIdentities] = await Promise.all([
+    db.domain.findMany({
+      where: { workspaceId },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    }),
+    db.workspaceSettings.findUnique({ where: { workspaceId } }),
+    db.senderIdentity.findMany({
+      where: { workspaceId },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+      select: { id: true, name: true, email: true, isDefault: true },
+    }),
+  ]);
+
+  const stripe  = settings?.stripe  as any;
+  const paypal  = settings?.paypal  as any;
+  const smtp    = settings?.smtp    as any;
+  const storage = settings?.storage as any;
+
+  return (
+        <SettingsClient
+          domains={domains.map((d) => ({
+            id: d.id,
+            domain: d.domain,
+            verified: d.verified,
+            isDefault: d.isDefault,
+            createdAt: d.createdAt.toISOString(),
+          }))}
+          stripe={stripe ? {
+            publishableKey: stripe.publishableKey ?? "",
+            secretKey:      stripe.secretKey ?? "",
+            webhookSecret:  stripe.webhookSecret ?? null,
+            mode:           stripe.mode ?? "test",
+          } : null}
+          paypal={paypal ? {
+            clientId:     paypal.clientId ?? "",
+            clientSecret: paypal.clientSecret ?? "",
+            webhookId:    paypal.webhookId ?? null,
+            mode:         paypal.mode ?? "sandbox",
+          } : null}
+          smtp={smtp ? {
+            provider:      smtp.provider ?? "CUSTOM",
+            host:          smtp.host ?? "",
+            port:          smtp.port ?? 587,
+            username:      smtp.username ?? "",
+            password:      safeDecrypt(smtp.passwordEnc ?? ""),
+            maxPerDay:     smtp.maxPerDay     ?? 10000,
+            maxPerSecond:  smtp.maxPerSecond  ?? 1,
+            maxConcurrent: smtp.maxConcurrent ?? 1,
+          } : null}
+          storage={storage ? {
+            driver:    storage.driver ?? "local",
+            endpoint:  storage.endpoint  ?? "",
+            region:    storage.region    ?? "",
+            bucket:    storage.bucket    ?? "",
+            accessKey: storage.accessKey ?? "",
+            secretKey: storage.secretKeyEnc ? maskKey(safeDecrypt(storage.secretKeyEnc)) : "",
+            publicUrl: storage.publicUrl  ?? "",
+          } : null}
+          senderIdentities={senderIdentities}
+        />
+  );
+}
+
+function maskKey(key: string): string {
+  if (!key || key.length <= 8) return "••••••••";
+  return key.slice(0, 8) + "••••••••" + key.slice(-4);
+}
+
+function safeDecrypt(enc: string): string {
+  if (!enc) return "";
+  try { return decrypt(enc); } catch { return ""; }
+}

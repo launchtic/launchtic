@@ -1,0 +1,115 @@
+services:
+  # ─── Apps ──────────────────────────────────────────────
+  web:
+    image: ghcr.io/techfago/launchtic-web:${LAUNCHTIC_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    # Only pass the canonical 2 domains. APP_URL / NEXTAUTH_URL /
+    # NEXT_PUBLIC_RENDERER_URL / RENDERER_URL are auto-derived from these by
+    # apps/web/lib/env-bootstrap.ts at startup.
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
+      REDIS_URL: redis://redis:6379
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      APP_DOMAIN: ${APP_DOMAIN}
+      PAGES_DOMAIN: ${PAGES_DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  renderer:
+    image: ghcr.io/techfago/launchtic-renderer:${LAUNCHTIC_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/renderer/Dockerfile
+    # WEB_API_URL points at the web service for the /uploads/* rewrite. Stripe
+    # / PayPal / SMTP credentials are read from the database, not env.
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
+      REDIS_URL: redis://redis:6379
+      WEB_API_URL: http://web:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: ghcr.io/techfago/launchtic-worker:${LAUNCHTIC_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    # APP_DOMAIN required so apps/worker/src/env-bootstrap.ts can derive
+    # APP_URL — otherwise outgoing emails embed localhost unsubscribe URLs.
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
+      REDIS_URL: redis://redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      APP_DOMAIN: ${APP_DOMAIN}
+      PAGES_DOMAIN: ${PAGES_DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Reverse Proxy + SSL ────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"    # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # SSL certs — persist qua restart
+      - caddy_config:/config
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      PAGES_DOMAIN: ${PAGES_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    depends_on:
+      - web
+      - renderer
+    restart: unless-stopped
+
+  # ─── Infrastructure ─────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: launchtic
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:      # SSL certs
+  caddy_config:

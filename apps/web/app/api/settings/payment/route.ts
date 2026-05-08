@@ -1,0 +1,76 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { db } from "@launchtic/database";
+import { ok, err, getWorkspaceId } from "../../../../lib/api";
+
+const stripeSchema = z.object({
+  provider:       z.literal("stripe"),
+  publishableKey: z.string().min(1),
+  secretKey:      z.string().min(1),
+  webhookSecret:  z.string().optional().refine(
+    (v) => !v || v.startsWith("whsec_"),
+    "Must start with whsec_",
+  ),
+  mode:           z.enum(["test", "live"]).default("test"),
+});
+
+const paypalSchema = z.object({
+  provider:     z.literal("paypal"),
+  clientId:     z.string().min(1),
+  clientSecret: z.string().min(1),
+  webhookId:    z.string().optional(),
+  mode:         z.enum(["sandbox", "live"]).default("sandbox"),
+});
+
+const bodySchema = z.discriminatedUnion("provider", [stripeSchema, paypalSchema]);
+
+export async function GET() {
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) return err("Unauthorized", 401);
+
+    const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
+    const stripe = settings?.stripe as any;
+    const paypal = settings?.paypal as any;
+
+    // Return real values — UI hides them behind a reveal toggle.
+    return ok({
+      stripe: stripe ? {
+        publishableKey: stripe.publishableKey ?? "",
+        secretKey:      stripe.secretKey ?? "",
+        webhookSecret:  stripe.webhookSecret ?? null,
+        mode:           stripe.mode ?? "test",
+      } : null,
+      paypal: paypal ? {
+        clientId:     paypal.clientId ?? "",
+        clientSecret: paypal.clientSecret ?? "",
+        webhookId:    paypal.webhookId ?? null,
+        mode:         paypal.mode ?? "sandbox",
+      } : null,
+    });
+  } catch (error) {
+    console.error(error);
+    return err("Failed to load payment config", 500);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) return err("Unauthorized", 401);
+
+    const body = bodySchema.parse(await req.json());
+    const { provider, ...data } = body;
+
+    await db.workspaceSettings.upsert({
+      where:  { workspaceId },
+      create: { workspaceId, [provider]: data },
+      update: { [provider]: data },
+    });
+
+    return ok({ provider });
+  } catch (error) {
+    console.error(error);
+    return err("Failed to save payment config", 500);
+  }
+}

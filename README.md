@@ -1,0 +1,94 @@
+# Launchtic
+
+> Fair-code funnel builder with native AI capabilities. Build landing pages, sales funnels, and email campaigns visually — self-host or cloud. The open alternative to ClickFunnels, GoHighLevel, and System.io.
+
+[![License: SUL](https://img.shields.io/badge/license-SUL-blue.svg)](LICENSE.md)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)]()
+
+Launchtic combines a drag-and-drop page builder with payment processing, email automation, and AI-assisted copywriting in a single self-hosted platform. Run it on your own server, your own domain, your own data — no monthly SaaS fees, no per-contact pricing, no vendor lock-in.
+
+## Features
+
+- **Drag-and-drop page builder** — Craft.js based editor with desktop + mobile breakpoints
+- **Funnel flow** — Opt-in → Sales → Checkout → Thank You with custom domains per funnel
+- **Payments** — Stripe + PayPal, one-time + subscription, order bumps
+- **Email** — broadcasts, automated sequences, behavior-triggered automations
+- **AI assistant** — generate funnel copy from a brief; auto-fill template slots
+- **Templates library** — multi-tier tagged templates per page type
+- **Self-host friendly** — single Docker Compose, auto SSL via Caddy
+
+## Quick start
+
+One-line install on a fresh Ubuntu/Debian VPS (Docker required):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechFago/launchtic/main/install.sh | bash
+```
+
+You'll be asked for two domains (e.g. `app.example.com` for the dashboard, `pages.example.com` for public funnel pages). Caddy issues SSL certs automatically.
+
+## Tech stack
+
+- **Frontend**: Next.js 15, React 19, styled-components, Craft.js, TipTap
+- **Backend**: Next.js API routes, Prisma ORM, PostgreSQL, Redis
+- **Workers**: BullMQ (email + automations + sequences)
+- **Infrastructure**: Docker Compose, Caddy reverse proxy
+- **AI**: OpenAI / Anthropic / Gemini (per-workspace configurable)
+- **Languages**: English / Vietnamese / German / Japanese UI
+
+## Local development
+
+```bash
+git clone https://github.com/TechFago/launchtic.git
+cd launchtic
+
+# Install
+pnpm install
+
+# Start Postgres + Redis in Docker
+pnpm infra:up
+
+# Setup database
+cp .env.example .env
+pnpm db:migrate
+pnpm db:seed
+
+# Run all apps
+pnpm dev:all
+```
+
+Dashboard: http://localhost:3000 · Renderer: http://localhost:3001
+
+## License
+
+Source-available under the **[Sustainable Use License](LICENSE.md)**.
+
+You **may**:
+- Self-host Launchtic for your own company's internal use — for any size company.
+- Modify the source for your own use.
+- Use it personally or for non-commercial projects.
+
+You **may not** (without a separate commercial license):
+- Run Launchtic as a hosted SaaS that you charge third parties to use.
+- Rebrand and sell it as your own product.
+
+For commercial licensing, OEM, or partnership inquiries: **hello@launchtic.com**.
+
+## Roadmap
+
+- [x] Page editor + funnel flow
+- [x] Stripe + PayPal checkout
+- [x] Email broadcasts + automations
+- [x] AI copy assistant
+- [x] Multi-language UI
+- [ ] One-click installer (alpha)
+- [ ] Cloud-hosted version
+- [ ] Marketplace for templates / blocks
+
+## Trademark
+
+"Launchtic" and the Launchtic logo are trademarks of **TechFago LLC**. The Sustainable Use License does not grant trademark rights — see [LICENSE.md](LICENSE.md) for details.
+
+---
+
+Made with care by [TechFago LLC](https://launchtic.com).

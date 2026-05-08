@@ -1,0 +1,119 @@
+"use client";
+
+import React, { useMemo, useEffect } from "react";
+import { Editor, Frame, Element } from "@craftjs/core";
+
+import {
+  Page, Section, Row, Column, Text, Headline, Button, Image, Icon, Video,
+  BulletedList, Field, Checkbox, FAQ, Menu, Countdown,
+  PaymentButton, PaymentMethod, OfferPrice, Coupon, OrderBump, PhysicalProduct,
+  AppProvider, useAppContext, getValidCraftContent,
+} from "@launchtic/elements";
+
+import { EditorProvider, useEditorContext } from "../../contexts/EditorContext";
+import CustomEventHandlers from "./handlers/CustomEventHandlers";
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+import {
+  LayoutUi, ContentUi, PageUi, PageWrapper, BodyUI, DeviceWorkAreaUi, MobilePhoneUi,
+} from "./common/EditorUI";
+
+type Props = { templateId: string };
+
+function injectWindowData(templateId: string, pageJson: string, stepType: string = "OPTIN") {
+  (window as any).data = {
+    pageRender: false,
+    pageData: { code: templateId, content: pageJson, type: "page", stepType, meta: null },
+    saveUrl:        `/api/page-templates/${templateId}`,
+    uploadImageUrl: `/api/media/upload`,
+    deleteImageUrl: `/api/media/delete`,
+    getImagesUrl:   `/api/media`,
+    csrfToken: "",
+    payment: undefined,
+    previewUrl: "",
+    backUrl: "/settings?tab=page-templates",
+  };
+}
+
+const EditorInner: React.FC = () => {
+  const appContext = useAppContext();
+  const { viewMode, isSidebarCollapsed } = appContext;
+  const { isLoading, pageData, hasUnsavedChanges, markAsChanged } = useEditorContext();
+
+  const resolver = useMemo(() => ({
+    OrderBump, PhysicalProduct, Field, Checkbox, Text, Button, Headline,
+    BulletedList, Image, Icon, Video, Section, Row, Column,
+    Page, FAQ, Menu, Countdown, PaymentButton, PaymentMethod, Coupon, OfferPrice,
+  }), []);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasUnsavedChanges]);
+
+  if (isLoading) {
+    return <div style={{ display:"flex", justifyContent:"center", alignItems:"center", height:"100vh", color:"#666" }}>Loading...</div>;
+  }
+
+  return (
+    <Editor
+      handlers={(store) => new CustomEventHandlers({ store, isMultiSelectEnabled: () => false, removeHoverOnMouseleave: true }, appContext)}
+      enabled={true}
+      resolver={resolver}
+      onNodesChange={markAsChanged}
+    >
+      <LayoutUi $isSidebarCollapsed={isSidebarCollapsed}>
+        <Header />
+        <Sidebar />
+        <ContentUi>
+          <MobilePhoneUi $viewMode={viewMode}>
+            <DeviceWorkAreaUi $viewMode={viewMode}>
+              <PageUi>
+                <PageWrapper>
+                  <BodyUI $viewMode={viewMode}>
+                    <Frame data={getValidCraftContent(pageData.content)}>
+                      <Element is={Page} canvas />
+                    </Frame>
+                  </BodyUI>
+                </PageWrapper>
+              </PageUi>
+            </DeviceWorkAreaUi>
+          </MobilePhoneUi>
+        </ContentUi>
+      </LayoutUi>
+    </Editor>
+  );
+};
+
+export default function PageTemplateEditorApp({ templateId }: Props) {
+  const [ready, setReady] = React.useState(false);
+
+  useEffect(() => {
+    fetch(`/api/page-templates/${templateId}`)
+      .then((r) => r.json())
+      .then((res) => {
+        const template = res.data ?? res;
+        const pageJson = typeof template.pageJson === "string"
+          ? template.pageJson
+          : JSON.stringify(template.pageJson ?? {});
+        injectWindowData(templateId, pageJson, template.type ?? "OPTIN");
+        setReady(true);
+      })
+      .catch(() => { injectWindowData(templateId, "", "OPTIN"); setReady(true); });
+  }, [templateId]);
+
+  if (!ready) {
+    return <div style={{ display:"flex", justifyContent:"center", alignItems:"center", height:"100vh", color:"#666" }}>...</div>;
+  }
+
+  return (
+    <EditorProvider>
+      <AppProvider>
+        <EditorInner />
+      </AppProvider>
+    </EditorProvider>
+  );
+}

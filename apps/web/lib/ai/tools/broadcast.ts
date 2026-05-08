@@ -1,0 +1,431 @@
+// Broadcast tools — list, create from spec, update DRAFT, cancel SCHEDULED.
+// Note: actual queue dispatch is handled by /api/broadcasts/[id]/send.
+// AI tool only creates the DB row; operator clicks Send/Schedule in UI.
+
+import { z } from "zod";
+import { db } from "@launchtic/database";
+import { defineTool } from "./define";
+import { findOrCreateTag, getDefaultSender, richBodyToMailyDoc, textToMailyDoc, type RichEmailBody } from "./helpers";
+import { broadcastQueue, dispatchJobId } from "../../queue";
+
+const MIN_LEAD_TIME_MS = 10 * 60_000;
+
+// Buffer added to MIN_LEAD_TIME for the auto-bump path. Keeps us safely
+// above the queue tick threshold even if the request takes a few seconds.
+const AUTO_BUMP_BUFFER_MS = 60_000;
+
+// Resolve user's requested scheduledAt into a final datetime that satisfies
+// the queue's minimum lead time. If the request is too close to "now", we
+// gently push it forward to (now + min lead + buffer) instead of throwing —
+// matches user intent ("send soon") + keeps queue happy. Returns the final
+// datetime + a flag indicating whether we bumped.
+function resolveScheduledAt(requested: Date, now: Date): { final: Date; bumped: boolean } {
+  const minAllowed = new Date(now.getTime() + MIN_LEAD_TIME_MS);
+  if (requested.getTime() < minAllowed.getTime()) {
+    return { final: new Date(now.getTime() + MIN_LEAD_TIME_MS + AUTO_BUMP_BUFFER_MS), bumped: true };
+  }
+  return { final: requested, bumped: false };
+}
+
+// Workspace must have SMTP configured before any SCHEDULED/immediate send —
+// otherwise worker picks up the job and fails the whole batch. Mirrors check
+// in /api/broadcasts/[id]/send route.
+async function ensureSmtpConfigured(workspaceId: string) {
+  const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
+  const smtp = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
+  if (!smtp?.host || !smtp?.passwordEnc) {
+    throw new Error("SMTP not configured. Configure it in Settings → SMTP first.");
+  }
+}
+
+// Validate scheduledAt + enqueue dispatch job. Removes any prior job for this
+// broadcast (idempotent re-schedule). Updates DB to status=SCHEDULED.
+async function scheduleBroadcastDispatch(opts: {
+  broadcastId: string;
+  workspaceId: string;
+  scheduledAt: Date;
+}) {
+  const delay = opts.scheduledAt.getTime() - Date.now();
+  if (delay < MIN_LEAD_TIME_MS) {
+    throw new Error("scheduledAt must be at least 10 minutes in the future.");
+  }
+  const queue = broadcastQueue();
+  const jobId = dispatchJobId(opts.broadcastId);
+  // Remove prior job (idempotent — no-op if none exists)
+  try { await queue.remove(jobId); } catch {}
+  await queue.add(
+    "dispatch",
+    { broadcastId: opts.broadcastId, workspaceId: opts.workspaceId },
+    { jobId, delay },
+  );
+}
+
+// Body schema — accepts EITHER a plain string OR a rich structured object.
+// Why both: LLMs occasionally fall back to string ("Hi name,\n\nText...")
+// even when schema asks for object — likely from training-data prior. Rather
+// than reject and force a retry (slow + token-burning), accept both shapes
+// and route to the appropriate maily converter.
+//
+// Recommended shape (for polished output): the object form. Plain string
+// renders as bare paragraphs only — no heading, no button.
+const richBodySchema = z.union([
+  z.string().describe("Plain text fallback. Paragraphs separated by blank lines. Renders as bare paragraphs only — prefer the object form for richer layout."),
+  z.object({
+    heading: z.string().optional().describe("Optional H2 heading — punchy, specific. E.g. 'Your Black Friday deals start now'."),
+    paragraphs: z.array(z.string()).min(1).describe("Body paragraphs in order. 2-4 short paragraphs. Variables like {{contact.firstName}} supported."),
+    cta: z.object({
+      text: z.string().describe("Button label, e.g. 'Shop now', 'Read more'."),
+      url:  z.string().default("#").describe("Click target. Use '#' if no specific URL."),
+    }).optional().describe("Optional CTA button after paragraphs. Include for promo/marketing emails."),
+    footer: z.string().optional().describe("Optional small footer text, centered."),
+  }),
+]).describe("Email body. Provide as object {heading, paragraphs, cta, footer} for rich layout, or plain string as fallback.");
+
+// Convert either body shape to Maily TipTap JSON. Unsubscribe footer is
+// NOT injected here — the worker render step handles it (single source of
+// truth, workspace footer config). See packages/email/src/render.ts.
+function bodyToMaily(body: string | RichEmailBody): string {
+  return typeof body === "string" ? textToMailyDoc(body) : richBodyToMailyDoc(body);
+}
+
+// ─── Reads ──────────────────────────────────────────────────────────────────
+
+// Best-effort extract of plain text + CTA from a Maily TipTap doc. Used by
+// get_broadcast_details so AI can SEE existing content before update_broadcast
+// (which is a full rewrite). Walks the doc tree picking out text nodes per
+// block. Output shape mirrors RichEmailBody so AI can edit-and-pass-back.
+function mailyDocToReadable(htmlBody: string): {
+  heading: string | null;
+  paragraphs: string[];
+  cta: { text: string; url: string } | null;
+  footer: string | null;
+} {
+  let doc: any;
+  try { doc = JSON.parse(htmlBody); } catch { return { heading: null, paragraphs: [], cta: null, footer: null }; }
+  const out = { heading: null as string | null, paragraphs: [] as string[], cta: null as any, footer: null as string | null };
+  const flat = (n: any): string => {
+    if (!n) return "";
+    if (typeof n.text === "string") return n.text;
+    if (Array.isArray(n.content)) return n.content.map(flat).join("");
+    return "";
+  };
+  for (const block of doc?.content ?? []) {
+    if (block.type === "heading") out.heading = flat(block).trim();
+    else if (block.type === "paragraph") {
+      const t = flat(block).trim();
+      if (t) out.paragraphs.push(t);
+    } else if (block.type === "button") {
+      out.cta = { text: block.attrs?.text ?? "", url: block.attrs?.url ?? "" };
+    } else if (block.type === "footer") {
+      // Body footer is now operator content only — unsubscribe is appended at
+      // worker render time, not stored in the DB. Surface as user content.
+      out.footer = flat(block).trim();
+    }
+  }
+  return out;
+}
+
+const listBroadcasts = defineTool({
+  name: "list_broadcasts",
+  description: "List recent email broadcasts with their status and stats.",
+  inputSchema: z.object({
+    status: z.enum(["DRAFT", "SCHEDULED", "SENDING", "SENT", "CANCELED"]).optional(),
+    limit:  z.number().int().min(1).max(30).default(10),
+  }),
+  requiresConfirm: false,
+  execute: async ({ status, limit }, ctx) => {
+    const broadcasts = await db.broadcast.findMany({
+      where: { workspaceId: ctx.workspaceId, ...(status && { status }) },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      select: {
+        id: true, name: true, subject: true, status: true,
+        scheduledAt: true, sentAt: true,
+        totalRecipients: true, sentCount: true, failedCount: true,
+      },
+    });
+    return {
+      count: broadcasts.length,
+      broadcasts: broadcasts.map((b) => ({
+        id: b.id,
+        name: b.name,
+        subject: b.subject,
+        status: b.status,
+        scheduledAt: b.scheduledAt?.toISOString() ?? null,
+        sentAt: b.sentAt?.toISOString() ?? null,
+        recipients: b.totalRecipients,
+        sent: b.sentCount,
+        failed: b.failedCount,
+      })),
+    };
+  },
+});
+
+const getBroadcastDetails = defineTool({
+  name: "get_broadcast_details",
+  description:
+    "Get full details of a single broadcast — name, subject, audience, schedule, AND parsed body content (heading, paragraphs, CTA, footer). " +
+    "Use BEFORE update_broadcast to see existing content, since update_broadcast REPLACES the body entirely. Without this, you'd accidentally wipe the user's content.",
+  inputSchema: z.object({
+    broadcastId: z.string().describe("Use list_broadcasts to find."),
+  }),
+  requiresConfirm: false,
+  execute: async ({ broadcastId }, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: broadcastId, workspaceId: ctx.workspaceId },
+      select: {
+        id: true, name: true, subject: true, status: true,
+        scheduledAt: true, sentAt: true,
+        fromName: true, fromEmail: true,
+        targetType: true, targetTagIds: true, excludeUnsubscribed: true,
+        totalRecipients: true, sentCount: true, failedCount: true,
+        htmlBody: true,
+      },
+    });
+    if (!b) return { error: "Broadcast not found" };
+
+    // Resolve tag names for TAG audience so AI can refer to them by name
+    const tagNames = b.targetType === "TAG" && b.targetTagIds.length > 0
+      ? (await db.tag.findMany({
+          where: { id: { in: b.targetTagIds }, workspaceId: ctx.workspaceId },
+          select: { name: true },
+        })).map((t) => t.name)
+      : [];
+
+    return {
+      id: b.id,
+      name: b.name,
+      subject: b.subject,
+      status: b.status,
+      scheduledAt: b.scheduledAt?.toISOString() ?? null,
+      sentAt: b.sentAt?.toISOString() ?? null,
+      from: `${b.fromName} <${b.fromEmail}>`,
+      audience: {
+        type: b.targetType,
+        tagNames,
+        excludeUnsubscribed: b.excludeUnsubscribed,
+      },
+      stats: { recipients: b.totalRecipients, sent: b.sentCount, failed: b.failedCount },
+      body: mailyDocToReadable(b.htmlBody),
+    };
+  },
+});
+
+// ─── Writes ─────────────────────────────────────────────────────────────────
+
+const createBroadcastFromSpec = defineTool({
+  name: "create_broadcast_from_spec",
+  description:
+    "Create a one-off email broadcast (newsletter blast, promo, announcement). " +
+    "Body is structured (heading + paragraphs + optional CTA button + footer) so the email looks polished, not bare text. " +
+    "Use scheduledAt for future sends (must be ≥10 minutes in the future). Omit scheduledAt to leave as DRAFT.",
+  inputSchema: z.object({
+    name:    z.string().min(1).describe("Internal name for the broadcast (not shown to recipients)."),
+    subject: z.string().min(1).describe("Email subject line. Keep punchy — first 50 chars matter most for opens."),
+    body:    richBodySchema,
+    audience: z.object({
+      type: z.enum(["ALL_CONTACTS", "TAG"]).default("ALL_CONTACTS").describe("ALL_CONTACTS = entire workspace. TAG = only contacts with specified tags."),
+      tagNames: z.array(z.string()).optional().describe("Required if type=TAG. Auto-created if missing."),
+      excludeUnsubscribed: z.boolean().default(true).describe("Skip contacts who unsubscribed (recommended)."),
+    }),
+    scheduledAt: z.string().datetime().optional().describe("ISO 8601 datetime. Must be ≥10 minutes in future. Omit for DRAFT (operator schedules later)."),
+  }),
+  requiresConfirm: true,
+  summary: (a) => {
+    const aud = a.audience.type === "ALL_CONTACTS"
+      ? "all contacts"
+      : `tag(s) ${(a.audience.tagNames ?? []).map((t) => `"${t}"`).join(", ")}`;
+    const when = a.scheduledAt ? `scheduled for ${new Date(a.scheduledAt).toLocaleString()}` : "as DRAFT";
+    return `Create broadcast "${a.name}" → ${aud}, ${when}`;
+  },
+  execute: async (args, ctx) => {
+    const sender = await getDefaultSender(ctx);
+
+    const targetTagIds: string[] = [];
+    if (args.audience.type === "TAG") {
+      for (const tagName of args.audience.tagNames ?? []) {
+        const id = await findOrCreateTag(tagName, ctx);
+        targetTagIds.push(id);
+      }
+      if (targetTagIds.length === 0) throw new Error("TAG audience requires at least one tag");
+    }
+
+    // Validate scheduledAt + SMTP BEFORE creating row, so we don't leave
+    // orphan SCHEDULED rows when the queue enqueue fails.
+    let scheduledAt: Date | null = null;
+    let status: "DRAFT" | "SCHEDULED" = "DRAFT";
+    let scheduleBumped = false;
+    if (args.scheduledAt) {
+      const requested = new Date(args.scheduledAt);
+      const resolved = resolveScheduledAt(requested, new Date());
+      scheduledAt = resolved.final;
+      scheduleBumped = resolved.bumped;
+      status = "SCHEDULED";
+      await ensureSmtpConfigured(ctx.workspaceId);
+    }
+
+    const broadcast = await db.broadcast.create({
+      data: {
+        workspaceId: ctx.workspaceId,
+        name: args.name,
+        subject: args.subject,
+        htmlBody: bodyToMaily(args.body),
+        fromName: sender.name,
+        fromEmail: sender.email,
+        status,
+        scheduledAt,
+        targetType: args.audience.type,
+        targetTagIds,
+        excludeUnsubscribed: args.audience.excludeUnsubscribed ?? true,
+      },
+    });
+
+    // Enqueue dispatch job AFTER row exists. If this fails the row stays as
+    // SCHEDULED in DB but no job — operator can re-trigger Send in UI.
+    if (status === "SCHEDULED" && scheduledAt) {
+      await scheduleBroadcastDispatch({
+        broadcastId: broadcast.id,
+        workspaceId: ctx.workspaceId,
+        scheduledAt,
+      });
+    }
+
+    return {
+      broadcastId: broadcast.id,
+      name: broadcast.name,
+      status: broadcast.status,
+      scheduledAt: scheduledAt?.toISOString() ?? null,
+      scheduleBumped,
+      message: status === "SCHEDULED"
+        ? `Broadcast SCHEDULED${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/emails/broadcasts/${broadcast.id}) if you want to review.`
+        : `Broadcast saved as DRAFT. [Open in editor](/emails/broadcasts/${broadcast.id}) to review and schedule.`,
+    };
+  },
+});
+
+const updateBroadcast = defineTool({
+  name: "update_broadcast",
+  description:
+    "Update fields on an existing broadcast. Allowed when status = DRAFT or SCHEDULED (locked once SENDING/SENT/CANCELED/FAILED). " +
+    "Body update REPLACES the existing content (full rewrite). " +
+    "Pass scheduledAt to (re-)schedule: the prior queued job is removed and a new one enqueued. Must be ≥10 minutes in the future.",
+  inputSchema: z.object({
+    broadcastId: z.string().describe("Use list_broadcasts to find."),
+    name:        z.string().optional(),
+    subject:     z.string().optional(),
+    body:        richBodySchema.optional().describe("Replaces existing body entirely. Provide all paragraphs you want — old content is wiped."),
+    scheduledAt: z.string().datetime().optional().describe("ISO 8601 UTC. Must be ≥10 min in future. Promotes DRAFT → SCHEDULED (or reschedules a SCHEDULED broadcast)."),
+  }),
+  requiresConfirm: true,
+  summary: async (a, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: a.broadcastId, workspaceId: ctx.workspaceId },
+      select: { name: true, status: true },
+    });
+    if (!b) return `Update broadcast ${a.broadcastId}`;
+    const fields = [
+      a.name && "name",
+      a.subject && "subject",
+      a.body && "body",
+      a.scheduledAt && `schedule → ${new Date(a.scheduledAt).toLocaleString()}`,
+    ].filter(Boolean).join(", ");
+    return `Update broadcast "${b.name}" (${fields || "no fields"})`;
+  },
+  execute: async (args, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: args.broadcastId, workspaceId: ctx.workspaceId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!b) throw new Error("Broadcast not found");
+    if (b.status !== "DRAFT" && b.status !== "SCHEDULED") {
+      throw new Error(`Cannot edit broadcast with status ${b.status}.`);
+    }
+
+    const data: Record<string, unknown> = {};
+    if (args.name)    data.name = args.name;
+    if (args.subject) data.subject = args.subject;
+    if (args.body)    data.htmlBody = bodyToMaily(args.body);
+
+    // Reschedule: validate + check SMTP BEFORE writing DB. Auto-bump if
+    // requested time is within MIN_LEAD_TIME (consistent with create flow).
+    let newScheduledAt: Date | null = null;
+    let scheduleBumped = false;
+    if (args.scheduledAt) {
+      const requested = new Date(args.scheduledAt);
+      const resolved = resolveScheduledAt(requested, new Date());
+      newScheduledAt = resolved.final;
+      scheduleBumped = resolved.bumped;
+      await ensureSmtpConfigured(ctx.workspaceId);
+      data.scheduledAt = newScheduledAt;
+      data.status = "SCHEDULED";
+    }
+
+    const updated = await db.broadcast.update({ where: { id: b.id }, data });
+
+    if (newScheduledAt) {
+      await scheduleBroadcastDispatch({
+        broadcastId: updated.id,
+        workspaceId: ctx.workspaceId,
+        scheduledAt: newScheduledAt,
+      });
+    }
+
+    return {
+      broadcastId: updated.id,
+      name: updated.name,
+      updatedFields: Object.keys(data),
+      scheduledAt: newScheduledAt?.toISOString() ?? null,
+      scheduleBumped,
+      message: newScheduledAt
+        ? `Broadcast updated and rescheduled${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/emails/broadcasts/${updated.id})`
+        : `Broadcast updated. [Open in editor](/emails/broadcasts/${updated.id})`,
+    };
+  },
+});
+
+const cancelBroadcast = defineTool({
+  name: "cancel_broadcast",
+  description: "Cancel a SCHEDULED broadcast and return it to DRAFT (so operator can edit and re-schedule). For SENT broadcasts, this does nothing.",
+  inputSchema: z.object({
+    broadcastId: z.string(),
+  }),
+  requiresConfirm: true,
+  summary: async (a, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: a.broadcastId, workspaceId: ctx.workspaceId },
+      select: { name: true, status: true },
+    });
+    if (!b) return `Cancel broadcast ${a.broadcastId}`;
+    return `Cancel broadcast "${b.name}" (return to DRAFT)`;
+  },
+  execute: async (args, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: args.broadcastId, workspaceId: ctx.workspaceId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!b) throw new Error("Broadcast not found");
+    if (b.status !== "SCHEDULED") {
+      throw new Error(`Cannot cancel broadcast with status ${b.status}. Only SCHEDULED broadcasts can be canceled.`);
+    }
+    // Remove the queued dispatch job FIRST. If we update DB first then queue
+    // remove fails, the broadcast still fires from queue but DB says DRAFT
+    // — confusing inconsistency. Try queue remove first; if it fails, the
+    // job-id-based remove is idempotent and the worker will skip if it sees
+    // status != SCHEDULED at fire time anyway.
+    try { await broadcastQueue().remove(dispatchJobId(b.id)); } catch {}
+
+    const updated = await db.broadcast.update({
+      where: { id: b.id },
+      data: { status: "DRAFT", scheduledAt: null },
+    });
+    return { broadcastId: updated.id, name: updated.name, newStatus: "DRAFT" };
+  },
+});
+
+export const broadcastTools = [
+  listBroadcasts,
+  getBroadcastDetails,
+  createBroadcastFromSpec,
+  updateBroadcast,
+  cancelBroadcast,
+];

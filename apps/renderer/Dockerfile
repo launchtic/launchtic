@@ -1,0 +1,34 @@
+FROM node:20-alpine AS base
+RUN corepack enable
+
+# ─── Stage 1: Install dependencies ───────────────────────────────────────────
+FROM base AS deps
+WORKDIR /app
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/database/package.json packages/database/
+COPY packages/elements/package.json packages/elements/
+COPY packages/types/package.json packages/types/
+COPY apps/renderer/package.json apps/renderer/
+RUN pnpm install --frozen-lockfile --filter=@launchtic/renderer...
+
+# ─── Stage 2: Build ───────────────────────────────────────────────────────────
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app .
+COPY . .
+RUN npx --yes prisma@6.7.0 generate --schema=packages/database/prisma/schema.prisma
+RUN pnpm --filter=@launchtic/renderer build
+
+# ─── Stage 3: Production runner ──────────────────────────────────────────────
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/apps/renderer/.next/standalone ./
+COPY --from=builder /app/apps/renderer/.next/static ./apps/renderer/.next/static
+COPY --from=builder /app/apps/renderer/public ./apps/renderer/public
+
+EXPOSE 3001
+ENV PORT=3001
+ENV HOSTNAME="0.0.0.0"
+CMD ["node", "server.js"]

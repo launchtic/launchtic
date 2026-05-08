@@ -1,0 +1,56 @@
+{
+  "name": "launchtic",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fair-code funnel builder with native AI capabilities. Build landing pages, sales funnels, and email campaigns visually — self-host or cloud. The open alternative to ClickFunnels, GoHighLevel, and System.io.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "homepage": "https://launchtic.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TechFago/launchtic.git"
+  },
+  "author": {
+    "name": "TechFago LLC",
+    "email": "hello@launchtic.com",
+    "url": "https://launchtic.com"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev":            "turbo run dev --filter=@launchtic/web --filter=@launchtic/renderer",
+    "dev:web":        "turbo run dev --filter=@launchtic/web",
+    "dev:renderer":   "turbo run dev --filter=@launchtic/renderer",
+    "dev:worker":     "turbo run dev --filter=@launchtic/worker",
+    "dev:all":        "turbo run dev",
+    "infra:up":       "docker compose -f docker-compose.dev.yml up -d",
+    "infra:down":     "docker compose -f docker-compose.dev.yml down",
+    "infra:logs":     "docker compose -f docker-compose.dev.yml logs -f",
+    "build":          "turbo run build",
+    "lint":           "turbo run lint",
+    "typecheck":      "turbo run typecheck",
+    "verify":         "pnpm typecheck && pnpm build",
+    "db:migrate":     "pnpm --filter=@launchtic/database db:migrate",
+    "db:migrate:prod":"pnpm --filter=@launchtic/database db:migrate:prod",
+    "db:generate":    "pnpm --filter=@launchtic/database db:generate",
+    "db:studio":      "pnpm --filter=@launchtic/database db:studio",
+    "db:seed":        "pnpm --filter=@launchtic/database db:seed",
+    "db:reset":       "pnpm --filter=@launchtic/database db:reset"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "msgpackr-extract",
+      "sharp"
+    ],
+    "overrides": {
+      "@tiptap/pm": "2.27.2"
+    }
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3",
+    "@types/node": "^22.15.3"
+  }
+}

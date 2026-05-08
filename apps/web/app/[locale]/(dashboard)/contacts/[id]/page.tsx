@@ -1,0 +1,98 @@
+import { auth } from "../../../../../lib/auth";
+import { redirect, notFound } from "next/navigation";
+import { db } from "@launchtic/database";
+import ContactDetail from "../../../../../components/contacts/ContactDetail";
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function generateMetadata({ params }: Params) {
+  const { id } = await params;
+  const contact = await db.contact.findUnique({
+    where: { id },
+    select: { email: true, firstName: true, lastName: true },
+  });
+  if (!contact) return { title: "Contact" };
+  const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
+  return { title: fullName || contact.email };
+}
+
+export default async function ContactDetailPage({ params }: Params) {
+  const session = await auth();
+  if (!session) redirect("/login");
+
+  const { id } = await params;
+  const workspaceId = (session as any).workspaceId as string | null;
+  if (!workspaceId) redirect("/login");
+
+  const [contact, tags, enrollments] = await Promise.all([
+    db.contact.findFirst({
+      where: { id, workspaceId },
+      include: {
+        tags: { include: { tag: true }, orderBy: { addedAt: "desc" } },
+        events: { orderBy: { createdAt: "desc" }, take: 50 },
+        _count: { select: { orders: true } },
+      },
+    }),
+    db.tag.findMany({ where: { workspaceId }, orderBy: { name: "asc" } }),
+    db.contactSequenceEnrollment.findMany({
+      where: { contactId: id, workspaceId },
+      orderBy: { enrolledAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        status: true,
+        currentStepIndex: true,
+        nextSendAt: true,
+        enrolledAt: true,
+        completedAt: true,
+        exitReason: true,
+        sequence: {
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { steps: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  if (!contact) notFound();
+
+  const serialized = {
+    id: contact.id,
+    email: contact.email,
+    firstName: contact.firstName,
+    lastName: contact.lastName,
+    phone: contact.phone,
+    country: contact.country,
+    createdAt: contact.createdAt.toISOString(),
+    tags: contact.tags.map((ct) => ({
+      addedAt: ct.addedAt.toISOString(),
+      tag: { id: ct.tag.id, name: ct.tag.name, color: ct.tag.color },
+    })),
+    events: contact.events.map((e) => ({
+      id: e.id,
+      type: e.type,
+      data: e.data as Record<string, string> | null,
+      createdAt: e.createdAt.toISOString(),
+    })),
+    _count: contact._count,
+  };
+
+  const serializedTags = tags.map((t) => ({ id: t.id, name: t.name, color: t.color }));
+
+  const serializedEnrollments = enrollments.map((e) => ({
+    id: e.id,
+    status: e.status,
+    currentStepIndex: e.currentStepIndex,
+    totalSteps: e.sequence._count.steps,
+    nextSendAt: e.nextSendAt.toISOString(),
+    enrolledAt: e.enrolledAt.toISOString(),
+    completedAt: e.completedAt?.toISOString() ?? null,
+    exitReason: e.exitReason,
+    sequence: { id: e.sequence.id, name: e.sequence.name },
+  }));
+
+  return <ContactDetail contact={serialized} allTags={serializedTags} enrollments={serializedEnrollments} />;
+}

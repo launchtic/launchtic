@@ -1,0 +1,411 @@
+{
+  "common": {
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "actions": "Actions",
+    "search": "Search",
+    "loading": "Loading...",
+    "noResults": "No results found",
+    "tryAdjusting": "Try adjusting your filters",
+    "of": "of",
+    "pagination": "{from}–{to} of {total}"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "last30days": "Last 30 days",
+    "revenue30d": "Revenue",
+    "orders30d": "Orders",
+    "newContacts30d": "New Contacts",
+    "activeSubscriptions": "Active Subscriptions",
+    "recentOrders": "Recent Orders",
+    "viewAll": "View all",
+    "noOrders": "No orders yet",
+    "quickLinks": {
+      "title": "Quick Links",
+      "funnels": "Funnels",
+      "orders": "Orders",
+      "contacts": "Contacts",
+      "subscriptions": "Subscriptions"
+    }
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "funnels": "Funnels",
+    "sales": "Sales",
+    "physicalProducts": "Physical Products",
+    "orders": "Orders",
+    "subscriptions": "Subscriptions",
+    "transactions": "Transactions",
+    "coupons": "Coupons",
+    "contacts": "Contacts",
+    "allContacts": "All contacts",
+    "tags": "Tags",
+    "emails": "Emails",
+    "emailTemplates": "Templates",
+    "broadcasts": "Broadcasts",
+    "emailLogs": "Email Logs",
+    "automations": "Automations",
+    "sequences": "Sequences",
+    "analytics": "Analytics",
+    "settings": "Settings",
+    "signOut": "Sign out",
+    "toggleMenu": "Toggle menu"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "signInToAccount": "Sign in to your account",
+    "email": "Email",
+    "password": "Password",
+    "signingIn": "Signing in…",
+    "signIn": "Sign in",
+    "noAccount": "Don't have an account?",
+    "createOne": "Create one",
+    "invalidCredentials": "Invalid email or password.",
+    "createAccount": "Create your account",
+    "startBuilding": "Start building your funnels today",
+    "fullName": "Full name",
+    "workspaceName": "Workspace name",
+    "passwordMin": "Min. 6 characters",
+    "creatingAccount": "Creating account…",
+    "createAccountBtn": "Create account",
+    "alreadyHaveAccount": "Already have an account?",
+    "signInLink": "Sign in",
+    "registrationFailed": "Registration failed."
+  },
+  "funnels": {
+    "title": "Funnels",
+    "searchPlaceholder": "Search funnels…",
+    "count": "{count, plural, one {# funnel} other {# funnels}}",
+    "newFunnel": "New Funnel",
+    "noFunnels": "No funnels found",
+    "noFunnelsHint": "Create your first funnel to start converting visitors",
+    "noFunnelsSearch": "Try adjusting your search",
+    "tabActive": "Active",
+    "tabTrash": "Trash",
+    "moveToTrashTitle": "Move \"{name}\" to trash?",
+    "moveToTrashDescription": "The live page will stop working. You can restore it later from the Trash tab.",
+    "moveToTrash": "Move to trash",
+    "restore": "Restore",
+    "deleteForeverTitle": "Permanently delete \"{name}\"?",
+    "deleteForeverDescription": "This will permanently delete the funnel and all its steps. This action cannot be undone.",
+    "deleteForever": "Delete forever",
+    "emptyTrash": "Trash is empty",
+    "emptyTrashHint": "Funnels you delete will appear here",
+    "col": {
+      "name": "Name",
+      "steps": "Steps",
+      "domain": "Domain",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "steps": "{count, plural, one {# step} other {# steps}}",
+    "form": {
+      "titleCreate": "New funnel",
+      "titleEdit": "Funnel settings",
+      "descriptionEdit": "Update funnel name, currency and domain",
+      "submitCreate": "Create funnel",
+      "submitEdit": "Save changes",
+      "nameLabel": "Funnel name",
+      "namePlaceholder": "e.g. Product Launch Funnel",
+      "goalLabel": "Funnel goal",
+      "willCreate": "Will create:",
+      "currencyLabel": "Currency",
+      "currencyHint": "Used for all checkout and price plan displays.",
+      "domainLabel": "Custom domain",
+      "domainHint": "Serve this funnel on a verified domain.",
+      "manageDomains": "Manage domains →",
+      "noDomain": "— No custom domain —",
+      "noVerifiedDomains": "No verified domains yet. Verify a domain in Settings first.",
+      "errorNameRequired": "Name is required",
+      "errorCreate": "Failed to create funnel",
+      "errorUpdate": "Failed to update funnel",
+      "errorLoad": "Failed to load",
+      "goal": {
+        "audience": { "label": "Build an audience", "description": "Collect leads and grow your email list" },
+        "sell": { "label": "Sell a product", "description": "Launch a product or service with checkout" },
+        "custom": { "label": "Custom", "description": "Start from scratch and add steps manually" }
+      }
+    }
+  },
+  "contacts": {
+    "title": "Contacts",
+    "totalContacts": "{count, plural, one {# contact} other {# contacts}}",
+    "searchPlaceholder": "Search by name or email…",
+    "allTags": "All tags",
+    "manageTags": "Manage tags",
+    "importCSV": "Import CSV",
+    "newContact": "New contact",
+    "noContacts": "No contacts found",
+    "noContactsHint": "Import a CSV or wait for opt-ins",
+    "noContactsSearch": "Try adjusting your filters",
+    "col": {
+      "nameEmail": "Name / Email",
+      "phone": "Phone",
+      "country": "Country",
+      "tags": "Tags",
+      "added": "Added",
+      "actions": "Actions"
+    },
+    "tags": {
+      "title": "Tags",
+      "count": "{count, plural, one {# tag} other {# tags}}",
+      "searchPlaceholder": "Search tags…",
+      "newTag": "New tag",
+      "noTags": "No tags found",
+      "noTagsHint": "Create a tag to organize your contacts",
+      "deleteTitle": "Delete \"{name}\"?",
+      "deleteDescription": "This will remove the tag from all contacts.",
+      "createTag": "Create tag",
+      "editTag": "Edit tag",
+      "tagName": "Tag name",
+      "tagColor": "Color",
+      "contacts": "{count, plural, one {# contact} other {# contacts}}",
+      "col": {
+        "tag": "Tag",
+        "contacts": "Contacts",
+        "actions": "Actions"
+      }
+    }
+  },
+  "orders": {
+    "title": "Orders",
+    "totalOrders": "{count, plural, one {# order} other {# orders}}",
+    "searchPlaceholder": "Search by contact or order ID…",
+    "allStatuses": "All statuses",
+    "allKinds": "All kinds",
+    "noOrders": "No orders found",
+    "noOrdersHint": "Orders will appear here once customers purchase",
+    "noOrdersSearch": "Try adjusting your filters",
+    "renewal": "Renewal",
+    "subscription": "Subscription",
+    "col": {
+      "order": "Order",
+      "contact": "Contact",
+      "funnel": "Funnel",
+      "status": "Status",
+      "amount": "Amount",
+      "date": "Date"
+    },
+    "status": {
+      "PAID": "Paid",
+      "TRIAL": "Trial",
+      "PENDING": "Pending",
+      "FAILED": "Failed",
+      "REFUNDED": "Refunded",
+      "CANCELED": "Canceled",
+      "CANCELLED": "Cancelled",
+      "DISPUTED": "Disputed"
+    },
+    "kind": {
+      "oneTime": "One-time",
+      "subscriptionInitial": "Subscription (initial)",
+      "renewal": "Renewal"
+    }
+  },
+  "subscriptions": {
+    "title": "Subscriptions",
+    "totalSubscriptions": "{count, plural, one {# subscription} other {# subscriptions}}",
+    "searchPlaceholder": "Search by contact or subscription ID…",
+    "allStatuses": "All statuses",
+    "noSubscriptions": "No subscriptions found",
+    "noSubscriptionsHint": "Subscriptions will appear here",
+    "noSubscriptionsSearch": "Try adjusting your filters",
+    "endsOn": "Ends {date}",
+    "col": {
+      "subscription": "Subscription",
+      "contact": "Contact",
+      "plan": "Plan",
+      "status": "Status",
+      "amount": "Amount",
+      "nextRenewal": "Next renewal"
+    },
+    "status": {
+      "ACTIVE": "Active",
+      "TRIALING": "Trial",
+      "PAST_DUE": "Past due",
+      "CANCELED": "Canceled",
+      "INCOMPLETE": "Incomplete"
+    }
+  },
+  "transactions": {
+    "title": "Transactions",
+    "totalTransactions": "{count, plural, one {# transaction} other {# transactions}}",
+    "searchPlaceholder": "Search by contact or reference…",
+    "allTypes": "All types",
+    "allStatuses": "All statuses",
+    "noTransactions": "No transactions found",
+    "noTransactionsHint": "Transactions will appear here once payments are processed",
+    "noTransactionsSearch": "Try adjusting your filters",
+    "col": {
+      "transaction": "Transaction",
+      "contact": "Contact",
+      "type": "Type",
+      "status": "Status",
+      "amount": "Amount",
+      "date": "Date"
+    },
+    "type": {
+      "SALE": "Sale",
+      "REFUND": "Refund",
+      "CHARGEBACK": "Chargeback",
+      "allTypes": "All types",
+      "sales": "Sales",
+      "refunds": "Refunds",
+      "chargebacks": "Chargebacks"
+    },
+    "status": {
+      "COMPLETED": "Completed",
+      "PENDING": "Pending",
+      "FAILED": "Failed"
+    }
+  },
+  "products": {
+    "title": "Physical Products",
+    "count": "{count, plural, one {# product} other {# products}}",
+    "searchPlaceholder": "Search by name or SKU…",
+    "newProduct": "New Product",
+    "noProducts": "No products found",
+    "noProductsHint": "Create your first product to use in your funnels",
+    "noProductsSearch": "Try adjusting your search",
+    "deleteTitle": "Delete \"{name}\"?",
+    "deleteDescription": "This will permanently delete the product.",
+    "variants": "{count, plural, one {# variant} other {# variants}}",
+    "col": {
+      "name": "Name",
+      "sku": "SKU",
+      "price": "Price",
+      "variants": "Variants",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "quickCreate": {
+      "title": "New physical product",
+      "description": "Quick create — finish details on the next screen",
+      "submitLabel": "Create product",
+      "nameLabel": "Product name",
+      "namePlaceholder": "e.g. Premium T-Shirt",
+      "currencyLabel": "Currency",
+      "errorNameRequired": "Name is required",
+      "errorCreate": "Failed to create product"
+    },
+    "edit": {
+      "titleFallback": "Edit product",
+      "description": "Physical product",
+      "submitLabel": "Save changes",
+      "errorLoad": "Failed to load product",
+      "errorSave": "Failed to save",
+      "tabs": {
+        "details": "Details",
+        "media": "Media",
+        "variants": "Variants"
+      },
+      "sections": {
+        "general": "General",
+        "pricing": "Pricing",
+        "inventory": "Inventory"
+      },
+      "fields": {
+        "name": "Name",
+        "description": "Description",
+        "sku": "SKU",
+        "weight": "Weight (g)",
+        "currency": "Currency",
+        "basePrice": "Base price"
+      },
+      "placeholders": {
+        "productName": "Product name",
+        "description": "Optional description",
+        "sku": "SKU",
+        "weight": "Weight in grams",
+        "stockLimit": "Stock limit"
+      },
+      "limitStock": "Limit stock for this product",
+      "uploadPrimary": "Upload primary image",
+      "addImage": "Add",
+      "variants": {
+        "hasOptions": "This product has options (size, color, etc.)",
+        "optionName": "Option name",
+        "optionNamePlaceholder": "e.g. Size",
+        "optionValues": "Option values",
+        "addAnotherValue": "Add another value",
+        "addAnotherOption": "Add another option",
+        "title": "Variants",
+        "hint": "Set image, SKU and price per variant.",
+        "selected": "{count} selected",
+        "delete": "Delete",
+        "regenerate": "Regenerate",
+        "generate": "Generate variants",
+        "colImage": "Image",
+        "colVariant": "Variant",
+        "colSku": "SKU",
+        "colPrice": "Price ({currency})"
+      }
+    }
+  },
+  "orderDetail": {
+    "breadcrumb": "Orders",
+    "title": "Order #{id}",
+    "partialRefund": "Partial refund: {amount}",
+    "created": "Created {date}",
+    "exportPdf": "Export PDF",
+    "refund": "Refund",
+    "sections": {
+      "item": "Item",
+      "financials": "Financials",
+      "contact": "Contact",
+      "funnel": "Funnel",
+      "shipping": "Shipping",
+      "metadata": "Metadata"
+    },
+    "financial": {
+      "unitPrice": "Unit Price",
+      "quantity": "Quantity ×{qty}",
+      "subtotal": "Subtotal",
+      "bump": "Bump: {name}",
+      "bumpShipping": "↳ Bump shipping",
+      "discount": "Discount",
+      "shipping": "Shipping",
+      "total": "Total",
+      "refunded": "Refunded",
+      "netAmount": "Net amount",
+      "lastRefund": "Last refund: {date}"
+    },
+    "meta": {
+      "variant": "Variant",
+      "providerId": "Provider ID",
+      "updated": "Updated"
+    },
+    "refundModal": {
+      "title": "Refund order",
+      "orderLabel": "Order:",
+      "totalPaid": "Total paid",
+      "alreadyRefunded": "Already refunded",
+      "remainingRefundable": "Remaining refundable",
+      "amountLabel": "Amount to refund",
+      "max": "Max: {amount}",
+      "amountError": "Amount must be between 0 and {max}",
+      "reasonLabel": "Reason",
+      "reasonOptional": "(optional)",
+      "reasonNotSpecified": "Not specified",
+      "reasonDuplicate": "Duplicate",
+      "reasonFraudulent": "Fraudulent",
+      "reasonCustomer": "Requested by customer",
+      "keepOrder": "Keep order",
+      "confirmRefund": "Confirm refund"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "nav": {
+      "customDomains": "Custom Domains",
+      "paymentSettings": "Payment Settings",
+      "smtpEmail": "SMTP / Email",
+      "storage": "Storage"
+    }
+  }
+}

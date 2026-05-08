@@ -1,0 +1,39 @@
+import { NextRequest } from "next/server";
+import { db } from "@launchtic/database";
+import { z } from "zod";
+import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+
+// POST /api/broadcasts/audience  — count recipients matching given targeting,
+// without saving. Used by composer UI to show "Send to X contacts" preview.
+
+const schema = z.object({
+  targetType: z.enum(["ALL_CONTACTS", "TAG"]),
+  targetTagIds: z.array(z.string()).default([]),
+  excludeUnsubscribed: z.boolean().default(true),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) return err("Unauthorized", 401);
+
+    const { targetType, targetTagIds, excludeUnsubscribed } = schema.parse(await req.json());
+
+    const where: any = { workspaceId };
+    if (excludeUnsubscribed) {
+      where.unsubscribedAt = null;
+      where.bouncedAt = null;
+    }
+    if (targetType === "TAG" && targetTagIds.length > 0) {
+      where.tags = { some: { tagId: { in: targetTagIds } } };
+    } else if (targetType === "TAG") {
+      // No tags selected → 0 recipients
+      return ok({ count: 0 });
+    }
+
+    const count = await db.contact.count({ where });
+    return ok({ count });
+  } catch (error) {
+    return handleError(error);
+  }
+}

@@ -1,0 +1,411 @@
+{
+  "common": {
+    "create": "作成",
+    "edit": "編集",
+    "delete": "削除",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "back": "戻る",
+    "actions": "アクション",
+    "search": "検索",
+    "loading": "読み込み中...",
+    "noResults": "結果が見つかりません",
+    "tryAdjusting": "フィルターを調整してください",
+    "of": "/",
+    "pagination": "{total}件中{from}～{to}件"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "last30days": "過去30日間",
+    "revenue30d": "売上",
+    "orders30d": "注文",
+    "newContacts30d": "新規連絡先",
+    "activeSubscriptions": "有効なサブスクリプション",
+    "recentOrders": "最近の注文",
+    "viewAll": "すべて表示",
+    "noOrders": "まだ注文はありません",
+    "quickLinks": {
+      "title": "クイックリンク",
+      "funnels": "ファネル",
+      "orders": "注文",
+      "contacts": "連絡先",
+      "subscriptions": "サブスクリプション"
+    }
+  },
+  "navigation": {
+    "dashboard": "ダッシュボード",
+    "funnels": "ファネル",
+    "sales": "売上",
+    "physicalProducts": "物理商品",
+    "orders": "注文",
+    "subscriptions": "サブスクリプション",
+    "transactions": "取引",
+    "coupons": "クーポン",
+    "contacts": "連絡先",
+    "allContacts": "すべての連絡先",
+    "tags": "タグ",
+    "emails": "メール",
+    "emailTemplates": "テンプレート",
+    "broadcasts": "ブロードキャスト",
+    "emailLogs": "メールログ",
+    "automations": "オートメーション",
+    "sequences": "シーケンス",
+    "analytics": "分析",
+    "settings": "設定",
+    "signOut": "サインアウト",
+    "toggleMenu": "メニュー切替"
+  },
+  "auth": {
+    "welcomeBack": "おかえりなさい",
+    "signInToAccount": "アカウントにサインイン",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "signingIn": "サインイン中…",
+    "signIn": "サインイン",
+    "noAccount": "アカウントをお持ちでないですか？",
+    "createOne": "作成する",
+    "invalidCredentials": "メールアドレスまたはパスワードが無効です。",
+    "createAccount": "アカウントを作成",
+    "startBuilding": "今すぐファネルを作成しましょう",
+    "fullName": "フルネーム",
+    "workspaceName": "ワークスペース名",
+    "passwordMin": "6文字以上",
+    "creatingAccount": "アカウント作成中…",
+    "createAccountBtn": "アカウントを作成",
+    "alreadyHaveAccount": "すでにアカウントをお持ちですか？",
+    "signInLink": "サインイン",
+    "registrationFailed": "登録に失敗しました。"
+  },
+  "funnels": {
+    "title": "ファネル",
+    "searchPlaceholder": "ファネルを検索…",
+    "count": "{count}件のファネル",
+    "newFunnel": "新規ファネル",
+    "noFunnels": "ファネルが見つかりません",
+    "noFunnelsHint": "最初のファネルを作成してください",
+    "noFunnelsSearch": "検索を調整してください",
+    "tabActive": "アクティブ",
+    "tabTrash": "ゴミ箱",
+    "moveToTrashTitle": "「{name}」をゴミ箱に移動しますか？",
+    "moveToTrashDescription": "公開ページは表示されなくなります。ゴミ箱タブから復元できます。",
+    "moveToTrash": "ゴミ箱に移動",
+    "restore": "復元",
+    "deleteForeverTitle": "「{name}」を完全に削除しますか？",
+    "deleteForeverDescription": "このファネルとすべてのステップが完全に削除されます。この操作は取り消せません。",
+    "deleteForever": "完全に削除",
+    "emptyTrash": "ゴミ箱は空です",
+    "emptyTrashHint": "削除したファネルはここに表示されます",
+    "col": {
+      "name": "名前",
+      "steps": "ステップ",
+      "domain": "ドメイン",
+      "created": "作成日",
+      "actions": "アクション"
+    },
+    "steps": "{count}ステップ",
+    "form": {
+      "titleCreate": "新規ファネル",
+      "titleEdit": "ファネル設定",
+      "descriptionEdit": "ファネル名、通貨、ドメインを更新",
+      "submitCreate": "ファネルを作成",
+      "submitEdit": "変更を保存",
+      "nameLabel": "ファネル名",
+      "namePlaceholder": "例：製品ローンチファネル",
+      "goalLabel": "ファネルの目的",
+      "willCreate": "作成内容：",
+      "currencyLabel": "通貨",
+      "currencyHint": "すべてのチェックアウトと価格表示に使用されます。",
+      "domainLabel": "カスタムドメイン",
+      "domainHint": "確認済みドメインでこのファネルを提供します。",
+      "manageDomains": "ドメインを管理 →",
+      "noDomain": "— カスタムドメインなし —",
+      "noVerifiedDomains": "確認済みドメインがありません。先に設定でドメインを確認してください。",
+      "errorNameRequired": "名前は必須です",
+      "errorCreate": "ファネルの作成に失敗しました",
+      "errorUpdate": "ファネルの更新に失敗しました",
+      "errorLoad": "読み込みに失敗しました",
+      "goal": {
+        "audience": { "label": "オーディエンスを構築", "description": "リードを集めてメールリストを拡大" },
+        "sell": { "label": "製品を販売", "description": "チェックアウト付きで製品やサービスをローンチ" },
+        "custom": { "label": "カスタム", "description": "ゼロから始めてステップを手動で追加" }
+      }
+    }
+  },
+  "contacts": {
+    "title": "連絡先",
+    "totalContacts": "{count}件の連絡先",
+    "searchPlaceholder": "名前またはメールで検索…",
+    "allTags": "すべてのタグ",
+    "manageTags": "タグを管理",
+    "importCSV": "CSVインポート",
+    "newContact": "新規連絡先",
+    "noContacts": "連絡先が見つかりません",
+    "noContactsHint": "CSVをインポートするか、登録を待ってください",
+    "noContactsSearch": "フィルターを調整してください",
+    "col": {
+      "nameEmail": "名前 / メール",
+      "phone": "電話",
+      "country": "国",
+      "tags": "タグ",
+      "added": "追加日",
+      "actions": "アクション"
+    },
+    "tags": {
+      "title": "タグ",
+      "count": "{count}件のタグ",
+      "searchPlaceholder": "タグを検索…",
+      "newTag": "新規タグ",
+      "noTags": "タグが見つかりません",
+      "noTagsHint": "タグを作成して連絡先を整理してください",
+      "deleteTitle": "「{name}」を削除しますか？",
+      "deleteDescription": "このタグはすべての連絡先から削除されます。",
+      "createTag": "タグを作成",
+      "editTag": "タグを編集",
+      "tagName": "タグ名",
+      "tagColor": "色",
+      "contacts": "{count}件の連絡先",
+      "col": {
+        "tag": "タグ",
+        "contacts": "連絡先",
+        "actions": "アクション"
+      }
+    }
+  },
+  "orders": {
+    "title": "注文",
+    "totalOrders": "{count}件の注文",
+    "searchPlaceholder": "連絡先または注文IDで検索…",
+    "allStatuses": "すべてのステータス",
+    "allKinds": "すべての種類",
+    "noOrders": "注文が見つかりません",
+    "noOrdersHint": "顧客が購入すると注文が表示されます",
+    "noOrdersSearch": "フィルターを調整してください",
+    "renewal": "更新",
+    "subscription": "サブスクリプション",
+    "col": {
+      "order": "注文",
+      "contact": "連絡先",
+      "funnel": "ファネル",
+      "status": "ステータス",
+      "amount": "金額",
+      "date": "日付"
+    },
+    "status": {
+      "PAID": "支払済",
+      "TRIAL": "トライアル",
+      "PENDING": "保留中",
+      "FAILED": "失敗",
+      "REFUNDED": "返金済",
+      "CANCELED": "キャンセル済",
+      "CANCELLED": "キャンセル済",
+      "DISPUTED": "異議申立"
+    },
+    "kind": {
+      "oneTime": "一回払い",
+      "subscriptionInitial": "サブスクリプション（初回）",
+      "renewal": "更新"
+    }
+  },
+  "subscriptions": {
+    "title": "サブスクリプション",
+    "totalSubscriptions": "{count}件のサブスクリプション",
+    "searchPlaceholder": "連絡先またはサブスクリプションIDで検索…",
+    "allStatuses": "すべてのステータス",
+    "noSubscriptions": "サブスクリプションが見つかりません",
+    "noSubscriptionsHint": "サブスクリプションはここに表示されます",
+    "noSubscriptionsSearch": "フィルターを調整してください",
+    "endsOn": "{date}に終了",
+    "col": {
+      "subscription": "サブスクリプション",
+      "contact": "連絡先",
+      "plan": "プラン",
+      "status": "ステータス",
+      "amount": "金額",
+      "nextRenewal": "次回更新"
+    },
+    "status": {
+      "ACTIVE": "有効",
+      "TRIALING": "トライアル",
+      "PAST_DUE": "支払遅延",
+      "CANCELED": "キャンセル済",
+      "INCOMPLETE": "未完了"
+    }
+  },
+  "transactions": {
+    "title": "取引",
+    "totalTransactions": "{count}件の取引",
+    "searchPlaceholder": "連絡先または参照で検索…",
+    "allTypes": "すべての種類",
+    "allStatuses": "すべてのステータス",
+    "noTransactions": "取引が見つかりません",
+    "noTransactionsHint": "支払いが処理されると取引が表示されます",
+    "noTransactionsSearch": "フィルターを調整してください",
+    "col": {
+      "transaction": "取引",
+      "contact": "連絡先",
+      "type": "種類",
+      "status": "ステータス",
+      "amount": "金額",
+      "date": "日付"
+    },
+    "type": {
+      "SALE": "売上",
+      "REFUND": "返金",
+      "CHARGEBACK": "チャージバック",
+      "allTypes": "すべての種類",
+      "sales": "売上",
+      "refunds": "返金",
+      "chargebacks": "チャージバック"
+    },
+    "status": {
+      "COMPLETED": "完了",
+      "PENDING": "保留中",
+      "FAILED": "失敗"
+    }
+  },
+  "products": {
+    "title": "物理商品",
+    "count": "{count}件の商品",
+    "searchPlaceholder": "名前またはSKUで検索…",
+    "newProduct": "新規商品",
+    "noProducts": "商品が見つかりません",
+    "noProductsHint": "ファネルで使用する最初の商品を作成してください",
+    "noProductsSearch": "検索を調整してください",
+    "deleteTitle": "「{name}」を削除しますか？",
+    "deleteDescription": "この商品は完全に削除されます。",
+    "variants": "{count}件のバリアント",
+    "col": {
+      "name": "名前",
+      "sku": "SKU",
+      "price": "価格",
+      "variants": "バリアント",
+      "created": "作成日",
+      "actions": "アクション"
+    },
+    "quickCreate": {
+      "title": "新規物理商品",
+      "description": "クイック作成 — 次の画面で詳細を入力",
+      "submitLabel": "商品を作成",
+      "nameLabel": "商品名",
+      "namePlaceholder": "例：プレミアムTシャツ",
+      "currencyLabel": "通貨",
+      "errorNameRequired": "名前は必須です",
+      "errorCreate": "商品の作成に失敗しました"
+    },
+    "edit": {
+      "titleFallback": "商品を編集",
+      "description": "物理商品",
+      "submitLabel": "変更を保存",
+      "errorLoad": "商品の読み込みに失敗しました",
+      "errorSave": "保存に失敗しました",
+      "tabs": {
+        "details": "詳細",
+        "media": "メディア",
+        "variants": "バリアント"
+      },
+      "sections": {
+        "general": "基本情報",
+        "pricing": "価格設定",
+        "inventory": "在庫"
+      },
+      "fields": {
+        "name": "名前",
+        "description": "説明",
+        "sku": "SKU",
+        "weight": "重量（g）",
+        "currency": "通貨",
+        "basePrice": "基本価格"
+      },
+      "placeholders": {
+        "productName": "商品名",
+        "description": "任意の説明",
+        "sku": "SKU",
+        "weight": "グラム単位の重量",
+        "stockLimit": "在庫上限"
+      },
+      "limitStock": "この商品の在庫を制限する",
+      "uploadPrimary": "メイン画像をアップロード",
+      "addImage": "追加",
+      "variants": {
+        "hasOptions": "この商品にはオプションがあります（サイズ、色など）",
+        "optionName": "オプション名",
+        "optionNamePlaceholder": "例：サイズ",
+        "optionValues": "オプション値",
+        "addAnotherValue": "別の値を追加",
+        "addAnotherOption": "別のオプションを追加",
+        "title": "バリアント",
+        "hint": "バリアントごとに画像、SKU、価格を設定してください。",
+        "selected": "{count}件選択中",
+        "delete": "削除",
+        "regenerate": "再生成",
+        "generate": "バリアントを生成",
+        "colImage": "画像",
+        "colVariant": "バリアント",
+        "colSku": "SKU",
+        "colPrice": "価格（{currency}）"
+      }
+    }
+  },
+  "orderDetail": {
+    "breadcrumb": "注文",
+    "title": "注文 #{id}",
+    "partialRefund": "一部返金: {amount}",
+    "created": "作成日時: {date}",
+    "exportPdf": "PDFエクスポート",
+    "refund": "返金",
+    "sections": {
+      "item": "商品",
+      "financials": "財務",
+      "contact": "連絡先",
+      "funnel": "ファネル",
+      "shipping": "配送",
+      "metadata": "メタデータ"
+    },
+    "financial": {
+      "unitPrice": "単価",
+      "quantity": "数量 ×{qty}",
+      "subtotal": "小計",
+      "bump": "バンプ: {name}",
+      "bumpShipping": "↳ バンプ配送料",
+      "discount": "割引",
+      "shipping": "送料",
+      "total": "合計",
+      "refunded": "返金済み",
+      "netAmount": "純額",
+      "lastRefund": "最終返金: {date}"
+    },
+    "meta": {
+      "variant": "バリアント",
+      "providerId": "プロバイダーID",
+      "updated": "更新日時"
+    },
+    "refundModal": {
+      "title": "注文を返金",
+      "orderLabel": "注文:",
+      "totalPaid": "支払い合計",
+      "alreadyRefunded": "返金済み金額",
+      "remainingRefundable": "返金可能残額",
+      "amountLabel": "返金金額",
+      "max": "最大: {amount}",
+      "amountError": "金額は0〜{max}の範囲で入力してください",
+      "reasonLabel": "理由",
+      "reasonOptional": "（任意）",
+      "reasonNotSpecified": "指定なし",
+      "reasonDuplicate": "重複",
+      "reasonFraudulent": "不正",
+      "reasonCustomer": "顧客の要求",
+      "keepOrder": "注文を保持",
+      "confirmRefund": "返金を確定"
+    }
+  },
+  "settings": {
+    "title": "設定",
+    "nav": {
+      "customDomains": "カスタムドメイン",
+      "paymentSettings": "支払い設定",
+      "smtpEmail": "SMTP / メール",
+      "storage": "ストレージ"
+    }
+  }
+}

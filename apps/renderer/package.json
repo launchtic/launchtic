@@ -1,0 +1,49 @@
+{
+  "name": "@launchtic/renderer",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "dotenv -e ../../.env -- next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@craftjs/core": "^0.2.12",
+    "@fortawesome/fontawesome-free": "^6.7.2",
+    "@launchtic/database": "workspace:*",
+    "@launchtic/elements": "workspace:*",
+    "@launchtic/types": "workspace:*",
+    "@stripe/react-stripe-js": "^5.6.1",
+    "@stripe/stripe-js": "^9.2.0",
+    "@tiptap/extension-bullet-list": "^2.27.2",
+    "@tiptap/extension-color": "^2.27.2",
+    "@tiptap/extension-link": "^2.27.2",
+    "@tiptap/extension-underline": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
+    "@uiw/react-color-sketch": "^2.10.1",
+    "bootstrap-icons": "^1.13.1",
+    "bullmq": "^5.34.0",
+    "flag-icons": "^7.5.0",
+    "ioredis": "^5.6.1",
+    "libphonenumber-js": "^1.12.41",
+    "next": "^15.3.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-player": "^2.16.1",
+    "react-select": "^5.10.2",
+    "stripe": "^22.0.2",
+    "styled-components": "^6.4.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "dotenv-cli": "^8.0.0",
+    "typescript": "^5.8.3"
+  }
+}

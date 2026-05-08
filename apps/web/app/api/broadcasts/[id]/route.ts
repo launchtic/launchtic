@@ -1,0 +1,80 @@
+import { NextRequest } from "next/server";
+import { db } from "@launchtic/database";
+import { z } from "zod";
+import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { broadcastQueue, dispatchJobId } from "../../../../lib/queue";
+
+const updateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  subject: z.string().min(1).max(500).optional(),
+  htmlBody: z.string().min(1).optional(),
+  templateId: z.string().nullable().optional(),
+  fromEmail: z.string().email().optional(),
+  fromName: z.string().min(1).optional(),
+  targetType: z.enum(["ALL_CONTACTS", "TAG"]).optional(),
+  targetTagIds: z.array(z.string()).optional(),
+  excludeUnsubscribed: z.boolean().optional(),
+});
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) return err("Unauthorized", 401);
+
+    const { id } = await params;
+    const broadcast = await db.broadcast.findFirst({ where: { id, workspaceId } });
+    if (!broadcast) return err("Broadcast not found", 404);
+
+    return ok(broadcast);
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) return err("Unauthorized", 401);
+
+    const { id } = await params;
+    const existing = await db.broadcast.findFirst({ where: { id, workspaceId } });
+    if (!existing) return err("Broadcast not found", 404);
+    if (existing.status !== "DRAFT" && existing.status !== "SCHEDULED") {
+      return err(`Cannot edit broadcast with status ${existing.status}`, 400);
+    }
+
+    const data = updateSchema.parse(await req.json());
+    const broadcast = await db.broadcast.update({ where: { id }, data });
+    return ok(broadcast);
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const workspaceId = await getWorkspaceId();
+    if (!workspaceId) return err("Unauthorized", 401);
+
+    const { id } = await params;
+    const existing = await db.broadcast.findFirst({ where: { id, workspaceId } });
+    if (!existing) return err("Broadcast not found", 404);
+    if (existing.status === "SENDING" || existing.status === "SENT") {
+      return err(`Cannot delete broadcast with status ${existing.status}`, 400);
+    }
+
+    // Best-effort: remove pending dispatch job if scheduled
+    if (existing.status === "SCHEDULED") {
+      try {
+        await broadcastQueue().remove(dispatchJobId(id));
+      } catch {}
+    }
+
+    await db.broadcast.delete({ where: { id } });
+    return ok({ deleted: true });
+  } catch (error) {
+    return handleError(error);
+  }
+}
