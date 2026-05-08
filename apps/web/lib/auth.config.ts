@@ -13,6 +13,10 @@ import type { NextAuthConfig } from "next-auth";
 
 export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
+  // Trust the X-Forwarded-Host header from the Caddy reverse proxy so that
+  // NextAuth redirects use the public hostname (e.g. app.example.com) instead
+  // of the internal listen address (0.0.0.0:3000).
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
