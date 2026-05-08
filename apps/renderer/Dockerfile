@@ -31,4 +31,6 @@ COPY --from=builder /app/apps/renderer/public ./apps/renderer/public
 EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+# Next.js standalone with outputFileTracingRoot pointing at the monorepo root
+# emits the entry at apps/renderer/server.js (not the WORKDIR root).
+CMD ["node", "apps/renderer/server.js"]
