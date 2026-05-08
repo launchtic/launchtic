@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Promoted to stable in Next.js 15 — moved out of `experimental`.
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  // Same Prisma engine inclusion as web — see apps/web/next.config.ts.
+  outputFileTracingIncludes: {
+    "*": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
+    ],
+  },
   transpilePackages: ["@launchtic/types", "@launchtic/elements", "@launchtic/database", "styled-components"],
   compiler: {
     styledComponents: true,
