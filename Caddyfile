@@ -1,47 +1,48 @@
 {
-  email {$ACME_EMAIL}
+	email {$ACME_EMAIL}
 
-  # On-demand TLS: Caddy asks the web app whether a custom domain is allowed
-  # before issuing a cert. The app validates against the workspace Domain table.
-  # Note: `interval` + `burst` rate-limit options were removed in newer Caddy
-  # versions. The `ask` endpoint is the gate now — it should respond fast and
-  # rate-limit itself if needed.
-  on_demand_tls {
-    ask http://web:3000/api/domains/check
-  }
+	# On-demand TLS: Caddy asks the web app whether a custom domain is allowed
+	# before issuing a cert. The app validates against the workspace Domain table.
+	# The `ask` endpoint must respond fast and rate-limit itself if needed —
+	# `interval`/`burst` were removed in newer Caddy versions.
+	on_demand_tls {
+		ask http://web:3000/api/domains/check
+	}
+}
+
+# Reusable proxy block. Args:
+#   {args[0]} — upstream (e.g. web:3000)
+# Forwards Host/X-Forwarded-Host so the upstream sees the public hostname,
+# and strips the internal listen port from any Location header the upstream
+# emits. Without the strip, Next.js redirects leak the internal port to the
+# client, e.g. https://app.example.com:3000/en.
+(proxy) {
+	reverse_proxy {args[0]} {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_down Location "://([^/:]+):[0-9]+" "://${1}"
+	}
 }
 
 # Dashboard + editor — fixed domain, cert issued at startup.
 {$APP_DOMAIN} {
-  reverse_proxy web:3000 {
-    header_up Host {host}
-    header_up X-Forwarded-Host {host}
-  }
-  header Location :3000 ""
+	import proxy web:3000
 }
 
 # Default funnel-pages domain — cert issued at startup.
 {$PAGES_DOMAIN} {
-  reverse_proxy renderer:3001 {
-    header_up Host {host}
-    header_up X-Forwarded-Host {host}
-  }
-  header Location :3001 ""
+	import proxy renderer:3001
 }
 
 # Custom funnel domains — on-demand TLS (Caddy requests cert on first hit).
 :443 {
-  tls {
-    on_demand
-  }
-  reverse_proxy renderer:3001 {
-    header_up Host {host}
-    header_up X-Forwarded-Host {host}
-  }
-  header Location :3001 ""
+	tls {
+		on_demand
+	}
+	import proxy renderer:3001
 }
 
 # HTTP → HTTPS redirect
 :80 {
-  redir https://{host}{uri} permanent
+	redir https://{host}{uri} permanent
 }

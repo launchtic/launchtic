@@ -34,8 +34,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_RENDERER_URL: process.env.NEXT_PUBLIC_RENDERER_URL,
   },
   experimental: {
-    // @ts-ignore — internal Next.js flag, not yet in ExperimentalConfig types
-    trustHostHeader: true,
     serverActions: {
       allowedOrigins: [
         "localhost:3000",
