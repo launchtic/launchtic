@@ -209,19 +209,26 @@ docker compose up -d
 echo ""
 
 # ─── Wait for web to be healthy ──────────────────────────────────────────────
-echo "  Waiting for app to start..."
-ATTEMPTS=0
-until docker compose exec -T web wget -q --spider http://localhost:3000/api/health 2>/dev/null || [ $ATTEMPTS -ge 60 ]; do
+# Best-effort wait against /api/health (probed from host through Caddy, so no
+# wget dependency inside the container). On a fresh 2GB VPS the migration
+# step can push past 60s, so 4 min budget. Timing out doesn't fail the
+# install — the stack is already running, we just couldn't confirm it.
+echo "  Waiting for app to start (this can take 1-3 min on first run)..."
+HEALTHY=0
+for i in $(seq 1 80); do
+  if curl -fsS --max-time 2 "http://localhost/api/health" >/dev/null 2>&1; then
+    HEALTHY=1
+    break
+  fi
   sleep 3
-  ATTEMPTS=$((ATTEMPTS + 1))
   printf "."
 done
 echo ""
-
-if [ $ATTEMPTS -ge 60 ]; then
-  echo "  ⚠ App did not respond within 3 minutes."
-  echo "  Check logs:  cd ${INSTALL_DIR} && docker compose logs -f"
-  exit 1
+if [ "$HEALTHY" != "1" ]; then
+  echo "  ⚠ Health check didn't pass yet — the app is probably still warming up."
+  echo "    Check progress:  cd ${INSTALL_DIR} && docker compose logs -f web"
+  echo "    Open https://${APP_DOMAIN} as soon as the web log shows 'Ready'."
+  echo ""
 fi
 
 echo ""
