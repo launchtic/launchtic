@@ -125,6 +125,16 @@ NEXTAUTH_SECRET=$(openssl rand -base64 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
 
+# ─── Derive URL vars from domain inputs ──────────────────────────────────────
+# Apps read APP_URL / NEXTAUTH_URL / RENDERER_URL directly at runtime, so we
+# resolve them once here and write the result into .env. localhost / 127.x get
+# http://, everything else gets https:// (Caddy provisions the cert).
+case "$APP_DOMAIN"   in localhost*|127.*) APP_PROTO=http   ;; *) APP_PROTO=https   ;; esac
+case "$PAGES_DOMAIN" in localhost*|127.*) PAGES_PROTO=http ;; *) PAGES_PROTO=https ;; esac
+APP_URL="${APP_PROTO}://${APP_DOMAIN}"
+RENDERER_URL="${PAGES_PROTO}://${PAGES_DOMAIN}"
+NEXTAUTH_URL="${APP_URL}"
+
 # ─── Clone repo (or update if already present) ───────────────────────────────
 if [ -d "$INSTALL_DIR/.git" ]; then
   echo "  Updating existing installation in ./${INSTALL_DIR}..."
@@ -148,11 +158,18 @@ else
 
 LAUNCHTIC_VERSION=latest
 
-# ─── Domains (single source of truth) ────────────────────────────────────────
-# APP_URL / NEXTAUTH_URL / RENDERER_URL are derived at runtime by env-bootstrap.
+# ─── Domains ─────────────────────────────────────────────────────────────────
 APP_DOMAIN=${APP_DOMAIN}
 PAGES_DOMAIN=${PAGES_DOMAIN}
 ACME_EMAIL=${ACME_EMAIL}
+
+# ─── Public URLs ─────────────────────────────────────────────────────────────
+# Read directly by the apps at runtime. If you change APP_DOMAIN/PAGES_DOMAIN
+# above (e.g. migrating to a new domain), update these too — or delete this
+# file and re-run install.sh to regenerate.
+APP_URL=${APP_URL}
+NEXTAUTH_URL=${NEXTAUTH_URL}
+RENDERER_URL=${RENDERER_URL}
 
 # ─── Internal service URLs (Docker network) ──────────────────────────────────
 WEB_API_URL=http://web:3000

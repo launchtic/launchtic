@@ -49,6 +49,11 @@ APP_DOMAIN=app.yourdomain.com
 PAGES_DOMAIN=pages.yourdomain.com
 ACME_EMAIL=admin@yourdomain.com
 
+# Public URLs — must match the domains above (https:// for production).
+APP_URL=https://app.yourdomain.com
+NEXTAUTH_URL=https://app.yourdomain.com
+RENDERER_URL=https://pages.yourdomain.com
+
 # Generate strong values:
 #   openssl rand -base64 32  →  NEXTAUTH_SECRET
 #   openssl rand -hex 32     →  ENCRYPTION_KEY
@@ -60,7 +65,8 @@ POSTGRES_PASSWORD=...
 DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@postgres:5432/launchtic
 ```
 
-URL vars (`APP_URL`, `RENDERER_URL`, `NEXTAUTH_URL`) are auto-derived from the two `*_DOMAIN` values — no need to set manually.
+`install.sh` writes a complete `.env` with all of these auto-filled — only edit
+manually if you skip the installer or migrate to a new domain later.
 
 > Stripe / PayPal / SMTP / S3 / AI provider credentials are configured per-workspace via the dashboard (Settings) and stored encrypted in the database — not in `.env`.
 

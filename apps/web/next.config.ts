@@ -1,9 +1,3 @@
-// Derives APP_URL / NEXTAUTH_URL / RENDERER_URL from APP_DOMAIN + PAGES_DOMAIN
-// at server startup. Imported here so Next sees the values when boot-time code
-// (next-intl plugin, etc.) reads process.env. No client bundling — RENDERER_URL
-// is read by server components and passed to client components as a prop.
-import "./lib/env-bootstrap";
-
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 import path from "path";

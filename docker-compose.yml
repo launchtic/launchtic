@@ -5,8 +5,6 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    # Only pass the canonical 2 domains. APP_URL / NEXTAUTH_URL / RENDERER_URL
-    # are auto-derived from these by apps/web/lib/env-bootstrap.ts at startup.
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
@@ -14,6 +12,9 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       APP_DOMAIN: ${APP_DOMAIN}
       PAGES_DOMAIN: ${PAGES_DOMAIN}
+      APP_URL: ${APP_URL:?APP_URL must be set in .env}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL must be set in .env}
+      RENDERER_URL: ${RENDERER_URL:?RENDERER_URL must be set in .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,14 +45,14 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
-    # APP_DOMAIN required so apps/worker/src/env-bootstrap.ts can derive
-    # APP_URL — otherwise outgoing emails embed localhost unsubscribe URLs.
+    # APP_URL is read by packages/email/src/unsubscribe.ts to embed the
+    # correct host in outgoing email unsubscribe links.
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      APP_DOMAIN: ${APP_DOMAIN}
-      PAGES_DOMAIN: ${PAGES_DOMAIN}
+      APP_URL: ${APP_URL:?APP_URL must be set in .env}
+      RENDERER_URL: ${RENDERER_URL:?RENDERER_URL must be set in .env}
     depends_on:
       postgres:
         condition: service_healthy
