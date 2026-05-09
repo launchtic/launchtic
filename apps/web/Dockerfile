@@ -21,6 +21,11 @@ COPY --from=deps /app .
 COPY . .
 RUN npx --yes prisma@6.7.0 generate --schema=packages/database/prisma/schema.prisma
 RUN pnpm --filter=@launchtic/web build
+# Copy Prisma query engine binary into standalone bundle — outputFileTracingIncludes
+# doesn't reliably follow pnpm's versioned virtual-store paths, so we do it explicitly.
+RUN find /app/node_modules/.pnpm -name "libquery_engine-linux-musl-openssl-3.0.x.so.node" \
+    -path "*/.prisma/client/*" | head -1 | \
+    xargs -I{} cp {} /app/apps/web/.next/standalone/apps/web/.next/server/
 
 # ─── Stage 3: Prisma CLI for migrations ──────────────────────────────────────
 # Installed separately to get the correct platform binary (musl/alpine)

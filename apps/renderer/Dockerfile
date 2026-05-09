@@ -18,6 +18,10 @@ COPY --from=deps /app .
 COPY . .
 RUN npx --yes prisma@6.7.0 generate --schema=packages/database/prisma/schema.prisma
 RUN pnpm --filter=@launchtic/renderer build
+# Copy Prisma query engine binary into standalone bundle (same reason as web Dockerfile).
+RUN find /app/node_modules/.pnpm -name "libquery_engine-linux-musl-openssl-3.0.x.so.node" \
+    -path "*/.prisma/client/*" | head -1 | \
+    xargs -I{} cp {} /app/apps/renderer/.next/standalone/apps/renderer/.next/server/
 
 # ─── Stage 3: Production runner ──────────────────────────────────────────────
 FROM base AS runner

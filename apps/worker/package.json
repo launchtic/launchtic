@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "build": "tsc",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js --external:*.node",
     "lint": "echo 'no lint configured'",
     "typecheck": "tsc --noEmit"
   },
