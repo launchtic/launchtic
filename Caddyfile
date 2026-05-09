@@ -15,6 +15,7 @@
 {$APP_DOMAIN} {
   reverse_proxy web:3000 {
     header_up Host {host}
+    header_up X-Forwarded-Host {host}
   }
 }
 
@@ -22,6 +23,7 @@
 {$PAGES_DOMAIN} {
   reverse_proxy renderer:3001 {
     header_up Host {host}
+    header_up X-Forwarded-Host {host}
   }
 }
 
@@ -32,6 +34,7 @@
   }
   reverse_proxy renderer:3001 {
     header_up Host {host}
+    header_up X-Forwarded-Host {host}
   }
 }
 
