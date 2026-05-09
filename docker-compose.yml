@@ -5,6 +5,11 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    volumes:
+      # Persist user uploads outside the container so they survive rebuilds.
+      # Local storage driver writes to process.cwd()/public/uploads inside
+      # the container; the host folder is created automatically if missing.
+      - ./uploads:/app/apps/web/public/uploads
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
