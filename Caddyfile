@@ -17,6 +17,7 @@
     header_up Host {host}
     header_up X-Forwarded-Host {host}
   }
+  header Location :3000 ""
 }
 
 # Default funnel-pages domain — cert issued at startup.
@@ -25,6 +26,7 @@
     header_up Host {host}
     header_up X-Forwarded-Host {host}
   }
+  header Location :3001 ""
 }
 
 # Custom funnel domains — on-demand TLS (Caddy requests cert on first hit).
@@ -36,6 +38,7 @@
     header_up Host {host}
     header_up X-Forwarded-Host {host}
   }
+  header Location :3001 ""
 }
 
 # HTTP → HTTPS redirect
