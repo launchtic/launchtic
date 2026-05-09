@@ -1,6 +1,7 @@
-// MUST be the first import — derives APP_URL / NEXTAUTH_URL / RENDERER_URL /
-// NEXT_PUBLIC_RENDERER_URL from APP_DOMAIN + PAGES_DOMAIN before Next reads
-// process.env to bundle NEXT_PUBLIC_* into the client.
+// Derives APP_URL / NEXTAUTH_URL / RENDERER_URL from APP_DOMAIN + PAGES_DOMAIN
+// at server startup. Imported here so Next sees the values when boot-time code
+// (next-intl plugin, etc.) reads process.env. No client bundling — RENDERER_URL
+// is read by server components and passed to client components as a prop.
 import "./lib/env-bootstrap";
 
 import type { NextConfig } from "next";
@@ -26,12 +27,6 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@launchtic/ui", "@launchtic/types", "@launchtic/elements", "@launchtic/email", "styled-components"],
   compiler: {
     styledComponents: true,
-  },
-  // Re-export NEXT_PUBLIC_RENDERER_URL so Next bundles the runtime-derived
-  // value into the client. (Static .env-loaded NEXT_PUBLIC_* vars are
-  // bundled automatically; vars set in code are not, hence the explicit map.)
-  env: {
-    NEXT_PUBLIC_RENDERER_URL: process.env.NEXT_PUBLIC_RENDERER_URL,
   },
   experimental: {
     serverActions: {

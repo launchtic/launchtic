@@ -7,10 +7,6 @@ import {
   ChevronDown, Copy, BookOpen,
 } from "lucide-react";
 
-const RENDERER_URL = process.env.NEXT_PUBLIC_RENDERER_URL ?? "http://localhost:3001";
-const WEBHOOK_URL  = `${RENDERER_URL.replace(/\/$/, "")}/api/webhook/stripe`;
-const PAYPAL_WEBHOOK_URL = `${RENDERER_URL.replace(/\/$/, "")}/api/webhook/paypal`;
-
 const WEBHOOK_EVENTS = [
   "customer.subscription.updated",
   "customer.subscription.deleted",
@@ -245,7 +241,7 @@ function CopyField({ value }: { value: string }) {
   );
 }
 
-function PaypalWebhookSetupGuide({ mode }: { mode: string }) {
+function PaypalWebhookSetupGuide({ mode, webhookUrl }: { mode: string; webhookUrl: string }) {
   const [open, setOpen] = useState(false);
   const dashboardUrl = mode === "live"
     ? "https://developer.paypal.com/dashboard/applications/live"
@@ -270,7 +266,7 @@ function PaypalWebhookSetupGuide({ mode }: { mode: string }) {
             <p className="text-xs font-semibold text-gray-700 mb-1.5">
               1. Endpoint URL — paste this into PayPal
             </p>
-            <CopyField value={PAYPAL_WEBHOOK_URL} />
+            <CopyField value={webhookUrl} />
           </div>
 
           {/* Step 2 */}
@@ -318,7 +314,7 @@ function PaypalWebhookSetupGuide({ mode }: { mode: string }) {
   );
 }
 
-function WebhookSetupGuide({ mode }: { mode: string }) {
+function WebhookSetupGuide({ mode, webhookUrl }: { mode: string; webhookUrl: string }) {
   const [open, setOpen] = useState(false);
   const dashboardUrl = mode === "live"
     ? "https://dashboard.stripe.com/webhooks"
@@ -343,7 +339,7 @@ function WebhookSetupGuide({ mode }: { mode: string }) {
             <p className="text-xs font-semibold text-gray-700 mb-1.5">
               1. Endpoint URL — paste this into Stripe
             </p>
-            <CopyField value={WEBHOOK_URL} />
+            <CopyField value={webhookUrl} />
           </div>
 
           {/* Step 2 */}
@@ -387,7 +383,7 @@ function WebhookSetupGuide({ mode }: { mode: string }) {
 
 // ─── Stripe form ──────────────────────────────────────────────────────────────
 
-function StripeForm({ initial }: { initial: StripeData }) {
+function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: string }) {
   const [pk, setPk]     = useState(initial?.publishableKey ?? "");
   const [sk, setSk]     = useState(initial?.secretKey ?? "");
   const [wh, setWh]     = useState(initial?.webhookSecret ?? "");
@@ -511,7 +507,7 @@ function StripeForm({ initial }: { initial: StripeData }) {
         validity={whValidity}
       />
 
-      <WebhookSetupGuide mode={mode} />
+      <WebhookSetupGuide mode={mode} webhookUrl={webhookUrl} />
 
 
       {/* Test result */}
@@ -555,7 +551,7 @@ function StripeForm({ initial }: { initial: StripeData }) {
 
 // ─── PayPal form ──────────────────────────────────────────────────────────────
 
-function PaypalForm({ initial }: { initial: PaypalData }) {
+function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: string }) {
   const [clientId,     setClientId]     = useState(initial?.clientId ?? "");
   const [clientSecret, setClientSecret] = useState(initial?.clientSecret ?? "");
   const [webhookId,    setWebhookId]    = useState(initial?.webhookId ?? "");
@@ -657,7 +653,7 @@ function PaypalForm({ initial }: { initial: PaypalData }) {
         <p className="mt-1 text-xs text-gray-400">From PayPal → Webhooks. Required to verify signatures — see setup guide below.</p>
       </div>
 
-      <PaypalWebhookSetupGuide mode={mode} />
+      <PaypalWebhookSetupGuide mode={mode} webhookUrl={webhookUrl} />
 
       <TestResultBanner result={test} />
 
@@ -706,12 +702,17 @@ const PROVIDERS = [
 export default function PaymentPanel({
   stripe,
   paypal,
+  rendererUrl,
 }: {
   stripe: StripeData;
   paypal: PaypalData;
+  rendererUrl: string;
 }) {
   const [active, setActive] = useState<"stripe" | "paypal">("stripe");
   const configured = { stripe: !!stripe, paypal: !!paypal };
+  const rendererBase  = rendererUrl.replace(/\/$/, "");
+  const stripeWebhook = `${rendererBase}/api/webhook/stripe`;
+  const paypalWebhook = `${rendererBase}/api/webhook/paypal`;
 
   return (
     <div>
@@ -748,8 +749,8 @@ export default function PaymentPanel({
 
       {/* Form */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 max-w-md">
-        {active === "stripe" && <StripeForm initial={stripe} />}
-        {active === "paypal" && <PaypalForm initial={paypal} />}
+        {active === "stripe" && <StripeForm initial={stripe} webhookUrl={stripeWebhook} />}
+        {active === "paypal" && <PaypalForm initial={paypal} webhookUrl={paypalWebhook} />}
       </div>
     </div>
   );

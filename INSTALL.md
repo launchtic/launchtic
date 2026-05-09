@@ -60,7 +60,7 @@ POSTGRES_PASSWORD=...
 DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@postgres:5432/launchtic
 ```
 
-URL vars (`APP_URL`, `RENDERER_URL`, `NEXTAUTH_URL`, `NEXT_PUBLIC_RENDERER_URL`) are auto-derived from the two `*_DOMAIN` values — no need to set manually.
+URL vars (`APP_URL`, `RENDERER_URL`, `NEXTAUTH_URL`) are auto-derived from the two `*_DOMAIN` values — no need to set manually.
 
 > Stripe / PayPal / SMTP / S3 / AI provider credentials are configured per-workspace via the dashboard (Settings) and stored encrypted in the database — not in `.env`.
 

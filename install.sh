@@ -149,7 +149,7 @@ else
 LAUNCHTIC_VERSION=latest
 
 # ─── Domains (single source of truth) ────────────────────────────────────────
-# APP_URL / NEXTAUTH_URL / RENDERER_URL / NEXT_PUBLIC_RENDERER_URL are derived.
+# APP_URL / NEXTAUTH_URL / RENDERER_URL are derived at runtime by env-bootstrap.
 APP_DOMAIN=${APP_DOMAIN}
 PAGES_DOMAIN=${PAGES_DOMAIN}
 ACME_EMAIL=${ACME_EMAIL}
@@ -179,9 +179,9 @@ fi
 echo ""
 
 # ─── Build images locally ────────────────────────────────────────────────────
-# Build on this VPS so NEXT_PUBLIC_RENDERER_URL gets baked into the client
-# bundle with the correct PAGES_DOMAIN. Pre-built images on the registry
-# can't know your specific domain.
+# Builds locally for now; nothing is baked-in at build time anymore (all URLs
+# are read from env at runtime), so switching to `docker compose pull` against
+# a published registry image is also a valid choice for users that prefer it.
 echo "  Building Docker images (5-10 minutes on first run)..."
 docker compose build
 echo ""

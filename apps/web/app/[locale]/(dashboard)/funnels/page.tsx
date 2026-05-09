@@ -16,7 +16,7 @@ export default async function FunnelsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <FunnelsClient initialTotal={total} />
+      <FunnelsClient initialTotal={total} rendererUrl={process.env.RENDERER_URL!} />
     </div>
   );
 }

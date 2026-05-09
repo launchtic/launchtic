@@ -21,8 +21,6 @@
   process.env.APP_URL = process.env.APP_URL || APP_URL;
   process.env.NEXTAUTH_URL = process.env.NEXTAUTH_URL || APP_URL;
   process.env.RENDERER_URL = process.env.RENDERER_URL || RENDERER_URL;
-  process.env.NEXT_PUBLIC_RENDERER_URL =
-    process.env.NEXT_PUBLIC_RENDERER_URL || RENDERER_URL;
 })();
 
 import { createEmailWorker } from "./queues/email";

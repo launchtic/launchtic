@@ -45,8 +45,6 @@ import ProductsTab from "./ProductsTab";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import ChangeTemplateModal from "./ChangeTemplateModal";
 
-const RENDERER_URL = process.env.NEXT_PUBLIC_RENDERER_URL ?? "http://localhost:3001";
-
 type Step = {
   id: string;
   name: string;
@@ -61,14 +59,13 @@ type Funnel = {
   primaryDomain: string | null;
 };
 
-const { port: RENDERER_PORT, protocol: RENDERER_PROTOCOL } = new URL(RENDERER_URL);
-
-function stepViewUrl(primaryDomain: string | null, slug: string) {
+function stepViewUrl(rendererUrl: string, primaryDomain: string | null, slug: string) {
   if (primaryDomain) {
-    const portSuffix = RENDERER_PORT ? `:${RENDERER_PORT}` : "";
-    return `${RENDERER_PROTOCOL}//${primaryDomain}${portSuffix}/${slug}`;
+    const { port, protocol } = new URL(rendererUrl);
+    const portSuffix = port ? `:${port}` : "";
+    return `${protocol}//${primaryDomain}${portSuffix}/${slug}`;
   }
-  return `${RENDERER_URL}/${slug}`;
+  return `${rendererUrl}/${slug}`;
 }
 
 const TYPE_ICON_MAP: Record<string, React.ReactNode> = {
@@ -184,7 +181,7 @@ function SortableStepItem({
 }
 
 /* ─── Configuration tab ─── */
-function ConfigurationTab({ step, onUpdate }: { step: Step; funnelId: string; onUpdate: (updated: Step) => void }) {
+function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelId: string; rendererUrl: string; onUpdate: (updated: Step) => void }) {
   const [name, setName] = useState(step.name);
   const [slug, setSlug] = useState(step.slug);
   const [saving, setSaving] = useState(false);
@@ -249,7 +246,7 @@ function ConfigurationTab({ step, onUpdate }: { step: Step; funnelId: string; on
           {/* Mobile: stacked prefix + input */}
           <div className="hidden sm:flex">
             <span className="flex items-center px-3 py-2 text-sm bg-gray-50 border border-r-0 border-gray-300 rounded-l-lg text-gray-500 whitespace-nowrap">
-              {RENDERER_URL}/
+              {rendererUrl}/
             </span>
             <input
               type="text"
@@ -260,7 +257,7 @@ function ConfigurationTab({ step, onUpdate }: { step: Step; funnelId: string; on
             />
           </div>
           <div className="sm:hidden">
-            <p className="text-xs text-gray-400 mb-1 font-mono truncate">{RENDERER_URL}/</p>
+            <p className="text-xs text-gray-400 mb-1 font-mono truncate">{rendererUrl}/</p>
             <input
               type="text"
               value={slug}
@@ -301,9 +298,11 @@ function PlaceholderTab({ label }: { label: string }) {
 export default function FunnelStepManager({
   funnel,
   initialSteps,
+  rendererUrl,
 }: {
   funnel: Funnel;
   initialSteps: Step[];
+  rendererUrl: string;
 }) {
   const [steps, setSteps] = useState(initialSteps);
   const [selectedId, setSelectedId] = useState<string | null>(initialSteps[0]?.id ?? null);
@@ -453,7 +452,7 @@ export default function FunnelStepManager({
               <span className="text-sm font-medium text-gray-900 truncate flex-1">{selectedStep.name}</span>
               {/* Mobile quick actions */}
               <a
-                href={stepViewUrl(funnel.primaryDomain, selectedStep.slug)}
+                href={stepViewUrl(rendererUrl, funnel.primaryDomain, selectedStep.slug)}
                 target="_blank"
                 rel="noreferrer"
                 className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
@@ -482,7 +481,7 @@ export default function FunnelStepManager({
 
               <div className="flex items-center gap-2">
                 <a
-                  href={stepViewUrl(funnel.primaryDomain, selectedStep.slug)}
+                  href={stepViewUrl(rendererUrl, funnel.primaryDomain, selectedStep.slug)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
@@ -530,7 +529,7 @@ export default function FunnelStepManager({
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {activeTab === "configuration" && (
-              <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} onUpdate={handleStepUpdate} />
+              <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} rendererUrl={rendererUrl} onUpdate={handleStepUpdate} />
             )}
             {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} />}
           </div>

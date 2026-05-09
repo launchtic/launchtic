@@ -2,12 +2,13 @@
 // Idempotent — explicit values in .env always win over derived defaults.
 //
 // MUST be imported as a side-effect at the very top of:
-//   - apps/web/next.config.ts (so Next bundles NEXT_PUBLIC_* at build time)
+//   - apps/web/next.config.ts (read at server runtime)
 //   - apps/worker/src/index.ts (so workers reading APP_URL get the right value)
 //
-// The renderer doesn't need this — its only env-derived URL is WEB_API_URL,
-// which points at the Docker internal hostname (not derivable from the public
-// domain).
+// All values are read at *runtime* by server code (page.tsx server components,
+// API routes, worker). They are NOT bundled into the client — client components
+// receive the URL as a prop from their server parent. This keeps the same
+// Docker image portable across deployments with different domains.
 
 const isLocal = (host: string): boolean =>
   host.startsWith("localhost") || host.startsWith("127.");
@@ -22,5 +23,3 @@ const RENDERER_URL = `${isLocal(PAGES_DOMAIN) ? "http" : "https"}://${PAGES_DOMA
 process.env.APP_URL = process.env.APP_URL || APP_URL;
 process.env.NEXTAUTH_URL = process.env.NEXTAUTH_URL || APP_URL;
 process.env.RENDERER_URL = process.env.RENDERER_URL || RENDERER_URL;
-process.env.NEXT_PUBLIC_RENDERER_URL =
-  process.env.NEXT_PUBLIC_RENDERER_URL || RENDERER_URL;

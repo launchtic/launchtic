@@ -5,9 +5,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    # Only pass the canonical 2 domains. APP_URL / NEXTAUTH_URL /
-    # NEXT_PUBLIC_RENDERER_URL / RENDERER_URL are auto-derived from these by
-    # apps/web/lib/env-bootstrap.ts at startup.
+    # Only pass the canonical 2 domains. APP_URL / NEXTAUTH_URL / RENDERER_URL
+    # are auto-derived from these by apps/web/lib/env-bootstrap.ts at startup.
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
@@ -15,7 +14,6 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       APP_DOMAIN: ${APP_DOMAIN}
       PAGES_DOMAIN: ${PAGES_DOMAIN}
-      NEXTAUTH_URL: https://${APP_DOMAIN}
     depends_on:
       postgres:
         condition: service_healthy

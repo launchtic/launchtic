@@ -20,20 +20,24 @@ type Funnel = {
 };
 type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
 
-const RENDERER_URL = process.env.NEXT_PUBLIC_RENDERER_URL ?? "http://localhost:3001";
-const { port: RENDERER_PORT, protocol: RENDERER_PROTOCOL } = new URL(RENDERER_URL);
-
-function viewUrl(primaryDomain: string | null, slug: string) {
+function viewUrl(rendererUrl: string, primaryDomain: string | null, slug: string) {
   if (primaryDomain) {
-    const portSuffix = RENDERER_PORT ? `:${RENDERER_PORT}` : "";
-    return `${RENDERER_PROTOCOL}//${primaryDomain}${portSuffix}/${slug}`;
+    const { port, protocol } = new URL(rendererUrl);
+    const portSuffix = port ? `:${port}` : "";
+    return `${protocol}//${primaryDomain}${portSuffix}/${slug}`;
   }
-  return `${RENDERER_URL}/${slug}`;
+  return `${rendererUrl}/${slug}`;
 }
 
 type View = "active" | "trash";
 
-export default function FunnelsClient({ initialTotal = 0 }: { initialTotal?: number }) {
+export default function FunnelsClient({
+  initialTotal = 0,
+  rendererUrl,
+}: {
+  initialTotal?: number;
+  rendererUrl: string;
+}) {
   const [items, setItems] = useState<Funnel[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ total: initialTotal, page: 1, pageSize: 25, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -212,7 +216,7 @@ export default function FunnelsClient({ initialTotal = 0 }: { initialTotal?: num
               {items.map((f) => {
                 const primaryDomain = f.domains[0]?.domain.verified ? f.domains[0].domain.domain : null;
                 const firstSlug = f.steps[0]?.slug;
-                const liveUrl = firstSlug ? viewUrl(primaryDomain, firstSlug) : null;
+                const liveUrl = firstSlug ? viewUrl(rendererUrl, primaryDomain, firstSlug) : null;
                 return (
                   <tr key={f.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="px-6 py-3">

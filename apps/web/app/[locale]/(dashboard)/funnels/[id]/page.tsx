@@ -50,6 +50,7 @@ export default async function FunnelDetailPage({ params }: Params) {
     <FunnelStepManager
       funnel={{ id: funnel.id, name: funnel.name, primaryDomain }}
       initialSteps={steps}
+      rendererUrl={process.env.RENDERER_URL!}
     />
   );
 }

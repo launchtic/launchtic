@@ -50,17 +50,16 @@ import {
 
 type Props = {
   funnelStepId: string;
+  rendererUrl: string;
 };
 
-const RENDERER_URL = process.env.NEXT_PUBLIC_RENDERER_URL ?? "http://localhost:3001";
-const { port: RENDERER_PORT, protocol: RENDERER_PROTOCOL } = new URL(RENDERER_URL);
-
-function stepViewUrl(primaryDomain: string | null, slug: string) {
+function stepViewUrl(rendererUrl: string, primaryDomain: string | null, slug: string) {
   if (primaryDomain) {
-    const portSuffix = RENDERER_PORT ? `:${RENDERER_PORT}` : "";
-    return `${RENDERER_PROTOCOL}//${primaryDomain}${portSuffix}/${slug}`;
+    const { port, protocol } = new URL(rendererUrl);
+    const portSuffix = port ? `:${port}` : "";
+    return `${protocol}//${primaryDomain}${portSuffix}/${slug}`;
   }
-  return `${RENDERER_URL}/${slug}`;
+  return `${rendererUrl}/${slug}`;
 }
 
 // Inject window.data for EditorContext to read
@@ -164,7 +163,7 @@ const EditorInner: React.FC = () => {
 };
 
 // Outer component — fetches page JSON from API then injects window.data
-export default function EditorApp({ funnelStepId }: Props) {
+export default function EditorApp({ funnelStepId, rendererUrl }: Props) {
   const [ready, setReady] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -262,7 +261,7 @@ export default function EditorApp({ funnelStepId }: Props) {
             };
           }
 
-          const previewUrl = step.slug ? stepViewUrl(step.funnel?.primaryDomain ?? null, step.slug) : "";
+          const previewUrl = step.slug ? stepViewUrl(rendererUrl, step.funnel?.primaryDomain ?? null, step.slug) : "";
           const backUrl = step.funnelId ? `/funnels/${step.funnelId}` : "/funnels";
           injectWindowData(funnelStepId, pageJson, step.type, step.meta, paymentData, previewUrl, backUrl);
           setReady(true);
@@ -275,7 +274,7 @@ export default function EditorApp({ funnelStepId }: Props) {
         injectWindowData(funnelStepId, "");
         setReady(true);
       });
-  }, [funnelStepId]);
+  }, [funnelStepId, rendererUrl]);
 
   if (error) {
     return <div style={{ padding: 24, color: "red" }}>Error: {error}</div>;

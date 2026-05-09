@@ -35,8 +35,13 @@ export default async function SettingsPage() {
   const smtp    = settings?.smtp    as any;
   const storage = settings?.storage as any;
 
+  const rendererUrl  = process.env.RENDERER_URL!;
+  const rendererHost = new URL(rendererUrl).host;
+
   return (
         <SettingsClient
+          rendererUrl={rendererUrl}
+          rendererHost={rendererHost}
           domains={domains.map((d) => ({
             id: d.id,
             domain: d.domain,

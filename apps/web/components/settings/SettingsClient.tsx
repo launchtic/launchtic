@@ -30,7 +30,7 @@ const NAV_ITEMS = [
 type Section = typeof NAV_ITEMS[number]["id"];
 
 export default function SettingsClient({
-  domains, stripe, paypal, smtp, storage, senderIdentities,
+  domains, stripe, paypal, smtp, storage, senderIdentities, rendererUrl, rendererHost,
 }: {
   domains:  Domain[];
   stripe:   StripeData;
@@ -38,6 +38,8 @@ export default function SettingsClient({
   smtp:     SmtpData;
   storage:  StorageData;
   senderIdentities: SenderIdentity[];
+  rendererUrl:  string;
+  rendererHost: string;
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -117,8 +119,8 @@ export default function SettingsClient({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 sm:p-8">
-            {active === "domains"      && <DomainsPanel initialDomains={domains} />}
-            {active === "payment"      && <PaymentPanel stripe={stripe} paypal={paypal} />}
+            {active === "domains"      && <DomainsPanel initialDomains={domains} rendererHost={rendererHost} />}
+            {active === "payment"      && <PaymentPanel stripe={stripe} paypal={paypal} rendererUrl={rendererUrl} />}
             {active === "email"        && <EmailSettings smtp={smtp} senderIdentities={senderIdentities} />}
             {active === "storage"      && <StoragePanel initial={storage} />}
             {active === "ai-assistant" && <AiAssistantPanel />}

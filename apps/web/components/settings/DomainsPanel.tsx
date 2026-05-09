@@ -13,8 +13,6 @@ type Domain = {
   createdAt: string;
 };
 
-const RENDERER_HOST = process.env.NEXT_PUBLIC_RENDERER_URL?.replace(/^https?:\/\//, "") ?? "pages.yourdomain.com";
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -35,7 +33,13 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function DomainsPanel({ initialDomains }: { initialDomains: Domain[] }) {
+export default function DomainsPanel({
+  initialDomains,
+  rendererHost,
+}: {
+  initialDomains: Domain[];
+  rendererHost: string;
+}) {
   const [domains, setDomains] = useState(initialDomains);
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
@@ -234,8 +238,8 @@ export default function DomainsPanel({ initialDomains }: { initialDomains: Domai
                     </div>
                     <div className="flex items-center gap-2 font-mono text-xs bg-white border border-gray-200 rounded-lg px-3 py-2">
                       <span className="text-gray-400 w-12 shrink-0">Value</span>
-                      <span className="text-gray-900 font-medium flex-1">{RENDERER_HOST}</span>
-                      <CopyButton text={RENDERER_HOST} />
+                      <span className="text-gray-900 font-medium flex-1">{rendererHost}</span>
+                      <CopyButton text={rendererHost} />
                     </div>
                   </div>
 
