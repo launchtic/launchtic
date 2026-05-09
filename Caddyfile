@@ -20,7 +20,9 @@
 	reverse_proxy {args[0]} {
 		header_up Host {host}
 		header_up X-Forwarded-Host {host}
-		header_down Location "://([^/:]+):[0-9]+" "://${1}"
+		# Strip any ":<digits>" sequence from Location. Safe: scheme uses "://"
+		# (no digits after the colon), so only host:port matches.
+		header_down Location ":[0-9]+" ""
 	}
 }
 
