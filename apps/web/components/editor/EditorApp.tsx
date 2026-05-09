@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useRef, useCallback } from "react";
 import { Editor, Frame, Element } from "@craftjs/core";
 
 // Elements from shared package
@@ -106,6 +106,35 @@ const EditorInner: React.FC = () => {
     Coupon, OfferPrice,
   }), []);
 
+  // Keep a stable reference to appContext so the handlers factory below
+  // can stay referentially stable across renders. Re-creating the handlers
+  // mid-drag (e.g. when onNodesChange triggers a re-render between dragover
+  // and drop) detaches Craft.js's drop handler from the canvas and the
+  // drop event lands on a fresh instance with empty state — breaking
+  // drag-and-drop in production builds where the React scheduler flushes
+  // state updates more aggressively than in dev.
+  const appContextRef = useRef(appContext);
+  appContextRef.current = appContext;
+  const stableAppContext = useMemo(() => ({
+    setIsDragging: (v: boolean) => appContextRef.current.setIsDragging(v),
+    setDropTargets: (v: any) => appContextRef.current.setDropTargets(v),
+    setDropIndicator: (v: any) => appContextRef.current.setDropIndicator(v),
+  }), []);
+  const handlersInstanceRef = useRef<CustomEventHandlers | null>(null);
+  const createHandlers = useCallback((store: any) => {
+    if (!handlersInstanceRef.current) {
+      handlersInstanceRef.current = new CustomEventHandlers(
+        { store, isMultiSelectEnabled: () => false, removeHoverOnMouseleave: true },
+        stableAppContext as any,
+      );
+    }
+    return handlersInstanceRef.current;
+  }, [stableAppContext]);
+  useEffect(() => () => {
+    handlersInstanceRef.current?.destroy();
+    handlersInstanceRef.current = null;
+  }, []);
+
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
@@ -127,12 +156,7 @@ const EditorInner: React.FC = () => {
 
   return (
     <Editor
-      handlers={(store) =>
-        new CustomEventHandlers(
-          { store, isMultiSelectEnabled: () => false, removeHoverOnMouseleave: true },
-          appContext
-        )
-      }
+      handlers={createHandlers}
       enabled={true}
       resolver={resolver}
       onNodesChange={markAsChanged}

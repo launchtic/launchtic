@@ -54,19 +54,17 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
   }
 
   private handleGlobalDragStart = () => {
-    //console.log('Global dragstart detected - setting drag state immediately');
     if (this.appContext) {
       this.appContext.setIsDragging(true);
     }
   };
-  
+
   private handleGlobalDragEnd = (e: DragEvent) => {
-    //console.log('Global dragend detected');
+    const timeSinceLastDragOver = Date.now() - this.lastDragOverTime;
     // Mark that a dragEnd is pending
     this.dragEndPending = true;
     this.appContext.setIsDragging(false);
     // If more than 100ms have passed since the last dragover, handle it immediately
-    const timeSinceLastDragOver = Date.now() - this.lastDragOverTime;
     if (timeSinceLastDragOver > 100 && !this.isDropping && !this.isHandlingDragEnd) {
       this.handleFallbackDrop();
     } else {
@@ -87,15 +85,13 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
   private handleGlobalMouseUp = (e: MouseEvent) => {
     // If there's an active dragTarget but no drop occurred, run the fallback
     if (this.dragTarget && !this.isDropping && this.originalDragInfo && !this.isHandlingDragEnd) {
-      //console.log('Global mouseup detected with active drag - trying fallback');
       this.handleFallbackDrop();
     }
   };
-  
+
   private handleFallbackDrop() {
     if (!this.originalDragInfo || !this.dragTarget || this.isDropping) return;
-    
-    //console.log('Handling fallback drop via dragend/mouseup');
+
     this.isHandlingDragEnd = true;
     
     try {
@@ -387,8 +383,6 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
 
   // Process drop with any drag info
   private processDrop(dragInfo: DragInfo, dragTarget: any) {
-    //console.log("Processing drop with rule:", dragInfo.dropRule);
-    
     try {
       // Handle new elements from Toolbox
       if (dragTarget.type === "new") {
@@ -422,9 +416,8 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
         );
       }
       
-      //console.log("🎯 DROP COMPLETED");
     } catch (error) {
-      console.error("Error during drop processing:", error);
+      console.error('Error during drop processing:', error);
     }
   }
 
@@ -641,14 +634,11 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
 
         // Add a dragend handler here using capture so it fires earlier
         const handleElementDragEnd = (e: any) => {
-          //console.log("Element dragend in drag handler", id);
-
           // Prevent default behavior if needed
           e.preventDefault();
 
           // If drag info is set and we haven't transitioned to drop yet
           if (this.dragTarget && this.originalDragInfo && !this.isDropping && !this.isHandlingDragEnd) {
-            //console.log("Element dragend with valid drag info - triggering fallback");
             this.handleFallbackDrop();
           }
         };
@@ -713,13 +703,11 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
         const handleDrop = (e: any) => {
           // If it's already been handled, skip
           if (this.isDropProcessed) {
-            //console.log('Drop already processed, skipping');
             return;
           }
           e.craft.stopPropagation();
           e.preventDefault();
-          
-          //console.log("🎯 DROP STARTED (Element Drop Event)");
+
           this.isDropProcessed = true;
           // Mark that a drop is being processed to avoid conflicting with dragend
           this.isDropping = true;
@@ -730,7 +718,6 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
           const localDragTarget = this.dragTarget ? {...this.dragTarget} : null;
 
           if (!localDragInfo || !localDragTarget) {
-            //console.log("⚠️ Missing drag info, using default drop behavior");
             this.isDropping = false;
             this.resetDragState();
             return;
@@ -756,9 +743,7 @@ export default class CustomEventHandlers extends DefaultEventHandlers {
         };
 
         // Add a dragend handler
-        const handleDragEnd = (e: any) => {
-          //console.log("Element dragend in drop handler");
-        };
+        const handleDragEnd = (e: any) => {};
         
         // Register event listeners — use capture=true for drop
         const unbindDragover = this.addCraftEventListener(el, 'dragover', handleDragOver);

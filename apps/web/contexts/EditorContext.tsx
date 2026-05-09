@@ -53,7 +53,6 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
 
       try {
         const windowPageData = (window as any).data?.pageData;
-        console.log('Window data:', (window as any).data);
 
         if (windowPageData) {
           setPageData({
@@ -72,7 +71,6 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
         setIsLoading(false);
 
         initializationTimer.current = setTimeout(() => {
-          console.log('Editor initialized - now tracking changes');
           isInitializedRef.current = true;
         }, 1000);
       }
@@ -88,12 +86,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
   }, []);
 
   const markAsChanged = useCallback(() => {
-    if (!isInitializedRef.current) {
-      console.log('Skipping change during initialization');
-      return;
-    }
-
-    console.log('Content changed - marking as unsaved');
+    if (!isInitializedRef.current) return;
     setHasUnsavedChanges(true);
   }, []);
 

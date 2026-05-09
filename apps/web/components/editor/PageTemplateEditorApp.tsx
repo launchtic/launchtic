@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useRef, useCallback } from "react";
 import { Editor, Frame, Element } from "@craftjs/core";
 
 import {
@@ -46,6 +46,31 @@ const EditorInner: React.FC = () => {
     Page, FAQ, Menu, Countdown, PaymentButton, PaymentMethod, Coupon, OfferPrice,
   }), []);
 
+  // Stable handlers factory — see EditorApp.tsx for the full reasoning.
+  // A new CustomEventHandlers instance per render detaches Craft.js's drop
+  // handler mid-drag in production, breaking drag-and-drop.
+  const appContextRef = useRef(appContext);
+  appContextRef.current = appContext;
+  const stableAppContext = useMemo(() => ({
+    setIsDragging: (v: boolean) => appContextRef.current.setIsDragging(v),
+    setDropTargets: (v: any) => appContextRef.current.setDropTargets(v),
+    setDropIndicator: (v: any) => appContextRef.current.setDropIndicator(v),
+  }), []);
+  const handlersInstanceRef = useRef<CustomEventHandlers | null>(null);
+  const createHandlers = useCallback((store: any) => {
+    if (!handlersInstanceRef.current) {
+      handlersInstanceRef.current = new CustomEventHandlers(
+        { store, isMultiSelectEnabled: () => false, removeHoverOnMouseleave: true },
+        stableAppContext as any,
+      );
+    }
+    return handlersInstanceRef.current;
+  }, [stableAppContext]);
+  useEffect(() => () => {
+    handlersInstanceRef.current?.destroy();
+    handlersInstanceRef.current = null;
+  }, []);
+
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ""; }
@@ -60,7 +85,7 @@ const EditorInner: React.FC = () => {
 
   return (
     <Editor
-      handlers={(store) => new CustomEventHandlers({ store, isMultiSelectEnabled: () => false, removeHoverOnMouseleave: true }, appContext)}
+      handlers={createHandlers}
       enabled={true}
       resolver={resolver}
       onNodesChange={markAsChanged}
