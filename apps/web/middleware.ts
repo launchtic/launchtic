@@ -42,14 +42,14 @@ export default auth((req) => {
 
   if (!req.auth && isProtected) {
     const locale = pathname.match(localePattern)?.[1] ?? routing.defaultLocale;
-    const loginUrl = new URL(`/${locale}/login`, req.url);
-    loginUrl.searchParams.set("callbackUrl", req.url);
+    const loginUrl = new URL(`/${locale}/login`, req.nextUrl);
+    loginUrl.searchParams.set("callbackUrl", req.nextUrl.href);
     return NextResponse.redirect(loginUrl);
   }
 
   if (req.auth && isAuthPage) {
     const locale = pathname.match(localePattern)?.[1] ?? routing.defaultLocale;
-    return NextResponse.redirect(new URL(`/${locale}/funnels`, req.url));
+    return NextResponse.redirect(new URL(`/${locale}/funnels`, req.nextUrl));
   }
 
   return handleI18nRouting(req);

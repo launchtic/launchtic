@@ -15,6 +15,7 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       APP_DOMAIN: ${APP_DOMAIN}
       PAGES_DOMAIN: ${PAGES_DOMAIN}
+      NEXTAUTH_URL: https://${APP_DOMAIN}
     depends_on:
       postgres:
         condition: service_healthy
