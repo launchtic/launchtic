@@ -1,12 +1,15 @@
 // Derive URL env vars from the canonical 2 inputs (APP_DOMAIN + PAGES_DOMAIN).
 // Idempotent — explicit values in .env always win over derived defaults.
 //
-// MUST be imported as a side-effect at the very top of:
-//   - apps/web/next.config.ts (read at server runtime)
-//   - apps/worker/src/index.ts (so workers reading APP_URL get the right value)
+// Imported as a side-effect at the top of next.config.ts so build-time tooling
+// (e.g. experimental.serverActions.allowedOrigins) sees derived values during
+// `next build`. It does NOT run at server *runtime* — Next.js standalone mode
+// pre-bakes config into server.js and never re-loads next.config.ts. Runtime
+// derivation lives in apps/web/entrypoint.sh (mirror this file's logic in
+// shell). The worker re-derives inline in apps/worker/src/index.ts.
 //
-// All values are read at *runtime* by server code (page.tsx server components,
-// API routes, worker). They are NOT bundled into the client — client components
+// All values are read at runtime by server code (server components, API
+// routes, worker). They are NOT bundled into the client — client components
 // receive the URL as a prop from their server parent. This keeps the same
 // Docker image portable across deployments with different domains.
 
