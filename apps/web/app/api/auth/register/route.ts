@@ -21,6 +21,12 @@ function slugify(name: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Single-tenant lockout — once any user exists, this endpoint is closed.
+    // The /register UI hides itself the same way (server-component redirect),
+    // but defense-in-depth here closes the direct-POST path too.
+    const userCount = await db.user.count();
+    if (userCount > 0) return err("This install is already configured. Sign in instead.", 409);
+
     const body = await req.json();
     const data = registerSchema.parse(body);
 

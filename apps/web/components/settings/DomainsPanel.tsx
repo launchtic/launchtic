@@ -242,21 +242,6 @@ export default function DomainsPanel({
                       <CopyButton text={rendererHost} />
                     </div>
                   </div>
-
-                  {/* Local testing tip */}
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                    <p className="text-xs font-medium text-blue-700 mb-1">Testing locally?</p>
-                    <p className="text-xs text-blue-600 mb-1.5">
-                      Add this line to your <code className="bg-blue-100 px-1 rounded">hosts</code> file, then click Verify:
-                    </p>
-                    <div className="flex items-center gap-2 font-mono text-xs bg-white border border-blue-200 rounded px-2.5 py-1.5">
-                      <span className="text-gray-800 flex-1">127.0.0.1  {d.domain}</span>
-                      <CopyButton text={`127.0.0.1  ${d.domain}`} />
-                    </div>
-                    <p className="text-xs text-blue-500 mt-1.5">
-                      File: <code className="bg-blue-100 px-1 rounded">C:\Windows\System32\drivers\etc\hosts</code> (Windows) or <code className="bg-blue-100 px-1 rounded">/etc/hosts</code> (Mac/Linux)
-                    </p>
-                  </div>
                 </div>
               )}
             </div>
