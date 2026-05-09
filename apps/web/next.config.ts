@@ -34,6 +34,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_RENDERER_URL: process.env.NEXT_PUBLIC_RENDERER_URL,
   },
   experimental: {
+    trustHostHeader: true,
     serverActions: {
       allowedOrigins: [
         "localhost:3000",
