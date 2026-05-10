@@ -170,6 +170,7 @@ export type RendererPageData = {
   pageJson: CraftPageJson;
   payment?: PaymentData;
   meta?: Record<string, unknown> | null;
+  favicon?: string | null;
 };
 
 // ─────────────────────────────────────────

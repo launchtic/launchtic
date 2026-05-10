@@ -222,6 +222,7 @@ async function buildPageData(
     pageJson: funnelStep.pageJson as any,
     payment: paymentData,
     meta: (funnelStep.meta ?? null) as any,
+    favicon: funnelStep.funnel.favicon ?? null,
   };
 
   if (process.env.NODE_ENV !== "development") {

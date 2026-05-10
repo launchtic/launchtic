@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, ShoppingCart, Wrench, Loader2 } from "lucide-react";
+import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
@@ -39,6 +39,57 @@ type Props = {
 
 const inputCls = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base sm:text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400";
 
+function FaviconUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
+      const url = res.data?.url ?? res.url;
+      if (url) onChange(url);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <label className="relative w-14 h-14 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors overflow-hidden shrink-0 group">
+        <input type="file" accept="image/*,.ico" className="sr-only" onChange={handleFile} disabled={uploading} />
+        {value ? (
+          <img src={value} alt="" className="w-full h-full object-contain p-1" />
+        ) : uploading ? (
+          <Loader2 size={16} className="text-blue-400 animate-spin" />
+        ) : (
+          <Plus size={16} className="text-gray-300 group-hover:text-blue-400 transition-colors" />
+        )}
+      </label>
+      <div className="flex-1 min-w-0">
+        {value ? (
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-gray-500 truncate">{value}</p>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="shrink-0 p-1 text-gray-300 hover:text-red-500 transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Click to upload (.ico, .png, .svg)</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function FunnelFormDrawer({ open, onClose, mode, editId, onSuccess }: Props) {
   const isEdit = mode === "edit";
   const t = useTranslations("funnels.form");
@@ -56,6 +107,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
   const [domains, setDomains] = useState<Domain[]>([]);
   const [assignedDomainId, setAssignedDomainId] = useState("");
   const [initialAssignedIds, setInitialAssignedIds] = useState<string[]>([]);
+  const [favicon, setFavicon] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +121,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
     setCurrencyLocked(false);
     setAssignedDomainId("");
     setInitialAssignedIds([]);
+    setFavicon("");
 
     if (!isEdit) return;
 
@@ -85,6 +138,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
         setName(funnel.name ?? "");
         setCurrency(funnel.currency ?? "usd");
         setCurrencyLocked(!!funnel.currencyLocked);
+        setFavicon(funnel.favicon ?? "");
         const domainList: Domain[] = Array.isArray(domainsRes) ? domainsRes : [];
         setDomains(domainList);
         const assigned: Domain[] = Array.isArray(funnelDomainsRes) ? funnelDomainsRes : [];
@@ -149,7 +203,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
       const patchRes = await fetch(`/api/funnels/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, currency }),
+        body: JSON.stringify({ name: trimmed, currency, favicon: favicon.trim() || null }),
       });
       if (!patchRes.ok) {
         const json = await patchRes.json();
@@ -288,7 +342,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
             </select>
             {currencyLocked && (
               <p className="text-xs text-amber-600 mt-1.5">
-                Currency is locked because this funnel already has price plans, order bumps, or physical products. Remove them first to change the currency.
+                Clear existing offers to update currency
               </p>
             )}
           </div>
@@ -313,6 +367,16 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
               {hasNoVerified && (
                 <p className="text-xs text-amber-600 mt-1.5">{t("noVerifiedDomains")}</p>
               )}
+            </div>
+          )}
+
+          {isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Favicon</label>
+              <p className="text-xs text-gray-400 mb-2">
+                Shown in browser tabs for all pages in this funnel.
+              </p>
+              <FaviconUpload value={favicon} onChange={setFavicon} />
             </div>
           )}
         </div>

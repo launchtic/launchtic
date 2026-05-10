@@ -49,9 +49,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!funnel) return err("Funnel not found", 404);
 
     const body = await req.json();
-    const data: { name?: string; currency?: string } = {};
+    const data: { name?: string; currency?: string; favicon?: string | null } = {};
     if (typeof body.name === "string") data.name = body.name.trim();
     if (typeof body.currency === "string") data.currency = body.currency.toLowerCase();
+    if ("favicon" in body) data.favicon = body.favicon ? String(body.favicon).trim() || null : null;
 
     // Block currency change while monetizable content is attached. Auto-converting amounts
     // is unsafe (¥10,000 ≠ $10,000), and silently leaving stale currencies on plans/products

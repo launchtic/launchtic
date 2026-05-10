@@ -115,6 +115,7 @@ model Funnel {
   workspaceId String
   name        String
   currency    String       @default("usd")
+  favicon     String?
   status      FunnelStatus @default(ACTIVE)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
