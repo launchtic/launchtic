@@ -46,6 +46,7 @@ export default function RegisterForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <img src="/logo.svg" alt="launchtic" className="h-8 w-auto mb-6" />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Set up your install</h1>
         <p className="text-gray-500 text-sm mb-6">
           Create the admin account for this Launchtic install. You can change these details later from Settings.

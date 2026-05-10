@@ -43,6 +43,7 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+        <img src="/logo.svg" alt="launchtic" className="h-8 w-auto mb-6" />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{t("welcomeBack")}</h1>
         <p className="text-gray-500 text-sm mb-6">{t("signInToAccount")}</p>
 
