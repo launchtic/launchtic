@@ -6,10 +6,9 @@ import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
   FileText, TrendingUp, ShoppingCart, CheckCircle,
   Search, ChevronLeft, ChevronRight, Settings, Image as ImageIcon, Filter, Copy,
-  Power, Wand2,
+  Power,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
-import { BuildTemplateModal } from "./BuildTemplateModal";
 
 type StepType = "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
 
@@ -444,7 +443,6 @@ export default function PageTemplatesPanel() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [navigating, setNavigating] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showBuild, setShowBuild] = useState(false);
   const [settingsFor, setSettingsFor] = useState<Template | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
@@ -577,11 +575,6 @@ export default function PageTemplatesPanel() {
             </select>
             <ChevronRight size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 rotate-90 pointer-events-none" />
           </div>
-          <button onClick={() => setShowBuild(true)}
-            className="flex items-center gap-2 bg-white text-blue-700 border border-blue-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-50 transition-colors shrink-0"
-            title="Compose template from saved blocks">
-            <Wand2 size={16} /> Build from blocks
-          </button>
           <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">
             <Plus size={16} /> New Template
@@ -663,9 +656,9 @@ export default function PageTemplatesPanel() {
                           <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs leading-relaxed align-top max-w-md">
+                      <td className="px-4 py-3 text-gray-500 text-xs leading-relaxed align-top max-w-xs">
                         {t.description
-                          ? <span className="whitespace-pre-wrap break-words">{t.description}</span>
+                          ? <span className="line-clamp-2 break-words" title={t.description}>{t.description}</span>
                           : <span className="text-gray-300">—</span>
                         }
                       </td>
@@ -751,18 +744,6 @@ export default function PageTemplatesPanel() {
       </div>
 
       {showCreate && <CreateTemplateModal onClose={() => setShowCreate(false)} onCreate={handleCreated} />}
-      {showBuild && (
-        <BuildTemplateModal
-          onClose={() => setShowBuild(false)}
-          onCreated={(id) => {
-            // Keep the modal mounted (with its "Opening editor..." spinner)
-            // until the route change unmounts it. Closing here leaves the
-            // user staring at a blank settings page during navigation.
-            setNavigating(id);
-            router.push(`/page-template-editor/${id}`);
-          }}
-        />
-      )}
       {settingsFor && <TemplateSettingsPanel template={settingsFor} onClose={() => setSettingsFor(null)} onSaved={handleSaved} />}
     </div>
   );
