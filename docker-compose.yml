@@ -76,6 +76,9 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data       # SSL certs — persist qua restart
       - caddy_config:/config
+      # User uploads — Caddy serves /uploads/* directly. Next.js standalone
+      # doesn't pick up runtime-added public files reliably, so we bypass it.
+      - ./uploads:/srv/uploads:ro
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       PAGES_DOMAIN: ${PAGES_DOMAIN}

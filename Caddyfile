@@ -26,13 +26,26 @@
 	}
 }
 
+# Serve user uploads directly from disk. Used by every domain that may render
+# uploaded images (dashboard editor previews + funnel pages, including custom
+# domains). Bypasses Next.js because standalone mode doesn't reliably pick up
+# runtime-added public files. The upload folder is bind-mounted read-only.
+(uploads) {
+	handle_path /uploads/* {
+		root * /srv/uploads
+		file_server
+	}
+}
+
 # Dashboard + editor — fixed domain, cert issued at startup.
 {$APP_DOMAIN} {
+	import uploads
 	import proxy web:3000
 }
 
 # Default funnel-pages domain — cert issued at startup.
 {$PAGES_DOMAIN} {
+	import uploads
 	import proxy renderer:3001
 }
 
@@ -41,6 +54,7 @@
 	tls {
 		on_demand
 	}
+	import uploads
 	import proxy renderer:3001
 }
 
