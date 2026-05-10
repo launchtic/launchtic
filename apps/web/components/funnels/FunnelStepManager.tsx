@@ -471,12 +471,12 @@ export default function FunnelStepManager({
 
             {/* Desktop breadcrumb + actions */}
             <div className="hidden md:flex items-center justify-between mb-3">
-              <nav className="flex items-center gap-1 text-xs text-gray-400">
-                <Link href="/funnels" className="hover:text-blue-600 transition-colors">Funnels</Link>
-                <ChevronRight size={11} />
-                <span className="text-gray-600">{funnel.name}</span>
-                <ChevronRight size={11} />
-                <span className="text-gray-900 font-medium">{selectedStep.name}</span>
+              <nav className="flex items-center gap-1 text-xs text-gray-400 min-w-0">
+                <Link href="/funnels" className="hover:text-blue-600 transition-colors shrink-0">Funnels</Link>
+                <ChevronRight size={11} className="shrink-0" />
+                <span className="text-gray-600 truncate max-w-[180px]">{funnel.name}</span>
+                <ChevronRight size={11} className="shrink-0" />
+                <span className="text-gray-900 font-medium truncate max-w-[180px]">{selectedStep.name}</span>
               </nav>
 
               <div className="flex items-center gap-2">

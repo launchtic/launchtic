@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2 } from "lucide-react";
+import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2, Lock, AlertTriangle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
@@ -328,20 +328,32 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("currencyLabel")}</label>
+            <label className={`block text-sm font-medium mb-1.5 ${currencyLocked ? "text-gray-400" : "text-gray-700"}`}>
+              {t("currencyLabel")}
+            </label>
             <p className="text-xs text-gray-400 mb-2">{t("currencyHint")}</p>
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className={`${inputCls} ${currencyLocked ? "bg-gray-50 text-gray-500 cursor-not-allowed" : ""}`}
-              disabled={currencyLocked}
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>{c.label}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className={`${inputCls} ${
+                  currencyLocked
+                    ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
+                    : ""
+                }`}
+                disabled={currencyLocked}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+              {currencyLocked && (
+                <Lock size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              )}
+            </div>
             {currencyLocked && (
-              <p className="text-xs text-amber-600 mt-1.5">
+              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                <AlertTriangle size={11} className="shrink-0" />
                 Clear existing offers to update currency
               </p>
             )}
