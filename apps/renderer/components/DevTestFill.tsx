@@ -1,11 +1,10 @@
 "use client";
 
-// Only rendered in development mode — not included in production builds
-if (process.env.NODE_ENV !== "development") {
-  // eslint-disable-next-line import/no-anonymous-default-export
-  const Noop = () => null;
-  module.exports = { default: Noop };
-}
+// In production this component renders nothing — see the early-return in the
+// default export below. Do NOT swap the module export with a no-op here:
+// `module.exports = ...` at top level of a "use client" file generates a
+// webpack `c.hmd(a).exports = {...}` wrapper that Next.js 15's ESM server
+// runtime rejects with "ES Modules may not assign module.exports".
 
 const TEST_DATA: Record<string, string> = {
   email:          "jane.smith@company.com",
