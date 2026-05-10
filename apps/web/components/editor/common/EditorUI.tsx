@@ -215,7 +215,7 @@ export const HeaderContainer = styled.header.attrs({
   className: "HeaderContainer",
 })`
   display: grid;
-  grid-template-columns: 50px minmax(314px, max-content) auto minmax(230px, max-content);
+  grid-template-columns: max-content max-content auto minmax(230px, max-content);
   -webkit-box-align: center;
   align-items: center;
   grid-column: 1 / 3;
@@ -230,12 +230,17 @@ export const HeaderContainer = styled.header.attrs({
 export const HeaderBrandWrapper = styled.div.attrs({
   className: "HeaderBrandWrapper",
 })`
-  justify-self: center;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  padding: 0 12px 0 16px;
   img {
-    height: 30px;
+    height: 28px;
+    width: 116px;
+    display: block;
   }
   i {
-    font-size: 30px;
+    font-size: 24px;
   }
 `;
 
@@ -243,6 +248,12 @@ export const HeaderSettingsWrapper = styled.div.attrs({
   className: "HeaderSettingsWrapper",
 })`
   justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  > button {
+    margin: 0;
+  }
 `;
 
 export const BreadcrumbsWrapper = styled.div.attrs({

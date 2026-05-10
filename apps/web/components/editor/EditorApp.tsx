@@ -286,7 +286,7 @@ export default function EditorApp({ funnelStepId, rendererUrl }: Props) {
           }
 
           const previewUrl = step.slug ? stepViewUrl(rendererUrl, step.funnel?.primaryDomain ?? null, step.slug) : "";
-          const backUrl = step.funnelId ? `/funnels/${step.funnelId}` : "/funnels";
+          const backUrl = step.funnel?.id ? `/funnels/${step.funnel.id}` : "/funnels";
           injectWindowData(funnelStepId, pageJson, step.type, step.meta, paymentData, previewUrl, backUrl);
           setReady(true);
         } else {

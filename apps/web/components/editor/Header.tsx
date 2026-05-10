@@ -73,11 +73,9 @@ const Header: React.FC = () => {
   };
 
   const handlePreview = () => {
-    const baseUrl = window.data?.baseUrl || '';
-    const pageCode = window.data?.pageData?.code;
-    if (pageCode) {
-      const previewUrl = `${baseUrl}/preview/${pageCode}`;
-      window.open(previewUrl, '_blank');
+    const previewUrl = window.data?.previewUrl;
+    if (previewUrl) {
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -88,11 +86,11 @@ const Header: React.FC = () => {
   return (
     <HeaderContainer>
       <HeaderBrandWrapper>
-        {window.data?.logoFavicon ? (
-          <img src={window.data.logoFavicon} alt="" onError={(e) => e.currentTarget.style.display = 'none'} />
-        ) : (
-          <i className="fas fa-magic"></i>
-        )}
+        <img
+          src={window.data?.logoFavicon || '/logo-light.svg'}
+          alt="launchtic"
+          onError={(e) => { e.currentTarget.src = '/logo-light.svg'; }}
+        />
       </HeaderBrandWrapper>
       <HeaderSettingsWrapper>
         <LightButton $small disabled={!canUndo} onClick={() => actions.history.undo()}>
@@ -132,7 +130,7 @@ const Header: React.FC = () => {
           )}
         </LightButton>
         
-        <LightButton $small onClick={handlePreview}>
+        <LightButton $small onClick={handlePreview} disabled={!window.data?.previewUrl} title="View live page">
           <i className="fa-solid fa-eye"></i>
         </LightButton>
         

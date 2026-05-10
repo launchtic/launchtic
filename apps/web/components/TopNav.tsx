@@ -228,8 +228,8 @@ export default function TopNav({
     <>
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 gap-4 shrink-0 relative z-30">
         {/* Logo */}
-        <Link href="/dashboard" className="font-bold text-gray-900 text-base shrink-0 mr-2">
-          launchtic
+        <Link href="/dashboard" className="shrink-0 mr-2 flex items-center">
+          <img src="/logo.svg" alt="launchtic" className="h-7 w-auto" />
         </Link>
 
         {/* Desktop nav links */}

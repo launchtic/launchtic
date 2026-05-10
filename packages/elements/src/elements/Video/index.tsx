@@ -1,11 +1,6 @@
 import { UserComponent } from "@craftjs/core";
 import styled, { css, keyframes } from "styled-components";
-import dynamic from "next/dynamic";
-
-// react-player v2 uses CommonJS internally and breaks Next.js 15's ESM
-// bundling on the server ("ES Modules may not assign module.exports").
-// Loading it client-only via next/dynamic sidesteps the SSR bundle entirely.
-const ReactPlayer = dynamic(() => import("react-player/lazy"), { ssr: false });
+import ReactPlayer from "react-player/lazy";
 import { Indicator } from "../../editor/common/Indicator";
 import { VideoProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";
