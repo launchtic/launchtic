@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, BarChart2, Type, Check, Loader2 } from "lucide-react";
+import { Search, BarChart2, Type, Check, Loader2, Upload, Trash2 } from "lucide-react";
 import { useEditorContext } from "../../contexts/EditorContext";
 import { FontTypeSettings } from "@launchtic/elements";
 
@@ -21,6 +21,52 @@ const inputCls =
 const textareaCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono text-gray-800 bg-white " +
   "focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300 resize-none";
+
+function OgImageUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
+      const url = res.data?.url ?? res.url;
+      if (url) onChange(url);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {value ? (
+        <div className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 h-32 flex items-center justify-center">
+          <img src={value} alt="" className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="absolute top-1.5 right-1.5 p-1.5 bg-white/80 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-lg transition-all"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ) : (
+        <label className="flex flex-col items-center justify-center gap-2 h-24 rounded-lg border-2 border-dashed border-gray-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+          <input type="file" accept="image/*" className="sr-only" onChange={handleFile} disabled={uploading} />
+          {uploading
+            ? <Loader2 size={16} className="text-blue-400 animate-spin" />
+            : <Upload size={16} className="text-gray-300" />
+          }
+          <span className="text-xs text-gray-400">{uploading ? "Uploading…" : "Click to upload (1200×630px)"}</span>
+        </label>
+      )}
+    </div>
+  );
+}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -158,13 +204,8 @@ export const StepSettingsPanel: React.FC = () => {
               </p>
             </Field>
 
-            <Field label="OG Image URL" hint="Social share preview image (1200×630px recommended).">
-              <input
-                value={ogImage}
-                onChange={(e) => setOgImage(e.target.value)}
-                placeholder="https://..."
-                className={inputCls}
-              />
+            <Field label="OG Image" hint="Social share preview image (1200×630px recommended).">
+              <OgImageUpload value={ogImage} onChange={setOgImage} />
             </Field>
           </>
         )}
