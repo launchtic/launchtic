@@ -12,6 +12,7 @@ export type AiBrief = {
   tone?: string;
   audience?: string;
   notes?: string;
+  productPrice?: string; // exact price string — AI must use verbatim for price slots
 };
 
 const SYSTEM_PROMPT = `You are a senior landing page copywriter.
@@ -33,7 +34,10 @@ Rules:
   language-neutral — the placeholder text being English doesn't constrain you.
 - DO NOT include the slot syntax {{...}} in your output. Only the literal text.
 - DO NOT add Markdown, HTML, or quotes around values.
-- DO NOT invent statistics, prices, or specific claims unless the brief mentions them.`;
+- DO NOT invent statistics, prices, or specific claims unless the brief mentions them.
+- NEVER convert, reformat, or replace any price, amount, or currency symbol mentioned in the brief.
+  If the brief says "$30 USD", write "$30" or "$30 USD" exactly — do NOT convert to any other currency (e.g. VND, EUR) regardless of the language you are writing in.
+  Language and currency are independent.`;
 
 function buildUserPrompt(slots: string[], brief: AiBrief): string {
   const parts: string[] = [];
@@ -41,6 +45,11 @@ function buildUserPrompt(slots: string[], brief: AiBrief): string {
   if (brief.tone) parts.push(`Tone: ${brief.tone}`);
   if (brief.audience) parts.push(`Target audience: ${brief.audience}`);
   if (brief.notes) parts.push(`Additional notes: ${brief.notes}`);
+  if (brief.productPrice) {
+    parts.push("");
+    parts.push(`FIXED PRICE: ${brief.productPrice}`);
+    parts.push(`For any slot that represents a price, cost, or monetary value — use exactly "${brief.productPrice}". Do not change, round, or convert it.`);
+  }
   parts.push("");
   parts.push(`Fill the following ${slots.length} slot(s). Return one string per slot.`);
   parts.push("");

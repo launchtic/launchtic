@@ -170,7 +170,9 @@ const createFunnelFromSpec = defineTool({
     "Set offerType: DIGITAL for info-products / courses / ebooks / SaaS. PHYSICAL for shipped goods.\n" +
     "Tags in grantTagNames auto-created if missing. Currency defaults to 'usd' — only the\n" +
     "  Stripe+PayPal intersection is supported (see `currency` enum). VND/IDR/INR/etc.\n" +
-    "  are NOT processable. If user requests unsupported currency, default to 'usd'.\n" +
+    "  are NOT processable. If user gives a price in an unsupported currency, STOP — do NOT\n" +
+    "  call this tool. Ask the user what their price is in a supported currency (USD, EUR, etc.).\n" +
+    "  Never auto-convert or guess the equivalent amount — currency conversion is the user's call.\n" +
     "Funnel created as DRAFT — operator customizes in editor after.\n\n" +
     "BEST PRACTICE — gather a `brief` BEFORE calling so page copy is meaningful:\n" +
     "  Ask user: audience, key benefits, pain point, tone (urgent/friendly/premium/professional).\n" +
@@ -192,7 +194,9 @@ const createFunnelFromSpec = defineTool({
       "Lowercase currency code. Stripe + PayPal intersection only. Supported: " +
       SUPPORTED_CURRENCY_CODES.join(", ") + ". " +
       "VND, IDR, INR, etc. are NOT supported — Stripe / PayPal don't process them. " +
-      "If user requests an unsupported currency, default to 'usd' and mention the limit briefly."
+      "IMPORTANT: If user gives a price in an unsupported currency (e.g. VNĐ, IDR, INR), do NOT call this tool yet. " +
+      "Ask the user: what is their price in a supported currency (USD, EUR, etc.)? " +
+      "Never auto-convert or guess the equivalent amount — let the user decide."
     ),
     funnelType: z.enum(["direct_sale", "lead_capture"]).default("direct_sale")
       .describe("'direct_sale' = paid product (Sales→Checkout→Thank You). 'lead_capture' = free lead magnet (Optin→Thank You)."),
@@ -298,6 +302,7 @@ const createFunnelFromSpec = defineTool({
     const resolveTemplate = async (
       type: string,
       overrideId?: string,
+      stepPrice?: string,
     ): Promise<{ pageJson: any; seoMeta: { title: string; description: string } }> => {
       const emptySeo = { title: "", description: "" };
       let pageJson: any;
@@ -322,12 +327,12 @@ const createFunnelFromSpec = defineTool({
         });
         pageJson = t?.pageJson ?? {};
       }
-      // Inject seo_title + seo_description as synthetic slots alongside template
-      // slots — same AI call, no extra cost or latency.
+
       const templateSlots = extractSlotsFromPageJson(pageJson);
       const allSlots = [...templateSlots, ...SEO_SLOTS];
+      const brief = stepPrice ? { ...briefForFill, productPrice: stepPrice } : briefForFill;
       try {
-        const values = await fillSlotsWithAI({ workspaceId: ctx.workspaceId, slots: allSlots, brief: briefForFill });
+        const values = await fillSlotsWithAI({ workspaceId: ctx.workspaceId, slots: allSlots, brief });
         const { seo_title, seo_description, ...pageValues } = values;
         return {
           pageJson: templateSlots.length ? fillSlotsInPageJson(pageJson, pageValues) : pageJson,
@@ -356,9 +361,10 @@ const createFunnelFromSpec = defineTool({
       ({ pageJson: optinPageJson,    seoMeta: optinSeo    } = optin);
       ({ pageJson: thankyouPageJson, seoMeta: thankyouSeo } = thankyou);
     } else {
+      const exactPrice = `$${args.product!.price} ${currency.toUpperCase()}`;
       const [sales, checkout, thankyou] = await Promise.all([
-        resolveTemplate("SALES",    args.templateIds?.sales),
-        resolveTemplate("CHECKOUT", args.templateIds?.checkout),
+        resolveTemplate("SALES",    args.templateIds?.sales,    exactPrice),
+        resolveTemplate("CHECKOUT", args.templateIds?.checkout, exactPrice),
         resolveTemplate("THANKYOU", args.templateIds?.thankyou),
       ]);
       ({ pageJson: salesPageJson,    seoMeta: salesSeo    } = sales);
