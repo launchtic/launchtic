@@ -293,7 +293,13 @@ const createFunnelFromSpec = defineTool({
       notes:    benefitNotes || undefined,
     };
 
-    const resolveTemplate = async (type: string, overrideId?: string): Promise<any> => {
+    const SEO_SLOTS = ["seo_title", "seo_description"] as const;
+
+    const resolveTemplate = async (
+      type: string,
+      overrideId?: string,
+    ): Promise<{ pageJson: any; seoMeta: { title: string; description: string } }> => {
+      const emptySeo = { title: "", description: "" };
       let pageJson: any;
       if (overrideId) {
         const explicit = await db.pageTemplate.findUnique({
@@ -316,15 +322,20 @@ const createFunnelFromSpec = defineTool({
         });
         pageJson = t?.pageJson ?? {};
       }
-      // Slot-fill (graceful: leave raw if AI fails)
-      const slots = extractSlotsFromPageJson(pageJson);
-      if (slots.length === 0) return pageJson;
+      // Inject seo_title + seo_description as synthetic slots alongside template
+      // slots — same AI call, no extra cost or latency.
+      const templateSlots = extractSlotsFromPageJson(pageJson);
+      const allSlots = [...templateSlots, ...SEO_SLOTS];
       try {
-        const values = await fillSlotsWithAI({ workspaceId: ctx.workspaceId, slots, brief: briefForFill });
-        return fillSlotsInPageJson(pageJson, values);
+        const values = await fillSlotsWithAI({ workspaceId: ctx.workspaceId, slots: allSlots, brief: briefForFill });
+        const { seo_title, seo_description, ...pageValues } = values;
+        return {
+          pageJson: templateSlots.length ? fillSlotsInPageJson(pageJson, pageValues) : pageJson,
+          seoMeta:  { title: seo_title ?? "", description: seo_description ?? "" },
+        };
       } catch (e) {
         console.warn("[create_funnel_from_spec] AI slot-fill failed:", e);
-        return pageJson;
+        return { pageJson, seoMeta: emptySeo };
       }
     };
 
@@ -332,18 +343,35 @@ const createFunnelFromSpec = defineTool({
     // direct_sale: Sales + Checkout + Thank You
     // lead_capture: Optin + Thank You (no checkout, no price plans)
     let optinPageJson: any, salesPageJson: any, checkoutPageJson: any, thankyouPageJson: any;
+    let optinSeo:    { title: string; description: string } = { title: "", description: "" };
+    let salesSeo:    { title: string; description: string } = { title: "", description: "" };
+    let checkoutSeo: { title: string; description: string } = { title: "", description: "" };
+    let thankyouSeo: { title: string; description: string } = { title: "", description: "" };
+
     if (isLeadCapture) {
-      [optinPageJson, thankyouPageJson] = await Promise.all([
-        resolveTemplate("OPTIN", args.templateIds?.optin),
+      const [optin, thankyou] = await Promise.all([
+        resolveTemplate("OPTIN",    args.templateIds?.optin),
         resolveTemplate("THANKYOU", args.templateIds?.thankyou),
       ]);
+      ({ pageJson: optinPageJson,    seoMeta: optinSeo    } = optin);
+      ({ pageJson: thankyouPageJson, seoMeta: thankyouSeo } = thankyou);
     } else {
-      [salesPageJson, checkoutPageJson, thankyouPageJson] = await Promise.all([
-        resolveTemplate("SALES", args.templateIds?.sales),
+      const [sales, checkout, thankyou] = await Promise.all([
+        resolveTemplate("SALES",    args.templateIds?.sales),
         resolveTemplate("CHECKOUT", args.templateIds?.checkout),
         resolveTemplate("THANKYOU", args.templateIds?.thankyou),
       ]);
+      ({ pageJson: salesPageJson,    seoMeta: salesSeo    } = sales);
+      ({ pageJson: checkoutPageJson, seoMeta: checkoutSeo } = checkout);
+      ({ pageJson: thankyouPageJson, seoMeta: thankyouSeo } = thankyou);
     }
+
+    const toSeoMeta = (seo: { title: string; description: string }) => {
+      const s: Record<string, string> = {};
+      if (seo.title)       s.title       = seo.title;
+      if (seo.description) s.description = seo.description;
+      return Object.keys(s).length ? { seo: s } : undefined;
+    };
 
     // ─── Pre-compute slugs OUTSIDE the transaction ───
     // generateUniqueSlug runs DB queries; doing it inside tx would slow it
@@ -461,6 +489,7 @@ const createFunnelFromSpec = defineTool({
             type: "OPTIN",
             order: order++,
             pageJson: optinPageJson,
+            meta: toSeoMeta(optinSeo) ?? {},
           },
         });
         stepsCreated.push({ id: optinStep.id, name: optinStep.name, type: "OPTIN" });
@@ -485,6 +514,7 @@ const createFunnelFromSpec = defineTool({
             type: "SALES",
             order: order++,
             pageJson: salesPageJson,
+            meta: toSeoMeta(salesSeo) ?? {},
           },
         });
         stepsCreated.push({ id: salesStep.id, name: salesStep.name, type: "SALES" });
@@ -498,6 +528,7 @@ const createFunnelFromSpec = defineTool({
             type: "CHECKOUT",
             order: order++,
             pageJson: checkoutPageJson,
+            meta: toSeoMeta(checkoutSeo) ?? {},
             offerType: args.product!.offerType,
             physicalProductId: args.product!.offerType === "PHYSICAL"
               ? productIdByName.get(args.product!.name) ?? null
@@ -586,6 +617,7 @@ const createFunnelFromSpec = defineTool({
           type: "THANKYOU",
           order: order++,
           pageJson: thankyouPageJson,
+          meta: toSeoMeta(thankyouSeo) ?? {},
         },
       });
       stepsCreated.push({ id: thankStep.id, name: thankStep.name, type: "THANKYOU" });

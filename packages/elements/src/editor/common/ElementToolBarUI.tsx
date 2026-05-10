@@ -57,7 +57,6 @@ export const Toolbar = styled.div`
 
     @media (max-width: 800px) {
       top: auto;
-      bottom: 70px;        /* sits above mobile sidebar footer */
       max-width: calc(100vw - 16px);
     }
 `;

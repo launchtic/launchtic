@@ -263,6 +263,7 @@ export const BreadcrumbsWrapper = styled.div.attrs({
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-left: 20px;
 `;
 
 export const BreadcrumbsItem = styled.span.attrs({
