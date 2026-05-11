@@ -16,8 +16,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { licenseKey } = activateSchema.parse(body);
 
-    // Verify with Launchtic license server (track by userId, not workspaceId)
-    const result = await verifyLicenseKey(licenseKey, userId);
+    const result = await verifyLicenseKey(licenseKey);
     if (!result.valid) return err(result.error ?? "Invalid license key.", 400);
 
     await db.user.update({
@@ -82,7 +81,6 @@ export async function DELETE() {
 
 async function verifyLicenseKey(
   key: string,
-  userId: string,
 ): Promise<{ valid: boolean; plan?: string; expiresAt?: string; error?: string }> {
   const serverUrl = process.env.LICENSE_SERVER_URL ?? "https://launchtic.com";
 
@@ -90,7 +88,7 @@ async function verifyLicenseKey(
     const res = await fetch(`${serverUrl}/api/licenses/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, workspaceId: userId }),
+      body: JSON.stringify({ key }),
       signal: AbortSignal.timeout(10_000),
     });
 

@@ -51,25 +51,6 @@ export default function LicensePanel() {
     }
   }
 
-  async function remove() {
-    if (!confirm("Remove license key and downgrade to Free plan?")) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const res = await fetch("/api/license", { method: "DELETE" });
-      const data = await res.json();
-      if (data.success) {
-        setStatus((prev) => prev ? { ...prev, plan: "FREE", licenseKey: null, expiresAt: null, isExpired: false } : prev);
-        setSuccess("License removed. Downgraded to Free plan.");
-      }
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   const planColor: Record<string, string> = {
     FREE: "bg-gray-100 text-gray-600",
     PRO: "bg-blue-100 text-blue-700",
@@ -117,16 +98,7 @@ export default function LicensePanel() {
       {status?.licenseKey && (
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">License Key</p>
-          <div className="flex items-center justify-between">
-            <code className="text-sm font-mono text-gray-700">{status.licenseKey}</code>
-            <button
-              onClick={remove}
-              disabled={saving}
-              className="text-xs text-red-500 hover:text-red-700 transition-colors"
-            >
-              Remove
-            </button>
-          </div>
+          <code className="text-sm font-mono text-gray-700">{status.licenseKey}</code>
         </div>
       )}
 
@@ -179,7 +151,7 @@ export default function LicensePanel() {
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline"
           >
-            Get Pro — $199/year →
+            Get Pro — $249/year →
           </a>
         </p>
       )}
