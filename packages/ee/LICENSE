@@ -1,0 +1,19 @@
+Launchtic Enterprise Edition License
+
+Copyright (c) 2024 Launchtic
+
+The code in this directory (/packages/ee) is licensed under the Launchtic
+Enterprise Edition License. This code is NOT open source.
+
+Permission is granted to:
+- View and audit this code
+- Use this code in production with a valid Launchtic Enterprise license key
+- Modify this code while holding a valid Enterprise license (modifications
+  may remain private — you are NOT required to publish them)
+
+Permission is NOT granted to:
+- Use this code in production without a valid license key
+- Copy, distribute, sublicense, or sell this code
+- Use this code to build a competing hosted/SaaS product
+
+For licensing inquiries: hello@launchtic.com

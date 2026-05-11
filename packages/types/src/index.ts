@@ -171,6 +171,7 @@ export type RendererPageData = {
   payment?: PaymentData;
   meta?: Record<string, unknown> | null;
   favicon?: string | null;
+  showBadge?: boolean;
 };
 
 // ─────────────────────────────────────────

@@ -159,6 +159,9 @@ importers:
       '@launchtic/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@launchtic/ee':
+        specifier: workspace:*
+        version: link:../../packages/ee
       '@launchtic/elements':
         specifier: workspace:*
         version: link:../../packages/elements
@@ -348,6 +351,12 @@ importers:
       tsx:
         specifier: ^4.19.4
         version: 4.21.0
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
+  packages/ee:
+    devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

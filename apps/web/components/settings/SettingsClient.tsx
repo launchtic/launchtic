@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, ChevronRight, ChevronLeft } from "lucide-react";
+import { Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key, ChevronRight, ChevronLeft } from "lucide-react";
 import DomainsPanel       from "./DomainsPanel";
 import PaymentPanel       from "./PaymentPanel";
 import EmailSettings      from "./EmailSettings";
 import StoragePanel       from "./StoragePanel";
 import PageTemplatesPanel from "./PageTemplatesPanel";
 import AiAssistantPanel   from "./AiAssistantPanel";
+import LicensePanel       from "./LicensePanel";
 
 type Domain = { id: string; domain: string; verified: boolean; isDefault: boolean; createdAt: string };
 type StripeData  = { publishableKey: string; secretKey: string; webhookSecret: string | null; mode: string } | null;
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { id: "storage",        icon: HardDrive      },
   { id: "page-templates", icon: LayoutTemplate },
   { id: "ai-assistant",   icon: Bot            },
+  { id: "license",        icon: Key            },
 ] as const;
 
 type Section = typeof NAV_ITEMS[number]["id"];
@@ -59,6 +61,7 @@ export default function SettingsClient({
     { id: "storage",        label: t("nav.storage"),         icon: HardDrive      },
     { id: "page-templates", label: "Page Templates",         icon: LayoutTemplate },
     { id: "ai-assistant",   label: "AI Assistant",           icon: Bot            },
+    { id: "license",        label: "License",                icon: Key            },
   ] as const;
 
   const activeNav = NAV.find((n) => n.id === active)!;
@@ -124,6 +127,7 @@ export default function SettingsClient({
             {active === "email"        && <EmailSettings smtp={smtp} senderIdentities={senderIdentities} />}
             {active === "storage"      && <StoragePanel initial={storage} />}
             {active === "ai-assistant" && <AiAssistantPanel />}
+            {active === "license"      && <LicensePanel />}
           </div>
         )}
       </main>

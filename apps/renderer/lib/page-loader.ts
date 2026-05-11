@@ -214,6 +214,15 @@ async function buildPageData(
 
   const nextStepUrl = await getNextStepUrl(funnelStep, host);
 
+  const workspace = await db.workspace.findUnique({
+    where: { id: funnelStep.funnel.workspaceId },
+    select: { plan: true, licenseExpiresAt: true },
+  });
+  const isLicenseActive =
+    workspace?.plan !== "FREE" &&
+    (workspace?.licenseExpiresAt == null || workspace.licenseExpiresAt > new Date());
+  const showBadge = !isLicenseActive;
+
   const pageData: RendererPageData = {
     workspaceId: funnelStep.funnel.workspaceId,
     funnelId: funnelStep.funnelId,
@@ -223,6 +232,7 @@ async function buildPageData(
     payment: paymentData,
     meta: (funnelStep.meta ?? null) as any,
     favicon: funnelStep.funnel.favicon ?? null,
+    showBadge,
   };
 
   if (process.env.NODE_ENV !== "development") {

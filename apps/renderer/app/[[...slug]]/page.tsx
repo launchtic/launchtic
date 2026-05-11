@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { loadPage } from "../../lib/page-loader";
 import PageRenderClient from "../../components/PageRenderClient";
+import PoweredByBadge from "../../components/PoweredByBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export default async function PublishedPage({ params }: Props) {
           meta: pageData.meta ?? null,
         }}
       />
+      {pageData.showBadge && <PoweredByBadge />}
     </>
   );
 }
