@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../lib/api";
+import { ok, err, handleError, getUserId } from "../../../lib/api";
 
 const activateSchema = z.object({
   licenseKey: z.string().min(10),
@@ -10,18 +10,18 @@ const activateSchema = z.object({
 // POST /api/license — activate a license key
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const userId = await getUserId();
+    if (!userId) return err("Unauthorized", 401);
 
     const body = await req.json();
     const { licenseKey } = activateSchema.parse(body);
 
-    // Verify with Launchtic license server
-    const result = await verifyLicenseKey(licenseKey, workspaceId);
+    // Verify with Launchtic license server (track by userId, not workspaceId)
+    const result = await verifyLicenseKey(licenseKey, userId);
     if (!result.valid) return err(result.error ?? "Invalid license key.", 400);
 
-    await db.workspace.update({
-      where: { id: workspaceId },
+    await db.user.update({
+      where: { id: userId },
       data: {
         plan: result.plan as any,
         licenseKey,
@@ -38,26 +38,24 @@ export async function POST(req: NextRequest) {
 // GET /api/license — get current license status
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const userId = await getUserId();
+    if (!userId) return err("Unauthorized", 401);
 
-    const workspace = await db.workspace.findUnique({
-      where: { id: workspaceId },
+    const user = await db.user.findUnique({
+      where: { id: userId },
       select: { plan: true, licenseKey: true, licenseExpiresAt: true },
     });
 
-    if (!workspace) return err("Workspace not found", 404);
+    if (!user) return err("User not found", 404);
 
     const isExpired =
-      workspace.licenseExpiresAt != null &&
-      workspace.licenseExpiresAt < new Date();
+      user.licenseExpiresAt != null &&
+      user.licenseExpiresAt < new Date();
 
     return ok({
-      plan: isExpired ? "FREE" : workspace.plan,
-      licenseKey: workspace.licenseKey
-        ? maskKey(workspace.licenseKey)
-        : null,
-      expiresAt: workspace.licenseExpiresAt?.toISOString() ?? null,
+      plan: isExpired ? "FREE" : user.plan,
+      licenseKey: user.licenseKey ? maskKey(user.licenseKey) : null,
+      expiresAt: user.licenseExpiresAt?.toISOString() ?? null,
       isExpired,
     });
   } catch (error) {
@@ -68,11 +66,11 @@ export async function GET() {
 // DELETE /api/license — remove license key (downgrade to FREE)
 export async function DELETE() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const userId = await getUserId();
+    if (!userId) return err("Unauthorized", 401);
 
-    await db.workspace.update({
-      where: { id: workspaceId },
+    await db.user.update({
+      where: { id: userId },
       data: { plan: "FREE", licenseKey: null, licenseExpiresAt: null },
     });
 
@@ -84,7 +82,7 @@ export async function DELETE() {
 
 async function verifyLicenseKey(
   key: string,
-  workspaceId: string,
+  userId: string,
 ): Promise<{ valid: boolean; plan?: string; expiresAt?: string; error?: string }> {
   const serverUrl = process.env.LICENSE_SERVER_URL ?? "https://launchtic.com";
 
@@ -92,16 +90,13 @@ async function verifyLicenseKey(
     const res = await fetch(`${serverUrl}/api/licenses/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, workspaceId }),
-      // 10s timeout so a slow server doesn't block the UI
+      body: JSON.stringify({ key, workspaceId: userId }),
       signal: AbortSignal.timeout(10_000),
     });
 
     const data = await res.json();
     return data;
   } catch {
-    // If the license server is unreachable, fall back to offline format check
-    // so self-hosters aren't locked out by a network blip
     if (key.startsWith("LT-PRO-")) return { valid: true, plan: "PRO" };
     if (key.startsWith("LT-ENT-")) return { valid: true, plan: "ENTERPRISE" };
     return { valid: false, error: "Could not reach license server." };

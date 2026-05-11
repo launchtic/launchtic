@@ -24,16 +24,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name } = createSchema.parse(body);
 
-    // Get user's current workspaces and plan
-    const ownedWorkspaces = await db.workspace.findMany({
-      where: { ownerId: userId },
-      select: { id: true, plan: true },
-      orderBy: { createdAt: "asc" },
-    });
+    const [user, currentCount] = await Promise.all([
+      db.user.findUnique({ where: { id: userId }, select: { plan: true, licenseExpiresAt: true } }),
+      db.workspace.count({ where: { ownerId: userId } }),
+    ]);
 
-    // Use the plan of their first workspace (primary workspace)
-    const currentPlan = ownedWorkspaces[0]?.plan ?? "FREE";
-    const currentCount = ownedWorkspaces.length;
+    const isExpired = user?.licenseExpiresAt != null && user.licenseExpiresAt < new Date();
+    const currentPlan = isExpired ? "FREE" : (user?.plan ?? "FREE");
 
     if (!canCreateWorkspace(currentPlan, currentCount)) {
       return err("Upgrade to Pro to create additional workspaces.", 403);

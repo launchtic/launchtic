@@ -14,13 +14,16 @@ datasource db {
 // ─────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String?
-  avatar       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  name             String?
+  avatar           String?
+  plan             Plan      @default(FREE)
+  licenseKey       String?
+  licenseExpiresAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   ownedWorkspaces Workspace[]
   memberships     WorkspaceMember[]
@@ -28,15 +31,12 @@ model User {
 }
 
 model Workspace {
-  id               String    @id @default(cuid())
-  name             String
-  slug             String    @unique
-  ownerId          String
-  plan             Plan      @default(FREE)
-  licenseKey       String?
-  licenseExpiresAt DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   owner   User              @relation(fields: [ownerId], references: [id])
   members WorkspaceMember[]
