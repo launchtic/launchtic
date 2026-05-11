@@ -43,12 +43,20 @@ export default function PoweredByBadge() {
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        fontSize: "14px",
-        fontWeight: 800,
-        color: "#fff",
-        letterSpacing: "-0.5px",
       }}>
-        L
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="#fff"
+          stroke="#fff"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+        </svg>
       </div>
 
       {/* Text */}

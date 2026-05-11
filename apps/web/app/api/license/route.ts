@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const { licenseKey } = activateSchema.parse(body);
 
     // Verify with Launchtic license server
-    const result = await verifyLicenseKey(licenseKey);
+    const result = await verifyLicenseKey(licenseKey, workspaceId);
     if (!result.valid) return err(result.error ?? "Invalid license key.", 400);
 
     await db.workspace.update({
@@ -82,33 +82,30 @@ export async function DELETE() {
   }
 }
 
-async function verifyLicenseKey(key: string): Promise<{
-  valid: boolean;
-  plan?: string;
-  expiresAt?: string;
-  error?: string;
-}> {
-  // TODO: replace with real Launchtic license server call
-  // For now: simple format check — real keys start with "LT-"
-  if (!key.startsWith("LT-")) {
-    return { valid: false, error: "Invalid license key format." };
-  }
+async function verifyLicenseKey(
+  key: string,
+  workspaceId: string,
+): Promise<{ valid: boolean; plan?: string; expiresAt?: string; error?: string }> {
+  const serverUrl = process.env.LICENSE_SERVER_URL ?? "https://launchtic.com";
 
-  // Simulate plan detection from key prefix
-  // LT-PRO-xxx → PRO, LT-ENT-xxx → ENTERPRISE
-  if (key.startsWith("LT-PRO-")) {
-    const expiresAt = new Date();
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    return { valid: true, plan: "PRO", expiresAt: expiresAt.toISOString() };
-  }
+  try {
+    const res = await fetch(`${serverUrl}/api/licenses/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, workspaceId }),
+      // 10s timeout so a slow server doesn't block the UI
+      signal: AbortSignal.timeout(10_000),
+    });
 
-  if (key.startsWith("LT-ENT-")) {
-    const expiresAt = new Date();
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    return { valid: true, plan: "ENTERPRISE", expiresAt: expiresAt.toISOString() };
+    const data = await res.json();
+    return data;
+  } catch {
+    // If the license server is unreachable, fall back to offline format check
+    // so self-hosters aren't locked out by a network blip
+    if (key.startsWith("LT-PRO-")) return { valid: true, plan: "PRO" };
+    if (key.startsWith("LT-ENT-")) return { valid: true, plan: "ENTERPRISE" };
+    return { valid: false, error: "Could not reach license server." };
   }
-
-  return { valid: false, error: "Unknown license key." };
 }
 
 function maskKey(key: string): string {
