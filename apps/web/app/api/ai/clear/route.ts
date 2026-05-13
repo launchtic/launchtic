@@ -1,11 +1,12 @@
-import { ok, err, handleError, getWorkspaceId, getUserId } from "../../../../lib/api";
+import { ok, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { clearConversation } from "../../../../lib/ai/conversation";
 
 export async function POST() {
   try {
-    const workspaceId = await getWorkspaceId();
-    const userId = await getUserId();
-    if (!workspaceId || !userId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId, userId } = r;
 
     await clearConversation(workspaceId, userId);
     return ok({ cleared: true });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
-import { getWorkspaceId } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import dns from "dns/promises";
 
 type Params = { params: Promise<{ id: string }> };
@@ -8,8 +8,9 @@ type Params = { params: Promise<{ id: string }> };
 const PAGES_DOMAIN = process.env.PAGES_DOMAIN ?? "";
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("settings:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { id } = await params;
   const domain = await db.domain.findUnique({ where: { id } });
@@ -29,8 +30,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
 // Verify domain: check that CNAME points correctly to PAGES_DOMAIN
 export async function PATCH(_req: NextRequest, { params }: Params) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("settings:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { id } = await params;
   const record = await db.domain.findUnique({ where: { id } });

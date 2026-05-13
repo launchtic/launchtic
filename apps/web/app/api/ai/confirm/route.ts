@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId, getUserId } from "../../../../lib/api";
+import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { runChat, executeConfirmedTool } from "../../../../lib/ai/llm";
 import { getAiSettings } from "../../../../lib/ai/settings";
 import { decrypt } from "../../../../lib/crypto";
@@ -14,9 +15,9 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    const userId = await getUserId();
-    if (!workspaceId || !userId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId, userId } = r;
 
     const ai = await getAiSettings(workspaceId);
     if (!ai || !ai.enabled) return err("AI assistant disabled", 400);

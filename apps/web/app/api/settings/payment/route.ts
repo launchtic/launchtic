@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, getWorkspaceId } from "../../../../lib/api";
+import { ok, err } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 const stripeSchema = z.object({
   provider:       z.literal("stripe"),
@@ -26,8 +27,9 @@ const bodySchema = z.discriminatedUnion("provider", [stripeSchema, paypalSchema]
 
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const stripe = settings?.stripe as any;
@@ -56,8 +58,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const body = bodySchema.parse(await req.json());
     const { provider, ...data } = body;

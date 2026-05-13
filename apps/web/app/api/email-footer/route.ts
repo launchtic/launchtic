@@ -6,7 +6,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../lib/api";
+import { ok, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 
 type Footer = { unsubscribeText: string | null; physicalAddress: string | null };
 
@@ -29,8 +30,9 @@ async function read(workspaceId: string): Promise<Footer> {
 
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
     return ok(await read(workspaceId));
   } catch (error) {
     return handleError(error);
@@ -39,8 +41,9 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("emails:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const data = updateSchema.parse(await req.json());
 

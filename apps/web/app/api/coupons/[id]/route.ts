@@ -1,17 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "../../../../lib/auth";
+import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
+import { ok, err } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 type Props = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Props) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const workspaceId = (session as any).workspaceId as string;
+  const r = await requireAccess("orders:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
   const { id } = await params;
 
   const coupon = await db.coupon.findFirst({ where: { id, workspaceId } });
-  if (!coupon) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!coupon) return err("Not found", 404);
 
   const { code, type, discount, maxUses, expiresAt, active } = await req.json();
 
@@ -31,18 +32,18 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     },
   });
 
-  return NextResponse.json(updated);
+  return ok(updated);
 }
 
 export async function DELETE(_req: NextRequest, { params }: Props) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const workspaceId = (session as any).workspaceId as string;
+  const r = await requireAccess("orders:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
   const { id } = await params;
 
   const coupon = await db.coupon.findFirst({ where: { id, workspaceId } });
-  if (!coupon) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!coupon) return err("Not found", 404);
 
   await db.coupon.delete({ where: { id } });
-  return NextResponse.json({ deleted: true });
+  return ok({ deleted: true });
 }

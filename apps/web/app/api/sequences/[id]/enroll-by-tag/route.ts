@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 // Cap one bulk-enroll request to keep the inline transaction reasonable. Tags
 // larger than this should be split, or this endpoint should be moved to a
@@ -18,8 +19,9 @@ type Params = { params: Promise<{ id: string }> };
 // only adds newly-tagged contacts.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("emails:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id: sequenceId } = await params;
     const { tagId } = schema.parse(await req.json());

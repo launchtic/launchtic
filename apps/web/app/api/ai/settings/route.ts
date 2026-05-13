@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { ok, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { getPublicAiSettings, saveAiSettings, deleteAiSettings } from "../../../../lib/ai/settings";
 
 const updateSchema = z.object({
@@ -12,8 +13,9 @@ const updateSchema = z.object({
 
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const settings = await getPublicAiSettings(workspaceId);
     return ok(settings);
   } catch (error) {
@@ -23,8 +25,9 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const data = updateSchema.parse(await req.json());
     const updated = await saveAiSettings(workspaceId, data);
     return ok(updated);
@@ -35,8 +38,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
     await deleteAiSettings(workspaceId);
     return ok({ deleted: true });
   } catch (error) {

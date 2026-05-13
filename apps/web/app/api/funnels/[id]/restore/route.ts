@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 import { assertAllStepSlugsAvailable } from "../../../../../lib/funnels/slug-validation";
 
 type Params = { params: Promise<{ id: string }> };
@@ -12,8 +13,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const funnel = await db.funnel.findUnique({
       where: { id, workspaceId },

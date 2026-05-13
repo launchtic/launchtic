@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../lib/api";
+import { ok, err, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -17,8 +18,9 @@ const createSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
@@ -55,8 +57,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("emails:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const body = await req.json();
     const data = createSchema.parse(body);

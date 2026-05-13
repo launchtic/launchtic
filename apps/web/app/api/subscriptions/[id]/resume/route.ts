@@ -1,12 +1,14 @@
 import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("orders:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
 

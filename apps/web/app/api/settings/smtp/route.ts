@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, getWorkspaceId } from "../../../../lib/api";
+import { ok, err } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { encrypt, decrypt } from "../../../../lib/crypto";
 
 const KEEP = "__KEEP__";
@@ -19,8 +20,9 @@ const schema = z.object({
 
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const smtp = settings?.smtp as any;
@@ -44,8 +46,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const body = schema.parse(await req.json());
 

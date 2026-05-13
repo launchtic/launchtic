@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ok, err, getWorkspaceId } from "../../../../lib/api";
+import { ok, err } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { getDriver } from "../../../../lib/storage";
 
 const bodySchema = z.object({ key: z.string().min(1) });
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { key } = bodySchema.parse(await req.json());
 

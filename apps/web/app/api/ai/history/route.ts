@@ -1,11 +1,12 @@
-import { ok, err, handleError, getWorkspaceId, getUserId } from "../../../../lib/api";
+import { ok, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { getOrCreateConversation, loadMessages } from "../../../../lib/ai/conversation";
 
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    const userId = await getUserId();
-    if (!workspaceId || !userId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId, userId } = r;
 
     const conv = await getOrCreateConversation(workspaceId, userId);
     const messages = await loadMessages(conv.id);

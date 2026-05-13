@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 import { extractSlotsFromPageJson } from "../../../../../lib/page-templates/slots";
 import { fillSlotsInPageJson } from "../../../../../lib/page-templates/slot-filler";
 import { fillSlotsWithAI } from "../../../../../lib/page-templates/ai-fill";
@@ -24,6 +25,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
     const body = schema.parse(await req.json());
 
     const step = await db.funnelStep.findUnique({

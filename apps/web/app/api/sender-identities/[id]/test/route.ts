@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { sendEmail, type SmtpConfig } from "@launchtic/email/server";
-import { ok, err, getWorkspaceId } from "../../../../../lib/api";
+import { ok, err } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 const schema = z.object({ sendTo: z.string().email() });
 
@@ -14,8 +15,9 @@ type Params = { params: Promise<{ id: string }> };
 // provider's error message so the user can verify on their side.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
     const { sendTo } = schema.parse(await req.json());

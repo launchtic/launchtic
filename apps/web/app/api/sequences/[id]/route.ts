@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 const stepSchema = z.object({
   // Optional id — present = update existing, absent = create new.
@@ -24,8 +25,9 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
     const sequence = await db.emailSequence.findFirst({
@@ -41,8 +43,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("emails:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
     const existing = await db.emailSequence.findFirst({
@@ -130,8 +133,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("emails:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
     const existing = await db.emailSequence.findFirst({ where: { id, workspaceId } });

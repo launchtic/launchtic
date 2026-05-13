@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../lib/api";
+import { ok, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 // Bulk-delete EmailSend rows for the current workspace. Filters mirror the
 // list view exactly — "clear what I see":
@@ -32,8 +33,9 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("emails:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     // Empty body = wipe all
     const raw = await req.text();

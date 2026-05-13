@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 const tagSchema = z
   .array(z.string().trim().min(1).max(30))
@@ -18,8 +19,9 @@ type Params = { params: Promise<{ id: string }> };
 // GET /api/saved-blocks/:id  → returns full block including contentJson
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
 
@@ -38,8 +40,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 // PATCH /api/saved-blocks/:id  → update name and/or tags
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
 
@@ -68,8 +71,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 // DELETE /api/saved-blocks/:id
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
 

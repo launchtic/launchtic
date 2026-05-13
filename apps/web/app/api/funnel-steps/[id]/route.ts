@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { assertSlugAvailable } from "../../../../lib/funnels/slug-validation";
 
 // Validate pageJson — must be a valid object (Craft.js JSON)
@@ -41,6 +42,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
 
     const step = await db.funnelStep.findUnique({
       where: { id },
@@ -78,6 +81,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
     const body = await req.json();
     const data = patchSchema.parse(body);
 
@@ -155,6 +160,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
 
     await db.funnelStep.delete({ where: { id } });
 

@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../../lib/api";
+import { requireAccess } from "../../../../../../lib/permissions";
 
 const schema = z.object({ secretKey: z.string().min(1) });
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
 
     const { secretKey } = schema.parse(await req.json());
 

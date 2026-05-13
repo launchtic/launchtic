@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
-import { getWorkspaceId } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,8 +14,9 @@ type Params = { params: Promise<{ id: string }> };
 // Slug uniqueness is unchanged because the SET of "funnels on default" is the
 // same — only the hostname changed. So no slug re-validation needed here.
 export async function POST(_req: NextRequest, { params }: Params) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("settings:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { id } = await params;
   const domain = await db.domain.findUnique({ where: { id } });

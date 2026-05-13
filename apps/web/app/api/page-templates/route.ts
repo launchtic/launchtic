@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 import { defaultPageJson } from "../../../lib/default-page-json";
 import { extractSlotsFromPageJson } from "../../../lib/page-templates/slots";
 
@@ -21,6 +22,8 @@ const createSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
     const sp       = req.nextUrl.searchParams;
     const type     = sp.get("type") as any | null;
     const status   = sp.get("status") ?? "all";
@@ -64,6 +67,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
     const body = await req.json();
     const data = createSchema.parse(body);
 

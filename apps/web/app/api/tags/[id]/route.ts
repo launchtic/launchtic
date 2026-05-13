@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 const updateTagSchema = z.object({
   name: z.string().min(1).max(50).optional(),
@@ -12,8 +13,9 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("contacts:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
 
@@ -44,8 +46,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("contacts:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
 

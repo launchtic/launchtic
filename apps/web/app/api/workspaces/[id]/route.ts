@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { auth } from "../../../../lib/auth";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -14,15 +14,14 @@ const updateSchema = z.object({
 // PATCH /api/workspaces/[id] — update name and/or slug (owner only)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session) return err("Unauthorized", 401);
+    const r = await requireAccess("workspace:manage");
+    if (!r.ok) return r.response;
+    const { userId } = r;
 
-    const userId = session.user?.id as string;
     const { id } = await params;
-
     const workspace = await db.workspace.findUnique({ where: { id }, select: { ownerId: true } });
-    if (!workspace)                    return err("Workspace not found", 404);
-    if (workspace.ownerId !== userId)  return err("Only the owner can update this workspace", 403);
+    if (!workspace)                   return err("Workspace not found", 404);
+    if (workspace.ownerId !== userId) return err("Only the owner can update this workspace", 403);
 
     const body = updateSchema.parse(await req.json());
     const updated = await db.workspace.update({
@@ -43,14 +42,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // DELETE /api/workspaces/[id] — delete workspace (owner only, not last workspace)
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session) return err("Unauthorized", 401);
+    const r = await requireAccess("workspace:manage");
+    if (!r.ok) return r.response;
+    const { userId } = r;
 
-    const userId = session.user?.id as string;
     const { id } = await params;
-
     const workspace = await db.workspace.findUnique({ where: { id }, select: { ownerId: true } });
-    if (!workspace)              return err("Workspace not found", 404);
+    if (!workspace)                   return err("Workspace not found", 404);
     if (workspace.ownerId !== userId) return err("Only the owner can delete this workspace", 403);
 
     // Prevent deleting the user's last workspace.

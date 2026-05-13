@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../lib/api";
+import { ok, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 import { extractSlots } from "../../../lib/page-templates/slots";
 
 const tagSchema = z
@@ -19,8 +20,9 @@ const createSchema = z.object({
 // GET /api/saved-blocks?kind=section|row&tag=hero
 export async function GET(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const sp = req.nextUrl.searchParams;
     const kind = sp.get("kind");
@@ -74,8 +76,9 @@ export async function GET(req: NextRequest) {
 // POST /api/saved-blocks  body: { name, kind, tags?, contentJson }
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const body = await req.json();
     const data = createSchema.parse(body);

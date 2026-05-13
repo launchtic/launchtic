@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "../../../lib/auth";
 import { db } from "@launchtic/database";
+import { ok, err, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const workspaceId = (session as any).workspaceId as string;
+  const r = await requireAccess();
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { searchParams } = new URL(req.url);
   const pageParam = searchParams.get("page");
@@ -46,9 +47,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const workspaceId = (session as any).workspaceId as string;
+  const r = await requireAccess("orders:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { code, type, discount, maxUses, expiresAt } = await req.json();
   if (!code?.trim()) return NextResponse.json({ error: "Code is required" }, { status: 400 });

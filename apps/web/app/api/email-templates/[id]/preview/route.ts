@@ -2,14 +2,16 @@ import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { render, sampleVars } from "@launchtic/email";
 import { renderEmailContent } from "@launchtic/email/server";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id } = await params;
     const [template, workspace] = await Promise.all([

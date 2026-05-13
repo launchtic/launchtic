@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
-import { getWorkspaceId } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 import { ensureDefaultDomain } from "../../../lib/domains/default-domain";
 
 export async function GET() {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("settings:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   await ensureDefaultDomain(workspaceId);
 
@@ -19,8 +20,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("settings:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { domain } = await req.json();
   if (!domain || typeof domain !== "string") {

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { ok, err, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { getDriver } from "../../../../lib/storage";
 
 const metaSchema = z.object({
@@ -41,6 +42,8 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
     const { id } = await params;
     const template = await db.pageTemplate.findUnique({ where: { id } });
     if (!template) return err("Template not found", 404);
@@ -54,6 +57,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
     const { id } = await params;
     const body = await req.json();
     const data = patchSchema.parse(body);
@@ -69,10 +74,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (Object.keys(updateData).length === 0) return err("No fields to update", 400);
 
+    const { workspaceId } = r;
     if (data.thumbnailUrl !== undefined) {
       const current = await db.pageTemplate.findUnique({ where: { id }, select: { thumbnailUrl: true } });
       if (current?.thumbnailUrl && current.thumbnailUrl !== data.thumbnailUrl) {
-        deleteOldThumb(current.thumbnailUrl).catch(() => {});
+        deleteOldThumb(current.thumbnailUrl, workspaceId).catch(() => {});
       }
     }
 
@@ -92,9 +98,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
     const { id } = await params;
+    const { workspaceId } = r;
     const template = await db.pageTemplate.findUnique({ where: { id }, select: { thumbnailUrl: true } });
-    if (template?.thumbnailUrl) deleteOldThumb(template.thumbnailUrl).catch(() => {});
+    if (template?.thumbnailUrl) deleteOldThumb(template.thumbnailUrl, workspaceId).catch(() => {});
     await db.pageTemplate.delete({ where: { id } });
     return ok({ deleted: true });
   } catch (error) {
@@ -104,9 +113,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function deleteOldThumb(url: string) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return;
+async function deleteOldThumb(url: string, workspaceId: string) {
   const key = extractKey(url);
   if (!key || !key.startsWith(`${workspaceId}/`)) return;
   const driver = await getDriver(workspaceId);

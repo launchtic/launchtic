@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 import { fireTrigger } from "../../../../../lib/automations";
 
 const tagActionSchema = z.object({
@@ -12,8 +13,9 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("contacts:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id: contactId } = await params;
     const body = await req.json();
@@ -60,8 +62,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("contacts:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { id: contactId } = await params;
     const body = await req.json();

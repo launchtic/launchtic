@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../lib/api";
+import { ok, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 
 const contactFields = {
   email:         z.string().email(),
@@ -27,8 +28,9 @@ const PAGE_SIZE = 50;
 
 export async function GET(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.trim() ?? "";
@@ -68,8 +70,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("contacts:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const body = await req.json();
     const { email, ...rest } = createContactSchema.parse(body);

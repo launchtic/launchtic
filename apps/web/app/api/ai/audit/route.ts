@@ -7,14 +7,15 @@
 // Returns latest 100 by default. Operator can review what AI has done on
 // their behalf — important for trust + compliance.
 
-import { ok, err, handleError, getWorkspaceId, getUserId } from "../../../../lib/api";
+import { ok, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { db } from "@launchtic/database";
 
 export async function GET() {
   try {
-    const workspaceId = await getWorkspaceId();
-    const userId = await getUserId();
-    if (!workspaceId || !userId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId, userId } = r;
 
     // Find the user's conversation (1 per user/workspace currently)
     const conv = await db.aiConversation.findUnique({

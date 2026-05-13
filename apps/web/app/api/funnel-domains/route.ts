@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
-import { getWorkspaceId } from "../../../lib/api";
 import {
   assertAllStepSlugsAvailable,
   SlugConflictError,
 } from "../../../lib/funnels/slug-validation";
+import { requireAccess } from "../../../lib/permissions";
 
 // GET /api/funnel-domains?funnelId=xxx — list domains assigned to funnel
 export async function GET(req: NextRequest) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess();
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const funnelId = req.nextUrl.searchParams.get("funnelId");
   if (!funnelId) return NextResponse.json({ error: "funnelId required" }, { status: 400 });
@@ -29,8 +30,9 @@ export async function GET(req: NextRequest) {
 // Validates slug uniqueness BEFORE writing: simulating the post-assignment
 // FunnelDomain set and checking every step's slug against the new URL space.
 export async function POST(req: NextRequest) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("funnels:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { funnelId, domainId } = await req.json();
   if (!funnelId || !domainId) {
@@ -93,8 +95,9 @@ export async function POST(req: NextRequest) {
 // If this leaves the funnel with no custom domains, it falls back to default
 // — re-validate slugs against the default URL space first.
 export async function DELETE(req: NextRequest) {
-  const workspaceId = await getWorkspaceId();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess("funnels:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { funnelId, domainId } = await req.json();
 

@@ -1,11 +1,11 @@
-import { auth } from "../../../lib/auth";
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
+import { requireAccess } from "../../../lib/permissions";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const workspaceId = (session as any).workspaceId as string;
+  const r = await requireAccess();
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { searchParams } = new URL(req.url);
   const pageParam = searchParams.get("page");
@@ -51,9 +51,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const workspaceId = (session as any).workspaceId as string;
+  const r = await requireAccess("funnels:write");
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const body = await req.json();
   const {

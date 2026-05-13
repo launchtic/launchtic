@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { ok, err, getWorkspaceId } from "../../../../lib/api";
+import { ok, err } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 import { getDriver, buildKey } from "../../../../lib/storage";
 import { processUploadedImage } from "../../../../lib/media/process-image";
 
@@ -8,8 +9,9 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "im
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

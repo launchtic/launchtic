@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 import { defaultPageJson } from "../../../../../lib/default-page-json";
 import { generateUniqueSlug } from "../../../../../lib/funnels/slug-validation";
 
@@ -21,6 +22,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id: funnelId } = await params;
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
 
     const steps = await db.funnelStep.findMany({
       where: { funnelId },
@@ -46,6 +49,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id: funnelId } = await params;
+    const r = await requireAccess("funnels:write");
+    if (!r.ok) return r.response;
     const body = await req.json();
     const data = createStepSchema.parse(body);
 

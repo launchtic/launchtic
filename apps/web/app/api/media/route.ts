@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
-import { ok, err, getWorkspaceId } from "../../../lib/api";
+import { ok, err } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 import { getDriver } from "../../../lib/storage";
 
 export async function GET(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { searchParams } = new URL(req.url);
     const folder = searchParams.get("folder") ?? null;

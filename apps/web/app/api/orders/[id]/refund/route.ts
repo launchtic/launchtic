@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId, getUserId } from "../../../../../lib/api";
+import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 import { fireTrigger } from "../../../../../lib/automations";
 
 // Look up funnelId for trigger context — Order stores only funnelStepId.
@@ -34,9 +35,9 @@ const refundSchema = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
-    const userId = await getUserId();
+    const r = await requireAccess("orders:write");
+    if (!r.ok) return r.response;
+    const { workspaceId, userId } = r;
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));

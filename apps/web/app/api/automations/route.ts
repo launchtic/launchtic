@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { ok, err, handleError, getWorkspaceId } from "../../../lib/api";
+import { ok, err, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 
 const TRIGGER_TYPES = ["NEW_SALE", "SALE_CANCELED", "SUBSCRIPTION_PAYMENT_FAILED", "FORM_SUBMIT", "TAG_ADDED", "TAG_REMOVED", "EMAIL_LINK_CLICKED"] as const;
 const ACTION_TYPES  = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "START_SEQUENCE", "END_SEQUENCE"] as const;
@@ -26,8 +27,9 @@ const createSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
@@ -60,8 +62,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess("automations:write");
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const data = createSchema.parse(await req.json());
 

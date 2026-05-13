@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
+import { requireAccess } from "../../../../../lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -8,6 +9,8 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(_req: NextRequest, { params }: Params) {
   try {
+    const r = await requireAccess("settings:write");
+    if (!r.ok) return r.response;
     const { id } = await params;
 
     const source = await db.pageTemplate.findUnique({

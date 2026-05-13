@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getWorkspaceId } from "../../../../lib/api";
+import { ok, handleError } from "../../../../lib/api";
+import { requireAccess } from "../../../../lib/permissions";
 
 const PAGE_SIZE = 50;
 
@@ -18,8 +19,9 @@ const RANGES: Record<string, number> = {
 
 export async function GET(req: NextRequest) {
   try {
-    const workspaceId = await getWorkspaceId();
-    if (!workspaceId) return err("Unauthorized", 401);
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    const { workspaceId } = r;
 
     const url = req.nextUrl;
     const statusParam = url.searchParams.get("status");

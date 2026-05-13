@@ -1,7 +1,6 @@
-import { auth } from "../../../../../lib/auth";
-import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
+import { requireAccess } from "../../../../../lib/permissions";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -10,11 +9,11 @@ function fmt(amount: number, currency: string) {
 }
 
 export async function GET(_req: NextRequest, { params }: Props) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const r = await requireAccess();
+  if (!r.ok) return r.response;
+  const { workspaceId } = r;
 
   const { id } = await params;
-  const workspaceId = (session as any).workspaceId as string;
 
   const order = await db.order.findFirst({
     where: { id, workspaceId },
