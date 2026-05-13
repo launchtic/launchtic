@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTranslations } from "next-intl";
-import { useRouter } from "../../navigation";
+import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, Loader2, Package, Settings, Trash2, Plus,
 } from "lucide-react";
@@ -41,8 +40,6 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const confirm = useConfirm();
-  const t = useTranslations("products");
-  const tCommon = useTranslations("common");
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -68,9 +65,9 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
 
   async function handleDelete(product: Product) {
     const ok = await confirm({
-      title: t("deleteTitle", { name: product.name }),
-      description: t("deleteDescription"),
-      confirmLabel: tCommon("delete"),
+      title: `Delete "${product.name}"?`,
+      description: "This will permanently delete the product and all its variants.",
+      confirmLabel: "Delete",
       variant: "danger",
     });
     if (!ok) return;
@@ -85,9 +82,9 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div className="shrink-0">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
+          <h1 className="text-xl font-bold text-gray-900">Physical Products</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {t("count", { count: meta.total })}
+            {meta.total} {meta.total === 1 ? "product" : "products"}
           </p>
         </div>
 
@@ -97,7 +94,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search products…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -106,7 +103,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
           >
             <Plus size={16} />
-            {t("newProduct")}
+            New Product
           </button>
         </div>
       </div>
@@ -122,9 +119,9 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
             <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mb-3">
               <Package size={20} className="text-orange-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{t("noProducts")}</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">No products yet</p>
             <p className="text-xs text-gray-400">
-              {search ? t("noProductsSearch") : t("noProductsHint")}
+              {search ? "No products match your search" : "Create your first physical product"}
             </p>
           </div>
         ) : (
@@ -132,12 +129,12 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-6 py-3 font-semibold">{t("col.name")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.sku")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.price")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.variants")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.created")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.actions")}</th>
+                <th className="text-left px-6 py-3 font-semibold">Name</th>
+                <th className="text-left px-4 py-3 font-semibold">SKU</th>
+                <th className="text-right px-4 py-3 font-semibold">Price</th>
+                <th className="text-left px-4 py-3 font-semibold">Variants</th>
+                <th className="text-left px-4 py-3 font-semibold">Created</th>
+                <th className="text-right px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -162,7 +159,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
                       {formatPrice(p.price, p.currency)}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {p.hasOptions ? t("variants", { count: variantCount }) : <span className="text-gray-300">—</span>}
+                      {p.hasOptions ? `${variantCount} ${variantCount === 1 ? "variant" : "variants"}` : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">
                       {new Date(p.createdAt).toLocaleDateString()}

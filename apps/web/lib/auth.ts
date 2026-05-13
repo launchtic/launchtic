@@ -32,7 +32,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           where: { email },
           include: {
             ownedWorkspaces: {
-              select: { id: true, name: true, slug: true, plan: true },
+              select: { id: true, name: true, slug: true },
               take: 1,
             },
           },
@@ -52,7 +52,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           image: user.avatar,
           workspaceId: workspace?.id ?? null,
           workspaceName: workspace?.name ?? null,
-          workspacePlan: workspace?.plan ?? null,
+          workspaceSlug: workspace?.slug ?? null,
+          workspacePlan: (user as any).plan ?? null,
         };
       },
     }),

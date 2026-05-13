@@ -5,8 +5,6 @@ import {
   TrendingUp, ShoppingCart, Users, Repeat, Zap,
   CheckCircle, Clock, XCircle, RotateCcw, Ban, Timer, ArrowRight,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
-
 type RecentOrder = {
   id: string;
   status: string;
@@ -60,32 +58,30 @@ function contactName(c: RecentOrder["contact"]) {
 }
 
 export default function DashboardClient({ stats, workspaceName }: { stats: Stats; workspaceName: string }) {
-  const t = useTranslations("dashboard");
-
   const statCards = [
     {
-      label: t("revenue30d"),
+      label: "Revenue (30d)",
       value: formatAmount(stats.revenue30d, "usd"),
       icon: TrendingUp,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
     },
     {
-      label: t("orders30d"),
+      label: "Orders (30d)",
       value: stats.orders30d.toLocaleString(),
       icon: ShoppingCart,
       color: "text-blue-600",
       bg: "bg-blue-50",
     },
     {
-      label: t("newContacts30d"),
+      label: "New Contacts (30d)",
       value: stats.newContacts30d.toLocaleString(),
       icon: Users,
       color: "text-violet-600",
       bg: "bg-violet-50",
     },
     {
-      label: t("activeSubscriptions"),
+      label: "Active Subscriptions",
       value: stats.activeSubscriptions.toLocaleString(),
       icon: Repeat,
       color: "text-orange-600",
@@ -94,10 +90,10 @@ export default function DashboardClient({ stats, workspaceName }: { stats: Stats
   ];
 
   const quickLinks = [
-    { href: "/funnels", label: t("quickLinks.funnels"), icon: Zap, count: stats.totalFunnels },
-    { href: "/orders", label: t("quickLinks.orders"), icon: ShoppingCart, count: stats.orders30d },
-    { href: "/contacts", label: t("quickLinks.contacts"), icon: Users, count: stats.newContacts30d },
-    { href: "/subscriptions", label: t("quickLinks.subscriptions"), icon: Repeat, count: stats.activeSubscriptions },
+    { href: "/funnels", label: "Funnels", icon: Zap, count: stats.totalFunnels },
+    { href: "/orders", label: "Orders", icon: ShoppingCart, count: stats.orders30d },
+    { href: "/contacts", label: "Contacts", icon: Users, count: stats.newContacts30d },
+    { href: "/subscriptions", label: "Subscriptions", icon: Repeat, count: stats.activeSubscriptions },
   ];
 
   return (
@@ -106,7 +102,7 @@ export default function DashboardClient({ stats, workspaceName }: { stats: Stats
 
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{t("title")}</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           {workspaceName && (
             <p className="text-sm text-gray-500 mt-1">{workspaceName}</p>
           )}
@@ -123,7 +119,7 @@ export default function DashboardClient({ stats, workspaceName }: { stats: Stats
                 </div>
               </div>
               <p className="text-2xl font-semibold text-gray-900">{value}</p>
-              <p className="text-xs text-gray-400 mt-1">{t("last30days")}</p>
+              <p className="text-xs text-gray-400 mt-1">Last 30 days</p>
             </div>
           ))}
         </div>
@@ -132,14 +128,14 @@ export default function DashboardClient({ stats, workspaceName }: { stats: Stats
           {/* Recent orders */}
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">{t("recentOrders")}</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Recent Orders</h2>
               <Link href="/orders" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-                {t("viewAll")} <ArrowRight size={12} />
+                View all <ArrowRight size={12} />
               </Link>
             </div>
 
             {stats.recentOrders.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-gray-400">{t("noOrders")}</div>
+              <div className="px-5 py-10 text-center text-sm text-gray-400">No recent orders</div>
             ) : (
               <div className="divide-y divide-gray-50">
                 {stats.recentOrders.map((order) => (
@@ -167,7 +163,7 @@ export default function DashboardClient({ stats, workspaceName }: { stats: Stats
           {/* Quick links */}
           <div className="bg-white rounded-xl border border-gray-200">
             <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">{t("quickLinks.title")}</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Quick Links</h2>
             </div>
             <div className="divide-y divide-gray-50">
               {quickLinks.map(({ href, label, icon: Icon, count }) => (

@@ -1,17 +1,16 @@
 "use client";
 
-import { usePathname, useRouter, Link } from "../navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useTranslations, useLocale } from "next-intl";
-import { routing } from "../i18n/routing";
 
-type NavLink = { href: string; labelKey: string; icon: LucideIcon };
-type NavGroup = { labelKey: string; icon: LucideIcon; children: NavLink[] };
+type NavLink = { href: string; label: string; icon: LucideIcon };
+type NavGroup = { label: string; icon: LucideIcon; children: NavLink[] };
 type NavItem = NavLink | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {
@@ -29,91 +28,42 @@ function activeChildHref(children: NavLink[], pathname: string): string | null {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard",   labelKey: "dashboard",   icon: LayoutDashboard },
-  { href: "/funnels",     labelKey: "funnels",     icon: Zap       },
+  { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard },
+  { href: "/funnels",     label: "Funnels",             icon: Zap       },
   {
-    labelKey: "sales",
+    label: "Sales",
     icon: TrendingUp,
     children: [
-      { href: "/physical-products", labelKey: "physicalProducts", icon: Package },
-      { href: "/orders",        labelKey: "orders",        icon: ShoppingCart },
-      { href: "/subscriptions", labelKey: "subscriptions", icon: Repeat       },
-      { href: "/transactions",  labelKey: "transactions",  icon: Receipt      },
-      { href: "/coupons",       labelKey: "coupons",       icon: Ticket       },
+      { href: "/physical-products", label: "Physical Products", icon: Package },
+      { href: "/orders",        label: "Orders",        icon: ShoppingCart },
+      { href: "/subscriptions", label: "Subscriptions", icon: Repeat       },
+      { href: "/transactions",  label: "Transactions",  icon: Receipt      },
+      { href: "/coupons",       label: "Coupons",       icon: Ticket       },
     ],
   },
   {
-    labelKey: "contacts",
+    label: "Contacts",
     icon: Users,
     children: [
-      { href: "/contacts",      labelKey: "allContacts", icon: Users   },
-      { href: "/contacts/tags", labelKey: "tags",        icon: TagIcon },
+      { href: "/contacts",      label: "All contacts", icon: Users   },
+      { href: "/contacts/tags", label: "Tags",         icon: TagIcon },
     ],
   },
   {
-    labelKey: "emails",
+    label: "Emails",
     icon: Mail,
     children: [
-      { href: "/emails/broadcasts", labelKey: "broadcasts",     icon: Megaphone },
-      { href: "/sequences",         labelKey: "sequences",      icon: Repeat    },
-      { href: "/emails/templates",  labelKey: "emailTemplates", icon: FileText  },
-      { href: "/emails/logs",       labelKey: "emailLogs",      icon: Inbox     },
+      { href: "/emails/broadcasts", label: "Broadcasts",  icon: Megaphone },
+      { href: "/sequences",         label: "Sequences",   icon: Repeat    },
+      { href: "/emails/templates",  label: "Templates",   icon: FileText  },
+      { href: "/emails/logs",       label: "Email Logs",  icon: Inbox     },
     ],
   },
-  { href: "/automations", labelKey: "automations", icon: GitBranch },
-  { href: "/settings",    labelKey: "settings",    icon: Settings  },
+  { href: "/automations", label: "Automations", icon: GitBranch },
+  { href: "/settings",    label: "Settings",    icon: Settings  },
 ];
 
-const LOCALE_LABELS: Record<string, string> = { en: "EN", de: "DE", ja: "日本語" };
-
-function LocaleSwitcher() {
-  const locale = useLocale();
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-      >
-        <span>{LOCALE_LABELS[locale]}</span>
-        <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-28 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
-          {routing.locales.map((l) => (
-            <Link
-              key={l}
-              href={pathname}
-              locale={l}
-              onClick={() => setOpen(false)}
-              className={`flex items-center justify-between px-3 py-2 text-sm transition-colors ${
-                l === locale
-                  ? "text-blue-700 font-medium bg-blue-50"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              {LOCALE_LABELS[l]}
-              {l === locale && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NavDropdown({ item, pathname, t }: { item: NavGroup; pathname: string; t: ReturnType<typeof useTranslations> }) {
+function NavDropdown({ item, pathname }: { item: NavGroup; pathname: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const activeHref = activeChildHref(item.children, pathname);
@@ -136,13 +86,13 @@ function NavDropdown({ item, pathname, t }: { item: NavGroup; pathname: string; 
         }`}
       >
         <item.icon size={15} strokeWidth={active ? 2 : 1.75} />
-        {t(item.labelKey)}
+        {item.label}
         <ChevronDown size={13} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
         <div className="absolute left-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
-          {item.children.map(({ href, labelKey, icon: Icon }) => {
+          {item.children.map(({ href, label, icon: Icon }) => {
             const childActive = href === activeHref;
             return (
               <Link
@@ -154,7 +104,7 @@ function NavDropdown({ item, pathname, t }: { item: NavGroup; pathname: string; 
                 }`}
               >
                 <Icon size={14} strokeWidth={childActive ? 2 : 1.75} />
-                {t(labelKey)}
+                {label}
               </Link>
             );
           })}
@@ -167,7 +117,6 @@ function NavDropdown({ item, pathname, t }: { item: NavGroup; pathname: string; 
 function UserMenu({ name, email, initials }: { name: string; email: string; initials: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const t = useTranslations("navigation");
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -201,7 +150,7 @@ function UserMenu({ name, email, initials }: { name: string; email: string; init
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
           >
             <LogOut size={14} />
-            {t("signOut")}
+            Sign out
           </button>
         </div>
       )}
@@ -220,7 +169,6 @@ export default function TopNav({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const t = useTranslations("navigation");
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
@@ -236,7 +184,7 @@ export default function TopNav({
         <nav className="hidden md:flex items-center gap-1 flex-1">
           {navItems.map((item) => {
             if (isGroup(item)) {
-              return <NavDropdown key={item.labelKey} item={item} pathname={pathname} t={t} />;
+              return <NavDropdown key={item.label} item={item} pathname={pathname} />;
             }
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
@@ -248,21 +196,18 @@ export default function TopNav({
                 }`}
               >
                 <item.icon size={15} strokeWidth={active ? 2 : 1.75} />
-                {t(item.labelKey)}
+                {item.label}
               </Link>
             );
           })}
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <div className="hidden sm:block">
-            <LocaleSwitcher />
-          </div>
           {/* Hamburger — mobile only */}
           <button
             onClick={() => setMobileOpen((o) => !o)}
             className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
-            aria-label={t("toggleMenu")}
+            aria-label="Toggle menu"
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -285,12 +230,12 @@ export default function TopNav({
                 const activeHref = activeChildHref(item.children, pathname);
                 const groupActive = activeHref !== null;
                 return (
-                  <div key={item.labelKey}>
+                  <div key={item.label}>
                     <div className={`flex items-center gap-3 px-4 py-2 text-xs font-semibold uppercase tracking-wider ${groupActive ? "text-blue-600" : "text-gray-400"}`}>
                       <item.icon size={14} />
-                      {t(item.labelKey)}
+                      {item.label}
                     </div>
-                    {item.children.map(({ href, labelKey, icon: Icon }) => {
+                    {item.children.map(({ href, label, icon: Icon }) => {
                       const active = href === activeHref;
                       return (
                         <Link
@@ -301,7 +246,7 @@ export default function TopNav({
                           }`}
                         >
                           <Icon size={15} strokeWidth={active ? 2 : 1.75} />
-                          {t(labelKey)}
+                          {label}
                         </Link>
                       );
                     })}
@@ -318,13 +263,10 @@ export default function TopNav({
                   }`}
                 >
                   <item.icon size={16} strokeWidth={active ? 2 : 1.75} />
-                  {t(item.labelKey)}
+                  {item.label}
                 </Link>
               );
             })}
-            <div className="pt-2 border-t border-gray-100 mt-1">
-              <LocaleSwitcher />
-            </div>
           </div>
         </div>
       )}

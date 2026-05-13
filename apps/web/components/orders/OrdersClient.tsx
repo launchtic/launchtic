@@ -6,8 +6,6 @@ import {
   Search, ChevronDown, Loader2, ShoppingCart,
   CheckCircle, Clock, XCircle, RotateCcw, Ban, Repeat, Timer,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
-
 type Contact = { id: string; email: string; firstName: string | null; lastName: string | null };
 type FunnelStep = { name: string; funnel: { name: string } };
 type OrderSubscription = { id: string; status: string; trialEnd: string | null };
@@ -58,23 +56,27 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const t = useTranslations("orders");
+
+  const STATUS_LABELS: Record<string, string> = {
+    PAID: "Paid", TRIAL: "Trial", PENDING: "Pending",
+    FAILED: "Failed", REFUNDED: "Refunded", CANCELED: "Canceled",
+  };
 
   const STATUS_FILTERS = [
-    { value: null,       label: t("allStatuses") },
-    { value: "PAID",     label: t("status.PAID") },
-    { value: "TRIAL",    label: t("status.TRIAL") },
-    { value: "PENDING",  label: t("status.PENDING") },
-    { value: "FAILED",   label: t("status.FAILED") },
-    { value: "REFUNDED", label: t("status.REFUNDED") },
-    { value: "CANCELED", label: t("status.CANCELED") },
+    { value: null,       label: "All statuses" },
+    { value: "PAID",     label: "Paid" },
+    { value: "TRIAL",    label: "Trial" },
+    { value: "PENDING",  label: "Pending" },
+    { value: "FAILED",   label: "Failed" },
+    { value: "REFUNDED", label: "Refunded" },
+    { value: "CANCELED", label: "Canceled" },
   ];
 
   const KIND_FILTERS = [
-    { value: null,           label: t("allKinds") },
-    { value: "one_time",     label: t("kind.oneTime") },
-    { value: "subscription", label: t("kind.subscriptionInitial") },
-    { value: "renewal",      label: t("kind.renewal") },
+    { value: null,           label: "All kinds" },
+    { value: "one_time",     label: "One-time" },
+    { value: "subscription", label: "Subscription" },
+    { value: "renewal",      label: "Renewal" },
   ];
 
   const fetchPage = useCallback(async (q: string, status: string | null, kind: string | null, cursor: string | null) => {
@@ -129,8 +131,8 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div className="shrink-0">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("totalOrders", { count: initialTotal })}</p>
+          <h1 className="text-xl font-bold text-gray-900">Orders</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{initialTotal} {initialTotal === 1 ? "order" : "orders"}</p>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 lg:max-w-3xl lg:flex-1 lg:justify-end">
@@ -139,7 +141,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search orders…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -190,9 +192,9 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
               <ShoppingCart size={20} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{t("noOrders")}</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">No orders yet</p>
             <p className="text-xs text-gray-400">
-              {search || statusFilter ? t("noOrdersSearch") : t("noOrdersHint")}
+              {search || statusFilter ? "No orders match your filters" : "Orders will appear here when customers purchase"}
             </p>
           </div>
         ) : (
@@ -200,12 +202,12 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
           <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-6 py-3 font-semibold">{t("col.order")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.contact")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.funnel")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.status")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.amount")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.date")}</th>
+                <th className="text-left px-6 py-3 font-semibold">Order</th>
+                <th className="text-left px-4 py-3 font-semibold">Contact</th>
+                <th className="text-left px-4 py-3 font-semibold">Funnel</th>
+                <th className="text-left px-4 py-3 font-semibold">Status</th>
+                <th className="text-right px-4 py-3 font-semibold">Amount</th>
+                <th className="text-left px-4 py-3 font-semibold">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -220,11 +222,11 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
                         {o.subscriptionId && (
                           o.isRenewal ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                              <Repeat size={9} /> {t("renewal")}
+                              <Repeat size={9} /> Renewal
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                              <Repeat size={9} /> {t("subscription")}
+                              <Repeat size={9} /> Subscription
                             </span>
                           )
                         )}
@@ -249,7 +251,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
                   <td className="px-4 py-3">
                     <StatusBadge
                       status={o.status}
-                      label={t(`status.${o.status}` as Parameters<typeof t>[0]) ?? o.status}
+                        label={STATUS_LABELS[o.status] ?? o.status}
                     />
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">

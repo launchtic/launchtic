@@ -32,6 +32,7 @@ export const authConfig: NextAuthConfig = {
         token.userId = user.id;
         token.workspaceId = (user as any).workspaceId;
         token.workspaceName = (user as any).workspaceName;
+        token.workspaceSlug = (user as any).workspaceSlug;
         token.workspacePlan = (user as any).workspacePlan;
       }
       return token;
@@ -41,6 +42,7 @@ export const authConfig: NextAuthConfig = {
       session.user.id = token.userId as string;
       (session as any).workspaceId = token.workspaceId;
       (session as any).workspaceName = token.workspaceName;
+      (session as any).workspaceSlug = token.workspaceSlug;
       (session as any).workspacePlan = token.workspacePlan;
       return session;
     },

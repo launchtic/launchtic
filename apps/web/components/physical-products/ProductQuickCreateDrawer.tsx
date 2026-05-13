@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useTranslations } from "next-intl";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
 
@@ -10,7 +9,6 @@ const CURRENCIES = SUPPORTED_CURRENCIES;
 const inputCls = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base sm:text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 export default function ProductQuickCreateDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated?: (id: string) => void }) {
-  const t = useTranslations("products.quickCreate");
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("usd");
   const [submitting, setSubmitting] = useState(false);
@@ -26,7 +24,7 @@ export default function ProductQuickCreateDrawer({ open, onClose, onCreated }: {
 
   async function handleSubmit() {
     const trimmed = name.trim();
-    if (!trimmed) { setError(t("errorNameRequired")); return; }
+    if (!trimmed) { setError("Name is required"); return; }
 
     setSubmitting(true);
     setError("");
@@ -37,7 +35,7 @@ export default function ProductQuickCreateDrawer({ open, onClose, onCreated }: {
     });
     const json = await res.json();
     setSubmitting(false);
-    if (!res.ok) { setError(json.error ?? t("errorCreate")); return; }
+    if (!res.ok) { setError(json.error ?? "Failed to create product"); return; }
 
     onCreated?.(json.id);
   }
@@ -46,10 +44,10 @@ export default function ProductQuickCreateDrawer({ open, onClose, onCreated }: {
     <FormDrawer
       open={open}
       onClose={onClose}
-      title={t("title")}
-      description={t("description")}
+      title="Create Product"
+      description="Add a new physical product"
       width="sm"
-      submitLabel={t("submitLabel")}
+      submitLabel="Create Product"
       submitting={submitting}
       submitDisabled={!name.trim()}
       onSubmit={handleSubmit}
@@ -57,18 +55,18 @@ export default function ProductQuickCreateDrawer({ open, onClose, onCreated }: {
       <div className="space-y-5">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {t("nameLabel")} <span className="text-red-500">*</span>
+            Name <span className="text-red-500">*</span>
           </label>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             className={inputCls}
-            placeholder={t("namePlaceholder")}
+            placeholder="Product name"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("currencyLabel")}</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Currency</label>
           <select
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}

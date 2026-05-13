@@ -39,6 +39,7 @@ Thumbs.db
 .idea
 .cursor
 .continue
+.claude/
 
 # Docker volumes (nếu mount local)
 postgres_data
@@ -49,5 +50,5 @@ apps/web/public/uploads/*
 !apps/web/public/uploads/.gitkeep
 
 # Personal Claude Code config + dev test fixtures
-.claude/
+
 scripts_test/

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useRouter } from "../../navigation";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, Loader2, Zap, Eye, Settings, Trash2, Plus,
   Undo2,
 } from "lucide-react";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
-import { useTranslations } from "next-intl";
 
 type Domain = { domain: string; verified: boolean };
 type Funnel = {
@@ -50,7 +50,6 @@ export default function FunnelsClient({
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const confirm = useConfirm();
-  const t = useTranslations("funnels");
 
   const fetchData = useCallback(async (q: string, p: number, v: View) => {
     setLoading(true);
@@ -84,9 +83,9 @@ export default function FunnelsClient({
 
   async function handleMoveToTrash(funnel: Funnel) {
     const ok = await confirm({
-      title: t("moveToTrashTitle", { name: funnel.name }),
-      description: t("moveToTrashDescription"),
-      confirmLabel: t("moveToTrash"),
+      title: `Move "${funnel.name}" to trash?`,
+      description: "You can restore it later from the Trash tab.",
+      confirmLabel: "Move to Trash",
       variant: "danger",
     });
     if (!ok) return;
@@ -107,9 +106,9 @@ export default function FunnelsClient({
 
   async function handleDeleteForever(funnel: Funnel) {
     const ok = await confirm({
-      title: t("deleteForeverTitle", { name: funnel.name }),
-      description: t("deleteForeverDescription"),
-      confirmLabel: t("deleteForever"),
+      title: `Permanently delete "${funnel.name}"?`,
+      description: "This cannot be undone. All steps and data will be deleted.",
+      confirmLabel: "Delete Forever",
       variant: "danger",
     });
     if (!ok) return;
@@ -125,9 +124,9 @@ export default function FunnelsClient({
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div className="shrink-0">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
+          <h1 className="text-xl font-bold text-gray-900">Funnels</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {t("count", { count: meta.total })}
+            {meta.total} {meta.total === 1 ? "funnel" : "funnels"}
           </p>
         </div>
 
@@ -140,7 +139,7 @@ export default function FunnelsClient({
                 view === "active" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {t("tabActive")}
+              Active
             </button>
             <button
               onClick={() => switchView("trash")}
@@ -149,7 +148,7 @@ export default function FunnelsClient({
               }`}
             >
               <Trash2 size={12} />
-              {t("tabTrash")}
+              Trash
             </button>
           </div>
           <div className="relative sm:flex-1 lg:max-w-xs">
@@ -157,7 +156,7 @@ export default function FunnelsClient({
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search funnels…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -167,7 +166,7 @@ export default function FunnelsClient({
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
             >
               <Plus size={16} />
-              {t("newFunnel")}
+              New Funnel
             </button>
           )}
         </div>
@@ -192,12 +191,12 @@ export default function FunnelsClient({
               )}
             </div>
             <p className="text-sm font-medium text-gray-700 mb-1">
-              {view === "trash" ? t("emptyTrash") : t("noFunnels")}
+              {view === "trash" ? "Trash is empty" : "No funnels yet"}
             </p>
             <p className="text-xs text-gray-400">
               {view === "trash"
-                ? t("emptyTrashHint")
-                : search ? t("noFunnelsSearch") : t("noFunnelsHint")}
+                ? "Deleted funnels will appear here"
+                : search ? "No funnels match your search" : "Create your first funnel to get started"}
             </p>
           </div>
         ) : (
@@ -205,11 +204,11 @@ export default function FunnelsClient({
           <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-6 py-3 font-semibold">{t("col.name")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.steps")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.domain")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.created")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.actions")}</th>
+                <th className="text-left px-6 py-3 font-semibold">Name</th>
+                <th className="text-left px-4 py-3 font-semibold">Steps</th>
+                <th className="text-left px-4 py-3 font-semibold">Domain</th>
+                <th className="text-left px-4 py-3 font-semibold">Created</th>
+                <th className="text-right px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -230,7 +229,7 @@ export default function FunnelsClient({
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {t("steps", { count: f.steps.length })}
+                      {f.steps.length} {f.steps.length === 1 ? "step" : "steps"}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {primaryDomain ?? <span className="text-gray-300">—</span>}
@@ -261,7 +260,7 @@ export default function FunnelsClient({
                             <button
                               onClick={() => handleMoveToTrash(f)}
                               disabled={busyId === f.id}
-                              title={t("moveToTrash")}
+                              title="Move to Trash"
                               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                             >
                               {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -272,7 +271,7 @@ export default function FunnelsClient({
                             <button
                               onClick={() => handleRestore(f)}
                               disabled={busyId === f.id}
-                              title={t("restore")}
+                              title="Restore"
                               className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
                             >
                               {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
@@ -280,7 +279,7 @@ export default function FunnelsClient({
                             <button
                               onClick={() => handleDeleteForever(f)}
                               disabled={busyId === f.id}
-                              title={t("deleteForever")}
+                              title="Delete Forever"
                               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                             >
                               {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}

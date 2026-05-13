@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
 import {
   Search, ChevronDown, Loader2, Receipt,
   ArrowDownCircle, RotateCcw, AlertTriangle,
@@ -47,9 +46,10 @@ function formatAmount(amount: number, currency: string) {
   });
 }
 
-export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?: number }) {
-  const t = useTranslations("transactions");
+const TYPE_LABELS: Record<string, string> = { SALE: "Sale", REFUND: "Refund", CHARGEBACK: "Chargeback" };
+const STATUS_LABELS: Record<string, string> = { COMPLETED: "Completed", PENDING: "Pending", FAILED: "Failed" };
 
+export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?: number }) {
   const [items, setItems] = useState<Transaction[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,17 +60,17 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const TYPE_FILTERS = [
-    { value: null,         label: t("type.allTypes") },
-    { value: "SALE",       label: t("type.sales") },
-    { value: "REFUND",     label: t("type.refunds") },
-    { value: "CHARGEBACK", label: t("type.chargebacks") },
+    { value: null,         label: "All types" },
+    { value: "SALE",       label: "Sales" },
+    { value: "REFUND",     label: "Refunds" },
+    { value: "CHARGEBACK", label: "Chargebacks" },
   ];
 
   const STATUS_FILTERS = [
-    { value: null,        label: t("allStatuses") },
-    { value: "COMPLETED", label: t("status.COMPLETED") },
-    { value: "PENDING",   label: t("status.PENDING") },
-    { value: "FAILED",    label: t("status.FAILED") },
+    { value: null,        label: "All statuses" },
+    { value: "COMPLETED", label: "Completed" },
+    { value: "PENDING",   label: "Pending" },
+    { value: "FAILED",    label: "Failed" },
   ];
 
   const fetchPage = useCallback(async (q: string, type: string | null, status: string | null, cursor: string | null) => {
@@ -122,8 +122,8 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div className="shrink-0">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("totalTransactions", { count: initialTotal })}</p>
+          <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{initialTotal} {initialTotal === 1 ? "transaction" : "transactions"}</p>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 lg:max-w-3xl lg:flex-1 lg:justify-end">
@@ -132,7 +132,7 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search transactions…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -186,9 +186,9 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
               <Receipt size={20} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{t("noTransactions")}</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">No transactions yet</p>
             <p className="text-xs text-gray-400">
-              {search || typeFilter || statusFilter ? t("noTransactionsSearch") : t("noTransactionsHint")}
+              {search || typeFilter || statusFilter ? "No transactions match your filters" : "Transactions will appear here when orders are placed"}
             </p>
           </div>
         ) : (
@@ -196,12 +196,12 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
           <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-6 py-3 font-semibold">{t("col.transaction")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.contact")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.type")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.status")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.amount")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.date")}</th>
+                <th className="text-left px-6 py-3 font-semibold">Transaction</th>
+                <th className="text-left px-4 py-3 font-semibold">Contact</th>
+                <th className="text-left px-4 py-3 font-semibold">Type</th>
+                <th className="text-left px-4 py-3 font-semibold">Status</th>
+                <th className="text-right px-4 py-3 font-semibold">Amount</th>
+                <th className="text-left px-4 py-3 font-semibold">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -234,13 +234,13 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${typeCfg.badgeClass ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
                         {typeCfg.icon}
-                        {t(`type.${tx.type}`) ?? tx.type}
+                        {TYPE_LABELS[tx.type] ?? tx.type}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${statusCfg.className}`}>
                         {statusCfg.icon}
-                        {t(`status.${tx.status}`) ?? tx.status}
+                        {STATUS_LABELS[tx.status] ?? tx.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">

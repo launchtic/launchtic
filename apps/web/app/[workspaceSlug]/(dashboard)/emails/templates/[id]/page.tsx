@@ -5,7 +5,7 @@ import TemplateEditor from "../../../../../../components/emails/TemplateEditor";
 
 export const metadata = { title: "Edit Email Template" };
 
-type PageProps = { params: Promise<{ id: string; locale: string }> };
+type PageProps = { params: Promise<{ id: string }> };
 
 export default async function EditTemplatePage({ params }: PageProps) {
   const session = await auth();

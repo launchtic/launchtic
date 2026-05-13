@@ -1,15 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "../../navigation";
+import Link from "next/link";
 import {
   Search, Upload, ChevronDown, Tag as TagIcon,
   Mail, Phone, Globe, Loader2, UserPlus, Plus, Pencil,
 } from "lucide-react";
 import ImportDialog from "./ImportDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
-import { useTranslations } from "next-intl";
-
 type Tag = { id: string; name: string; color: string | null };
 type Contact = {
   id: string;
@@ -46,7 +44,6 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const t = useTranslations("contacts");
 
   const fetchPage = useCallback(async (q: string, tag: string | null, cursor: string | null) => {
     const params = new URLSearchParams();
@@ -113,8 +110,8 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div className="shrink-0">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("totalContacts", { count: total })}</p>
+          <h1 className="text-xl font-bold text-gray-900">Contacts</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? "contact" : "contacts"}</p>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 lg:flex-1 lg:justify-end lg:flex-wrap">
@@ -123,7 +120,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search contacts…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -136,7 +133,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
                 className="w-full sm:w-auto appearance-none pl-3 pr-8 py-2 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer border-gray-200 text-gray-700"
                 style={activeTag ? { backgroundColor: (activeTag.color ?? "#6366f1") + "1a", borderColor: (activeTag.color ?? "#6366f1") + "66", color: activeTag.color ?? "#4338ca", fontWeight: 500 } : undefined}
               >
-                <option value="">{t("allTags")}</option>
+                <option value="">All tags</option>
                 {allTags.map((tag) => (
                   <option key={tag.id} value={tag.id}>{tag.name}</option>
                 ))}
@@ -151,21 +148,21 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
             >
               <TagIcon size={13} />
-              <span className="hidden sm:inline">{t("manageTags")}</span>
+              <span className="hidden sm:inline">Manage Tags</span>
             </Link>
             <button
               onClick={() => setImportOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
             >
               <Upload size={13} />
-              <span className="hidden sm:inline">{t("importCSV")}</span>
+              <span className="hidden sm:inline">Import CSV</span>
             </button>
             <button
               onClick={() => setCreateOpen(true)}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
             >
               <Plus size={13} />
-              <span className="hidden sm:inline">{t("newContact")}</span>
+              <span className="hidden sm:inline">New Contact</span>
             </button>
           </div>
         </div>
@@ -183,9 +180,9 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
               <UserPlus size={20} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{t("noContacts")}</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">No contacts yet</p>
             <p className="text-xs text-gray-400">
-              {search || tagFilter ? t("noContactsSearch") : t("noContactsHint")}
+              {search || tagFilter ? "No contacts match your search" : "Add or import contacts to get started"}
             </p>
           </div>
         ) : (
@@ -193,12 +190,12 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
           <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-6 py-3 font-semibold">{t("col.nameEmail")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.phone")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.country")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.tags")}</th>
-                <th className="text-left px-4 py-3 font-semibold">{t("col.added")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.actions")}</th>
+                <th className="text-left px-6 py-3 font-semibold">Name / Email</th>
+                <th className="text-left px-4 py-3 font-semibold">Phone</th>
+                <th className="text-left px-4 py-3 font-semibold">Country</th>
+                <th className="text-left px-4 py-3 font-semibold">Tags</th>
+                <th className="text-left px-4 py-3 font-semibold">Added</th>
+                <th className="text-right px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

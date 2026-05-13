@@ -40,7 +40,7 @@ export default function RegisterForm() {
     }
 
     await signIn("credentials", { email, password, redirect: false });
-    router.push("/funnels");
+    router.push("/dashboard");
   }
 
   return (

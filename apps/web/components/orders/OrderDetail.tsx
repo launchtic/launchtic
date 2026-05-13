@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import {
   ChevronRight, ExternalLink, Loader2,
   CheckCircle, Clock, XCircle, RotateCcw, Ban,
@@ -109,7 +108,6 @@ function RefundModal({
   onClose: () => void;
   onDone: (updates: Partial<Order>) => void;
 }) {
-  const t = useTranslations("orderDetail.refundModal");
   const remaining = order.total - order.refundAmount;
   const [amountInput, setAmountInput] = useState((remaining / 100).toFixed(2));
   const [reason, setReason] = useState<"" | "duplicate" | "fraudulent" | "requested_by_customer">("");
@@ -122,7 +120,7 @@ function RefundModal({
 
   async function doRefund() {
     if (amountInvalid) {
-      setError(t("amountError", { max: formatAmount(remaining, order.currency) }));
+      setError(`Amount must be between 0 and ${formatAmount(remaining, order.currency)}`);
       return;
     }
     setSubmitting(true);
@@ -163,29 +161,29 @@ function RefundModal({
             <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center mb-4">
               <RotateCcw size={22} className="text-orange-600" />
             </div>
-            <h2 className="text-base font-semibold text-gray-900 mb-1.5">{t("title")}</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-1.5">Issue a Refund</h2>
             <p className="text-sm text-gray-500">
-              {t("orderLabel")} <span className="font-medium text-gray-700 font-mono">#{order.id.slice(-8).toUpperCase()}</span>
+              Order <span className="font-medium text-gray-700 font-mono">#{order.id.slice(-8).toUpperCase()}</span>
             </p>
           </div>
 
           <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 mb-4 space-y-1">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-500">{t("totalPaid")}</span>
+              <span className="text-gray-500">Total paid</span>
               <span className="font-medium text-gray-900">{formatAmount(order.total, order.currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-500">{t("alreadyRefunded")}</span>
+              <span className="text-gray-500">Already refunded</span>
               <span className="font-medium text-gray-900">{formatAmount(order.refundAmount, order.currency)}</span>
             </div>
             <div className="flex items-center justify-between text-xs border-t border-gray-200 pt-1 mt-1">
-              <span className="text-gray-500">{t("remainingRefundable")}</span>
+              <span className="text-gray-500">Remaining refundable</span>
               <span className="font-semibold text-gray-900">{formatAmount(remaining, order.currency)}</span>
             </div>
           </div>
 
           <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">{t("amountLabel")}</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Amount</label>
             <div className="relative">
               <input
                 type="text"
@@ -208,13 +206,13 @@ function RefundModal({
               </span>
             </div>
             <p className="mt-1 text-xs text-gray-400">
-              {t("max", { amount: formatAmount(remaining, order.currency) })}
+              Max: {formatAmount(remaining, order.currency)}
             </p>
           </div>
 
           <div className="mb-4">
             <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              {t("reasonLabel")} <span className="text-gray-400 font-normal">{t("reasonOptional")}</span>
+              Reason <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <select
               value={reason}
@@ -222,10 +220,10 @@ function RefundModal({
               disabled={submitting}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50"
             >
-              <option value="">{t("reasonNotSpecified")}</option>
-              <option value="duplicate">{t("reasonDuplicate")}</option>
-              <option value="fraudulent">{t("reasonFraudulent")}</option>
-              <option value="requested_by_customer">{t("reasonCustomer")}</option>
+              <option value="">Not specified</option>
+              <option value="duplicate">Duplicate</option>
+              <option value="fraudulent">Fraudulent</option>
+              <option value="requested_by_customer">Requested by customer</option>
             </select>
           </div>
 
@@ -239,7 +237,7 @@ function RefundModal({
               onClick={onClose}
               className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
             >
-              {t("keepOrder")}
+              Keep Order
             </button>
             <button
               disabled={submitting || amountInvalid}
@@ -247,7 +245,7 @@ function RefundModal({
               className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
-              {t("confirmRefund")}
+              Confirm Refund
             </button>
           </div>
         </div>
@@ -260,7 +258,6 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
   const [order, setOrder] = useState(initial);
   const [showRefund, setShowRefund] = useState(false);
   const router = useRouter();
-  const t = useTranslations("orderDetail");
 
   const contactName = [order.contact.firstName, order.contact.lastName].filter(Boolean).join(" ") || order.contact.email;
   const shortId = order.id.slice(-8).toUpperCase();
@@ -289,12 +286,12 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="min-w-0">
             <nav className="flex items-center gap-1 text-xs text-gray-400 mb-1.5">
-              <Link href="/orders" className="hover:text-blue-600">{t("breadcrumb")}</Link>
+              <Link href="/orders" className="hover:text-blue-600">Orders</Link>
               <ChevronRight size={11} />
               <span className="text-gray-700 font-medium font-mono">#{shortId}</span>
             </nav>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg font-bold text-gray-900">{t("title", { id: shortId })}</h1>
+              <h1 className="text-lg font-bold text-gray-900">Order #{shortId}</h1>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusCfg.className}`}>
                 {statusCfg.icon}
                 {order.status.charAt(0) + order.status.slice(1).toLowerCase()}
@@ -305,12 +302,12 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
               {hasPartialRefund && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
                   <RotateCcw size={10} />
-                  {t("partialRefund", { amount: formatAmount(order.refundAmount, order.currency) })}
+                  Partial refund: {formatAmount(order.refundAmount, order.currency)}
                 </span>
               )}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {t("created", { date: new Date(order.createdAt).toLocaleString() })}
+              Created {new Date(order.createdAt).toLocaleString()}
             </p>
           </div>
 
@@ -320,14 +317,14 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
               target="_blank"
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-xl transition-colors"
             >
-              <FileText size={12} /> {t("exportPdf")}
+              <FileText size={12} /> Export PDF
             </a>
             {canRefund && (
               <button
                 onClick={() => setShowRefund(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-orange-700 border border-orange-200 hover:bg-orange-50 rounded-xl transition-colors"
               >
-                <RotateCcw size={12} /> {t("refund")}
+                <RotateCcw size={12} /> Refund
               </button>
             )}
           </div>
@@ -343,7 +340,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
               {/* Item section — includes main item and order bumps */}
               {(hasItem || bumpItems) && (
                 <div className="p-5 border-b border-gray-100">
-                  <SectionLabel>{t("sections.item")}</SectionLabel>
+                  <SectionLabel>Item</SectionLabel>
 
                   {hasItem && (
                     <div className="space-y-1">
@@ -390,52 +387,52 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
               )}
 
               <div className="p-5 space-y-2">
-                <SectionLabel>{t("sections.financials")}</SectionLabel>
+                <SectionLabel>Financials</SectionLabel>
                 {snapshot?.unitPrice != null && (
-                  <FinancialRow label={t("financial.unitPrice")} value={formatAmount(snapshot.unitPrice, order.currency)} />
+                  <FinancialRow label="Unit price" value={formatAmount(snapshot.unitPrice, order.currency)} />
                 )}
                 {order.quantity > 1 && (
-                  <FinancialRow label={t("financial.quantity", { qty: order.quantity })} value="" />
+                  <FinancialRow label={`Quantity: ${order.quantity}`} value="" />
                 )}
-                <FinancialRow label={t("financial.subtotal")} value={formatAmount(order.subtotal, order.currency)} />
+                <FinancialRow label="Subtotal" value={formatAmount(order.subtotal, order.currency)} />
                 {bumpItems?.map((bump, i) => (
                   <div key={bump.orderBumpId ?? i}>
                     <FinancialRow
-                      label={t("financial.bump", { name: bump.productName ?? bump.planName ?? "" })}
+                      label={`Bump: ${bump.productName ?? bump.planName ?? ""}`}
                       value={formatAmount(bump.unitPrice, bump.currency)}
                     />
                     {bump.shippingFee > 0 && (
                       <FinancialRow
-                        label={t("financial.bumpShipping")}
+                        label="Bump shipping"
                         value={formatAmount(bump.shippingFee, bump.currency)}
                       />
                     )}
                   </div>
                 ))}
                 {order.discountAmount > 0 && (
-                  <FinancialRow label={t("financial.discount")} value={`-${formatAmount(order.discountAmount, order.currency)}`} />
+                  <FinancialRow label="Discount" value={`-${formatAmount(order.discountAmount, order.currency)}`} />
                 )}
                 {order.shippingFee > 0 && (
-                  <FinancialRow label={t("financial.shipping")} value={formatAmount(order.shippingFee, order.currency)} />
+                  <FinancialRow label="Shipping" value={formatAmount(order.shippingFee, order.currency)} />
                 )}
                 <div className="border-t border-gray-100 pt-3 mt-3">
-                  <FinancialRow label={t("financial.total")} value={formatAmount(order.total, order.currency)} bold />
+                  <FinancialRow label="Total" value={formatAmount(order.total, order.currency)} bold />
                 </div>
                 {order.refundAmount > 0 && (
                   <div className="border-t border-gray-100 pt-3 mt-3 space-y-2">
                     <FinancialRow
-                      label={t("financial.refunded")}
+                      label="Refunded"
                       value={`-${formatAmount(order.refundAmount, order.currency)}`}
                       tone="refund"
                     />
                     <FinancialRow
-                      label={t("financial.netAmount")}
+                      label="Net amount"
                       value={formatAmount(order.total - order.refundAmount, order.currency)}
                       bold
                     />
                     {order.refundedAt && (
                       <p className="text-xs text-gray-400 pt-1">
-                        {t("financial.lastRefund", { date: new Date(order.refundedAt).toLocaleString() })}
+                        Last refund: {new Date(order.refundedAt).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -448,7 +445,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
           <div className="space-y-4 sm:space-y-6">
             {/* Contact */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <SectionLabel>{t("sections.contact")}</SectionLabel>
+              <SectionLabel>Contact</SectionLabel>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
                   <span className="text-blue-700 text-sm font-bold">
@@ -481,7 +478,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
             {/* Funnel */}
             {order.funnelStep && (
               <div className="bg-white rounded-2xl border border-gray-100 p-5">
-                <SectionLabel>{t("sections.funnel")}</SectionLabel>
+                <SectionLabel>Funnel</SectionLabel>
                 <p className="text-sm text-gray-700 font-medium">{order.funnelStep.funnel.name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{order.funnelStep.name}</p>
                 {order.stepPricePlan && (
@@ -495,7 +492,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
             {/* Shipping */}
             {hasShipping && (
               <div className="bg-white rounded-2xl border border-gray-100 p-5">
-                <SectionLabel>{t("sections.shipping")}</SectionLabel>
+                <SectionLabel>Shipping Address</SectionLabel>
                 <div className="text-sm text-gray-600 space-y-0.5">
                   {order.shippingAddress!.line1 && <p>{order.shippingAddress!.line1}</p>}
                   {(order.shippingAddress!.city || order.shippingAddress!.state || order.shippingAddress!.postal_code) && (
@@ -512,21 +509,21 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
 
             {/* Metadata */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-2">
-              <SectionLabel>{t("sections.metadata")}</SectionLabel>
+              <SectionLabel>Metadata</SectionLabel>
               {order.variantId && (
                 <div className="flex items-start gap-2 text-xs">
-                  <span className="text-gray-400 w-20 shrink-0 pt-0.5">{t("meta.variant")}</span>
+                  <span className="text-gray-400 w-20 shrink-0 pt-0.5">Variant</span>
                   <span className="font-mono text-gray-500 break-all">{order.variantId}</span>
                 </div>
               )}
               {order.providerOrderId && (
                 <div className="flex items-start gap-2 text-xs">
-                  <span className="text-gray-400 w-20 shrink-0 pt-0.5">{t("meta.providerId")}</span>
+                  <span className="text-gray-400 w-20 shrink-0 pt-0.5">Provider ID</span>
                   <span className="font-mono text-gray-600 break-all">{order.providerOrderId}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-400 w-20 shrink-0">{t("meta.updated")}</span>
+                <span className="text-gray-400 w-20 shrink-0">Updated</span>
                 <span className="text-gray-600">{new Date(order.updatedAt).toLocaleString()}</span>
               </div>
             </div>

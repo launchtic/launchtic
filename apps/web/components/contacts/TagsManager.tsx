@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   Search, ChevronLeft, ChevronRight, ChevronRight as BreadArrow,
@@ -54,7 +53,6 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
   const [deleting, setDeleting] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirm = useConfirm();
-  const t = useTranslations("contacts.tags");
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -127,8 +125,8 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
 
   async function deleteTag(tag: TagRow) {
     const ok = await confirm({
-      title: t("deleteTitle", { name: tag.name }),
-      description: t("deleteDescription"),
+      title: `Delete tag "${tag.name}"?`,
+      description: "This will remove the tag from all contacts.",
       variant: "danger",
     });
     if (!ok) return;
@@ -146,11 +144,11 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
           <nav className="flex items-center gap-1 text-xs text-gray-400 mb-1">
             <Link href="/contacts" className="hover:text-blue-600">Contacts</Link>
             <BreadArrow size={11} />
-            <span className="text-gray-700 font-medium">{t("title")}</span>
+            <span className="text-gray-700 font-medium">Tags</span>
           </nav>
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
+          <h1 className="text-xl font-bold text-gray-900">Tags</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {t("count", { count: meta.total })}
+            {meta.total} {meta.total === 1 ? "tag" : "tags"}
           </p>
         </div>
 
@@ -160,7 +158,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search tags…"
               className="w-full pl-9 pr-3 py-2 text-base sm:text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -169,7 +167,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
           >
             <Plus size={15} />
-            {t("newTag")}
+            New Tag
           </button>
         </div>
       </div>
@@ -185,9 +183,9 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
               <Tag size={20} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{t("noTags")}</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">No tags yet</p>
             <p className="text-xs text-gray-400">
-              {search ? t("noTagsSearch") : t("noTagsHint")}
+              {search ? "No tags match your search" : "Create tags to organize your contacts"}
             </p>
           </div>
         ) : (
@@ -195,9 +193,9 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
           <table className="w-full text-sm min-w-[480px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-6 py-3 font-semibold">{t("col.tag")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.contacts")}</th>
-                <th className="text-right px-4 py-3 font-semibold">{t("col.actions")}</th>
+                <th className="text-left px-6 py-3 font-semibold">Tag</th>
+                <th className="text-right px-4 py-3 font-semibold">Contacts</th>
+                <th className="text-right px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -215,7 +213,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-gray-500">
-                      {t("contacts", { count })}
+                      {count} {count === 1 ? "contact" : "contacts"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -275,7 +273,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
       <FormDrawer
         open={drawerMode !== null}
         onClose={closeDrawer}
-        title={drawerMode === "edit" ? t("editTag") : t("createTag")}
+        title={drawerMode === "edit" ? "Edit Tag" : "Create Tag"}
         width="sm"
         submitLabel={drawerMode === "edit" ? "Save changes" : "Create tag"}
         submitting={submitting}
@@ -285,7 +283,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
         <div className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              {t("tagName")} <span className="text-red-500">*</span>
+              Name <span className="text-red-500">*</span>
             </label>
             <input
               autoFocus
@@ -296,7 +294,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("tagColor")}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
             <ColorPicker value={formColor} onChange={setFormColor} />
           </div>
           {formError && (

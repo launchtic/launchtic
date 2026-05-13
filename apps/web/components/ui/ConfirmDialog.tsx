@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useRef } from "react";
-import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 
 type ConfirmOptions = {
@@ -21,7 +20,6 @@ type DialogState = ConfirmOptions & { resolve: (v: boolean) => void };
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
-  const t = useTranslations("common");
 
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -68,13 +66,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 onClick={() => handleResolve(false)}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
               >
-                {t("cancel")}
+                Cancel
               </button>
               <button
                 onClick={() => handleResolve(true)}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-xl transition-colors ${colors.btn}`}
               >
-                {dialog.confirmLabel ?? t("confirm")}
+                {dialog.confirmLabel ?? "Confirm"}
               </button>
             </div>
           </div>

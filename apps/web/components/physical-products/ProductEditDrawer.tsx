@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { GripVertical, Plus, Trash2, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
 
@@ -51,8 +50,6 @@ type FormState = {
   options: ProductOption[];
   variants: ProductVariant[];
 };
-
-type TFunc = ReturnType<typeof useTranslations>;
 
 const CURRENCIES = SUPPORTED_CURRENCIES;
 
@@ -157,7 +154,6 @@ function VariantImageUpload({ image, onUpload }: { image: string | null; onUploa
 }
 
 function MediaTab({ images, onChange }: { images: string[]; onChange: (imgs: string[]) => void }) {
-  const t = useTranslations("products.edit");
   const [uploading, setUploading] = useState(false);
 
   async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -209,7 +205,7 @@ function MediaTab({ images, onChange }: { images: string[]; onChange: (imgs: str
           <label className="flex flex-col items-center justify-center gap-2 cursor-pointer w-full h-full">
             <input type="file" accept="image/*" multiple className="sr-only" onChange={handleFiles} />
             <Plus size={24} className="text-gray-300" />
-            <span className="text-sm text-gray-400">{t("uploadPrimary")}</span>
+            <span className="text-sm text-gray-400">Upload primary image</span>
           </label>
         )}
       </div>
@@ -240,7 +236,7 @@ function MediaTab({ images, onChange }: { images: string[]; onChange: (imgs: str
         <label className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors gap-1">
           <input type="file" accept="image/*" multiple className="sr-only" onChange={handleFiles} disabled={uploading} />
           {uploading ? <Loader2 size={16} className="text-blue-400 animate-spin" /> : <Plus size={16} className="text-gray-300" />}
-          <span className="text-[10px] text-gray-400">{t("addImage")}</span>
+          <span className="text-[10px] text-gray-400">Add image</span>
         </label>
       </div>
     </div>
@@ -255,12 +251,10 @@ type Props = {
 };
 
 export default function ProductEditDrawer({ open, onClose, productId, onSaved }: Props) {
-  const t = useTranslations("products.edit");
-
   const TABS = [
-    { id: "details"  as const, label: t("tabs.details")  },
-    { id: "media"    as const, label: t("tabs.media")    },
-    { id: "variants" as const, label: t("tabs.variants") },
+    { id: "details"  as const, label: "Details"  },
+    { id: "media"    as const, label: "Media"    },
+    { id: "variants" as const, label: "Variants" },
   ];
   type TabId = typeof TABS[number]["id"];
 
@@ -286,7 +280,7 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
         setProductName(p.name);
         setForm(productToForm(p));
       })
-      .catch(() => setError(t("errorLoad")))
+      .catch(() => setError("Failed to load product"))
       .finally(() => setLoading(false));
   }, [open, productId]);
 
@@ -324,7 +318,7 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
       });
       if (!res.ok) {
         const json = await res.json();
-        setError(json.error ?? t("errorSave"));
+        setError(json.error ?? "Failed to save product");
         return;
       }
       onSaved?.();
@@ -338,10 +332,10 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
     <FormDrawer
       open={open}
       onClose={onClose}
-      title={productName || t("titleFallback")}
-      description={t("description")}
+      title={productName || "Edit Product"}
+      description="Update product details, media, and variants"
       width="xl"
-      submitLabel={t("submitLabel")}
+      submitLabel="Save Changes"
       submitting={saving}
       submitDisabled={!form || !form.name.trim() || loading}
       onSubmit={handleSave}
@@ -380,28 +374,28 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
 
           {tab === "details" && (
             <div className="space-y-6">
-              <Section title={t("sections.general")}>
-                <Field label={t("fields.name")} required>
-                  <input className={inputCls} placeholder={t("placeholders.productName")} value={form.name} onChange={(e) => setField("name", e.target.value)} />
+              <Section title="General">
+                <Field label="Name" required>
+                  <input className={inputCls} placeholder="Product name" value={form.name} onChange={(e) => setField("name", e.target.value)} />
                 </Field>
-                <Field label={t("fields.description")}>
+                <Field label="Description">
                   <textarea
                     className={`${inputCls} min-h-[90px] resize-none`}
-                    placeholder={t("placeholders.description")}
+                    placeholder="Describe your product"
                     value={form.description}
                     onChange={(e) => setField("description", e.target.value)}
                   />
                 </Field>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={t("fields.sku")}>
-                    <input className={inputCls} placeholder={t("placeholders.sku")} value={form.sku} onChange={(e) => setField("sku", e.target.value)} />
+                  <Field label="SKU">
+                    <input className={inputCls} placeholder="SKU-001" value={form.sku} onChange={(e) => setField("sku", e.target.value)} />
                   </Field>
-                  <Field label={t("fields.weight")}>
+                  <Field label="Weight (kg)">
                     <input
                       type="number"
                       min="0"
                       className={inputCls}
-                      placeholder={t("placeholders.weight")}
+                      placeholder="0.0"
                       value={form.weight}
                       onChange={(e) => setField("weight", e.target.value)}
                     />
@@ -409,14 +403,14 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
                 </div>
               </Section>
 
-              <Section title={t("sections.pricing")}>
+              <Section title="Pricing">
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label={t("fields.currency")}>
+                  <Field label="Currency">
                     <select className={inputCls} value={form.currency} onChange={(e) => setField("currency", e.target.value)}>
                       {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
                     </select>
                   </Field>
-                  <Field label={t("fields.basePrice")}>
+                  <Field label="Base price">
                     <input
                       type="number"
                       min="0"
@@ -429,7 +423,7 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
                 </div>
               </Section>
 
-              <Section title={t("sections.inventory")}>
+              <Section title="Inventory">
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
@@ -438,13 +432,13 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
                     onChange={(e) => setField("limitStock", e.target.checked)}
                     className="w-4 h-4 accent-blue-600"
                   />
-                  <label htmlFor="limitStock" className="text-sm cursor-pointer">{t("limitStock")}</label>
+                  <label htmlFor="limitStock" className="text-sm cursor-pointer">Limit stock</label>
                   {form.limitStock && (
                     <input
                       type="number"
                       min="0"
                       className="ml-2 border border-gray-200 rounded-xl px-3 py-2 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder={t("placeholders.stockLimit")}
+                      placeholder="Stock limit"
                       value={form.stockLimit}
                       onChange={(e) => setField("stockLimit", e.target.value)}
                     />
@@ -464,7 +458,6 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
               setForm={setForm}
               selectedVariantIds={selectedVariantIds}
               setSelectedVariantIds={setSelectedVariantIds}
-              t={t}
             />
           )}
         </div>
@@ -494,13 +487,12 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 function VariantsSection({
-  form, setForm, selectedVariantIds, setSelectedVariantIds, t,
+  form, setForm, selectedVariantIds, setSelectedVariantIds,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState | null>>;
   selectedVariantIds: Set<string>;
   setSelectedVariantIds: React.Dispatch<React.SetStateAction<Set<string>>>;
-  t: TFunc;
 }) {
   const hasValidOptions = form.options.some((o) => o.name.trim() && o.values.some((v) => v.trim()));
 
@@ -522,7 +514,7 @@ function VariantsSection({
           className="w-4 h-4 accent-blue-600"
         />
         <label htmlFor="hasOptions" className="text-sm cursor-pointer">
-          {t("variants.hasOptions")}
+          This product has options (e.g. size, color)
         </label>
       </div>
 
@@ -533,11 +525,11 @@ function VariantsSection({
               <div key={opt.id} className="border-b border-gray-200 last:border-b-0 p-4 bg-white">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">{t("variants.optionName")}</label>
+                    <label className="block text-xs text-gray-500 mb-1">Option name</label>
                     <div className="flex items-center gap-2">
                       <input
                         className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder={t("variants.optionNamePlaceholder")}
+                        placeholder="e.g. Size, Color"
                         value={opt.name}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -557,14 +549,14 @@ function VariantsSection({
                     </div>
                   </div>
                 </div>
-                <label className="block text-xs text-gray-500 mb-2">{t("variants.optionValues")}</label>
+                <label className="block text-xs text-gray-500 mb-2">Option values</label>
                 <div className="space-y-2">
                   {opt.values.map((val, vi) => (
                     <div key={vi} className="flex items-center gap-2">
                       <GripVertical size={14} className="text-gray-300 shrink-0" />
                       <input
                         className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        placeholder={vi === opt.values.length - 1 ? t("variants.addAnotherValue") : ""}
+                        placeholder={vi === opt.values.length - 1 ? "Add another value…" : ""}
                         value={val}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -625,7 +617,7 @@ function VariantsSection({
                       <GripVertical size={14} className="text-gray-200 shrink-0" />
                       <input
                         className="flex-1 border border-dashed border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-400 focus:outline-none cursor-pointer bg-white"
-                        placeholder={t("variants.addAnotherValue")}
+                        placeholder="Add another value…"
                         readOnly
                         onClick={() =>
                           setForm((f) => f ? {
@@ -647,7 +639,7 @@ function VariantsSection({
                 onClick={() => setForm((f) => f ? { ...f, options: [...f.options, newOption()] } : f)}
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
               >
-                <Plus size={14} /> {t("variants.addAnotherOption")}
+                <Plus size={14} /> Add another option
               </button>
             </div>
           </div>
@@ -656,12 +648,12 @@ function VariantsSection({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-sm font-semibold">{t("variants.title")}</p>
+                  <p className="text-sm font-semibold">Variants</p>
                   {selectedVariantIds.size === 0 ? (
-                    <p className="text-xs text-gray-400 mt-0.5">{t("variants.hint")}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Select variants to bulk-delete</p>
                   ) : (
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-500">{t("variants.selected", { count: selectedVariantIds.size })}</span>
+                      <span className="text-xs text-gray-500">{selectedVariantIds.size} selected</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -670,7 +662,7 @@ function VariantsSection({
                         }}
                         className="text-xs font-medium px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
                       >
-                        {t("variants.delete")}
+                        Delete
                       </button>
                     </div>
                   )}
@@ -692,7 +684,7 @@ function VariantsSection({
                   }}
                   className="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 rounded-lg px-3 py-1.5"
                 >
-                  {t("variants.regenerate")}
+                  Regenerate
                 </button>
               </div>
 
@@ -702,7 +694,7 @@ function VariantsSection({
                   onClick={() => setForm((f) => f ? { ...f, variants: buildVariants(f.options, f.price) } : f)}
                   className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors"
                 >
-                  <Plus size={14} className="inline mr-1" /> {t("variants.generate")}
+                  <Plus size={14} className="inline mr-1" /> Generate variants
                 </button>
               ) : (
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
@@ -720,11 +712,11 @@ function VariantsSection({
                             }}
                           />
                         </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-16">{t("variants.colImage")}</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t("variants.colVariant")}</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 hidden sm:table-cell">{t("variants.colSku")}</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-16">Image</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Variant</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 hidden sm:table-cell">SKU</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                          {t("variants.colPrice", { currency: form.currency.toUpperCase() })}
+                          Price ({form.currency.toUpperCase()})
                         </th>
                       </tr>
                     </thead>
@@ -768,7 +760,7 @@ function VariantsSection({
                             <td className="px-3 py-2.5 hidden sm:table-cell">
                               <input
                                 className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:bg-gray-50"
-                                placeholder={t("placeholders.sku")}
+                                placeholder="SKU"
                                 value={variant.sku}
                                 disabled={isSelected}
                                 onChange={(e) => {

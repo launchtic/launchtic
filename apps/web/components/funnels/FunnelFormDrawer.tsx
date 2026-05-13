@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2, Lock, AlertTriangle } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
 
@@ -92,12 +91,11 @@ function FaviconUpload({ value, onChange }: { value: string; onChange: (url: str
 
 export default function FunnelFormDrawer({ open, onClose, mode, editId, onSuccess }: Props) {
   const isEdit = mode === "edit";
-  const t = useTranslations("funnels.form");
 
   const GOALS = [
-    { id: "audience" as GoalId, label: t("goal.audience.label"), description: t("goal.audience.description"), icon: <Users size={22} className="text-violet-500" /> },
-    { id: "sell"     as GoalId, label: t("goal.sell.label"),     description: t("goal.sell.description"),     icon: <ShoppingCart size={22} className="text-blue-500" /> },
-    { id: "custom"   as GoalId, label: t("goal.custom.label"),   description: t("goal.custom.description"),   icon: <Wrench size={22} className="text-gray-500" /> },
+    { id: "audience" as GoalId, label: "Build an Audience", description: "Collect leads and grow your list", icon: <Users size={22} className="text-violet-500" /> },
+    { id: "sell"     as GoalId, label: "Sell a Product",    description: "Sell physical or digital products",  icon: <ShoppingCart size={22} className="text-blue-500" /> },
+    { id: "custom"   as GoalId, label: "Custom",            description: "Start with a blank funnel",          icon: <Wrench size={22} className="text-gray-500" /> },
   ];
 
   const [name, setName] = useState("");
@@ -146,13 +144,13 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
         setInitialAssignedIds(ids);
         setAssignedDomainId(ids[0] ?? "");
       })
-      .catch((err) => setError(err.message ?? t("errorLoad")))
+      .catch((err) => setError(err.message ?? "Failed to load funnel"))
       .finally(() => setLoading(false));
   }, [open, isEdit, editId]);
 
   async function handleSubmit() {
     const trimmed = name.trim();
-    if (!trimmed) { setError(t("errorNameRequired")); return; }
+    if (!trimmed) { setError("Name is required"); return; }
 
     setSubmitting(true);
     setError(null);
@@ -165,7 +163,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
           body: JSON.stringify({ name: trimmed, currency }),
         });
         const json = await res.json();
-        if (!res.ok) { setError(json.error ?? t("errorCreate")); return; }
+        if (!res.ok) { setError(json.error ?? "Failed to create funnel"); return; }
 
         const funnelId: string = json.data.id;
         const baseSlug = slugify(trimmed);
@@ -207,7 +205,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
       });
       if (!patchRes.ok) {
         const json = await patchRes.json();
-        setError(json.error ?? t("errorUpdate"));
+        setError(json.error ?? "Failed to update funnel");
         return;
       }
 
@@ -221,7 +219,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
           });
           if (!delRes.ok) {
             const j = await delRes.json().catch(() => ({}));
-            setError(j.error ?? t("errorUpdate"));
+            setError(j.error ?? "Failed to update funnel");
             return;
           }
         }
@@ -235,7 +233,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
             const j = await postRes.json().catch(() => ({}));
             // Slug-conflict 409 from assertAllStepSlugsAvailable — surface
             // verbatim so user sees which slug + funnel collides.
-            setError(j.error ?? t("errorUpdate"));
+            setError(j.error ?? "Failed to update funnel");
             return;
           }
         }
@@ -254,10 +252,10 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
     <FormDrawer
       open={open}
       onClose={onClose}
-      title={isEdit ? t("titleEdit") : t("titleCreate")}
-      description={isEdit ? t("descriptionEdit") : undefined}
+      title={isEdit ? "Edit Funnel" : "Create Funnel"}
+      description={isEdit ? "Update your funnel settings" : undefined}
       width={isEdit ? "md" : "lg"}
-      submitLabel={isEdit ? t("submitEdit") : t("submitCreate")}
+      submitLabel={isEdit ? "Save Changes" : "Create Funnel"}
       submitting={submitting}
       submitDisabled={loading || !name.trim()}
       onSubmit={handleSubmit}
@@ -276,20 +274,20 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              {t("nameLabel")} <span className="text-red-500">*</span>
+              Name <span className="text-red-500">*</span>
             </label>
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={t("namePlaceholder")}
+              placeholder="My funnel"
               className={inputCls}
             />
           </div>
 
           {!isEdit && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t("goalLabel")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Goal</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {GOALS.map((g) => (
                   <button
@@ -318,7 +316,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
               </div>
               {goal !== "custom" && (
                 <p className="text-xs text-gray-400 mt-2">
-                  {t("willCreate")}{" "}
+                  Will create:{" "}
                   <span className="text-gray-600 font-medium">
                     {GOAL_STEPS[goal].map((s) => s.name).join(" → ")}
                   </span>
@@ -329,9 +327,9 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
 
           <div>
             <label className={`block text-sm font-medium mb-1.5 ${currencyLocked ? "text-gray-400" : "text-gray-700"}`}>
-              {t("currencyLabel")}
+              Currency
             </label>
-            <p className="text-xs text-gray-400 mb-2">{t("currencyHint")}</p>
+            <p className="text-xs text-gray-400 mb-2">Used for all offers in this funnel. Cannot be changed once orders exist.</p>
             <div className="relative">
               <select
                 value={currency}
@@ -361,23 +359,23 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
 
           {isEdit && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{t("domainLabel")}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Domain</label>
               <p className="text-xs text-gray-400 mb-2">
-                {t("domainHint")}{" "}
-                <a href="/settings" className="text-blue-600 hover:underline">{t("manageDomains")}</a>
+                Assign a custom domain to this funnel.{" "}
+                <a href="/settings" className="text-blue-600 hover:underline">Manage domains</a>
               </p>
               <select
                 value={assignedDomainId}
                 onChange={(e) => setAssignedDomainId(e.target.value)}
                 className={inputCls}
               >
-                <option value="">{t("noDomain")}</option>
+                <option value="">No domain</option>
                 {verifiedDomains.map((d) => (
                   <option key={d.id} value={d.id}>{d.domain}</option>
                 ))}
               </select>
               {hasNoVerified && (
-                <p className="text-xs text-amber-600 mt-1.5">{t("noVerifiedDomains")}</p>
+                <p className="text-xs text-amber-600 mt-1.5">No verified domains yet. Verify a domain in Settings first.</p>
               )}
             </div>
           )}

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
 import {
   Search, ChevronDown, Loader2, Repeat,
   CheckCircle, Timer, Ban, AlertCircle, Clock,
@@ -58,9 +57,12 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
   );
 }
 
-export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal?: number }) {
-  const t = useTranslations("subscriptions");
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active", TRIALING: "Trialing", PAST_DUE: "Past Due",
+  INCOMPLETE: "Incomplete", CANCELED: "Canceled",
+};
 
+export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal?: number }) {
   const [items, setItems] = useState<Subscription[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,12 +72,12 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const STATUS_FILTERS = [
-    { value: null,         label: t("allStatuses") },
-    { value: "ACTIVE",     label: t("status.ACTIVE") },
-    { value: "TRIALING",   label: t("status.TRIALING") },
-    { value: "PAST_DUE",   label: t("status.PAST_DUE") },
-    { value: "INCOMPLETE", label: t("status.INCOMPLETE") },
-    { value: "CANCELED",   label: t("status.CANCELED") },
+    { value: null,         label: "All statuses" },
+    { value: "ACTIVE",     label: "Active" },
+    { value: "TRIALING",   label: "Trialing" },
+    { value: "PAST_DUE",   label: "Past Due" },
+    { value: "INCOMPLETE", label: "Incomplete" },
+    { value: "CANCELED",   label: "Canceled" },
   ];
 
   const fetchPage = useCallback(async (q: string, status: string | null, cursor: string | null) => {
@@ -130,8 +132,8 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div className="shrink-0">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("totalSubscriptions", { count: initialTotal })}</p>
+          <h1 className="text-xl font-bold text-gray-900">Subscriptions</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{initialTotal} {initialTotal === 1 ? "subscription" : "subscriptions"}</p>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 lg:max-w-2xl lg:flex-1 lg:justify-end">
@@ -140,7 +142,7 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
             <input
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder="Search subscriptions…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
@@ -177,9 +179,9 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
               <Repeat size={20} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{t("noSubscriptions")}</p>
+            <p className="text-sm font-medium text-gray-700 mb-1">No subscriptions yet</p>
             <p className="text-xs text-gray-400">
-              {search || statusFilter ? t("noSubscriptionsSearch") : t("noSubscriptionsHint")}
+              {search || statusFilter ? "No subscriptions match your filters" : "Recurring subscriptions will appear here"}
             </p>
           </div>
         ) : (
@@ -187,12 +189,12 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
             <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="text-left px-6 py-3 font-semibold">{t("col.subscription")}</th>
-                  <th className="text-left px-4 py-3 font-semibold">{t("col.contact")}</th>
-                  <th className="text-left px-4 py-3 font-semibold">{t("col.plan")}</th>
-                  <th className="text-left px-4 py-3 font-semibold">{t("col.status")}</th>
-                  <th className="text-right px-4 py-3 font-semibold">{t("col.amount")}</th>
-                  <th className="text-left px-4 py-3 font-semibold">{t("col.nextRenewal")}</th>
+                  <th className="text-left px-6 py-3 font-semibold">Subscription</th>
+                  <th className="text-left px-4 py-3 font-semibold">Contact</th>
+                  <th className="text-left px-4 py-3 font-semibold">Plan</th>
+                  <th className="text-left px-4 py-3 font-semibold">Status</th>
+                  <th className="text-right px-4 py-3 font-semibold">Amount</th>
+                  <th className="text-left px-4 py-3 font-semibold">Next Renewal</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -214,7 +216,7 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
                             </p>
                             {s.cancelAtPeriodEnd && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-100">
-                                {nextRenewal ? t("endsOn", { date: nextRenewal.toLocaleDateString() }) : "—"}
+                                {nextRenewal ? `Ends ${nextRenewal.toLocaleDateString()}` : "—"}
                               </span>
                             )}
                           </div>
@@ -234,7 +236,7 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={s.status} label={t(`status.${s.status}`) ?? s.status} />
+                        <StatusBadge status={s.status} label={STATUS_LABELS[s.status] ?? s.status} />
                         {trialActive && s.trialEnd && (
                           <p className="text-[10px] text-blue-600 mt-0.5">
                             Until {new Date(s.trialEnd).toLocaleDateString()}

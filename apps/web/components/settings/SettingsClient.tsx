@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key, ChevronRight, ChevronLeft } from "lucide-react";
 import DomainsPanel       from "./DomainsPanel";
 import PaymentPanel       from "./PaymentPanel";
@@ -52,16 +51,14 @@ export default function SettingsClient({
     VALID_TABS.includes(tabParam) ? tabParam : "domains"
   );
   const [mobileView, setMobileView] = useState<"nav" | "content">("nav");
-  const t = useTranslations("settings");
-
   const NAV = [
-    { id: "domains",        label: t("nav.customDomains"),   icon: Globe          },
-    { id: "payment",        label: t("nav.paymentSettings"), icon: CreditCard     },
-    { id: "email",          label: "Email Settings",         icon: Mail           },
-    { id: "storage",        label: t("nav.storage"),         icon: HardDrive      },
-    { id: "page-templates", label: "Page Templates",         icon: LayoutTemplate },
-    { id: "ai-assistant",   label: "AI Assistant",           icon: Bot            },
-    { id: "license",        label: "License",                icon: Key            },
+    { id: "domains",        label: "Custom Domains",  icon: Globe          },
+    { id: "payment",        label: "Payment Settings", icon: CreditCard     },
+    { id: "email",          label: "Email Settings",   icon: Mail           },
+    { id: "storage",        label: "Storage",          icon: HardDrive      },
+    { id: "page-templates", label: "Page Templates",   icon: LayoutTemplate },
+    { id: "ai-assistant",   label: "AI Assistant",     icon: Bot            },
+    { id: "license",        label: "License",          icon: Key            },
   ] as const;
 
   const activeNav = NAV.find((n) => n.id === active)!;
@@ -79,7 +76,7 @@ export default function SettingsClient({
         w-full md:w-56 md:shrink-0 border-r border-gray-200 bg-white flex flex-col py-4
         ${mobileView === "nav" ? "flex" : "hidden md:flex"}
       `}>
-        <p className="px-4 mb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{t("title")}</p>
+        <p className="px-4 mb-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Settings</p>
         <nav className="flex flex-col gap-0.5 px-2">
           {NAV.map(({ id, label, icon: Icon }) => (
             <button
