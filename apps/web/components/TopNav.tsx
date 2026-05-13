@@ -163,19 +163,16 @@ function UserMenu({
             <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
 
-          {/* Workspace — PRO/ENTERPRISE only */}
+          {/* Workspaces — PRO/ENTERPRISE only */}
           {isPro && (
             <div className="border-b border-gray-100 py-1">
-              <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                Workspace
-              </p>
               <Link
-                href={`/${workspaceSlug}/settings?tab=workspace`}
+                href={`/${workspaceSlug}/settings?tab=workspaces`}
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <Building2 size={14} className="text-gray-400 shrink-0" />
-                <span className="flex-1 truncate">{workspaceName}</span>
+                Workspaces
               </Link>
             </div>
           )}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Key, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 type LicenseStatus = {
@@ -11,6 +13,8 @@ type LicenseStatus = {
 };
 
 export default function LicensePanel() {
+  const { update } = useSession();
+  const router = useRouter();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [keyInput, setKeyInput] = useState("");
@@ -40,9 +44,13 @@ export default function LicensePanel() {
       if (!data.success) {
         setError(data.error ?? "Failed to activate license.");
       } else {
-        setSuccess(`License activated! Plan: ${data.data.plan}`);
+        const newPlan = data.data.plan;
+        setSuccess(`License activated! Plan: ${newPlan}`);
         setKeyInput("");
-        setStatus((prev) => prev ? { ...prev, plan: data.data.plan, licenseKey: "LT-••••••••", expiresAt: data.data.expiresAt, isExpired: false } : prev);
+        setStatus((prev) => prev ? { ...prev, plan: newPlan, licenseKey: "LT-••••••••", expiresAt: data.data.expiresAt, isExpired: false } : prev);
+        // Update session immediately — no re-login needed.
+        await update({ workspacePlan: newPlan });
+        router.refresh();
       }
     } catch {
       setError("Network error. Please try again.");

@@ -32,6 +32,7 @@ export const authConfig: NextAuthConfig = {
         if (session.workspaceId)   token.workspaceId   = session.workspaceId;
         if (session.workspaceSlug) token.workspaceSlug = session.workspaceSlug;
         if (session.workspaceName) token.workspaceName = session.workspaceName;
+        if (session.workspacePlan) token.workspacePlan = session.workspacePlan;
       }
       if (user) {
         token.userId = user.id;

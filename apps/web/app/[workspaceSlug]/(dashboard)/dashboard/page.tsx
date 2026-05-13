@@ -54,7 +54,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <DashboardClient stats={stats} workspaceName={(session as any).workspaceName ?? ""} />
+      <DashboardClient stats={stats} />
     </div>
   );
 }

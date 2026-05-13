@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const { name } = createSchema.parse(body);
 
     const [user, currentCount] = await Promise.all([
-      db.user.findUnique({ where: { id: userId }, select: { plan: true, licenseExpiresAt: true } }),
+      db.user.findUnique({ where: { id: userId }, select: { plan: true, licenseKey: true, licenseExpiresAt: true } }),
       db.workspace.count({ where: { ownerId: userId } }),
     ]);
 

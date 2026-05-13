@@ -62,9 +62,6 @@ export default function WorkspacePanel({
     setItems((prev) => [...prev, ws]);
     setShowCreate(false);
     setNewName("");
-    await update({ workspaceId: ws.id, workspaceSlug: ws.slug, workspaceName: ws.name });
-    setActiveId(ws.id);
-    router.push(`/${ws.slug}/dashboard`);
   }
 
   // ── Rename ─────────────────────────────────────────────────
