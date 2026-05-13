@@ -124,9 +124,15 @@ function NavDropdown({ item, pathname }: { item: NavGroup; pathname: string }) {
   );
 }
 
-function UserMenu({ name, email, initials }: { name: string; email: string; initials: string }) {
+function UserMenu({
+  name, email, initials, workspaceSlug, workspaceName, workspacePlan,
+}: {
+  name: string; email: string; initials: string;
+  workspaceSlug: string; workspaceName: string; workspacePlan: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const isPro = workspacePlan === "PRO" || workspacePlan === "ENTERPRISE";
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -150,18 +156,40 @@ function UserMenu({ name, email, initials }: { name: string; email: string; init
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
+        <div className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50">
+          {/* User info */}
           <div className="px-3 py-2 border-b border-gray-100">
             <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
             <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <LogOut size={14} />
-            Sign out
-          </button>
+
+          {/* Workspace — PRO/ENTERPRISE only */}
+          {isPro && (
+            <div className="border-b border-gray-100 py-1">
+              <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                Workspace
+              </p>
+              <Link
+                href={`/${workspaceSlug}/settings?tab=workspace`}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Building2 size={14} className="text-gray-400 shrink-0" />
+                <span className="flex-1 truncate">{workspaceName}</span>
+              </Link>
+            </div>
+          )}
+
+          {/* Sign out */}
+          <div className="py-1">
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut size={14} />
+              Sign out
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -174,12 +202,14 @@ export default function TopNav({
   initials,
   workspaceSlug,
   workspaceName,
+  workspacePlan,
 }: {
   name: string;
   email: string;
   initials: string;
   workspaceSlug: string;
   workspaceName: string;
+  workspacePlan: string;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -193,15 +223,6 @@ export default function TopNav({
         {/* Logo */}
         <Link href={`/${workspaceSlug}/dashboard`} className="shrink-0 mr-2 flex items-center">
           <img src="/logo.svg" alt="launchtic" className="h-7 w-auto" />
-        </Link>
-
-        {/* Workspace chip — links to settings workspace tab */}
-        <Link
-          href={`/${workspaceSlug}/settings?tab=workspace`}
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors max-w-[200px]"
-        >
-          <Building2 size={13} className="shrink-0 text-gray-400" />
-          <span className="truncate font-medium">{workspaceName}</span>
         </Link>
 
         {/* Desktop nav links */}
@@ -235,7 +256,14 @@ export default function TopNav({
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <UserMenu name={name} email={email} initials={initials} />
+          <UserMenu
+            name={name}
+            email={email}
+            initials={initials}
+            workspaceSlug={workspaceSlug}
+            workspaceName={workspaceName}
+            workspacePlan={workspacePlan}
+          />
         </div>
       </header>
 

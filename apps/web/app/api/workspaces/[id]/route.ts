@@ -4,11 +4,14 @@ import { auth } from "../../../../lib/auth";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 
-const renameSchema = z.object({
-  name: z.string().min(1).max(100),
-});
+const updateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: "Slug may only contain lowercase letters, numbers, and hyphens.",
+  }).optional(),
+}).refine((d) => d.name || d.slug, { message: "Provide at least name or slug." });
 
-// PATCH /api/workspaces/[id] — rename workspace (owner only)
+// PATCH /api/workspaces/[id] — update name and/or slug (owner only)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
@@ -18,19 +21,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
 
     const workspace = await db.workspace.findUnique({ where: { id }, select: { ownerId: true } });
-    if (!workspace)              return err("Workspace not found", 404);
-    if (workspace.ownerId !== userId) return err("Only the owner can rename this workspace", 403);
+    if (!workspace)                    return err("Workspace not found", 404);
+    if (workspace.ownerId !== userId)  return err("Only the owner can update this workspace", 403);
 
-    const { name } = renameSchema.parse(await req.json());
+    const body = updateSchema.parse(await req.json());
     const updated = await db.workspace.update({
       where: { id },
-      data: { name },
+      data: {
+        ...(body.name && { name: body.name }),
+        ...(body.slug && { slug: body.slug }),
+      },
       select: { id: true, name: true, slug: true },
     });
 
     return ok(updated);
   } catch (error) {
-    return handleError(error);
+    return handleError(error, { "slug": "This slug is already taken." });
   }
 }
 

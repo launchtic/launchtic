@@ -1,5 +1,6 @@
 import { auth } from "../../../lib/auth";
 import { redirect } from "next/navigation";
+import { reVerifyIfStale } from "../../../lib/license";
 import TopNav from "../../../components/TopNav";
 import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
 import { ToastProvider } from "../../../components/ui/Toast";
@@ -18,7 +19,13 @@ export default async function DashboardLayout({
   if (!session) redirect("/login");
 
   const { workspaceSlug } = await params;
+  const userId = session.user?.id as string;
+
+  // Re-verify license in background — no-op if checked within last 24h.
+  await reVerifyIfStale(userId);
+
   const workspaceName = ((session as any).workspaceName as string | null) ?? workspaceSlug;
+  const workspacePlan = ((session as any).workspacePlan as string | null) ?? "FREE";
 
   const fullName = session.user?.name ?? session.user?.email ?? "User";
   const initials = fullName
@@ -40,6 +47,7 @@ export default async function DashboardLayout({
               initials={initials}
               workspaceSlug={workspaceSlug}
               workspaceName={workspaceName}
+              workspacePlan={workspacePlan}
             />
             <main className="flex-1 overflow-y-auto">
               {children}

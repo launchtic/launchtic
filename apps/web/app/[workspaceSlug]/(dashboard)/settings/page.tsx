@@ -46,6 +46,8 @@ export default async function SettingsPage() {
   const rendererHost = new URL(rendererUrl).host;
   const workspaceSlug = (session as any).workspaceSlug as string;
   const workspacePlan = (session as any).workspacePlan as string ?? "FREE";
+  const userName      = session.user?.name  ?? "";
+  const userEmail     = session.user?.email ?? "";
 
   return (
         <SettingsClient
@@ -56,6 +58,8 @@ export default async function SettingsPage() {
           workspacePlan={workspacePlan}
           userId={userId}
           workspaces={workspaces}
+          userName={userName}
+          userEmail={userEmail}
           domains={domains.map((d) => ({
             id: d.id,
             domain: d.domain,

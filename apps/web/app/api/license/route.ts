@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
+import { verifyLicenseKey } from "../../../lib/license";
 
 const activateSchema = z.object({
   licenseKey: z.string().min(10),
@@ -16,15 +17,24 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { licenseKey } = activateSchema.parse(body);
 
-    const result = await verifyLicenseKey(licenseKey);
+    // Fetch or generate a stable instanceId for this installation.
+    const existing = await db.user.findUnique({
+      where: { id: userId },
+      select: { instanceId: true },
+    });
+    const instanceId = existing?.instanceId ?? crypto.randomUUID();
+
+    const result = await verifyLicenseKey(licenseKey, instanceId);
     if (!result.valid) return err(result.error ?? "Invalid license key.", 400);
 
     await db.user.update({
       where: { id: userId },
       data: {
-        plan: result.plan as any,
+        plan:              result.plan as any,
         licenseKey,
-        licenseExpiresAt: result.expiresAt ? new Date(result.expiresAt) : null,
+        licenseExpiresAt:  result.expiresAt ? new Date(result.expiresAt) : null,
+        licenseVerifiedAt: new Date(),
+        instanceId,
       },
     });
 
@@ -79,25 +89,6 @@ export async function DELETE() {
   }
 }
 
-async function verifyLicenseKey(
-  key: string,
-): Promise<{ valid: boolean; plan?: string; expiresAt?: string; error?: string }> {
-  const serverUrl = process.env.LICENSE_SERVER_URL ?? "https://launchtic.com";
-
-  try {
-    const res = await fetch(`${serverUrl}/api/licenses/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key }),
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    const data = await res.json();
-    return data;
-  } catch {
-    return { valid: false, error: "Could not reach license server. Please try again." };
-  }
-}
 
 function maskKey(key: string): string {
   if (key.length <= 8) return "••••••••";

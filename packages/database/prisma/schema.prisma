@@ -19,9 +19,11 @@ model User {
   passwordHash     String
   name             String?
   avatar           String?
-  plan             Plan      @default(FREE)
-  licenseKey       String?
-  licenseExpiresAt DateTime?
+  plan              Plan      @default(FREE)
+  licenseKey        String?
+  licenseExpiresAt  DateTime?
+  licenseVerifiedAt DateTime?
+  instanceId        String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
