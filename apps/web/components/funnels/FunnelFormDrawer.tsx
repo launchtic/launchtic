@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2, Lock, AlertTriangle } from "lucide-react";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
@@ -90,6 +91,8 @@ function FaviconUpload({ value, onChange }: { value: string; onChange: (url: str
 }
 
 export default function FunnelFormDrawer({ open, onClose, mode, editId, onSuccess }: Props) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const isEdit = mode === "edit";
 
   const GOALS = [
@@ -362,7 +365,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Domain</label>
               <p className="text-xs text-gray-400 mb-2">
                 Assign a custom domain to this funnel.{" "}
-                <a href="/settings" className="text-blue-600 hover:underline">Manage domains</a>
+                <a href={`/${slug}/settings`} className="text-blue-600 hover:underline">Manage domains</a>
               </p>
               <select
                 value={assignedDomainId}

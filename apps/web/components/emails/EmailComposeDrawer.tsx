@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { X, Mail, AlertCircle, Pencil, Eye, Loader2 } from "lucide-react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import { STANDARD_VARIABLES, isEmptyEmailDoc } from "@launchtic/email";
@@ -70,6 +71,8 @@ export default function EmailComposeDrawer({
   senderIdentities: SenderIdentity[];
   errors?: { subject?: string; body?: string };
 }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const editorRef = useRef<TiptapEditor | null>(null);
   const lastFocused = useRef<"subject" | "body">("body");
   const subjectRef = useRef<HTMLInputElement>(null);
@@ -237,7 +240,7 @@ export default function EmailComposeDrawer({
               <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">From</label>
               {senderIdentities.length === 0 ? (
                 <Link
-                  href="/settings?tab=sender-identities"
+                  href={`/${slug}/settings?tab=sender-identities`}
                   className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5"
                 >
                   <AlertCircle size={11} className="inline mr-1" />

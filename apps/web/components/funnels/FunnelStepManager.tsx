@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -313,6 +313,8 @@ export default function FunnelStepManager({
   // mobile: 'list' shows sidebar, 'detail' shows right panel
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -461,7 +463,7 @@ export default function FunnelStepManager({
                 <Eye size={16} />
               </a>
               <a
-                href={`/editor/${selectedStep.id}`}
+                href={`/${slug}/editor/${selectedStep.id}`}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 <Pencil size={13} />
@@ -472,7 +474,7 @@ export default function FunnelStepManager({
             {/* Desktop breadcrumb + actions */}
             <div className="hidden md:flex items-center justify-between mb-3">
               <nav className="flex items-center gap-1 text-xs text-gray-400 min-w-0">
-                <Link href="/funnels" className="hover:text-blue-600 transition-colors shrink-0">Funnels</Link>
+                <Link href={`/${slug}/funnels`} className="hover:text-blue-600 transition-colors shrink-0">Funnels</Link>
                 <ChevronRight size={11} className="shrink-0" />
                 <span className="text-gray-600 truncate max-w-[180px]">{funnel.name}</span>
                 <ChevronRight size={11} className="shrink-0" />
@@ -490,7 +492,7 @@ export default function FunnelStepManager({
                   View
                 </a>
                 <a
-                  href={`/editor/${selectedStep.id}`}
+                  href={`/${slug}/editor/${selectedStep.id}`}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                 >
                   <Pencil size={13} />

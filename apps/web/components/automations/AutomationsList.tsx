@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   Plus, Zap, Loader2, Search, Trash2, Play, Pause, FileEdit,
@@ -52,6 +52,8 @@ const TABS: { id: "ALL" | Status; label: string }[] = [
 
 export default function AutomationsList({ initial }: { initial: Row[] }) {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
   const toast = useToast();
   const [items, setItems] = useState<Row[]>(initial);
@@ -172,7 +174,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
             const trig = TRIGGER_LABELS[a.triggerType];
             return (
               <div key={a.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-                <Link href={`/automations/${a.id}`} className="flex-1 min-w-0">
+                <Link href={`/${slug}/automations/${a.id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm font-medium text-gray-900 truncate">{a.name}</span>
                     <span className={`text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded shrink-0 ${STATUS_BADGE[a.status]}`}>
@@ -208,7 +210,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
                     </button>
                   )}
                   <Link
-                    href={`/automations/${a.id}`}
+                    href={`/${slug}/automations/${a.id}`}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit"
                   >

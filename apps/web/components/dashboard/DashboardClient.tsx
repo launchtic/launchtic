@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   TrendingUp, ShoppingCart, Users, Repeat, Zap,
   CheckCircle, Clock, XCircle, RotateCcw, Ban, Timer, ArrowRight,
@@ -58,6 +59,9 @@ function contactName(c: RecentOrder["contact"]) {
 }
 
 export default function DashboardClient({ stats }: { stats: Stats }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
+
   const statCards = [
     {
       label: "Revenue (30d)",
@@ -90,10 +94,10 @@ export default function DashboardClient({ stats }: { stats: Stats }) {
   ];
 
   const quickLinks = [
-    { href: "/funnels", label: "Funnels", icon: Zap, count: stats.totalFunnels },
-    { href: "/orders", label: "Orders", icon: ShoppingCart, count: stats.orders30d },
-    { href: "/contacts", label: "Contacts", icon: Users, count: stats.newContacts30d },
-    { href: "/subscriptions", label: "Subscriptions", icon: Repeat, count: stats.activeSubscriptions },
+    { href: `/${slug}/funnels`, label: "Funnels", icon: Zap, count: stats.totalFunnels },
+    { href: `/${slug}/orders`, label: "Orders", icon: ShoppingCart, count: stats.orders30d },
+    { href: `/${slug}/contacts`, label: "Contacts", icon: Users, count: stats.newContacts30d },
+    { href: `/${slug}/subscriptions`, label: "Subscriptions", icon: Repeat, count: stats.activeSubscriptions },
   ];
 
   return (
@@ -126,7 +130,7 @@ export default function DashboardClient({ stats }: { stats: Stats }) {
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900">Recent Orders</h2>
-              <Link href="/orders" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+              <Link href={`/${slug}/orders`} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
                 View all <ArrowRight size={12} />
               </Link>
             </div>
@@ -138,7 +142,7 @@ export default function DashboardClient({ stats }: { stats: Stats }) {
                 {stats.recentOrders.map((order) => (
                   <Link
                     key={order.id}
-                    href={`/orders/${order.id}`}
+                    href={`/${slug}/orders/${order.id}`}
                     className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">

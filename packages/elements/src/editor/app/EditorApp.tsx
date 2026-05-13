@@ -51,6 +51,7 @@ import {
 type Props = {
   funnelStepId: string;
   rendererUrl: string;
+  workspaceSlug: string;
 };
 
 function stepViewUrl(rendererUrl: string, primaryDomain: string | null, slug: string) {
@@ -187,7 +188,7 @@ const EditorInner: React.FC = () => {
 };
 
 // Outer component — fetches page JSON from API then injects window.data
-export default function EditorApp({ funnelStepId, rendererUrl }: Props) {
+export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug }: Props) {
   const [ready, setReady] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -286,7 +287,7 @@ export default function EditorApp({ funnelStepId, rendererUrl }: Props) {
           }
 
           const previewUrl = step.slug ? stepViewUrl(rendererUrl, step.funnel?.primaryDomain ?? null, step.slug) : "";
-          const backUrl = step.funnel?.id ? `/funnels/${step.funnel.id}` : "/funnels";
+          const backUrl = step.funnel?.id ? `/${workspaceSlug}/funnels/${step.funnel.id}` : `/${workspaceSlug}/funnels`;
           injectWindowData(funnelStepId, pageJson, step.type, step.meta, paymentData, previewUrl, backUrl);
           setReady(true);
         } else {

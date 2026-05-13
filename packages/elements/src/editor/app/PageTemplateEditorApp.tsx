@@ -18,9 +18,9 @@ import {
   LayoutUi, ContentUi, PageUi, PageWrapper, BodyUI, DeviceWorkAreaUi, MobilePhoneUi,
 } from "./layout/EditorUI";
 
-type Props = { templateId: string };
+type Props = { templateId: string; workspaceSlug: string };
 
-function injectWindowData(templateId: string, pageJson: string, stepType: string = "OPTIN") {
+function injectWindowData(templateId: string, pageJson: string, workspaceSlug: string, stepType: string = "OPTIN") {
   (window as any).data = {
     pageRender: false,
     pageData: { code: templateId, content: pageJson, type: "page", stepType, meta: null },
@@ -31,7 +31,7 @@ function injectWindowData(templateId: string, pageJson: string, stepType: string
     csrfToken: "",
     payment: undefined,
     previewUrl: "",
-    backUrl: "/settings?tab=page-templates",
+    backUrl: `/${workspaceSlug}/settings?tab=page-templates`,
   };
 }
 

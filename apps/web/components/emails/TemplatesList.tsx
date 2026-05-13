@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   Plus, Lock, Mail, Pencil, Copy, Trash2, Loader2, Search,
@@ -37,6 +37,8 @@ const CATEGORY_BADGE: Record<Category, string> = {
 
 export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
   const [items, setItems] = useState<TemplateRow[]>(initial);
   const [filter, setFilter] = useState<"ALL" | Category>("ALL");
@@ -71,7 +73,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
         }),
       });
       const json = await res.json();
-      if (json.success) router.push(`/emails/templates/${json.data.id}`);
+      if (json.success) router.push(`/${slug}/emails/templates/${json.data.id}`);
     });
   }
 
@@ -162,7 +164,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {filtered.map((t) => (
             <div key={t.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-              <Link href={`/emails/templates/${t.id}`} className="flex-1 min-w-0">
+              <Link href={`/${slug}/emails/templates/${t.id}`} className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   {t.isSystem && <Lock size={13} className="text-gray-400 shrink-0" />}
                   <span className="text-sm font-medium text-gray-900 truncate">{t.name}</span>
@@ -177,7 +179,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
               </span>
               <div className="flex items-center gap-1 shrink-0">
                 <Link
-                  href={`/emails/templates/${t.id}`}
+                  href={`/${slug}/emails/templates/${t.id}`}
                   className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   title="Edit"
                 >

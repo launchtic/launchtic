@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, Loader2, Zap, Eye, Settings, Trash2, Plus,
   Undo2,
@@ -50,6 +50,8 @@ export default function FunnelsClient({
   const [editId, setEditId] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
   const { canWrite } = useRole();
 
@@ -221,7 +223,7 @@ export default function FunnelsClient({
                 return (
                   <tr key={f.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="px-6 py-3">
-                      <Link href={`/funnels/${f.id}`} className="flex items-center gap-2 min-w-0">
+                      <Link href={`/${slug}/funnels/${f.id}`} className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
                           <span className="text-blue-500 text-xs font-bold">F</span>
                         </div>
@@ -339,7 +341,7 @@ export default function FunnelsClient({
         mode="create"
         onSuccess={(id) => {
           setCreateOpen(false);
-          router.push(`/funnels/${id}`);
+          router.push(`/${slug}/funnels/${id}`);
         }}
       />
 

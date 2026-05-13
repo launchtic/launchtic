@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { Bot, X, Send, Loader2, Trash2, Check, AlertCircle, Maximize2, Minimize2 } from "lucide-react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
@@ -26,6 +27,8 @@ type PendingToolCall = {
 };
 
 export default function AssistantWidget() {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [open, setOpen] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null); // null = unknown, false = not configured
   const [messages, setMessages] = useState<Message[]>([]);
@@ -313,13 +316,15 @@ export default function AssistantWidget() {
 }
 
 function NotConfiguredState() {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   return (
     <div className="flex flex-col items-center text-center py-8 px-4">
       <Bot size={32} className="text-gray-300 mb-2" />
       <p className="text-sm font-medium text-gray-700 mb-1">Assistant not configured</p>
       <p className="text-xs text-gray-500 mb-4">Add an API key (Gemini or Anthropic) to start using the assistant.</p>
       <Link
-        href="/settings?tab=ai-assistant"
+        href={`/${slug}/settings?tab=ai-assistant`}
         className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
       >
         Open settings

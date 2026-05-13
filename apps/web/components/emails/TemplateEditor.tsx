@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle,
@@ -52,6 +52,8 @@ function renderTokens(template: string, vars: Record<string, any>): string {
 
 export default function TemplateEditor({ initial }: { initial: Initial }) {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
 
   const [name, setName] = useState(initial.name);
@@ -225,7 +227,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
 
     const res = await fetch(`/api/email-templates/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
-    if (json.success) router.push("/emails/templates");
+    if (json.success) router.push(`/${slug}/emails/templates`);
   }
 
   return (
@@ -233,7 +235,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-200 bg-white shrink-0">
         <Link
-          href="/emails/templates"
+          href={`/${slug}/emails/templates`}
           className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft size={18} />

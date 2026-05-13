@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Search, Upload, ChevronDown, Tag as TagIcon,
   Mail, Phone, Globe, Loader2, UserPlus, Plus, Pencil,
@@ -34,6 +35,8 @@ function TagBadge({ tag }: { tag: Tag }) {
 }
 
 export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags: Tag[]; initialTotal?: number }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(initialTotal);
@@ -146,7 +149,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
 
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href="/contacts/tags"
+              href={`/${slug}/contacts/tags`}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
             >
               <TagIcon size={13} />
@@ -208,7 +211,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
               {contacts.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 transition-colors group">
                   <td className="px-6 py-3">
-                    <Link href={`/contacts/${c.id}`} className="block">
+                    <Link href={`/${slug}/contacts/${c.id}`} className="block">
                       <p className="font-medium text-gray-900 group-hover:text-blue-700 transition-colors">
                         {fullName(c)}
                       </p>

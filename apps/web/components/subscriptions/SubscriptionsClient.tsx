@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Search, ChevronDown, Loader2, Repeat,
   CheckCircle, Timer, Ban, AlertCircle, Clock,
@@ -63,6 +64,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal?: number }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [items, setItems] = useState<Subscription[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,7 +212,7 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
                   return (
                     <tr key={s.id} className="hover:bg-gray-50 transition-colors group">
                       <td className="px-6 py-3">
-                        <Link href={`/subscriptions/${s.id}`} className="block">
+                        <Link href={`/${slug}/subscriptions/${s.id}`} className="block">
                           <div className="flex items-center gap-1.5">
                             <p className="font-medium text-gray-900 group-hover:text-blue-700 transition-colors font-mono text-xs">
                               #{shortId}
@@ -224,7 +227,7 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <Link href={`/contacts/${s.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
+                        <Link href={`/${slug}/contacts/${s.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
                           {fullName(s.contact)}
                         </Link>
                         <p className="text-xs text-gray-400">{s.contact.email}</p>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle, Trash2,
@@ -52,6 +52,8 @@ export default function BroadcastDetail({
   senderIdentities?: SenderIdentity[];
 }) {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -300,7 +302,7 @@ export default function BroadcastDetail({
     const json = await res.json();
     setSending(false);
     if (!json.success) { toast.error(json.error ?? "Failed to send"); return; }
-    router.push("/emails/broadcasts");
+    router.push(`/${slug}/emails/broadcasts`);
     router.refresh();
   }
 
@@ -329,7 +331,7 @@ export default function BroadcastDetail({
     if (!ok) return;
     const res = await fetch(`/api/broadcasts/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
-    if (json.success) router.push("/emails/broadcasts");
+    if (json.success) router.push(`/${slug}/emails/broadcasts`);
   }
 
   async function handleRetryFailed() {
@@ -367,7 +369,7 @@ export default function BroadcastDetail({
       {/* Header */}
       <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-200 bg-white shrink-0">
         <Link
-          href="/emails/broadcasts"
+          href={`/${slug}/emails/broadcasts`}
           className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft size={18} />
@@ -482,7 +484,7 @@ export default function BroadcastDetail({
                   <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">From</label>
                   {senderIdentities.length === 0 ? (
                     <Link
-                      href="/settings?tab=sender-identities"
+                      href={`/${slug}/settings?tab=sender-identities`}
                       className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5"
                     >
                       <AlertCircle size={11} className="inline mr-1" /> Add identity

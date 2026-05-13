@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Loader2, Check, AlertCircle, Trash2, Play, Pause,
@@ -163,6 +163,8 @@ export default function AutomationBuilder({
   senderIdentities?: SenderIdentity[];
 }) {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
   const toast = useToast();
   // Content edits (action config, email subject/body/sender, tag pick, URL,
@@ -340,7 +342,7 @@ export default function AutomationBuilder({
     if (!ok) return;
     const res = await fetch(`/api/automations/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
-    if (json.success) router.push("/automations");
+    if (json.success) router.push(`/${slug}/automations`);
   }
 
   function addAction(type: ActionType) {
@@ -385,7 +387,7 @@ export default function AutomationBuilder({
       {/* Header */}
       <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-200 bg-white shrink-0">
         <Link
-          href="/automations"
+          href={`/${slug}/automations`}
           className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft size={18} />
@@ -679,6 +681,7 @@ function TriggerCard({
   onToggle: () => void;
   issues?: ValidationIssue[];
 }) {
+  const slug = (useParams().workspaceSlug) as string;
   const trig = TRIGGERS.find((t) => t.type === triggerType)!;
   const TrigIcon = trig.Icon;
 
@@ -744,7 +747,7 @@ function TriggerCard({
             {funnels.length === 0 ? (
               <p className="text-xs text-amber-600">
                 You need a funnel with a checkout step before this trigger can fire.{" "}
-                <Link href="/funnels" className="underline">Create one →</Link>
+                <Link href={`/${slug}/funnels`} className="underline">Create one →</Link>
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -798,7 +801,7 @@ function TriggerCard({
             {funnels.length === 0 ? (
               <p className="text-xs text-amber-600">
                 You need a funnel with an opt-in step before this trigger can fire.{" "}
-                <Link href="/funnels" className="underline">Create one →</Link>
+                <Link href={`/${slug}/funnels`} className="underline">Create one →</Link>
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -885,6 +888,7 @@ function ActionCard({
   onToggle: () => void;
   issues?: ValidationIssue[];
 }) {
+  const slug = (useParams().workspaceSlug) as string;
   const meta = ACTIONS.find((a) => a.type === action.actionType) ?? ACTIONS[0];
   const Icon = meta.Icon;
   const [composeOpen, setComposeOpen] = useState(false);
@@ -1025,7 +1029,7 @@ function ActionCard({
             </select>
             {sequences.length === 0 && (
               <p className="mt-1.5 text-xs text-amber-600">
-                No sequences yet. <Link href="/sequences" className="underline">Create one</Link> first.
+                No sequences yet. <Link href={`/${slug}/sequences`} className="underline">Create one</Link> first.
               </p>
             )}
             <p className="mt-1.5 text-xs text-gray-400">

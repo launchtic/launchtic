@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ChevronRight, ChevronLeft, Mail, Phone, Globe, Calendar, Tag as TagIcon,
   Plus, X, Trash2, Loader2, ShoppingCart, FileText, Eye, Pencil,
@@ -96,6 +96,8 @@ export default function ContactDetail({
   const [editOpen, setEditOpen] = useState(false);
   const [mobileView, setMobileView] = useState<"info" | "timeline">("info");
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
 
   const assignedIds = new Set(contact.tags.map((ct) => ct.tag.id));
@@ -140,7 +142,7 @@ export default function ContactDetail({
     if (!ok) return;
     setDeleting(true);
     await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
-    router.push("/contacts");
+    router.push(`/${slug}/contacts`);
   }
 
   const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.email;
@@ -155,7 +157,7 @@ export default function ContactDetail({
         {/* Breadcrumb */}
         <div className="px-5 py-4 border-b border-gray-100">
           <nav className="flex items-center gap-1 text-xs text-gray-400 mb-3">
-            <Link href="/contacts" className="hover:text-blue-600">Contacts</Link>
+            <Link href={`/${slug}/contacts`} className="hover:text-blue-600">Contacts</Link>
             <ChevronRight size={11} />
             <span className="text-gray-700 truncate font-medium">{contact.email}</span>
           </nav>
@@ -258,7 +260,7 @@ export default function ContactDetail({
               {enrollments.map((e) => (
                 <Link
                   key={e.id}
-                  href={`/sequences/${e.sequence.id}`}
+                  href={`/${slug}/sequences/${e.sequence.id}`}
                   className="block border border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 rounded-lg px-2.5 py-2 transition-colors"
                 >
                   <div className="flex items-center gap-2 mb-0.5">

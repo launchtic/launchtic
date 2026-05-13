@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, ChevronRight as BreadArrow,
   Plus, Trash2, Pencil, Loader2, Tag,
@@ -40,6 +41,8 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
 }
 
 export default function TagsManager({ initialTotal = 0 }: { initialTotal?: number }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [items, setItems] = useState<TagRow[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ total: initialTotal, page: 1, pageSize: 25, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -144,7 +147,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-4 sm:px-6 py-4 shrink-0">
         <div>
           <nav className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-            <Link href="/contacts" className="hover:text-blue-600">Contacts</Link>
+            <Link href={`/${slug}/contacts`} className="hover:text-blue-600">Contacts</Link>
             <BreadArrow size={11} />
             <span className="text-gray-700 font-medium">Tags</span>
           </nav>

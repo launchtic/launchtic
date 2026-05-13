@@ -15,7 +15,7 @@ const PageTemplateEditorApp = dynamic(
   }
 );
 
-export default function PageTemplateEditorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  return <PageTemplateEditorApp templateId={id} />;
+export default function PageTemplateEditorPage({ params }: { params: Promise<{ id: string; workspaceSlug: string }> }) {
+  const { id, workspaceSlug } = use(params);
+  return <PageTemplateEditorApp templateId={id} workspaceSlug={workspaceSlug} />;
 }

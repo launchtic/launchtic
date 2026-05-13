@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Search, ChevronDown, Loader2, ShoppingCart,
   CheckCircle, Clock, XCircle, RotateCcw, Ban, Repeat, Timer,
@@ -48,6 +49,8 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 }
 
 export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: number }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [orders, setOrders] = useState<Order[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -214,7 +217,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
               {orders.map((o) => (
                 <tr key={o.id} className="hover:bg-gray-50 transition-colors group">
                   <td className="px-6 py-3">
-                    <Link href={`/orders/${o.id}`} className="block">
+                    <Link href={`/${slug}/orders/${o.id}`} className="block">
                       <div className="flex items-center gap-1.5">
                         <p className="font-medium text-gray-900 group-hover:text-blue-700 transition-colors font-mono text-xs">
                           #{o.id.slice(-8).toUpperCase()}
@@ -235,7 +238,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    <Link href={`/contacts/${o.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
+                    <Link href={`/${slug}/contacts/${o.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
                       {fullName(o.contact)}
                     </Link>
                     <p className="text-xs text-gray-400">{o.contact.email}</p>

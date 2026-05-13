@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { X, Loader2, Plus, Sparkles, ArrowRight } from "lucide-react";
 import { RECIPES, BLANK_TEMPLATE, type Recipe } from "./recipes";
 import { useToast } from "../ui/Toast";
@@ -13,6 +13,8 @@ export default function RecipeDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const toast = useToast();
   const [creating, setCreating] = useState<string | null>(null);
 
@@ -29,7 +31,7 @@ export default function RecipeDialog({
     setCreating(null);
     if (json.success) {
       onClose();
-      router.push(`/automations/${json.data.id}`);
+      router.push(`/${slug}/automations/${json.data.id}`);
     } else {
       toast.error(json.error ?? "Failed to create automation");
     }

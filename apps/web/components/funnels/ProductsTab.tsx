@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import {
   Package, Trash2, Plus, Loader2, Pencil, X, Check, Tag,
   Ticket, ExternalLink, ChevronDown, ChevronUp, ShoppingBag, GraduationCap, Monitor,
@@ -222,6 +223,7 @@ function ResourcesSection({ resources, allTags, onToggle, saving }: {
   resources: StepResource[]; allTags: WorkspaceTag[];
   onToggle: (type: string, resourceId: string) => void; saving: boolean;
 }) {
+  const slug = (useParams().workspaceSlug) as string;
   const [showAdd, setShowAdd]   = useState(false);
   const [type, setType]         = useState<"TAG" | "COURSE">("TAG");
   const [resourceId, setResourceId] = useState("");
@@ -318,7 +320,7 @@ function ResourcesSection({ resources, allTags, onToggle, saving }: {
               availableTags.length === 0 ? (
                 <p className="flex-1 text-xs text-gray-400 flex items-center">
                   {allTags.length === 0
-                    ? <><a href="/contacts" className="underline text-blue-600">Create tags</a>&nbsp;first.</>
+                    ? <><a href={`/${slug}/contacts`} className="underline text-blue-600">Create tags</a>&nbsp;first.</>
                     : "All tags already added."}
                 </p>
               ) : (
@@ -499,6 +501,7 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
   currency: string;
   onCouponsChange: (ids: string[]) => void;
 }) {
+  const slug = (useParams().workspaceSlug) as string;
   const [saving, setSaving]       = useState(false);
   const [showPicker, setShowPicker] = useState(false);
 
@@ -541,7 +544,7 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
           )}
           {saving && <Loader2 size={12} className="animate-spin text-gray-400" />}
         </div>
-        <a href="/coupons" className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700">
+        <a href={`/${slug}/coupons`} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700">
           Manage <ExternalLink size={11} />
         </a>
       </div>
@@ -618,7 +621,7 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
           <div className="bg-white rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center py-5 text-center">
             <Ticket size={18} className="text-gray-300 mb-1.5" />
             <p className="text-xs text-gray-500">No coupons yet</p>
-            <a href="/coupons" className="text-xs text-blue-600 hover:underline mt-0.5">Create coupons →</a>
+            <a href={`/${slug}/coupons`} className="text-xs text-blue-600 hover:underline mt-0.5">Create coupons →</a>
           </div>
         )}
       </div>
@@ -634,6 +637,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
   onUpdate: (updated: OrderBump) => void;
   onDelete: () => void;
 }) {
+  const slug = (useParams().workspaceSlug) as string;
   const confirm = useConfirm();
   const [expanded, setExpanded]       = useState(false);
   const [savingOffer, setSavingOffer]  = useState(false);
@@ -849,7 +853,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
                 if (eligible.length === 0) {
                   return (
                     <p className="text-sm text-amber-600">
-                      No {currency.toUpperCase()} products available. <a href="/physical-products" className="underline font-medium">Create one</a> in the funnel currency.
+                      No {currency.toUpperCase()} products available. <a href={`/${slug}/physical-products`} className="underline font-medium">Create one</a> in the funnel currency.
                     </p>
                   );
                 }
@@ -1012,6 +1016,8 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function ProductsTab({ stepId }: { stepId: string }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [offerType, setOfferType]               = useState<"DIGITAL" | "PHYSICAL" | null>(null);
   const [funnelCurrency, setFunnelCurrency]     = useState<string>("usd");
   const [physicalProductId, setPhysicalProductId] = useState<string | null>(null);
@@ -1165,7 +1171,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Physical Product</h3>
           {eligible.length === 0 ? (
             <p className="text-sm text-amber-600">
-              No {funnelCurrency.toUpperCase()} products available. <a href="/physical-products" className="underline font-medium">Create one</a> in the funnel currency.
+              No {funnelCurrency.toUpperCase()} products available. <a href={`/${slug}/physical-products`} className="underline font-medium">Create one</a> in the funnel currency.
             </p>
           ) : (
             <select

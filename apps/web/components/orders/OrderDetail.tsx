@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ChevronRight, ExternalLink, Loader2,
   CheckCircle, Clock, XCircle, RotateCcw, Ban,
@@ -259,6 +259,8 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
   const [order, setOrder] = useState(initial);
   const [showRefund, setShowRefund] = useState(false);
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const { canManageSettings } = useRole();
 
   const contactName = [order.contact.firstName, order.contact.lastName].filter(Boolean).join(" ") || order.contact.email;
@@ -288,7 +290,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="min-w-0">
             <nav className="flex items-center gap-1 text-xs text-gray-400 mb-1.5">
-              <Link href="/orders" className="hover:text-blue-600">Orders</Link>
+              <Link href={`/${slug}/orders`} className="hover:text-blue-600">Orders</Link>
               <ChevronRight size={11} />
               <span className="text-gray-700 font-medium font-mono">#{shortId}</span>
             </nav>
@@ -459,7 +461,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
                   <p className="text-xs text-gray-400 truncate">{order.contact.email}</p>
                 </div>
                 <Link
-                  href={`/contacts/${order.contact.id}`}
+                  href={`/${slug}/contacts/${order.contact.id}`}
                   className="text-gray-400 hover:text-blue-600 transition-colors shrink-0"
                 >
                   <ExternalLink size={14} />

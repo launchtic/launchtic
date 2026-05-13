@@ -19,6 +19,6 @@ const EditorApp = dynamic(
   },
 );
 
-export default function EditorAppDynamic(props: { funnelStepId: string; rendererUrl: string }) {
+export default function EditorAppDynamic(props: { funnelStepId: string; rendererUrl: string; workspaceSlug: string }) {
   return <EditorApp {...props} />;
 }

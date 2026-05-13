@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ChevronRight, ChevronLeft, ExternalLink, Loader2, Repeat,
   CheckCircle, Timer, Ban, AlertCircle, Clock, Ticket, XCircle, RotateCcw,
@@ -315,6 +315,8 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
   const [showResume, setShowResume] = useState(false);
   const [mobileView, setMobileView] = useState<"info" | "orders">("info");
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const { canManageSettings } = useRole();
 
   const contactName = [sub.contact.firstName, sub.contact.lastName].filter(Boolean).join(" ") || sub.contact.email;
@@ -337,7 +339,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
       `}>
         <div className="px-5 py-4 border-b border-gray-100">
           <nav className="flex items-center gap-1 text-xs text-gray-400 mb-3">
-            <Link href="/subscriptions" className="hover:text-blue-600">Subscriptions</Link>
+            <Link href={`/${slug}/subscriptions`} className="hover:text-blue-600">Subscriptions</Link>
             <ChevronRight size={11} />
             <span className="text-gray-700 font-medium font-mono">#{shortId}</span>
           </nav>
@@ -412,7 +414,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
               <p className="text-sm font-semibold text-gray-900 truncate">{contactName}</p>
               <p className="text-xs text-gray-400 truncate">{sub.contact.email}</p>
             </div>
-            <Link href={`/contacts/${sub.contact.id}`} className="text-gray-400 hover:text-blue-600 transition-colors shrink-0">
+            <Link href={`/${slug}/contacts/${sub.contact.id}`} className="text-gray-400 hover:text-blue-600 transition-colors shrink-0">
               <ExternalLink size={14} />
             </Link>
           </div>
@@ -480,7 +482,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
                 return (
                   <Link
                     key={o.id}
-                    href={`/orders/${o.id}`}
+                    href={`/${slug}/orders/${o.id}`}
                     className="block bg-white rounded-xl border border-gray-100 px-4 py-3 hover:border-blue-200 hover:bg-blue-50/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">

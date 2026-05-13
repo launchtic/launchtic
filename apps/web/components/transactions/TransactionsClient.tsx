@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Search, ChevronDown, Loader2, Receipt,
   ArrowDownCircle, RotateCcw, AlertTriangle,
@@ -50,6 +51,8 @@ const TYPE_LABELS: Record<string, string> = { SALE: "Sale", REFUND: "Refund", CH
 const STATUS_LABELS: Record<string, string> = { COMPLETED: "Completed", PENDING: "Pending", FAILED: "Failed" };
 
 export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?: number }) {
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const [items, setItems] = useState<Transaction[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -216,7 +219,7 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
                           {typeCfg.icon}
                         </div>
                         <div className="min-w-0">
-                          <Link href={`/orders/${tx.order.id}`} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors font-mono">
+                          <Link href={`/${slug}/orders/${tx.order.id}`} className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors font-mono">
                             #{tx.order.id.slice(-8).toUpperCase()}
                           </Link>
                           {tx.reference && (
@@ -226,7 +229,7 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/contacts/${tx.order.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
+                      <Link href={`/${slug}/contacts/${tx.order.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
                         {fullName(tx.order.contact)}
                       </Link>
                       <p className="text-xs text-gray-400">{tx.order.contact.email}</p>
