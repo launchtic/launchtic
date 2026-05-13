@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox,
+  Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox, Building2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -27,7 +27,8 @@ function activeChildHref(children: NavLink[], pathname: string): string | null {
   return best?.href ?? null;
 }
 
-const navItems: NavItem[] = [
+// Bare paths — prefixed with /{workspaceSlug} at render time.
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard },
   { href: "/funnels",     label: "Funnels",             icon: Zap       },
   {
@@ -62,6 +63,15 @@ const navItems: NavItem[] = [
   { href: "/automations", label: "Automations", icon: GitBranch },
   { href: "/settings",    label: "Settings",    icon: Settings  },
 ];
+
+function prefixItems(items: NavItem[], slug: string): NavItem[] {
+  return items.map((item) => {
+    if (isGroup(item)) {
+      return { ...item, children: item.children.map((c) => ({ ...c, href: `/${slug}${c.href}` })) };
+    }
+    return { ...item, href: `/${slug}${item.href}` };
+  });
+}
 
 function NavDropdown({ item, pathname }: { item: NavGroup; pathname: string }) {
   const [open, setOpen] = useState(false);
@@ -162,13 +172,18 @@ export default function TopNav({
   name,
   email,
   initials,
+  workspaceSlug,
+  workspaceName,
 }: {
   name: string;
   email: string;
   initials: string;
+  workspaceSlug: string;
+  workspaceName: string;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navItems = prefixItems(NAV_ITEMS, workspaceSlug);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
@@ -176,8 +191,17 @@ export default function TopNav({
     <>
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 gap-4 shrink-0 relative z-30">
         {/* Logo */}
-        <Link href="/dashboard" className="shrink-0 mr-2 flex items-center">
+        <Link href={`/${workspaceSlug}/dashboard`} className="shrink-0 mr-2 flex items-center">
           <img src="/logo.svg" alt="launchtic" className="h-7 w-auto" />
+        </Link>
+
+        {/* Workspace chip — links to settings workspace tab */}
+        <Link
+          href={`/${workspaceSlug}/settings?tab=workspace`}
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors max-w-[200px]"
+        >
+          <Building2 size={13} className="shrink-0 text-gray-400" />
+          <span className="truncate font-medium">{workspaceName}</span>
         </Link>
 
         {/* Desktop nav links */}

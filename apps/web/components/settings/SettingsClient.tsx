@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key, ChevronRight, ChevronLeft } from "lucide-react";
+import { Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key, Building2, ChevronRight, ChevronLeft } from "lucide-react";
 import DomainsPanel       from "./DomainsPanel";
 import PaymentPanel       from "./PaymentPanel";
 import EmailSettings      from "./EmailSettings";
@@ -10,6 +10,7 @@ import StoragePanel       from "./StoragePanel";
 import PageTemplatesPanel from "./PageTemplatesPanel";
 import AiAssistantPanel   from "./AiAssistantPanel";
 import LicensePanel       from "./LicensePanel";
+import WorkspacePanel     from "./WorkspacePanel";
 
 type Domain = { id: string; domain: string; verified: boolean; isDefault: boolean; createdAt: string };
 type StripeData  = { publishableKey: string; secretKey: string; webhookSecret: string | null; mode: string } | null;
@@ -26,12 +27,14 @@ const NAV_ITEMS = [
   { id: "page-templates", icon: LayoutTemplate },
   { id: "ai-assistant",   icon: Bot            },
   { id: "license",        icon: Key            },
+  { id: "workspace",      icon: Building2      },
 ] as const;
 
 type Section = typeof NAV_ITEMS[number]["id"];
 
 export default function SettingsClient({
   domains, stripe, paypal, smtp, storage, senderIdentities, rendererUrl, rendererHost,
+  currentWorkspaceId, currentWorkspaceSlug, workspacePlan, userId, workspaces,
 }: {
   domains:  Domain[];
   stripe:   StripeData;
@@ -41,6 +44,11 @@ export default function SettingsClient({
   senderIdentities: SenderIdentity[];
   rendererUrl:  string;
   rendererHost: string;
+  currentWorkspaceId:   string;
+  currentWorkspaceSlug: string;
+  workspacePlan:        string;
+  userId:               string;
+  workspaces: { id: string; name: string; slug: string; ownerId: string }[];
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -59,6 +67,7 @@ export default function SettingsClient({
     { id: "page-templates", label: "Page Templates",   icon: LayoutTemplate },
     { id: "ai-assistant",   label: "AI Assistant",     icon: Bot            },
     { id: "license",        label: "License",          icon: Key            },
+    { id: "workspace",      label: "Workspace",        icon: Building2      },
   ] as const;
 
   const activeNav = NAV.find((n) => n.id === active)!;
@@ -125,6 +134,15 @@ export default function SettingsClient({
             {active === "storage"      && <StoragePanel initial={storage} />}
             {active === "ai-assistant" && <AiAssistantPanel />}
             {active === "license"      && <LicensePanel />}
+            {active === "workspace"    && (
+              <WorkspacePanel
+                currentWorkspaceId={currentWorkspaceId}
+                currentWorkspaceSlug={currentWorkspaceSlug}
+                workspacePlan={workspacePlan}
+                userId={userId}
+                workspaces={workspaces}
+              />
+            )}
           </div>
         )}
       </main>

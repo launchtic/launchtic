@@ -14,10 +14,12 @@ export default async function SettingsPage() {
   const workspaceId = (session as any).workspaceId as string | null;
   if (!workspaceId) redirect("/login");
 
+  const userId = session.user?.id as string;
+
   // Lazy-seed PAGES_DOMAIN as the workspace's default Domain on first visit.
   await ensureDefaultDomain(workspaceId);
 
-  const [domains, settings, senderIdentities] = await Promise.all([
+  const [domains, settings, senderIdentities, workspaces] = await Promise.all([
     db.domain.findMany({
       where: { workspaceId },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -28,6 +30,11 @@ export default async function SettingsPage() {
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
       select: { id: true, name: true, email: true, isDefault: true },
     }),
+    db.workspace.findMany({
+      where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
+      select: { id: true, name: true, slug: true, ownerId: true },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   const stripe  = settings?.stripe  as any;
@@ -37,11 +44,18 @@ export default async function SettingsPage() {
 
   const rendererUrl  = process.env.RENDERER_URL!;
   const rendererHost = new URL(rendererUrl).host;
+  const workspaceSlug = (session as any).workspaceSlug as string;
+  const workspacePlan = (session as any).workspacePlan as string ?? "FREE";
 
   return (
         <SettingsClient
           rendererUrl={rendererUrl}
           rendererHost={rendererHost}
+          currentWorkspaceId={workspaceId}
+          currentWorkspaceSlug={workspaceSlug}
+          workspacePlan={workspacePlan}
+          userId={userId}
+          workspaces={workspaces}
           domains={domains.map((d) => ({
             id: d.id,
             domain: d.domain,

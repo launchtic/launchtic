@@ -95,9 +95,7 @@ async function verifyLicenseKey(
     const data = await res.json();
     return data;
   } catch {
-    if (key.startsWith("LT-PRO-")) return { valid: true, plan: "PRO" };
-    if (key.startsWith("LT-ENT-")) return { valid: true, plan: "ENTERPRISE" };
-    return { valid: false, error: "Could not reach license server." };
+    return { valid: false, error: "Could not reach license server. Please try again." };
   }
 }
 

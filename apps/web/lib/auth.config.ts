@@ -27,7 +27,12 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     // Attach extra data to the JWT token. Pure data shuffling — no I/O,
     // safe to run on Edge or Node.
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      if (trigger === "update" && session) {
+        if (session.workspaceId)   token.workspaceId   = session.workspaceId;
+        if (session.workspaceSlug) token.workspaceSlug = session.workspaceSlug;
+        if (session.workspaceName) token.workspaceName = session.workspaceName;
+      }
       if (user) {
         token.userId = user.id;
         token.workspaceId = (user as any).workspaceId;

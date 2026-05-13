@@ -9,11 +9,16 @@ import NextTopLoader from "nextjs-toploader";
 
 export default async function DashboardLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: Promise<{ workspaceSlug: string }>;
 }) {
   const session = await auth();
   if (!session) redirect("/login");
+
+  const { workspaceSlug } = await params;
+  const workspaceName = ((session as any).workspaceName as string | null) ?? workspaceSlug;
 
   const fullName = session.user?.name ?? session.user?.email ?? "User";
   const initials = fullName
@@ -33,6 +38,8 @@ export default async function DashboardLayout({
               name={fullName}
               email={session.user?.email ?? ""}
               initials={initials}
+              workspaceSlug={workspaceSlug}
+              workspaceName={workspaceName}
             />
             <main className="flex-1 overflow-y-auto">
               {children}
