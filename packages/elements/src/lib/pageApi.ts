@@ -1,6 +1,13 @@
 // API client for elements package
 // All paths are relative — works when elements are used inside any Next.js app
 
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
 const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise<T> => {
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -8,6 +15,22 @@ const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise
   });
   if (!res.ok) throw new Error(`API Error: ${res.status} ${res.statusText}`);
   return res.json();
+};
+
+// ─── Save page JSON ──────────────────────────────────────────────────────────
+
+export const savePage = async (code: string, content: string): Promise<ApiResponse> => {
+  try {
+    const url = (typeof window !== "undefined" && (window as any).data?.saveUrl)
+      ? (window as any).data.saveUrl
+      : `/api/funnel-steps/${code}`;
+    return await apiCall(url, {
+      method: "PATCH",
+      body: JSON.stringify({ pageJson: content }),
+    });
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Save failed" };
+  }
 };
 
 // ─── Media ───────────────────────────────────────────────────────────────────

@@ -8,15 +8,15 @@ import {
   BulletedList, Field, Checkbox, FAQ, Menu, Countdown,
   PaymentButton, PaymentMethod, OfferPrice, Coupon, OrderBump, PhysicalProduct,
   AppProvider, useAppContext, getValidCraftContent,
-} from "@launchtic/elements";
+} from "../../index";
 
-import { EditorProvider, useEditorContext } from "../../contexts/EditorContext";
-import CustomEventHandlers from "./handlers/CustomEventHandlers";
+import { EditorProvider, useEditorContext } from "./EditorContext";
+import CustomEventHandlers from "./CustomEventHandlers";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import {
   LayoutUi, ContentUi, PageUi, PageWrapper, BodyUI, DeviceWorkAreaUi, MobilePhoneUi,
-} from "./common/EditorUI";
+} from "./layout/EditorUI";
 
 type Props = { templateId: string };
 

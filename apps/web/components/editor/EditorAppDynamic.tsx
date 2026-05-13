@@ -7,14 +7,17 @@
 
 import dynamic from "next/dynamic";
 
-const EditorApp = dynamic(() => import("./EditorApp"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-screen text-sm text-gray-400">
-      Loading editor...
-    </div>
-  ),
-});
+const EditorApp = dynamic(
+  () => import("@launchtic/elements").then((m) => ({ default: m.EditorApp })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-screen text-sm text-gray-400">
+        Loading editor...
+      </div>
+    ),
+  },
+);
 
 export default function EditorAppDynamic(props: { funnelStepId: string; rendererUrl: string }) {
   return <EditorApp {...props} />;

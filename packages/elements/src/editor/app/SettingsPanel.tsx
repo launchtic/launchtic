@@ -1,7 +1,7 @@
 import React from "react";
 import { useEditor } from "@craftjs/core";
 import styled from "styled-components";
-import { LightButton } from "./common/EditorUI";
+import { LightButton } from "./layout/EditorUI";
 
 // Styled component cho SettingsPanel
 const PanelContainer = styled.div`

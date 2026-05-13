@@ -1,7 +1,6 @@
-// src/components/editor/Toolbox.tsx
 import React from "react";
 import { useEditor, Element } from "@craftjs/core";
-import { useEditorContext } from "../../contexts/EditorContext";
+import { useEditorContext } from "./EditorContext";
 import {
   Field,
   Checkbox,
@@ -26,7 +25,7 @@ import {
   PaymentMethod,
   DEFAULT_STYLES,
   getIconPath,
-} from "@launchtic/elements";
+} from "../../index";
 
 import {
   SidebarContainer,
@@ -39,7 +38,7 @@ import {
   CustomIconWrapper,
   ColumnBar,
   ItemLabel,
-} from "./common/EditorUI";
+} from "./layout/EditorUI";
 
 
 // Which sections to show per step type

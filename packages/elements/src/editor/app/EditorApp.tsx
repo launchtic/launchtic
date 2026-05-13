@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useRef, useCallback } from "react";
 import { Editor, Frame, Element } from "@craftjs/core";
 
-// Elements from shared package
+// Elements from this package
 import {
   Page,
   Section,
@@ -31,11 +31,11 @@ import {
   useAppContext,
   getValidCraftContent,
   PageFontApplier,
-} from "@launchtic/elements";
+} from "../../index";
 
 // Editor UI
-import { EditorProvider, useEditorContext } from "../../contexts/EditorContext";
-import CustomEventHandlers from "./handlers/CustomEventHandlers";
+import { EditorProvider, useEditorContext } from "./EditorContext";
+import CustomEventHandlers from "./CustomEventHandlers";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import {
@@ -46,7 +46,7 @@ import {
   BodyUI,
   DeviceWorkAreaUi,
   MobilePhoneUi,
-} from "./common/EditorUI";
+} from "./layout/EditorUI";
 
 type Props = {
   funnelStepId: string;

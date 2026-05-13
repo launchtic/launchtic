@@ -7,7 +7,7 @@ import styled from "styled-components";
 import {
   ToolboxSection,
   ToolboxSectionTitle,
-} from "./common/EditorUI";
+} from "./layout/EditorUI";
 
 type SavedBlockListItem = {
   id: string;

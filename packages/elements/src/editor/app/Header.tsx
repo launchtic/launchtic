@@ -1,9 +1,8 @@
-// src/components/editor/Header.tsx
 import React, { useMemo } from "react";
 
 declare global { interface Window { data?: any } }
 import { useEditor } from "@craftjs/core";
-import { useEditorContext } from "../../contexts/EditorContext";
+import { useEditorContext } from "./EditorContext";
 import {
   HeaderContainer,
   HeaderSettingsWrapper,
@@ -12,7 +11,7 @@ import {
   BreadcrumbsItem,
   LightButton,
   HeaderActionsWrapper,
-} from "./common/EditorUI";
+} from "./layout/EditorUI";
 
 const Header: React.FC = () => {
   // Simple and clean — only pull what we need

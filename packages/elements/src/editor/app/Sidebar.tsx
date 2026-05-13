@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { CollapsedButtonSideBar, SidebarUi, SidebarFooterUi, IconButton, SidebarContainerUi, SidebarContainer, DeviceSwitcherUi } from "./common/EditorUI";
+import { CollapsedButtonSideBar, SidebarUi, SidebarFooterUi, IconButton, SidebarContainerUi, SidebarContainer, DeviceSwitcherUi } from "./layout/EditorUI";
 import { useEditor } from "@craftjs/core";
 import { Toolbox } from "./Toolbox";
 import { SavedBlocksToolbox } from "./SavedBlocksToolbox";
 import { SettingsPanel } from "./SettingsPanel";
 import { StepSettingsPanel } from "./StepSettingsPanel";
-import { useAppContext } from "@launchtic/elements";
+import { useAppContext } from "../../index";
 import { LayoutTemplate, Settings, Bookmark } from "lucide-react";
 
 type SidebarTab = "elements" | "saved-blocks" | "page-settings";

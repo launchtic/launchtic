@@ -5,8 +5,8 @@ import {
   CreateHandlerOptions,
   Element
 } from '@craftjs/core';
-import { Section, Row, Column, DEFAULT_STYLES } from "@launchtic/elements";
-import { useAppContext } from '@launchtic/elements';
+import { Section, Row, Column, DEFAULT_STYLES } from "../../index";
+import { useAppContext } from "../../index";
 
 // Types for drag and drop operations
 interface DragInfo {

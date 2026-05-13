@@ -40,3 +40,8 @@ export * from "./utils/formHelpers";
 // Types & defaults
 export * from "./elements/ElementProps";
 export * from "./elements/DefaultStyles";
+
+// Editor app (full editor UI — depends on every element export above)
+export { default as EditorApp } from "./editor/app/EditorApp";
+export { default as PageTemplateEditorApp } from "./editor/app/PageTemplateEditorApp";
+export { EditorProvider, useEditorContext } from "./editor/app/EditorContext";

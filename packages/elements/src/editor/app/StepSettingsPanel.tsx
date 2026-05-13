@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Search, BarChart2, Type, Check, Loader2, Upload, Trash2 } from "lucide-react";
-import { useEditorContext } from "../../contexts/EditorContext";
-import { FontTypeSettings } from "@launchtic/elements";
+import { useEditorContext } from "./EditorContext";
+import { FontTypeSettings } from "../../index";
 
 type SeoMeta = { title?: string; description?: string; ogImage?: string };
 type TrackingMeta = {

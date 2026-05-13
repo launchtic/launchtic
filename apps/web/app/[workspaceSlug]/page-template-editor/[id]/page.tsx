@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { use } from "react";
 
 const PageTemplateEditorApp = dynamic(
-  () => import("../../../../components/editor/PageTemplateEditorApp"),
+  () => import("@launchtic/elements").then((m) => ({ default: m.PageTemplateEditorApp })),
   {
     ssr: false,
     loading: () => (
