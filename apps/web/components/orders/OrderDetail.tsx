@@ -8,6 +8,7 @@ import {
   CheckCircle, Clock, XCircle, RotateCcw, Ban,
   FileText,
 } from "lucide-react";
+import { useRole } from "../../lib/role";
 
 type Contact = {
   id: string;
@@ -258,6 +259,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
   const [order, setOrder] = useState(initial);
   const [showRefund, setShowRefund] = useState(false);
   const router = useRouter();
+  const { canManageSettings } = useRole();
 
   const contactName = [order.contact.firstName, order.contact.lastName].filter(Boolean).join(" ") || order.contact.email;
   const shortId = order.id.slice(-8).toUpperCase();
@@ -319,7 +321,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
             >
               <FileText size={12} /> Export PDF
             </a>
-            {canRefund && (
+            {canRefund && canManageSettings && (
               <button
                 onClick={() => setShowRefund(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-orange-700 border border-orange-200 hover:bg-orange-50 rounded-xl transition-colors"

@@ -9,6 +9,7 @@ import {
 import { WELCOME_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
+import { useRole } from "../../lib/role";
 
 type Status = "DRAFT" | "ACTIVE" | "PAUSED";
 
@@ -45,6 +46,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const { canWrite } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -119,14 +121,16 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
             Drip campaigns — automated email series sent on a schedule (Day 0, 3, 7, …) per enrolled contact.
           </p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0 disabled:opacity-50"
-        >
-          {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          New sequence
-        </button>
+        {canWrite && (
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0 disabled:opacity-50"
+          >
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            New sequence
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -156,7 +160,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
           <p className="text-sm text-gray-500 mb-4">
             {items.length === 0 ? "No sequences yet — create your first drip campaign." : "No sequences match your filters."}
           </p>
-          {items.length === 0 && (
+          {items.length === 0 && canWrite && (
             <button
               onClick={handleCreate}
               disabled={creating}
@@ -216,14 +220,16 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
                 >
                   <FileEdit size={14} />
                 </Link>
-                <button
-                  onClick={() => handleDelete(s)}
-                  disabled={busy === s.id}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                  title="Delete"
-                >
-                  {busy === s.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                </button>
+                {canWrite && (
+                  <button
+                    onClick={() => handleDelete(s)}
+                    disabled={busy === s.id}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {busy === s.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  </button>
+                )}
               </div>
             </div>
           ))}

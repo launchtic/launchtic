@@ -7,6 +7,7 @@ import {
   ChevronRight, ChevronLeft, ExternalLink, Loader2, Repeat,
   CheckCircle, Timer, Ban, AlertCircle, Clock, Ticket, XCircle, RotateCcw,
 } from "lucide-react";
+import { useRole } from "../../lib/role";
 
 type Contact = {
   id: string; email: string;
@@ -314,6 +315,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
   const [showResume, setShowResume] = useState(false);
   const [mobileView, setMobileView] = useState<"info" | "orders">("info");
   const router = useRouter();
+  const { canManageSettings } = useRole();
 
   const contactName = [sub.contact.firstName, sub.contact.lastName].filter(Boolean).join(" ") || sub.contact.email;
   const shortId = sub.id.slice(-8).toUpperCase();
@@ -427,7 +429,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
 
         {/* Actions */}
         <div className="px-5 py-4 mt-auto flex items-center gap-2">
-          {canCancel && (
+          {canCancel && canManageSettings && (
             <button
               onClick={() => setShowCancel(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-xl transition-colors"
@@ -435,7 +437,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
               <XCircle size={12} /> Cancel subscription
             </button>
           )}
-          {canResume && (
+          {canResume && canManageSettings && (
             <button
               onClick={() => setShowResume(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-green-700 border border-green-200 hover:bg-green-50 rounded-xl transition-colors"

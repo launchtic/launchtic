@@ -9,6 +9,7 @@ import {
 import { WELCOME_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
+import { useRole } from "../../lib/role";
 
 type Status = "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "FAILED" | "CANCELED";
 type Target = "ALL_CONTACTS" | "TAG" | "SEGMENT";
@@ -53,6 +54,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [creating, startCreate] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
+  const { canWrite } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -114,14 +116,16 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
             One-time email campaigns sent to your contacts.
           </p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors shrink-0"
-        >
-          {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          New broadcast
-        </button>
+        {canWrite && (
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors shrink-0"
+          >
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            New broadcast
+          </button>
+        )}
       </div>
 
       {/* Tabs + Search */}
@@ -186,7 +190,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
                     </span>
                   )}
                 </div>
-                {(b.status === "DRAFT" || b.status === "SCHEDULED" || b.status === "CANCELED" || b.status === "FAILED") && (
+                {canWrite && (b.status === "DRAFT" || b.status === "SCHEDULED" || b.status === "CANCELED" || b.status === "FAILED") && (
                   <button
                     onClick={() => handleDelete(b)}
                     disabled={deleting === b.id}

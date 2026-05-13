@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, Plus, Pencil, Trash2, Check, X, Building2 } from "lucide-react";
 
-type Workspace = { id: string; name: string; slug: string; ownerId: string };
+type Workspace = { id: string; name: string; slug: string; ownerId: string; userRole: string };
 
 export default function WorkspacePanel({
   currentWorkspaceId,
@@ -33,7 +33,7 @@ export default function WorkspacePanel({
   async function handleSwitch(ws: Workspace) {
     if (ws.id === activeId) return;
     setSwitchingId(ws.id);
-    await update({ workspaceId: ws.id, workspaceSlug: ws.slug, workspaceName: ws.name });
+    await update({ workspaceId: ws.id, workspaceSlug: ws.slug, workspaceName: ws.name, workspaceRole: ws.userRole });
     setActiveId(ws.id);
     setSwitchingId(null);
     router.push(`/${ws.slug}/dashboard`);

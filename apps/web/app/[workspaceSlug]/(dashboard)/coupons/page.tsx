@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import FormDrawer from "../../../../components/ui/FormDrawer";
 import { useConfirm } from "../../../../components/ui/ConfirmDialog";
+import { useRole } from "../../../../lib/role";
 
 type Coupon = {
   id: string; code: string; type: "percentage" | "fixed";
@@ -42,6 +43,7 @@ export default function CouponsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirm = useConfirm();
+  const { canWrite } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -173,12 +175,14 @@ export default function CouponsPage() {
               className="w-full pl-9 pr-3 py-2 text-base sm:text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors shrink-0"
-          >
-            <Plus size={15} /> New coupon
-          </button>
+          {canWrite && (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors shrink-0"
+            >
+              <Plus size={15} /> New coupon
+            </button>
+          )}
         </div>
       </div>
 
@@ -248,32 +252,38 @@ export default function CouponsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => toggleActive(coupon)}
-                          title={coupon.active ? "Deactivate" : "Activate"}
-                          className="p-1 text-gray-400 hover:text-gray-700 transition-colors"
-                        >
-                          {coupon.active
-                            ? <ToggleRight size={20} className="text-blue-600" />
-                            : <ToggleLeft size={20} />}
-                        </button>
-                        <button
-                          onClick={() => openEdit(coupon)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit coupon"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(coupon)}
-                          disabled={deletingId === coupon.id}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
-                          title="Delete coupon"
-                        >
-                          {deletingId === coupon.id
-                            ? <Loader2 size={14} className="animate-spin" />
-                            : <Trash2 size={14} />}
-                        </button>
+                        {canWrite && (
+                          <button
+                            onClick={() => toggleActive(coupon)}
+                            title={coupon.active ? "Deactivate" : "Activate"}
+                            className="p-1 text-gray-400 hover:text-gray-700 transition-colors"
+                          >
+                            {coupon.active
+                              ? <ToggleRight size={20} className="text-blue-600" />
+                              : <ToggleLeft size={20} />}
+                          </button>
+                        )}
+                        {canWrite && (
+                          <button
+                            onClick={() => openEdit(coupon)}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit coupon"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canWrite && (
+                          <button
+                            onClick={() => handleDelete(coupon)}
+                            disabled={deletingId === coupon.id}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                            title="Delete coupon"
+                          >
+                            {deletingId === coupon.id
+                              ? <Loader2 size={14} className="animate-spin" />
+                              : <Trash2 size={14} />}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

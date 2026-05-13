@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import FormDrawer from "../ui/FormDrawer";
+import { useRole } from "../../lib/role";
 
 type TagRow = { id: string; name: string; color: string | null; _count?: { contacts: number }; count?: number };
 type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
@@ -53,6 +54,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
   const [deleting, setDeleting] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirm = useConfirm();
+  const { canWrite } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -162,13 +164,15 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
               className="w-full pl-9 pr-3 py-2 text-base sm:text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
-          >
-            <Plus size={15} />
-            New Tag
-          </button>
+          {canWrite && (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
+            >
+              <Plus size={15} />
+              New Tag
+            </button>
+          )}
         </div>
       </div>
 
@@ -217,21 +221,25 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(tag)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit tag"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => deleteTag(tag)}
-                          disabled={deleting === tag.id}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                          title="Delete tag"
-                        >
-                          {deleting === tag.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        </button>
+                        {canWrite && (
+                          <button
+                            onClick={() => openEdit(tag)}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit tag"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canWrite && (
+                          <button
+                            onClick={() => deleteTag(tag)}
+                            disabled={deleting === tag.id}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete tag"
+                          >
+                            {deleting === tag.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

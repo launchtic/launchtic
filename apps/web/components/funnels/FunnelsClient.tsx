@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { useRole } from "../../lib/role";
 
 type Domain = { domain: string; verified: boolean };
 type Funnel = {
@@ -50,6 +51,7 @@ export default function FunnelsClient({
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const confirm = useConfirm();
+  const { canWrite } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number, v: View) => {
     setLoading(true);
@@ -160,7 +162,7 @@ export default function FunnelsClient({
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          {view === "active" && (
+          {view === "active" && canWrite && (
             <button
               onClick={() => setCreateOpen(true)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
@@ -251,39 +253,47 @@ export default function FunnelsClient({
                         )}
                         {view === "active" ? (
                           <>
-                            <button
-                              onClick={() => setEditId(f.id)}
-                              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              <Settings size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleMoveToTrash(f)}
-                              disabled={busyId === f.id}
-                              title="Move to Trash"
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
+                            {canWrite && (
+                              <button
+                                onClick={() => setEditId(f.id)}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                <Settings size={14} />
+                              </button>
+                            )}
+                            {canWrite && (
+                              <button
+                                onClick={() => handleMoveToTrash(f)}
+                                disabled={busyId === f.id}
+                                title="Move to Trash"
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                              </button>
+                            )}
                           </>
                         ) : (
                           <>
-                            <button
-                              onClick={() => handleRestore(f)}
-                              disabled={busyId === f.id}
-                              title="Restore"
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteForever(f)}
-                              disabled={busyId === f.id}
-                              title="Delete Forever"
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
+                            {canWrite && (
+                              <button
+                                onClick={() => handleRestore(f)}
+                                disabled={busyId === f.id}
+                                title="Restore"
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
+                              </button>
+                            )}
+                            {canWrite && (
+                              <button
+                                onClick={() => handleDeleteForever(f)}
+                                disabled={busyId === f.id}
+                                title="Delete Forever"
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

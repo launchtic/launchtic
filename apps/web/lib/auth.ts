@@ -33,6 +33,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           include: {
             memberships: {
               select: {
+                role: true,
                 workspace: {
                   select: {
                     id: true, name: true, slug: true,
@@ -51,7 +52,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
-        const workspace = user.memberships[0]?.workspace ?? null;
+        const membership = user.memberships[0] ?? null;
+        const workspace  = membership?.workspace ?? null;
+        const workspaceRole = membership?.role ?? null;
 
         // Inherit plan from the workspace owner
         let workspacePlan = "FREE";
@@ -71,6 +74,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           workspaceName: workspace?.name ?? null,
           workspaceSlug: workspace?.slug ?? null,
           workspacePlan,
+          workspaceRole,
         };
       },
     }),

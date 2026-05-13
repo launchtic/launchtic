@@ -76,7 +76,7 @@ export default function SettingsClient({
   currentWorkspaceSlug: string;
   workspacePlan:        string;
   userId:               string;
-  workspaces: { id: string; name: string; slug: string; ownerId: string }[];
+  workspaces: { id: string; name: string; slug: string; ownerId: string; userRole: string }[];
   userName:        string;
   userEmail:       string;
   teamMembers:     TeamMember[];

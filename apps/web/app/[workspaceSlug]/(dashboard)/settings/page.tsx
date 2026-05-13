@@ -32,7 +32,10 @@ export default async function SettingsPage() {
     }),
     db.workspace.findMany({
       where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
-      select: { id: true, name: true, slug: true, ownerId: true },
+      select: {
+        id: true, name: true, slug: true, ownerId: true,
+        members: { where: { userId }, select: { role: true }, take: 1 },
+      },
       orderBy: { createdAt: "asc" },
     }),
     db.workspaceMember.findMany({
@@ -67,7 +70,7 @@ export default async function SettingsPage() {
           currentWorkspaceSlug={workspaceSlug}
           workspacePlan={workspacePlan}
           userId={userId}
-          workspaces={workspaces}
+          workspaces={workspaces.map((w) => ({ ...w, userRole: w.members[0]?.role ?? "OWNER" }))}
           userName={userName}
           userEmail={userEmail}
           currentUserRole={currentUserRole}

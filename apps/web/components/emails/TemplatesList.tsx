@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { EMPTY_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { useRole } from "../../lib/role";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
 
@@ -43,6 +44,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
   const [creating, startCreate] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState<string | null>(null);
+  const { canWrite } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -114,14 +116,16 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
             Reusable email content for broadcasts, automations, and transactional sends.
           </p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors shrink-0"
-        >
-          {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          New template
-        </button>
+        {canWrite && (
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors shrink-0"
+          >
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            New template
+          </button>
+        )}
       </div>
 
       {/* Filters + Search */}
@@ -179,15 +183,17 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
                 >
                   <Pencil size={14} />
                 </Link>
-                <button
-                  onClick={() => handleDuplicate(t.id)}
-                  disabled={duplicating === t.id}
-                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                  title="Duplicate"
-                >
-                  {duplicating === t.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-                </button>
-                {!t.isSystem && (
+                {canWrite && (
+                  <button
+                    onClick={() => handleDuplicate(t.id)}
+                    disabled={duplicating === t.id}
+                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                    title="Duplicate"
+                  >
+                    {duplicating === t.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                  </button>
+                )}
+                {canWrite && !t.isSystem && (
                   <button
                     onClick={() => handleDelete(t)}
                     disabled={deleting === t.id}

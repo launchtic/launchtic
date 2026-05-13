@@ -33,13 +33,15 @@ export const authConfig: NextAuthConfig = {
         if (session.workspaceSlug) token.workspaceSlug = session.workspaceSlug;
         if (session.workspaceName) token.workspaceName = session.workspaceName;
         if (session.workspacePlan) token.workspacePlan = session.workspacePlan;
+        if (session.workspaceRole) token.workspaceRole = session.workspaceRole;
       }
       if (user) {
-        token.userId = user.id;
-        token.workspaceId = (user as any).workspaceId;
+        token.userId        = user.id;
+        token.workspaceId   = (user as any).workspaceId;
         token.workspaceName = (user as any).workspaceName;
         token.workspaceSlug = (user as any).workspaceSlug;
         token.workspacePlan = (user as any).workspacePlan;
+        token.workspaceRole = (user as any).workspaceRole;
       }
       return token;
     },
@@ -50,6 +52,7 @@ export const authConfig: NextAuthConfig = {
       (session as any).workspaceName = token.workspaceName;
       (session as any).workspaceSlug = token.workspaceSlug;
       (session as any).workspacePlan = token.workspacePlan;
+      (session as any).workspaceRole = token.workspaceRole;
       return session;
     },
   },

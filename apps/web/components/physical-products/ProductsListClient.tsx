@@ -8,6 +8,7 @@ import {
 import ProductQuickCreateDrawer from "./ProductQuickCreateDrawer";
 import ProductEditDrawer from "./ProductEditDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { useRole } from "../../lib/role";
 
 type Product = {
   id: string;
@@ -40,6 +41,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const confirm = useConfirm();
+  const { canWrite } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -98,13 +100,15 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
-          >
-            <Plus size={16} />
-            New Product
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+            >
+              <Plus size={16} />
+              New Product
+            </button>
+          )}
         </div>
       </div>
 
@@ -166,21 +170,25 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setEditId(p.id)}
-                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Edit product"
-                        >
-                          <Settings size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p)}
-                          disabled={deleting === p.id}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                          title="Delete product"
-                        >
-                          {deleting === p.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        </button>
+                        {canWrite && (
+                          <button
+                            onClick={() => setEditId(p.id)}
+                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Edit product"
+                          >
+                            <Settings size={14} />
+                          </button>
+                        )}
+                        {canWrite && (
+                          <button
+                            onClick={() => handleDelete(p)}
+                            disabled={deleting === p.id}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Delete product"
+                          >
+                            {deleting === p.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
