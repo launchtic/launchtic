@@ -20,7 +20,9 @@ export default auth((req) => {
   }
 
   if (req.auth && isAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
+    const slug = (req.auth as any).workspaceSlug as string | undefined;
+    const dest = slug ? `/${slug}/dashboard` : "/dashboard";
+    return NextResponse.redirect(new URL(dest, req.nextUrl));
   }
 
   return NextResponse.next();

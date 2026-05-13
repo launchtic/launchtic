@@ -31,8 +31,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = await db.user.findUnique({
           where: { email },
           include: {
-            ownedWorkspaces: {
-              select: { id: true, name: true, slug: true },
+            memberships: {
+              select: {
+                workspace: {
+                  select: {
+                    id: true, name: true, slug: true,
+                    owner: { select: { plan: true, licenseKey: true, licenseExpiresAt: true } },
+                  },
+                },
+              },
+              orderBy: { joinedAt: "asc" },
               take: 1,
             },
           },
@@ -43,17 +51,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
-        const workspace = user.ownedWorkspaces[0] ?? null;
+        const workspace = user.memberships[0]?.workspace ?? null;
+
+        // Inherit plan from the workspace owner
+        let workspacePlan = "FREE";
+        if (workspace) {
+          const owner = workspace.owner;
+          const isExpired  = owner.licenseExpiresAt != null && owner.licenseExpiresAt < new Date();
+          const hasLicense = owner.licenseKey != null && !isExpired;
+          workspacePlan = hasLicense ? (owner.plan ?? "FREE") : "FREE";
+        }
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           image: user.avatar,
-          workspaceId: workspace?.id ?? null,
+          workspaceId:   workspace?.id   ?? null,
           workspaceName: workspace?.name ?? null,
           workspaceSlug: workspace?.slug ?? null,
-          workspacePlan: (user as any).plan ?? null,
+          workspacePlan,
         };
       },
     }),

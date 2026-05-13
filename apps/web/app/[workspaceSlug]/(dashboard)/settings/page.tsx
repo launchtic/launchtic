@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   // Lazy-seed PAGES_DOMAIN as the workspace's default Domain on first visit.
   await ensureDefaultDomain(workspaceId);
 
-  const [domains, settings, senderIdentities, workspaces] = await Promise.all([
+  const [domains, settings, senderIdentities, workspaces, teamMembers, currentMember] = await Promise.all([
     db.domain.findMany({
       where: { workspaceId },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -35,6 +35,15 @@ export default async function SettingsPage() {
       select: { id: true, name: true, slug: true, ownerId: true },
       orderBy: { createdAt: "asc" },
     }),
+    db.workspaceMember.findMany({
+      where: { workspaceId },
+      include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+      orderBy: { joinedAt: "asc" },
+    }),
+    db.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId } },
+      select: { role: true },
+    }),
   ]);
 
   const stripe  = settings?.stripe  as any;
@@ -46,8 +55,9 @@ export default async function SettingsPage() {
   const rendererHost = new URL(rendererUrl).host;
   const workspaceSlug = (session as any).workspaceSlug as string;
   const workspacePlan = (session as any).workspacePlan as string ?? "FREE";
-  const userName      = session.user?.name  ?? "";
-  const userEmail     = session.user?.email ?? "";
+  const userName        = session.user?.name  ?? "";
+  const userEmail       = session.user?.email ?? "";
+  const currentUserRole = currentMember?.role ?? "OWNER";
 
   return (
         <SettingsClient
@@ -60,6 +70,18 @@ export default async function SettingsPage() {
           workspaces={workspaces}
           userName={userName}
           userEmail={userEmail}
+          currentUserRole={currentUserRole}
+          teamMembers={teamMembers.map((m) => ({
+            userId:   m.userId,
+            role:     m.role,
+            joinedAt: m.joinedAt.toISOString(),
+            user: {
+              id:     m.user.id,
+              name:   m.user.name,
+              email:  m.user.email,
+              avatar: m.user.avatar,
+            },
+          }))}
           domains={domains.map((d) => ({
             id: d.id,
             domain: d.domain,

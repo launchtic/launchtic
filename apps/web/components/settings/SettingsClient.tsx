@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key,
-  Building2, UserCircle, Settings2, ChevronRight, ChevronLeft,
+  Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import ProfilePanel       from "./ProfilePanel";
@@ -17,8 +17,10 @@ import PageTemplatesPanel from "./PageTemplatesPanel";
 import AiAssistantPanel   from "./AiAssistantPanel";
 import LicensePanel       from "./LicensePanel";
 import WorkspacePanel     from "./WorkspacePanel";
+import TeamPanel          from "./TeamPanel";
 
 type Domain         = { id: string; domain: string; verified: boolean; isDefault: boolean; createdAt: string };
+type TeamMember     = { userId: string; role: string; joinedAt: string; user: { id: string; name: string | null; email: string; avatar: string | null } };
 type StripeData     = { publishableKey: string; secretKey: string; webhookSecret: string | null; mode: string } | null;
 type PaypalData     = { clientId: string; clientSecret: string; webhookId: string | null; mode: string } | null;
 type SmtpData       = { provider: string; host: string; port: number; username: string; password: string; maxPerDay: number; maxPerSecond?: number; maxConcurrent?: number } | null;
@@ -45,6 +47,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
     label: "WORKSPACE",
     items: [
       { id: "workspaces",     label: "Workspaces",      icon: Building2,    proOnly: true  },
+      { id: "team",           label: "Team",            icon: Users,        proOnly: true  },
       { id: "domains",        label: "Custom Domains",   icon: Globe                       },
       { id: "payment",        label: "Payment Settings", icon: CreditCard                  },
       { id: "email",          label: "Email Settings",   icon: Mail                        },
@@ -59,7 +62,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
 export default function SettingsClient({
   domains, stripe, paypal, smtp, storage, senderIdentities, rendererUrl, rendererHost,
   currentWorkspaceId, currentWorkspaceSlug, workspacePlan, userId, workspaces,
-  userName, userEmail,
+  userName, userEmail, teamMembers, currentUserRole,
 }: {
   domains:          Domain[];
   stripe:           StripeData;
@@ -74,8 +77,10 @@ export default function SettingsClient({
   workspacePlan:        string;
   userId:               string;
   workspaces: { id: string; name: string; slug: string; ownerId: string }[];
-  userName:  string;
-  userEmail: string;
+  userName:        string;
+  userEmail:       string;
+  teamMembers:     TeamMember[];
+  currentUserRole: string;
 }) {
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -180,6 +185,7 @@ export default function SettingsClient({
                 workspaces={workspaces}
               />
             )}
+            {active === "team"          && <TeamPanel initialMembers={teamMembers} currentUserId={userId} currentUserRole={currentUserRole} />}
             {active === "domains"       && <DomainsPanel initialDomains={domains} rendererHost={rendererHost} />}
             {active === "payment"       && <PaymentPanel stripe={stripe} paypal={paypal} rendererUrl={rendererUrl} />}
             {active === "email"         && <EmailSettings smtp={smtp} senderIdentities={senderIdentities} />}
