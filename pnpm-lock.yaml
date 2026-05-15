@@ -33,8 +33,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
       '@launchtic/elements':
-        specifier: workspace:*
-        version: link:../../packages/elements
+        specifier: ^0.1.0
+        version: 0.1.0(@babel/runtime@7.29.2)(@tiptap/pm@2.27.2)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@launchtic/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -163,8 +163,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ee
       '@launchtic/elements':
-        specifier: workspace:*
-        version: link:../../packages/elements
+        specifier: ^0.1.0
+        version: 0.1.0(@babel/runtime@7.29.2)(@tiptap/pm@2.27.2)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@launchtic/email':
         specifier: workspace:*
         version: link:../../packages/email
@@ -354,97 +354,6 @@ importers:
 
   packages/ee:
     devDependencies:
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.3
-
-  packages/elements:
-    dependencies:
-      '@craftjs/core':
-        specifier: ^0.2.11
-        version: 0.2.12(react@19.2.5)
-      '@craftjs/utils':
-        specifier: '*'
-        version: 0.2.5(react@19.2.5)
-      '@launchtic/types':
-        specifier: workspace:*
-        version: link:../types
-      '@stripe/react-stripe-js':
-        specifier: ^5.3.0
-        version: 5.6.1(@stripe/stripe-js@9.3.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@stripe/stripe-js':
-        specifier: ^9.0.0
-        version: 9.3.1
-      '@tiptap/core':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/pm@2.27.2)
-      '@tiptap/extension-bullet-list':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
-      '@tiptap/extension-color':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/extension-text-style@2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2)))
-      '@tiptap/extension-link':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)
-      '@tiptap/extension-text-style':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
-      '@tiptap/extension-underline':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
-      '@tiptap/react':
-        specifier: ^2.11.5
-        version: 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      '@tiptap/starter-kit':
-        specifier: ^2.11.5
-        version: 2.27.2
-      '@uiw/react-color-sketch':
-        specifier: ^2.4.0
-        version: 2.10.1(@babel/runtime@7.29.2)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      libphonenumber-js:
-        specifier: ^1.12.15
-        version: 1.12.42
-      lucide-react:
-        specifier: ^1.8.0
-        version: 1.14.0(react@19.2.5)
-      react:
-        specifier: ^19.0.0
-        version: 19.2.5
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.2.5(react@19.2.5)
-      react-dropzone:
-        specifier: ^14.3.5
-        version: 14.4.1(react@19.2.5)
-      react-player:
-        specifier: ^2.16.0
-        version: 2.16.1(react@19.2.5)
-      react-select:
-        specifier: ^5.10.0
-        version: 5.10.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      styled-components:
-        specifier: ^6.1.14
-        version: 6.4.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      uuid:
-        specifier: ^11.1.0
-        version: 11.1.1
-      zod:
-        specifier: ^3.24.4
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.14)
-      '@types/uuid':
-        specifier: ^10.0.0
-        version: 10.0.0
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -1173,6 +1082,12 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@launchtic/elements@0.1.0':
+    resolution: {integrity: sha512-Vbt9FmzfUvvcneQfBX4b3jiqyuCQWXO5NEn6+YCcIiCDhmfTwVKaFfV4KIdUDFQ8C5lBvepZiGeSufxB71G/iQ==}
+    peerDependencies:
+      react: ^19.0.0
+      react-dom: ^19.0.0
 
   '@maily-to/core@0.3.7':
     resolution: {integrity: sha512-r+7dNgbL0CIfYbV4BXwdI+KRaovaok9z/2m7Nexx1jE1Eg0ABPmgkaitb43luSPgb1QRYCPpj7B/FymSbGaFoQ==}
@@ -4728,6 +4643,39 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@launchtic/elements@0.1.0(@babel/runtime@7.29.2)(@tiptap/pm@2.27.2)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
+    dependencies:
+      '@craftjs/core': 0.2.12(react@19.2.5)
+      '@craftjs/utils': 0.2.5(react@19.2.5)
+      '@stripe/react-stripe-js': 5.6.1(@stripe/stripe-js@9.3.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@stripe/stripe-js': 9.3.1
+      '@tiptap/core': 2.27.2(@tiptap/pm@2.27.2)
+      '@tiptap/extension-bullet-list': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/extension-color': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/extension-text-style@2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2)))
+      '@tiptap/extension-link': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)
+      '@tiptap/extension-text-style': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/extension-underline': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
+      '@tiptap/react': 2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@tiptap/starter-kit': 2.27.2
+      '@uiw/react-color-sketch': 2.10.1(@babel/runtime@7.29.2)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      libphonenumber-js: 1.12.42
+      lucide-react: 1.14.0(react@19.2.5)
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
+      react-dropzone: 14.4.1(react@19.2.5)
+      react-player: 2.16.1(react@19.2.5)
+      react-select: 5.10.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      styled-components: 6.4.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      uuid: 11.1.1
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@babel/runtime'
+      - '@tiptap/pm'
+      - '@types/react'
+      - css-to-react-native
+      - react-native
+      - supports-color
 
   '@maily-to/core@0.3.7(@tiptap/extension-code-block@2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
     dependencies:

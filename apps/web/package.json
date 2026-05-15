@@ -22,7 +22,7 @@
     "@fortawesome/fontawesome-free": "^6.7.2",
     "@launchtic/database": "workspace:*",
     "@launchtic/ee": "workspace:*",
-    "@launchtic/elements": "workspace:*",
+    "@launchtic/elements": "^0.1.0",
     "@launchtic/email": "workspace:*",
     "@launchtic/types": "workspace:*",
     "@launchtic/ui": "workspace:*",

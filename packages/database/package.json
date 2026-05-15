@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "postinstall":    "dotenv -e ../../.env -- prisma generate",
     "db:generate":    "dotenv -e ../../.env -- prisma generate",
     "db:migrate":     "dotenv -e ../../.env -- prisma migrate dev",
     "db:migrate:prod":"dotenv -e ../../.env -- prisma migrate deploy",
