@@ -33,8 +33,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
       '@launchtic/elements':
-        specifier: ^0.1.0
-        version: 0.1.0(@babel/runtime@7.29.2)(@tiptap/pm@2.27.2)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        specifier: ^0.1.3
+        version: 0.1.3(6b6fd934475d7fabdd28a49e8b3357f3)
       '@launchtic/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -163,8 +163,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ee
       '@launchtic/elements':
-        specifier: ^0.1.0
-        version: 0.1.0(@babel/runtime@7.29.2)(@tiptap/pm@2.27.2)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        specifier: ^0.1.3
+        version: 0.1.3(6b6fd934475d7fabdd28a49e8b3357f3)
       '@launchtic/email':
         specifier: workspace:*
         version: link:../../packages/email
@@ -1083,11 +1083,28 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@launchtic/elements@0.1.0':
-    resolution: {integrity: sha512-Vbt9FmzfUvvcneQfBX4b3jiqyuCQWXO5NEn6+YCcIiCDhmfTwVKaFfV4KIdUDFQ8C5lBvepZiGeSufxB71G/iQ==}
+  '@launchtic/elements@0.1.3':
+    resolution: {integrity: sha512-VCmclznp0gp7TJJ0NLvCcmYaynXn9kRkpE5PZZ6c5WaSZ6GbfeMgdDPKi7rRs1ZyVohph8CVhU/+HylBsTirgw==}
     peerDependencies:
+      '@craftjs/core': ^0.2.11
+      '@craftjs/utils': '*'
+      '@stripe/react-stripe-js': ^5.3.0
+      '@stripe/stripe-js': ^9.0.0
+      '@tiptap/core': ^2.11.5
+      '@tiptap/extension-bullet-list': ^2.11.5
+      '@tiptap/extension-color': ^2.11.5
+      '@tiptap/extension-link': ^2.11.5
+      '@tiptap/extension-text-style': ^2.11.5
+      '@tiptap/extension-underline': ^2.11.5
+      '@tiptap/react': ^2.11.5
+      '@tiptap/starter-kit': ^2.11.5
+      '@uiw/react-color-sketch': ^2.4.0
       react: ^19.0.0
       react-dom: ^19.0.0
+      react-dropzone: ^14.3.5
+      react-player: ^2.16.0
+      react-select: ^5.10.0
+      styled-components: ^6.1.14
 
   '@maily-to/core@0.3.7':
     resolution: {integrity: sha512-r+7dNgbL0CIfYbV4BXwdI+KRaovaok9z/2m7Nexx1jE1Eg0ABPmgkaitb43luSPgb1QRYCPpj7B/FymSbGaFoQ==}
@@ -4644,7 +4661,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@launchtic/elements@0.1.0(@babel/runtime@7.29.2)(@tiptap/pm@2.27.2)(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
+  '@launchtic/elements@0.1.3(6b6fd934475d7fabdd28a49e8b3357f3)':
     dependencies:
       '@craftjs/core': 0.2.12(react@19.2.5)
       '@craftjs/utils': 0.2.5(react@19.2.5)
@@ -4669,13 +4686,6 @@ snapshots:
       styled-components: 6.4.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       uuid: 11.1.1
       zod: 3.25.76
-    transitivePeerDependencies:
-      - '@babel/runtime'
-      - '@tiptap/pm'
-      - '@types/react'
-      - css-to-react-native
-      - react-native
-      - supports-color
 
   '@maily-to/core@0.3.7(@tiptap/extension-code-block@2.27.2(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@tiptap/pm@2.27.2))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
     dependencies:

@@ -13,7 +13,7 @@
     "@craftjs/core": "^0.2.12",
     "@fortawesome/fontawesome-free": "^6.7.2",
     "@launchtic/database": "workspace:*",
-    "@launchtic/elements": "^0.1.0",
+    "@launchtic/elements": "^0.1.3",
     "@launchtic/types": "workspace:*",
     "@stripe/react-stripe-js": "^5.6.1",
     "@stripe/stripe-js": "^9.2.0",

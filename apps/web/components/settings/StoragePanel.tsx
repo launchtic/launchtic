@@ -158,14 +158,6 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
         ))}
       </div>
 
-      {driver === "local" && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
-          Files are saved to <code className="font-mono bg-gray-200 px-1 rounded">public/uploads/</code> inside
-          your Next.js app and served at <code className="font-mono bg-gray-200 px-1 rounded">/uploads/…</code>.
-          No extra configuration needed.
-        </div>
-      )}
-
       {driver === "s3" && (
         <div className="space-y-0">
           {/* Presets */}

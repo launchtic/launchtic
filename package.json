@@ -16,24 +16,26 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev":            "turbo run dev --filter=@launchtic/web --filter=@launchtic/renderer",
-    "dev:web":        "turbo run dev --filter=@launchtic/web",
-    "dev:renderer":   "turbo run dev --filter=@launchtic/renderer",
-    "dev:worker":     "turbo run dev --filter=@launchtic/worker",
-    "dev:all":        "turbo run dev",
-    "infra:up":       "docker compose -f docker-compose.dev.yml up -d",
-    "infra:down":     "docker compose -f docker-compose.dev.yml down",
-    "infra:logs":     "docker compose -f docker-compose.dev.yml logs -f",
-    "build":          "turbo run build",
-    "lint":           "turbo run lint",
-    "typecheck":      "turbo run typecheck",
-    "verify":         "pnpm typecheck && pnpm build",
-    "db:migrate":     "pnpm --filter=@launchtic/database db:migrate",
-    "db:migrate:prod":"pnpm --filter=@launchtic/database db:migrate:prod",
-    "db:generate":    "pnpm --filter=@launchtic/database db:generate",
-    "db:studio":      "pnpm --filter=@launchtic/database db:studio",
-    "db:seed":        "pnpm --filter=@launchtic/database db:seed",
-    "db:reset":       "pnpm --filter=@launchtic/database db:reset"
+    "dev": "turbo run dev --filter=@launchtic/web --filter=@launchtic/renderer",
+    "dev:web": "turbo run dev --filter=@launchtic/web",
+    "dev:renderer": "turbo run dev --filter=@launchtic/renderer",
+    "dev:worker": "turbo run dev --filter=@launchtic/worker",
+    "dev:all": "turbo run dev",
+    "infra:up": "docker compose -f docker-compose.dev.yml up -d",
+    "infra:down": "docker compose -f docker-compose.dev.yml down",
+    "infra:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "elements:link": "pnpm pkg set 'pnpm.overrides.@launchtic/elements'='link:../launchtic-elements' && pnpm install && rm -rf apps/web/.next apps/renderer/.next",
+    "elements:unlink": "pnpm pkg delete 'pnpm.overrides.@launchtic/elements' && pnpm install && rm -rf apps/web/.next apps/renderer/.next",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "verify": "pnpm typecheck && pnpm build",
+    "db:migrate": "pnpm --filter=@launchtic/database db:migrate",
+    "db:migrate:prod": "pnpm --filter=@launchtic/database db:migrate:prod",
+    "db:generate": "pnpm --filter=@launchtic/database db:generate",
+    "db:studio": "pnpm --filter=@launchtic/database db:studio",
+    "db:seed": "pnpm --filter=@launchtic/database db:seed",
+    "db:reset": "pnpm --filter=@launchtic/database db:reset"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -49,8 +51,8 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "turbo": "^2.5.4",
-    "typescript": "^5.8.3",
-    "@types/node": "^22.15.3"
+    "typescript": "^5.8.3"
   }
 }

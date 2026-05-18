@@ -499,7 +499,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
 
       {/* Webhook */}
       <SecretInput
-        label="Webhook secret (optional)"
+        label="Webhook secret (recommended)"
         value={wh}
         onChange={(v) => { setWh(v); setTest({ status: "idle" }); }}
         placeholder="whsec_..."
