@@ -7,6 +7,8 @@ settings:
 overrides:
   '@tiptap/pm': 2.27.2
 
+pnpmfileChecksum: sha256-OVVo+UQOFHeNej07evFq1TNFZI95ZGea2tX11EVJ1UE=
+
 importers:
 
   .:

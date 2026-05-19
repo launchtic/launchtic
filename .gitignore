@@ -13,6 +13,9 @@ out
 # Turbo
 .turbo
 
+# Marker for local @launchtic/elements 
+.elements-linked
+
 # Test coverage
 coverage
 
