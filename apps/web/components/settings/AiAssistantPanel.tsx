@@ -17,15 +17,14 @@ const MODELS: { id: string; provider: Provider; label: string; hint: string }[] 
   { id: "claude-haiku-4-5-20251001", provider: "anthropic", label: "Claude Haiku 4.5", hint: "Fast + cheap." },
   { id: "claude-sonnet-4-6",         provider: "anthropic", label: "Claude Sonnet 4.6", hint: "Balanced." },
   { id: "claude-opus-4-7",           provider: "anthropic", label: "Claude Opus 4.7",   hint: "Most capable. Costly." },
-  { id: "gemini-2.0-flash",          provider: "google",    label: "Gemini 2.0 Flash",  hint: "Free tier · fast · recommended for testing." },
   { id: "gemini-2.5-flash",          provider: "google",    label: "Gemini 2.5 Flash",  hint: "Higher quality, free tier." },
   { id: "gemini-2.5-pro",            provider: "google",    label: "Gemini 2.5 Pro",    hint: "Most capable Gemini." },
   { id: "deepseek-chat",             provider: "deepseek",  label: "DeepSeek V3 (chat)", hint: "Cheapest. Top up $5 covers months of use." },
 ];
 
 const PROVIDERS: { id: Provider; label: string; keyHint: string; consoleUrl: string; badge?: string }[] = [
-  { id: "google",    label: "Google Gemini",     keyHint: "AIzaSy...",  consoleUrl: "https://aistudio.google.com/apikey",          badge: "Free tier" },
-  { id: "deepseek",  label: "DeepSeek",          keyHint: "sk-...",     consoleUrl: "https://platform.deepseek.com/api_keys",      badge: "Cheapest"  },
+  { id: "google",    label: "Google Gemini",     keyHint: "AIzaSy...",  consoleUrl: "https://aistudio.google.com/apikey",          },
+  { id: "deepseek",  label: "DeepSeek",          keyHint: "sk-...",     consoleUrl: "https://platform.deepseek.com/api_keys", },
   { id: "anthropic", label: "Anthropic Claude",  keyHint: "sk-ant-...", consoleUrl: "https://console.anthropic.com/settings/keys" },
 ];
 
