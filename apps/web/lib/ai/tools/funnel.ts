@@ -47,7 +47,15 @@ const listFunnels = defineTool({
         currency: f.currency.toUpperCase(),
         status: f.status,
         stepCount: f._count.steps,
-        ...(includeSteps && { steps: f.steps }),
+        // Pre-built URL — AI must use this verbatim instead of constructing
+        // paths from id+slug (the model has hallucinated slugs in the past).
+        funnelUrl: `/${ctx.workspaceSlug}/funnels/${f.id}`,
+        ...(includeSteps && {
+          steps: f.steps?.map((s) => ({
+            ...s,
+            editorUrl: `/${ctx.workspaceSlug}/editor/${s.id}`,
+          })),
+        }),
       })),
     };
   },

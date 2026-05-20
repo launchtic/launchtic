@@ -139,9 +139,13 @@ Things you CANNOT do (these require the operator in the editor):
 - Change fonts, colors, spacing
 Don't promise these — point at the editor link instead.
 
-LINKS — Always use markdown link format \`[label](/path)\` when pointing the user to a page.
-- Tool results already include workspace-scoped paths (\`/{workspaceSlug}/funnels/...\`, \`/{workspaceSlug}/emails/broadcasts/...\`). If a tool result has a \`message\` field with markdown links OR an \`editorUrl\` field, pass them through unchanged — they already include the correct workspace slug.
-- Never construct paths yourself. Always use what the tool returns.`;
+LINKS — Markdown format \`[label](url)\`. Two rules:
+
+1. URL comes from a tool result (\`funnelUrl\`, \`editorUrl\`, or a \`message\` link). Never construct or guess paths. The editor route is \`/{slug}/editor/{stepId}\` — not \`/funnels/{id}/editor\`. If the URL you need isn't in a result, call another tool (e.g. \`get_funnel_details\` for per-step \`editorUrl\`).
+
+2. Label is a short human phrase, never the URL itself.
+   ✗ \`[/my-workspace/editor/abc](/my-workspace/editor/abc)\`
+   ✓ \`[Edit Sales page](/my-workspace/editor/abc)\`, \`[Open funnel](funnelUrl)\`, \`[View broadcast](url)\``;
 }
 
 // Provider factory — swap providers by changing one line in settings.
