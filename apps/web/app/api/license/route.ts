@@ -62,7 +62,7 @@ export async function GET() {
       user.licenseExpiresAt < new Date();
 
     return ok({
-      plan: isExpired ? "FREE" : user.plan,
+      plan: isExpired ? "COMMUNITY" : user.plan,
       licenseKey: user.licenseKey ? maskKey(user.licenseKey) : null,
       expiresAt: user.licenseExpiresAt?.toISOString() ?? null,
       isExpired,
@@ -80,10 +80,10 @@ export async function DELETE() {
 
     await db.user.update({
       where: { id: userId },
-      data: { plan: "FREE", licenseKey: null, licenseExpiresAt: null },
+      data: { plan: "COMMUNITY", licenseKey: null, licenseExpiresAt: null },
     });
 
-    return ok({ plan: "FREE" });
+    return ok({ plan: "COMMUNITY" });
   } catch (error) {
     return handleError(error);
   }

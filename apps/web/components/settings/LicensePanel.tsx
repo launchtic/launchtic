@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Key, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { planLabel, planColor } from "../../lib/plan";
 
 type LicenseStatus = {
   plan: string;
@@ -60,11 +61,9 @@ export default function LicensePanel() {
     }
   }
 
-  const planColor: Record<string, string> = {
-    FREE: "bg-gray-100 text-gray-600",
-    PRO: "bg-blue-100 text-blue-700",
-    ENTERPRISE: "bg-purple-100 text-purple-700",
-  };
+  // Plan color + label come from the shared helper. Enum values (COMMUNITY/
+  // STARTER/AGENCY/CUSTOM) are the same names the operator sees in the UI —
+  // no mapping layer.
 
   if (loading) {
     return (
@@ -79,7 +78,7 @@ export default function LicensePanel() {
       <div>
         <h2 className="text-base font-semibold text-gray-900">License</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Activate a Pro or Enterprise license key to unlock advanced features.
+          Activate a Starter, Agency, or Custom license key to unlock advanced features.
         </p>
       </div>
 
@@ -87,8 +86,8 @@ export default function LicensePanel() {
       <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Current Plan</p>
-          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${planColor[status?.plan ?? "FREE"] ?? planColor.FREE}`}>
-            {status?.plan ?? "FREE"}
+          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${planColor(status?.plan)}`}>
+            {planLabel(status?.plan)}
           </span>
           {status?.expiresAt && (
             <p className="text-xs text-gray-400 mt-1.5">
@@ -96,7 +95,7 @@ export default function LicensePanel() {
             </p>
           )}
         </div>
-        {status?.plan !== "FREE" ? (
+        {status?.plan !== "COMMUNITY" ? (
           <CheckCircle size={20} className="text-green-500" />
         ) : (
           <XCircle size={20} className="text-gray-300" />
@@ -123,7 +122,7 @@ export default function LicensePanel() {
               type="text"
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="LT-PRO-xxxxxxxxxxxx"
+              placeholder="LT-STR-xxxx / LT-AGY-xxxx / LT-CUS-xxxx"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
               onKeyDown={(e) => e.key === "Enter" && activate()}
             />
@@ -151,7 +150,7 @@ export default function LicensePanel() {
       </div>
 
       {/* Upgrade CTA */}
-      {status?.plan === "FREE" && (
+      {status?.plan === "COMMUNITY" && (
         <p className="text-xs text-gray-400">
           Don&apos;t have a license?{" "}
           <a
@@ -160,7 +159,7 @@ export default function LicensePanel() {
             rel="noopener noreferrer"
             className="text-blue-600 hover:underline"
           >
-            Get Pro — $249/year →
+            Get Starter — $299/year →
           </a>
         </p>
       )}

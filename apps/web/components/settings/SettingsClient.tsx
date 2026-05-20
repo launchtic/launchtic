@@ -7,6 +7,7 @@ import {
   Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { isAgencyPlan }   from "../../lib/plan";
 import ProfilePanel       from "./ProfilePanel";
 import GeneralPanel       from "./GeneralPanel";
 import DomainsPanel       from "./DomainsPanel";
@@ -85,7 +86,10 @@ export default function SettingsClient({
   const searchParams = useSearchParams();
   const router       = useRouter();
   const pathname     = usePathname();
-  const isPro        = workspacePlan === "PRO" || workspacePlan === "ENTERPRISE";
+  // Multi-workspace + team are Agency-tier features (not Starter/"Pro").
+  // Naming kept as `isPro` for now to avoid touching every reference below —
+  // the variable semantically gates "is this an agency-or-better account?".
+  const isPro        = isAgencyPlan(workspacePlan);
 
   // Filter items based on plan.
   const visibleSections = NAV_SECTIONS.map((section) => ({

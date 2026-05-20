@@ -54,7 +54,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
 
   const rendererUrl  = process.env.RENDERER_URL!;
   const rendererHost = new URL(rendererUrl).host;
-  const workspacePlan   = user?.plan ?? "FREE";
+  const workspacePlan   = user?.plan ?? "COMMUNITY";
   const userName        = user?.name  ?? "";
   const userEmail       = user?.email ?? "";
   const currentUserRole = currentMember?.role ?? "OWNER";

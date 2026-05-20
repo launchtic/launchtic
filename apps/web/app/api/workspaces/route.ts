@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const isExpired = user?.licenseExpiresAt != null && user.licenseExpiresAt < new Date();
     const hasLicense = user?.licenseKey != null && !isExpired;
-    const currentPlan = hasLicense ? (user?.plan ?? "FREE") : "FREE";
+    const currentPlan = hasLicense ? (user?.plan ?? "COMMUNITY") : "COMMUNITY";
 
     if (!canCreateWorkspace(currentPlan, currentCount)) {
       return err("Upgrade to Pro to create additional workspaces.", 403);

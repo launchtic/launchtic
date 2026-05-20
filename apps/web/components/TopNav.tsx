@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { isAgencyPlan } from "../lib/plan";
 
 type NavLink = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string; icon: LucideIcon; children: NavLink[] };
@@ -132,7 +133,7 @@ function UserMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const isPro = workspacePlan === "PRO" || workspacePlan === "ENTERPRISE";
+  const isPro = isAgencyPlan(workspacePlan);
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -163,7 +164,7 @@ function UserMenu({
             <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
 
-          {/* Workspaces — PRO/ENTERPRISE only */}
+          {/* Workspaces — AGENCY/ENTERPRISE only (multi-workspace tier) */}
           {isPro && (
             <div className="border-b border-gray-100 py-1">
               <Link

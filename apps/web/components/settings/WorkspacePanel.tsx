@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, Plus, Pencil, Trash2, Check, X, Building2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { isAgencyPlan } from "../../lib/plan";
 
 type Workspace = { id: string; name: string; slug: string; ownerId: string; userRole: string };
 
@@ -23,7 +24,7 @@ export default function WorkspacePanel({
 }) {
   const { update } = useSession();
   const router = useRouter();
-  const isPro = workspacePlan === "PRO" || workspacePlan === "ENTERPRISE";
+  const isPro = isAgencyPlan(workspacePlan);
 
   const [items, setItems] = useState<Workspace[]>(initialWorkspaces);
   const [activeId, setActiveId] = useState(currentWorkspaceId);

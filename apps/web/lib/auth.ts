@@ -57,12 +57,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const workspaceRole = membership?.role ?? null;
 
         // Inherit plan from the workspace owner
-        let workspacePlan = "FREE";
+        let workspacePlan = "COMMUNITY";
         if (workspace) {
           const owner = workspace.owner;
           const isExpired  = owner.licenseExpiresAt != null && owner.licenseExpiresAt < new Date();
           const hasLicense = owner.licenseKey != null && !isExpired;
-          workspacePlan = hasLicense ? (owner.plan ?? "FREE") : "FREE";
+          workspacePlan = hasLicense ? (owner.plan ?? "COMMUNITY") : "COMMUNITY";
         }
 
         return {

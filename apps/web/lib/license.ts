@@ -50,7 +50,7 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
   });
 
   // Nothing to verify for FREE users or users without a key.
-  if (!user?.licenseKey || user.plan === "FREE") return;
+  if (!user?.licenseKey || user.plan === "COMMUNITY") return;
 
   const now         = Date.now();
   const lastVerified = user.licenseVerifiedAt?.getTime() ?? 0;
@@ -61,7 +61,7 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
   const result = await verifyLicenseKey(user.licenseKey, user.instanceId ?? userId);
 
   if (result.valid) {
-    // Update plan (may have changed, e.g. PRO → ENTERPRISE upgrade) + reset timer.
+    // Update plan (may have changed, e.g. STARTER → AGENCY upgrade) + reset timer.
     await db.user.update({
       where: { id: userId },
       data: { plan: result.plan as any, licenseVerifiedAt: new Date() },
@@ -73,7 +73,7 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
     // Server responded: key is invalid or revoked → downgrade immediately.
     await db.user.update({
       where: { id: userId },
-      data: { plan: "FREE", licenseKey: null, licenseVerifiedAt: new Date() },
+      data: { plan: "COMMUNITY", licenseKey: null, licenseVerifiedAt: new Date() },
     });
     return;
   }
@@ -82,7 +82,7 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
   if (now - lastVerified > GRACE_PERIOD_MS) {
     await db.user.update({
       where: { id: userId },
-      data: { plan: "FREE" },
+      data: { plan: "COMMUNITY" },
     });
   }
   // else: keep current plan and try again next page load.

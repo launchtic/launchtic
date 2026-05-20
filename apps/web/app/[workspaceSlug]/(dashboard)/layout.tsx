@@ -37,7 +37,7 @@ export default async function DashboardLayout({
   ]);
 
   const workspaceName = ws?.name ?? workspaceSlug;
-  const workspacePlan = user?.plan ?? "FREE";
+  const workspacePlan = user?.plan ?? "COMMUNITY";
 
   const fullName = user?.name ?? user?.email ?? "User";
   const initials = fullName

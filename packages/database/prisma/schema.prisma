@@ -19,7 +19,7 @@ model User {
   passwordHash     String
   name             String?
   avatar           String?
-  plan              Plan      @default(FREE)
+  plan              Plan      @default(COMMUNITY)
   licenseKey        String?
   licenseExpiresAt  DateTime?
   licenseVerifiedAt DateTime?
@@ -988,10 +988,17 @@ model ContactSequenceEnrollment {
 // ENUMS
 // ─────────────────────────────────────────
 
+// Plan tiers — names match UI labels exactly (no mapping layer):
+//   COMMUNITY — free self-host, $0
+//   STARTER   — $299/yr, removes branding, premium templates
+//   AGENCY    — $1,499/yr, multi-workspace, team, white-label
+//   CUSTOM    — contact sales, SSO, audit, SLA
+// License key prefixes: LT-STR-, LT-AGY-, LT-CUS-.
 enum Plan {
-  FREE
-  PRO
-  ENTERPRISE
+  COMMUNITY
+  STARTER
+  AGENCY
+  CUSTOM
 }
 
 enum Role {
