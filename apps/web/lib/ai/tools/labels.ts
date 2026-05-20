@@ -55,6 +55,12 @@ const TOOL_LABELS: Record<string, string> = {
   // ─── Automations ─────────────────────────────────────────────────────────
   list_automations:           "Listing automations",
   update_automation_status:   "Toggling automation status",
+
+  // ─── Coupons ─────────────────────────────────────────────────────────────
+  list_coupons:               "Listing coupons",
+  create_coupon:              "Creating coupon",
+  attach_coupon_to_step:      "Attaching coupon to step",
+  detach_coupon_from_step:    "Detaching coupon",
 };
 
 export function toolLabel(name: string): string {

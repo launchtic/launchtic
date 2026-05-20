@@ -24,3 +24,4 @@ export {
   verifyUnsubscribeToken,
   buildUnsubscribeUrl,
 } from "./unsubscribe";
+export { shouldShowLaunchticBadge } from "./badge-gate";

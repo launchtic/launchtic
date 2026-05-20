@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
-import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { render, renderEmailContent, buildUnsubscribeUrl, shouldShowLaunchticBadge } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { emailQueue, type EmailJobData } from "../../../../../lib/queue";
@@ -28,8 +28,15 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return err("SMTP not configured. Configure it in Settings → SMTP first.", 400);
     }
 
-    const workspace = await db.workspace.findUnique({ where: { id: workspaceId } });
+    const workspace = await db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { name: true, owner: { select: { plan: true, licenseExpiresAt: true } } },
+    });
     const workspaceName = workspace?.name ?? "Your Workspace";
+    const appendPoweredByBadge = shouldShowLaunchticBadge(
+      workspace?.owner?.plan,
+      workspace?.owner?.licenseExpiresAt,
+    );
 
     const queue = emailQueue();
 
@@ -78,7 +85,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
           unsubscribeUrl: buildUnsubscribeUrl(contact.id),
         };
         const subject = render(broadcast.subject, vars);
-        const html = await renderEmailContent(broadcast.htmlBody, vars);
+        const html = await renderEmailContent(broadcast.htmlBody, vars, { appendPoweredByBadge });
 
         sendIdsToRequeue.push(send.id);
         sendUpdates.push(

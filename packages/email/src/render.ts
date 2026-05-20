@@ -145,9 +145,37 @@ export type RenderOptions = {
   // Workspace physical mailing address (CAN-SPAM §5(a)(5)). Rendered as a
   // small centered footer block above the unsubscribe line.
   physicalAddress?: string | null;
+  // Append the "Powered by Launchtic" badge after the rendered HTML body.
+  // Mirrors the published-page badge — shown for FREE/expired licenses,
+  // hidden for PRO/Enterprise (white-label). Callers compute the flag via
+  // `shouldShowLaunchticBadge(plan, licenseExpiresAt)` from ./badge-gate.
+  appendPoweredByBadge?: boolean;
 };
 
 const DEFAULT_UNSUB_TEXT = "Don't want these emails? You can {unsubscribe} anytime.";
+
+// Email-safe "Powered by Launchtic" badge — table-based layout + inline
+// styles so Outlook desktop renders consistently. Visual mirrors
+// apps/renderer/components/PoweredByBadge.tsx (dark pill + blue accent) but
+// without position:fixed / hover effects, which most email clients strip.
+const LAUNCHTIC_BADGE_HTML =
+  '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0 0 0;border-collapse:collapse;">' +
+    '<tr><td align="center" style="padding:8px 24px;">' +
+      '<a href="https://launchtic.com" target="_blank" rel="noopener noreferrer" ' +
+         'style="display:inline-block;padding:8px 14px;background:#0f172a;color:#ffffff;' +
+                'text-decoration:none;border-radius:50px;font-family:Arial,Helvetica,sans-serif;' +
+                'font-size:11px;letter-spacing:0.04em;line-height:1;">' +
+        '<span style="color:#94a3b8;font-weight:400;">Powered by</span> ' +
+        '<span style="color:#60a5fa;font-weight:700;">Launchtic</span>' +
+      '</a>' +
+    '</td></tr>' +
+  '</table>';
+
+function injectLaunchticBadge(html: string): string {
+  const idx = html.lastIndexOf("</body>");
+  if (idx === -1) return html + LAUNCHTIC_BADGE_HTML;
+  return html.slice(0, idx) + LAUNCHTIC_BADGE_HTML + html.slice(idx);
+}
 
 // Match the FIRST single-brace token in the template — captures its inner
 // text (used as the visible link label). Single brace `{...}` distinguishes
@@ -245,5 +273,6 @@ export async function renderEmailContent(
   // for callers that never use it.
   const { render: mailyRender } = await import("@maily-to/render");
   const html = await mailyRender(json, { theme: EMAIL_THEME });
-  return render(html, vars);
+  const substituted = render(html, vars);
+  return opts.appendPoweredByBadge ? injectLaunchticBadge(substituted) : substituted;
 }

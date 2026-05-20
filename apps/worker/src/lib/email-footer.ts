@@ -6,7 +6,7 @@
 // all three workers — no per-email copy, no drift.
 
 import { db } from "@launchtic/database";
-import type { RenderOptions } from "@launchtic/email/server";
+import { shouldShowLaunchticBadge, type RenderOptions } from "@launchtic/email/server";
 
 export type WorkspaceFooterConfig = {
   unsubscribeText: string | null;
@@ -28,10 +28,20 @@ export async function loadWorkspaceFooter(workspaceId: string): Promise<Workspac
 
 /** Build RenderOptions for marketing email render — always appends unsubscribe. */
 export async function marketingRenderOptions(workspaceId: string): Promise<RenderOptions> {
-  const footer = await loadWorkspaceFooter(workspaceId);
+  const [footer, workspace] = await Promise.all([
+    loadWorkspaceFooter(workspaceId),
+    db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { owner: { select: { plan: true, licenseExpiresAt: true } } },
+    }),
+  ]);
   return {
     appendUnsubscribe: true,
     unsubscribeText: footer.unsubscribeText,
     physicalAddress: footer.physicalAddress,
+    appendPoweredByBadge: shouldShowLaunchticBadge(
+      workspace?.owner?.plan,
+      workspace?.owner?.licenseExpiresAt,
+    ),
   };
 }

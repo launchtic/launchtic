@@ -9,3 +9,4 @@ export {
   STANDARD_VARIABLES,
   type RenderVars,
 } from "./render";
+export { shouldShowLaunchticBadge } from "./badge-gate";

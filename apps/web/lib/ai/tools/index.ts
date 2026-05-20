@@ -15,6 +15,7 @@ import { pageTemplateTools } from "./page-template";
 import { broadcastTools }   from "./broadcast";
 import { sequenceTools }    from "./sequence";
 import { automationTools }  from "./automation";
+import { couponTools }      from "./coupon";
 
 // Re-export ToolContext for callers (llm.ts, conversation.ts, etc.) that
 // import it via the tools barrel.
@@ -36,6 +37,7 @@ const ALL_TOOLS: ToolDef<any>[] = [
   ...broadcastTools,
   ...sequenceTools,
   ...automationTools,
+  ...couponTools,
 ];
 
 // Lifecycle events fired by the wrapped execute — surfaced to the chat UI

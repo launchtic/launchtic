@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { render, sampleVars } from "@launchtic/email";
-import { renderEmailContent } from "@launchtic/email/server";
+import { renderEmailContent, shouldShowLaunchticBadge } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 
@@ -16,14 +16,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { id } = await params;
     const [template, workspace] = await Promise.all([
       db.emailTemplate.findFirst({ where: { id, workspaceId } }),
-      db.workspace.findUnique({ where: { id: workspaceId } }),
+      db.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { name: true, owner: { select: { plan: true, licenseExpiresAt: true } } },
+      }),
     ]);
     if (!template) return err("Template not found", 404);
 
     const workspaceName = workspace?.name ?? "Your Workspace";
     const vars = { ...sampleVars(), workspace: { name: workspaceName } };
     const subject = render(template.subject, vars);
-    const html = await renderEmailContent(template.htmlBody, vars);
+    const html = await renderEmailContent(template.htmlBody, vars, {
+      appendPoweredByBadge: shouldShowLaunchticBadge(
+        workspace?.owner?.plan,
+        workspace?.owner?.licenseExpiresAt,
+      ),
+    });
 
     return ok({ subject, html });
   } catch (error) {

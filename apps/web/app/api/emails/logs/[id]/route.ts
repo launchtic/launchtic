@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
-import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { render, renderEmailContent, buildUnsubscribeUrl, shouldShowLaunchticBadge } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 
@@ -27,8 +27,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
     });
     if (!log) return err("Email log not found", 404);
 
-    const workspace = await db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } });
+    const workspace = await db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { name: true, owner: { select: { plan: true, licenseExpiresAt: true } } },
+    });
     const workspaceName = workspace?.name ?? "Your Workspace";
+    const appendPoweredByBadge = shouldShowLaunchticBadge(
+      workspace?.owner?.plan,
+      workspace?.owner?.licenseExpiresAt,
+    );
 
     // Preview render priority:
     //   1. log.bodyHtml — stored snapshot of what was actually sent (truth)
@@ -70,7 +77,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           unsubscribeUrl: c ? buildUnsubscribeUrl(c.id) : "#unsubscribe",
         };
         previewSubject = render(sourceSubject, vars);
-        previewHtml = await renderEmailContent(sourceHtml, vars);
+        previewHtml = await renderEmailContent(sourceHtml, vars, { appendPoweredByBadge });
         previewAvailable = true;
         previewWarning = c
           ? "Re-rendered from source — diverges if the source was edited after send."
