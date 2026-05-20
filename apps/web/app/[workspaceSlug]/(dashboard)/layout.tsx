@@ -6,6 +6,8 @@ import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
 import { ToastProvider } from "../../../components/ui/Toast";
 import { UnsavedChangesProvider } from "../../../contexts/UnsavedChangesContext";
 import AssistantWidget from "../../../components/ai/AssistantWidget";
+import OnboardingChecklist from "../../../components/dashboard/OnboardingChecklist";
+import { getOnboardingStatus } from "../../../lib/onboarding";
 import NextTopLoader from "nextjs-toploader";
 
 export default async function DashboardLayout({
@@ -23,6 +25,12 @@ export default async function DashboardLayout({
 
   // Re-verify license in background — no-op if checked within last 24h.
   await reVerifyIfStale(userId);
+
+  // Onboarding checklist surfaces on every workspace page (not just /dashboard)
+  // so the operator can finish setup mid-task. Cheap query — same Promise.all
+  // pattern, ~5 indexed counts.
+  const workspaceId = (session as any).workspaceId as string | undefined;
+  const onboarding = workspaceId ? await getOnboardingStatus(workspaceId) : null;
 
   const workspaceName = ((session as any).workspaceName as string | null) ?? workspaceSlug;
   const workspacePlan = ((session as any).workspacePlan as string | null) ?? "FREE";
@@ -53,6 +61,9 @@ export default async function DashboardLayout({
               {children}
             </main>
           </div>
+          {onboarding && !onboarding.isComplete && !onboarding.isDismissed && (
+            <OnboardingChecklist status={onboarding} />
+          )}
           <AssistantWidget />
         </UnsavedChangesProvider>
       </ToastProvider>

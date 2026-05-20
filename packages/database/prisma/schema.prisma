@@ -565,6 +565,11 @@ model WorkspaceSettings {
   ai          Json? // { provider: "anthropic", model, apiKeyEnc, enabled }
   emailFooter Json? // { customText?, physicalAddress? } — appended to every marketing email above the unsubscribe link
 
+  // Set to true when the operator dismisses the onboarding checklist on the
+  // dashboard. Independent column (not JSONB) so we can filter / count without
+  // parsing JSON on every dashboard load.
+  onboardingDismissed Boolean @default(false)
+
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 

@@ -100,17 +100,19 @@ export default function SettingsClient({
   const allVisibleItems = visibleSections.flatMap((s) => s.items);
   type Section = typeof allVisibleItems[number]["id"];
 
-  const tabParam    = searchParams.get("tab") as Section;
-  const allowedIds  = allVisibleItems.map((n) => n.id);
-  const [active, setActive]         = useState<Section>(
-    allowedIds.includes(tabParam) ? tabParam : "profile"
-  );
+  const tabParam   = searchParams.get("tab") as Section | null;
+  const allowedIds = allVisibleItems.map((n) => n.id);
+  // Derive `active` directly from the URL — useState would only initialize
+  // once, so external nav (e.g. an <a href="?tab=ai-assistant"> from another
+  // component) wouldn't switch the tab. searchParams is reactive in Next so
+  // any URL change re-renders with the new value.
+  const active: Section =
+    tabParam && allowedIds.includes(tabParam) ? tabParam : "profile";
   const [mobileView, setMobileView] = useState<"nav" | "content">("nav");
 
   const activeItem = allVisibleItems.find((n) => n.id === active) ?? allVisibleItems[0];
 
   function handleSelect(id: Section) {
-    setActive(id);
     setMobileView("content");
     router.replace(`${pathname}?tab=${id}`, { scroll: false });
   }

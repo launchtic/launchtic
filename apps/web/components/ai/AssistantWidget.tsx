@@ -192,7 +192,10 @@ export default function AssistantWidget() {
     }
   }
 
-  if (available === null) return null; // still loading
+  // Hide entirely when AI isn't configured (or still checking). Onboarding
+  // checklist surfaces "Configure AI Assistant" — once the user adds a key,
+  // checkAvailability flips this to true on next mount and the widget appears.
+  if (!available) return null;
 
   return (
     <>

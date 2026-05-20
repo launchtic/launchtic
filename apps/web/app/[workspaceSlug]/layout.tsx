@@ -1,3 +1,10 @@
+import { auth } from "../../lib/auth";
+import { redirect, notFound } from "next/navigation";
+import { db } from "@launchtic/database";
+
+// redirect is used only for the unauthenticated → /login case; notFound
+// handles invalid slugs without picking an arbitrary fallback workspace.
+
 export default async function WorkspaceLayout({
   children,
   params,
@@ -5,8 +12,31 @@ export default async function WorkspaceLayout({
   children: React.ReactNode;
   params: Promise<{ workspaceSlug: string }>;
 }) {
-  // Workspace validation will be added when multi-workspace is implemented.
-  // For now, just render children — access is enforced by the dashboard layout's
-  // auth check and the fact that session.workspaceId is locked to the user's workspace.
+  const session = await auth();
+  if (!session) redirect("/login");
+
+  const { workspaceSlug } = await params;
+  const userId = session.user?.id as string;
+
+  // Validate the URL slug points at a workspace the user belongs to. Without
+  // this check, arbitrary slugs render the UI for the user's real workspace
+  // (backend queries use session.workspaceId, not the URL) — confusing and
+  // breaks anything that reads useParams().workspaceSlug. Covers all routes
+  // under [workspaceSlug]/* (dashboard, editor, page-template-editor, ...).
+  //
+  // We deliberately 404 rather than redirect to the user's "real" workspace:
+  //   - Multi-workspace (Agency): redirecting picks an arbitrary one and the
+  //     user may not realize they're now in a different workspace — risk of
+  //     editing wrong data.
+  //   - Single-workspace (Community/Pro): typo → 404 is clearer than silent
+  //     redirect; the 404 page links back to dashboard.
+  //   - Post-login routing to the user's actual workspace is handled in the
+  //     auth callback, not here.
+  const member = await db.workspaceMember.findFirst({
+    where: { userId, workspace: { slug: workspaceSlug } },
+    select: { workspaceId: true },
+  });
+  if (!member) notFound();
+
   return <>{children}</>;
 }
