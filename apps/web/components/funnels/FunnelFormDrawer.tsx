@@ -17,7 +17,7 @@ const GOAL_STEPS: Record<GoalId, { name: string; slugSuffix: string; type: strin
   ],
   sell: [
     { name: "Sales Page",   slugSuffix: "sales",     type: "SALES"    },
-    { name: "Order Form",   slugSuffix: "checkout",  type: "CHECKOUT" },
+    { name: "Checkout Page",   slugSuffix: "checkout",  type: "CHECKOUT" },
     { name: "Thank You",    slugSuffix: "thankyou",  type: "THANKYOU" },
   ],
   custom: [],

@@ -81,7 +81,7 @@ const TYPE_ICON_MAP: Record<string, React.ReactNode> = {
 const TYPE_LABEL_MAP: Record<string, string> = {
   OPTIN:    "Opt-in page",
   SALES:    "Sales page",
-  CHECKOUT: "Order form",
+  CHECKOUT: "Checkout page",
   UPSELL:   "Upsell page",
   DOWNSELL: "Downsell page",
   THANKYOU: "Thank you page",
