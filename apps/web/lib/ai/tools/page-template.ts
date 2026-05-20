@@ -139,7 +139,7 @@ const swapStepTemplate = defineTool({
       stepId: step.id,
       stepName: step.name,
       templateName: template.name,
-      message: `Template swapped to "${template.name}". [Open editor](/funnels/${step.funnel.id}) to review.`,
+      message: `Template swapped to "${template.name}". [Open editor](/${ctx.workspaceSlug}/funnels/${step.funnel.id}) to review.`,
     };
   },
 });

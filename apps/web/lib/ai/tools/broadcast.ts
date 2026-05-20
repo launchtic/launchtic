@@ -297,8 +297,8 @@ const createBroadcastFromSpec = defineTool({
       scheduledAt: scheduledAt?.toISOString() ?? null,
       scheduleBumped,
       message: status === "SCHEDULED"
-        ? `Broadcast SCHEDULED${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/emails/broadcasts/${broadcast.id}) if you want to review.`
-        : `Broadcast saved as DRAFT. [Open in editor](/emails/broadcasts/${broadcast.id}) to review and schedule.`,
+        ? `Broadcast SCHEDULED${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/${ctx.workspaceSlug}/emails/broadcasts/${broadcast.id}) if you want to review.`
+        : `Broadcast saved as DRAFT. [Open in editor](/${ctx.workspaceSlug}/emails/broadcasts/${broadcast.id}) to review and schedule.`,
     };
   },
 });
@@ -377,8 +377,8 @@ const updateBroadcast = defineTool({
       scheduledAt: newScheduledAt?.toISOString() ?? null,
       scheduleBumped,
       message: newScheduledAt
-        ? `Broadcast updated and rescheduled${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/emails/broadcasts/${updated.id})`
-        : `Broadcast updated. [Open in editor](/emails/broadcasts/${updated.id})`,
+        ? `Broadcast updated and rescheduled${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/${ctx.workspaceSlug}/emails/broadcasts/${updated.id})`
+        : `Broadcast updated. [Open in editor](/${ctx.workspaceSlug}/emails/broadcasts/${updated.id})`,
     };
   },
 });

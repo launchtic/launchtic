@@ -634,9 +634,9 @@ const createFunnelFromSpec = defineTool({
         currency: funnel.currency.toUpperCase(),
         stepsCreated: stepsCreated.length,
         steps: stepsCreated,
-        editorUrl: `/funnels/${funnel.id}`,
+        editorUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
         tagsCreated: Array.from(tagIdByName.keys()),
-        message: `Funnel created. [Open in editor](/funnels/${funnel.id}) to customize copy + design.`,
+        message: `Funnel created. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id}) to customize copy + design.`,
       };
     });
   },
@@ -800,7 +800,7 @@ const addFunnelStep = defineTool({
         stepId: step.id,
         stepName: step.name,
         stepType: step.type,
-        message: `Step "${step.name}" added. [Open in editor](/funnels/${funnel.id})`,
+        message: `Step "${step.name}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id})`,
       };
     });
   },
@@ -897,7 +897,7 @@ const addOrderBump = defineTool({
       return {
         bumpId: bump.id,
         label: bump.label,
-        message: `Bump "${bump.label}" added. [Open in editor](/funnels/${step.funnel.id})`,
+        message: `Bump "${bump.label}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${step.funnel.id})`,
       };
     });
   },
@@ -1033,7 +1033,7 @@ const grantTagOnPurchase = defineTool({
       return {
         stepName: step.name,
         tagName: args.tagName,
-        message: `Tag "${args.tagName}" will be granted on purchase. [Open editor](/funnels/${step.funnel.id})`,
+        message: `Tag "${args.tagName}" will be granted on purchase. [Open editor](/${ctx.workspaceSlug}/funnels/${step.funnel.id})`,
       };
     });
   },

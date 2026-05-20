@@ -171,7 +171,7 @@ const createSequenceFromSpec = defineTool({
         sequenceId: seq.id,
         name: seq.name,
         stepCount: args.steps.length,
-        message: `Sequence saved as DRAFT. [Open in editor](/sequences/${seq.id}) to review, then activate.`,
+        message: `Sequence saved as DRAFT. [Open in editor](/${ctx.workspaceSlug}/sequences/${seq.id}) to review, then activate.`,
       };
     });
   },

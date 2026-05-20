@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { runChat, executeConfirmedTool } from "../../../../lib/ai/llm";
@@ -23,6 +24,11 @@ export async function POST(req: NextRequest) {
     if (!ai.apiKey) return err("API key missing — re-enter it in Settings.", 500);
     const apiKey = ai.apiKey;
 
+    // Workspace slug for tool-generated links (see chat/route.ts).
+    const ws = await db.workspace.findUnique({ where: { id: workspaceId }, select: { slug: true } });
+    if (!ws) return err("Workspace not found", 404);
+    const workspaceSlug = ws.slug;
+
     const { messageId, approve, timezone } = schema.parse(await req.json());
 
     const conv = await getOrCreateConversation(workspaceId, userId);
@@ -31,7 +37,7 @@ export async function POST(req: NextRequest) {
       conversationId: conv.id,
       messageId,
       approve,
-      ctx: { workspaceId, userId },
+      ctx: { workspaceId, workspaceSlug, userId },
     });
 
     // Continue the chat loop so the LLM can respond to the tool_result.
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest) {
       settings: ai,
       apiKey,
       conversationId: conv.id,
-      ctx: { workspaceId, userId },
+      ctx: { workspaceId, workspaceSlug, userId },
       timezone,
     });
 

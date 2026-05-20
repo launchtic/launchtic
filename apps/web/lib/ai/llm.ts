@@ -121,9 +121,8 @@ GUIDELINES:
 FUNNEL TEMPLATES — Before \`create_funnel_from_spec\` or \`add_funnel_step\`, call \`list_page_templates\` (optionally filtered by step type) to see available designs. Match template descriptions to the product context (info-product, SaaS, high-ticket, etc.) and pass the chosen IDs via \`templateIds\` (create) or \`templateId\` (add). Skip the template lookup only if the operator has no specific style preference and the defaults are fine.
 
 LINKS — Always use markdown link format \`[label](/path)\` when pointing the user to a page.
-- Tool results often include a path or URL field (editorUrl, dashboardUrl, etc.) — wrap them like: \`[Open editor](/funnels/abc123)\`, \`[View broadcast](/broadcasts/abc)\`.
-- Never paste a raw path like "/funnels/cmop15..." — it won't be clickable.
-- If a tool result has a \`message\` field that already contains markdown links, pass it through unchanged.`;
+- Tool results already include workspace-scoped paths (\`/{workspaceSlug}/funnels/...\`, \`/{workspaceSlug}/emails/broadcasts/...\`). If a tool result has a \`message\` field with markdown links OR an \`editorUrl\` field, pass them through unchanged — they already include the correct workspace slug.
+- Never construct paths yourself. Always use what the tool returns.`;
 }
 
 // Provider factory — swap providers by changing one line in settings.

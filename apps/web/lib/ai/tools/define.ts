@@ -8,8 +8,9 @@
 import type { z } from "zod";
 
 export type ToolContext = {
-  workspaceId: string;
-  userId: string;
+  workspaceId:   string;
+  workspaceSlug: string;  // URL prefix — needed to build dashboard links in tool results
+  userId:        string;
 };
 
 export type ToolDef<S extends z.ZodObject<any> = z.ZodObject<any>> = {
