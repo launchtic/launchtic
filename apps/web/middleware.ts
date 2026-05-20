@@ -20,9 +20,11 @@ export default auth((req) => {
   }
 
   if (req.auth && isAuthPage) {
-    const slug = (req.auth as any).workspaceSlug as string | undefined;
-    const dest = slug ? `/${slug}/dashboard` : "/dashboard";
-    return NextResponse.redirect(new URL(dest, req.nextUrl));
+    // Authed user on /login or /register — punt to /dashboard, which is a
+    // server component that resolves the user's default workspace from DB
+    // and 302s to /{slug}/dashboard. Middleware is edge-runtime and can't
+    // hit Prisma directly, so this 2-hop pattern keeps things simple.
+    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
 
   return NextResponse.next();

@@ -11,6 +11,7 @@
 
 import { auth } from "./auth";
 import { headers } from "next/headers";
+import { redirect, notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import { err } from "./api";
 
@@ -77,15 +78,11 @@ type Denied = { ok: false; response: ReturnType<typeof err> };
  * - No permission arg → any authenticated workspace member is allowed (read-only routes).
  * - With permission arg → role must have that permission.
  *
- * Workspace resolution (URL-driven, industry standard):
- *   1. Read `x-workspace-slug` header — set by the client `apiFetch` wrapper
- *      from the current URL path (`/{slug}/...`). This is the source of truth
- *      when the user is browsing a workspace, regardless of which workspace
- *      their session previously "selected".
- *   2. Validate the user is a member of that workspace; resolve to workspaceId.
- *   3. Fallback: session.workspaceId. Used by callers that aren't request-
- *      scoped (background jobs, scripts) or legacy fetch calls that haven't
- *      migrated to apiFetch yet. Backward compatible — nothing breaks.
+ * Workspace resolution: STRICTLY URL-driven via `X-Workspace-Slug` header.
+ * The client `apiFetch` wrapper sets it from the current URL path
+ * (`/{slug}/...`). Session no longer carries workspace state, so there's no
+ * fallback — a missing header means the caller never went through apiFetch
+ * (or hit /api/* outside a workspace-scoped page) and gets 401.
  *
  * Pattern (unchanged):
  *   const r = await requireAccess("funnels:write");
@@ -97,35 +94,20 @@ export async function requireAccess(permission?: Permission): Promise<Access | D
   const userId  = session?.user?.id;
   if (!userId) return { ok: false, response: err("Unauthorized", 401) };
 
-  // 1. Prefer URL-driven slug from header
-  let workspaceId: string | undefined;
-  try {
-    const h = await headers();
-    const slug = h.get("x-workspace-slug");
-    if (slug) {
-      const ws = await db.workspace.findFirst({
-        where: { slug },
-        select: { id: true },
-      });
-      // Slug points at a non-existent workspace OR caller is spoofing — reject
-      // even before membership check (membership check below would 401 anyway,
-      // but explicit 404 here is the honest signal).
-      if (!ws) return { ok: false, response: err("Workspace not found", 404) };
-      workspaceId = ws.id;
-    }
-  } catch {
-    // headers() throws when called outside a request scope (e.g. background
-    // worker) — silently fall through to session-based resolution.
-  }
+  // Resolve workspace from URL slug (header set by apiFetch). No fallback.
+  const h = await headers();
+  const slug = h.get("x-workspace-slug");
+  if (!slug) return { ok: false, response: err("Missing workspace context", 400) };
 
-  // 2. Fallback to session
-  if (!workspaceId) {
-    workspaceId = (session as any)?.workspaceId as string | undefined;
-  }
-  if (!workspaceId) return { ok: false, response: err("Unauthorized", 401) };
+  const ws = await db.workspace.findFirst({
+    where: { slug },
+    select: { id: true },
+  });
+  if (!ws) return { ok: false, response: err("Workspace not found", 404) };
+  const workspaceId = ws.id;
 
-  // 3. Membership check (also enforces that the URL-supplied workspace
-  // is actually one the user belongs to — non-member callers get 401).
+  // Membership check enforces that the URL slug is actually a workspace the
+  // caller is a member of — non-member callers get 401.
   const member = await db.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
     select: { role: true },
@@ -145,4 +127,36 @@ export async function getWorkspaceAccess(): Promise<{
 } | null> {
   const r = await requireAccess();
   return r.ok ? r : null;
+}
+
+/**
+ * Server-component helper: resolve workspace from the URL slug param.
+ *
+ *   export default async function Page({ params }) {
+ *     const { workspaceSlug } = await params;
+ *     const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
+ *     // ... use workspaceId in db queries
+ *   }
+ *
+ * Replaces the legacy `session.workspaceId` reads. URL is the only source of
+ * truth — multi-tab safe, share-link safe, bookmark safe.
+ *
+ * Redirects to /login if unauthenticated; 404s if the user isn't a member of
+ * the URL workspace (parent layout already validates this, but the page is
+ * defensive in case it's mounted standalone or the layout check is bypassed).
+ */
+export async function requireWorkspaceFromSlug(slug: string): Promise<{
+  userId:        string;
+  workspaceId:   string;
+  workspaceSlug: string;
+}> {
+  const session = await auth();
+  const userId = session?.user?.id as string | undefined;
+  if (!userId) redirect("/login");
+  const ws = await db.workspace.findFirst({
+    where: { slug, members: { some: { userId } } },
+    select: { id: true, slug: true },
+  });
+  if (!ws) notFound();
+  return { userId, workspaceId: ws.id, workspaceSlug: ws.slug };
 }

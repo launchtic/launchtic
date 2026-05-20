@@ -1,16 +1,12 @@
-import { auth } from "../../../../lib/auth";
-import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import AutomationsList from "../../../../components/automations/AutomationsList";
 
+import { requireWorkspaceFromSlug } from "../../../../lib/permissions";
 export const metadata = { title: "Automations" };
 
-export default async function AutomationsPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+export default async function AutomationsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const automations = await db.automation.findMany({
     where: { workspaceId },

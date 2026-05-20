@@ -1,9 +1,9 @@
-import { auth } from "../../../../../lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
+import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import OrderDetail from "../../../../../components/orders/OrderDetail";
 
-type Params = { params: Promise<{ id: string }> };
+type Params = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export async function generateMetadata({ params }: Params) {
   const { id } = await params;
@@ -11,12 +11,8 @@ export async function generateMetadata({ params }: Params) {
 }
 
 export default async function OrderDetailPage({ params }: Params) {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const { id } = await params;
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+  const { id, workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const order = await db.order.findFirst({
     where: { id, workspaceId },

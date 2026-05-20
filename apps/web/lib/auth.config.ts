@@ -25,34 +25,18 @@ export const authConfig: NextAuthConfig = {
   // verify existing JWTs, so an empty providers array is correct on the Edge.
   providers: [],
   callbacks: {
-    // Attach extra data to the JWT token. Pure data shuffling — no I/O,
-    // safe to run on Edge or Node.
-    async jwt({ token, user, trigger, session }) {
-      if (trigger === "update" && session) {
-        if (session.workspaceId)   token.workspaceId   = session.workspaceId;
-        if (session.workspaceSlug) token.workspaceSlug = session.workspaceSlug;
-        if (session.workspaceName) token.workspaceName = session.workspaceName;
-        if (session.workspacePlan) token.workspacePlan = session.workspacePlan;
-        if (session.workspaceRole) token.workspaceRole = session.workspaceRole;
-      }
-      if (user) {
-        token.userId        = user.id;
-        token.workspaceId   = (user as any).workspaceId;
-        token.workspaceName = (user as any).workspaceName;
-        token.workspaceSlug = (user as any).workspaceSlug;
-        token.workspacePlan = (user as any).workspacePlan;
-        token.workspaceRole = (user as any).workspaceRole;
-      }
+    // Session stores ONLY the user identity. Workspace context (workspaceId,
+    // slug, plan, role) is no longer stamped onto the session — it's derived
+    // per-request from the URL (`X-Workspace-Slug` header for APIs, the URL
+    // param for server pages). This keeps multi-tab + multi-workspace clean:
+    // a session can't drift from the URL because there's no session workspace
+    // state to drift.
+    async jwt({ token, user }) {
+      if (user) token.userId = user.id;
       return token;
     },
-    // Mirror token data onto the session object exposed to UI / API code.
     async session({ session, token }) {
       session.user.id = token.userId as string;
-      (session as any).workspaceId = token.workspaceId;
-      (session as any).workspaceName = token.workspaceName;
-      (session as any).workspaceSlug = token.workspaceSlug;
-      (session as any).workspacePlan = token.workspacePlan;
-      (session as any).workspaceRole = token.workspaceRole;
       return session;
     },
   },

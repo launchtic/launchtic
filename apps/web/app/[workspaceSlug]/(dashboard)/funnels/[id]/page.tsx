@@ -1,9 +1,9 @@
-import { auth } from "../../../../../lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
+import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import FunnelStepManager from "../../../../../components/funnels/FunnelStepManager";
 
-type Params = { params: Promise<{ id: string }> };
+type Params = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export async function generateMetadata({ params }: Params) {
   const { id } = await params;
@@ -15,14 +15,11 @@ export async function generateMetadata({ params }: Params) {
 }
 
 export default async function FunnelDetailPage({ params }: Params) {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const { id } = await params;
-  const workspaceId = (session as any).workspaceId as string | null;
+  const { id, workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const funnel = await db.funnel.findUnique({
-    where: { id, workspaceId: workspaceId ?? "" },
+    where: { id, workspaceId },
     include: {
       steps: { orderBy: { order: "asc" } },
       domains: {

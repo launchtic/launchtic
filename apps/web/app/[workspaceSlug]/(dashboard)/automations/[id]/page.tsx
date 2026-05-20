@@ -1,17 +1,15 @@
-import { auth } from "../../../../../lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import AutomationBuilder from "../../../../../components/automations/AutomationBuilder";
 
+import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 export const metadata = { title: "Automation" };
 
-type PageProps = { params: Promise<{ id: string }> };
+type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export default async function AutomationDetailPage({ params }: PageProps) {
-  const session = await auth();
-  if (!session) redirect("/login");
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const { id } = await params;
   const [automation, tags, templates, funnels, sequences, senderIdentities] = await Promise.all([

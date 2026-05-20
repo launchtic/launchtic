@@ -1,16 +1,12 @@
-import { auth } from "../../../../../lib/auth";
-import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import TemplatesList from "../../../../../components/emails/TemplatesList";
 
+import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 export const metadata = { title: "Email Templates" };
 
-export default async function EmailTemplatesPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+export default async function EmailTemplatesPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const templates = await db.emailTemplate.findMany({
     where: { workspaceId },

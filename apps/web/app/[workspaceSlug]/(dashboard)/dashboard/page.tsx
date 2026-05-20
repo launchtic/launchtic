@@ -1,16 +1,12 @@
-import { auth } from "../../../../lib/auth";
-import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import DashboardClient from "../../../../components/dashboard/DashboardClient";
 
+import { requireWorkspaceFromSlug } from "../../../../lib/permissions";
 export const metadata = { title: "Dashboard" };
 
-export default async function DashboardPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+export default async function DashboardPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 

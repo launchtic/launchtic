@@ -1,9 +1,9 @@
-import { auth } from "../../../../../lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import SubscriptionDetail from "../../../../../components/subscriptions/SubscriptionDetail";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
+export async function generateMetadata({ params }: { params: Promise<{ id: string; workspaceSlug: string }> }) {
   const { id } = await params;
   const sub = await db.subscription.findUnique({
     where: { id },
@@ -15,12 +15,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: `Subscription — ${fullName || c.email}` };
 }
 
-export default async function SubscriptionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+export default async function SubscriptionDetailPage({ params }: { params: Promise<{ id: string; workspaceSlug: string }> }) {
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const { id } = await params;
 

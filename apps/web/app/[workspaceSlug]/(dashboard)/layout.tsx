@@ -1,6 +1,8 @@
 import { auth } from "../../../lib/auth";
 import { redirect } from "next/navigation";
+import { db } from "@launchtic/database";
 import { reVerifyIfStale } from "../../../lib/license";
+import { requireWorkspaceFromSlug } from "../../../lib/permissions";
 import TopNav from "../../../components/TopNav";
 import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
 import { ToastProvider } from "../../../components/ui/Toast";
@@ -18,24 +20,26 @@ export default async function DashboardLayout({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const session = await auth();
-  if (!session) redirect("/login");
+  if (!session?.user?.id) redirect("/login");
 
   const { workspaceSlug } = await params;
-  const userId = session.user?.id as string;
+  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   // Re-verify license in background — no-op if checked within last 24h.
   await reVerifyIfStale(userId);
 
-  // Onboarding checklist surfaces on every workspace page (not just /dashboard)
-  // so the operator can finish setup mid-task. Cheap query — same Promise.all
-  // pattern, ~5 indexed counts.
-  const workspaceId = (session as any).workspaceId as string | undefined;
-  const onboarding = workspaceId ? await getOnboardingStatus(workspaceId) : null;
+  // Workspace + user details for TopNav. Fetched per-request (no session
+  // cache) since session no longer carries workspace state.
+  const [ws, user, onboarding] = await Promise.all([
+    db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { name: true, email: true, plan: true } }),
+    getOnboardingStatus(workspaceId),
+  ]);
 
-  const workspaceName = ((session as any).workspaceName as string | null) ?? workspaceSlug;
-  const workspacePlan = ((session as any).workspacePlan as string | null) ?? "FREE";
+  const workspaceName = ws?.name ?? workspaceSlug;
+  const workspacePlan = user?.plan ?? "FREE";
 
-  const fullName = session.user?.name ?? session.user?.email ?? "User";
+  const fullName = user?.name ?? user?.email ?? "User";
   const initials = fullName
     .split(" ")
     .map((w: string) => w[0])
@@ -51,7 +55,7 @@ export default async function DashboardLayout({
           <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
             <TopNav
               name={fullName}
-              email={session.user?.email ?? ""}
+              email={user?.email ?? ""}
               initials={initials}
               workspaceSlug={workspaceSlug}
               workspaceName={workspaceName}

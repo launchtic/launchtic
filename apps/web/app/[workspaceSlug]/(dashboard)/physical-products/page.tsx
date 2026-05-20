@@ -1,15 +1,12 @@
-import { auth } from "../../../../lib/auth";
-import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import ProductsListClient from "../../../../components/physical-products/ProductsListClient";
 
+import { requireWorkspaceFromSlug } from "../../../../lib/permissions";
 export const metadata = { title: "Physical products" };
 
-export default async function ProductsPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+export default async function ProductsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const total = await db.physicalProduct.count({ where: { workspaceId } });
 

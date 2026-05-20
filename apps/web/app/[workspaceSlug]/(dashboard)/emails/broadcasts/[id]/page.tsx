@@ -1,17 +1,15 @@
-import { auth } from "../../../../../../lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import BroadcastDetail from "../../../../../../components/emails/BroadcastDetail";
 
+import { requireWorkspaceFromSlug } from "../../../../../../lib/permissions";
 export const metadata = { title: "Broadcast" };
 
-type PageProps = { params: Promise<{ id: string }> };
+type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export default async function BroadcastDetailPage({ params }: PageProps) {
-  const session = await auth();
-  if (!session) redirect("/login");
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
+  const { workspaceSlug } = await params;
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   const { id } = await params;
   const [broadcast, tags, templates, senderIdentities] = await Promise.all([

@@ -1,25 +1,23 @@
-import { auth } from "../../../../lib/auth";
-import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import SettingsClient from "../../../../components/settings/SettingsClient";
 import { decrypt } from "../../../../lib/crypto";
 import { ensureDefaultDomain } from "../../../../lib/domains/default-domain";
+import { requireWorkspaceFromSlug } from "../../../../lib/permissions";
 
 export const metadata = { title: "Settings" };
 
-export default async function SettingsPage() {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const workspaceId = (session as any).workspaceId as string | null;
-  if (!workspaceId) redirect("/login");
-
-  const userId = session.user?.id as string;
+export default async function SettingsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
+  const { workspaceSlug } = await params;
+  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
 
   // Lazy-seed PAGES_DOMAIN as the workspace's default Domain on first visit.
   await ensureDefaultDomain(workspaceId);
 
-  const [domains, settings, senderIdentities, workspaces, teamMembers, currentMember] = await Promise.all([
+  const [user, domains, settings, senderIdentities, workspaces, teamMembers, currentMember] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, plan: true },
+    }),
     db.domain.findMany({
       where: { workspaceId },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -56,10 +54,9 @@ export default async function SettingsPage() {
 
   const rendererUrl  = process.env.RENDERER_URL!;
   const rendererHost = new URL(rendererUrl).host;
-  const workspaceSlug = (session as any).workspaceSlug as string;
-  const workspacePlan = (session as any).workspacePlan as string ?? "FREE";
-  const userName        = session.user?.name  ?? "";
-  const userEmail       = session.user?.email ?? "";
+  const workspacePlan   = user?.plan ?? "FREE";
+  const userName        = user?.name  ?? "";
+  const userEmail       = user?.email ?? "";
   const currentUserRole = currentMember?.role ?? "OWNER";
 
   return (
