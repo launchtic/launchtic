@@ -44,7 +44,7 @@ function readToolResult(result: any): { value: unknown; isError: boolean } {
   return { value: v, isError: result.isError === true };
 }
 import type { AiSettings } from "./settings";
-import { buildSdkTools, getToolMeta, type ToolContext } from "./tools";
+import { buildSdkTools, getToolMeta, type ToolContext, type ToolEvent } from "./tools";
 import { appendMessage, loadMessages, updateMessageStatus, deleteMessage } from "./conversation";
 
 const MAX_STEPS = 8;
@@ -233,12 +233,15 @@ export async function runChat(opts: {
   conversationId: string;
   ctx: ToolContext;
   timezone?: string;  // IANA timezone from browser (e.g. "Asia/Ho_Chi_Minh")
+  // Optional progress callback — fires for each read-tool execute. Used by
+  // the chat SSE endpoint to stream real-time progress chips to the UI.
+  onEvent?: (event: ToolEvent) => void;
 }): Promise<ChatTurnResult> {
-  const { settings, apiKey, conversationId, ctx, timezone } = opts;
+  const { settings, apiKey, conversationId, ctx, timezone, onEvent } = opts;
 
   const messages = await loadMessages(conversationId);
   const sdkMessages = dbMessagesToSdk(messages);
-  const tools = buildSdkTools(ctx);
+  const tools = buildSdkTools(ctx, onEvent);
 
   let result;
   try {

@@ -19,6 +19,7 @@ import { automationTools }  from "./automation";
 // Re-export ToolContext for callers (llm.ts, conversation.ts, etc.) that
 // import it via the tools barrel.
 export type { ToolContext, ToolDef } from "./define";
+export { toolLabel } from "./labels";
 
 // All tools in one array. Order doesn't affect behavior — only used as a
 // stable iteration order for buildSdkTools.
@@ -37,6 +38,14 @@ const ALL_TOOLS: ToolDef<any>[] = [
   ...automationTools,
 ];
 
+// Lifecycle events fired by the wrapped execute — surfaced to the chat UI
+// via SSE so the operator sees real-time progress chips instead of a static
+// "Thinking..." spinner. tool_start fires before execute, tool_done after.
+export type ToolEvent =
+  | { type: "tool_start"; name: string }
+  | { type: "tool_done";  name: string; ms: number }
+  | { type: "tool_error"; name: string; ms: number; error: string };
+
 // Build the merged tools object passed to Vercel SDK's generateText.
 // Read tools (requiresConfirm=false) → execute included → SDK auto-runs.
 // Write tools (requiresConfirm=true) → execute omitted → SDK returns the call
@@ -45,7 +54,14 @@ const ALL_TOOLS: ToolDef<any>[] = [
 // Branch the tool() call: SDK's overloads disallow conditional execute via
 // spread (the "no execute" overload requires execute to be `undefined`,
 // not absent). Explicit branches let TS pick the right overload per case.
-export function buildSdkTools(ctx: ToolContext): Record<string, Tool> {
+//
+// onEvent (optional) wraps every read-tool execute with start/done/error
+// notifications. Write tools never fire events from here — they're surfaced
+// to the UI as pending confirm cards instead.
+export function buildSdkTools(
+  ctx: ToolContext,
+  onEvent?: (event: ToolEvent) => void,
+): Record<string, Tool> {
   const out: Record<string, Tool> = {};
   for (const t of ALL_TOOLS) {
     if (t.requiresConfirm) {
@@ -57,7 +73,20 @@ export function buildSdkTools(ctx: ToolContext): Record<string, Tool> {
       out[t.name] = tool({
         description: t.description,
         inputSchema: t.inputSchema as any,
-        execute: async (args: any) => t.execute(args, ctx),
+        execute: async (args: any) => {
+          if (!onEvent) return t.execute(args, ctx);
+          const start = Date.now();
+          onEvent({ type: "tool_start", name: t.name });
+          try {
+            const result = await t.execute(args, ctx);
+            onEvent({ type: "tool_done", name: t.name, ms: Date.now() - start });
+            return result;
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            onEvent({ type: "tool_error", name: t.name, ms: Date.now() - start, error: msg });
+            throw e;
+          }
+        },
       });
     }
   }

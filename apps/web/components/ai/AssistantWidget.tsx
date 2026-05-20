@@ -7,6 +7,22 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { toolLabel } from "../../lib/ai/tools/labels";
+
+// Server SSE events — mirrors the union in /api/ai/chat. Kept as a local
+// type to avoid importing server-side modules into a "use client" file.
+type ToolProgress = {
+  name:   string;
+  status: "running" | "done" | "error";
+  ms?:    number;
+  error?: string;
+};
+type StreamEvent =
+  | { type: "tool_start"; name: string }
+  | { type: "tool_done";  name: string; ms: number }
+  | { type: "tool_error"; name: string; ms: number; error: string }
+  | { type: "complete";   kind: "text" | "pending_confirm"; messages: Message[]; pending?: PendingToolCall[] }
+  | { type: "error";      error: string };
 
 type Message = {
   id: string;
@@ -37,6 +53,9 @@ export default function AssistantWidget() {
   const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<PendingToolCall[]>([]);
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Real-time tool progress for the current in-flight chat/confirm turn.
+  // Cleared at the start of each send.
+  const [progress, setProgress] = useState<ToolProgress[]>([]);
   const confirm = useConfirm();
   // Expand state persisted in localStorage so user preference survives reload.
   // Two sizes only — drag-resize was deemed over-engineered for chat widget.
@@ -97,11 +116,78 @@ export default function AssistantWidget() {
     }
   }
 
+  // Read SSE stream: split on \n\n, parse JSON after "data: ", dispatch each.
+  // Returns when the stream closes. Errors are surfaced via the "error" event,
+  // not by throwing — server-side failures still cleanly close the controller.
+  async function consumeStream(res: Response, onEvent: (e: StreamEvent) => void): Promise<void> {
+    if (!res.body) throw new Error("Empty response");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE frames end with a blank line. Split on \n\n, keep the trailing
+      // (possibly partial) frame in the buffer for the next chunk.
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const line = frame.trim();
+        if (!line.startsWith("data:")) continue;
+        try {
+          onEvent(JSON.parse(line.slice(5).trim()));
+        } catch {
+          // Malformed frame — skip silently. Don't crash the stream over
+          // one bad line; subsequent valid frames still flow.
+        }
+      }
+    }
+  }
+
+  function applyEvent(e: StreamEvent) {
+    switch (e.type) {
+      case "tool_start":
+        setProgress((prev) => [...prev, { name: e.name, status: "running" }]);
+        break;
+      case "tool_done":
+      case "tool_error":
+        setProgress((prev) =>
+          prev.map((p, idx, arr) =>
+            // Update the LAST running entry with this name — handles repeated
+            // calls of the same tool in one turn without crossing wires.
+            idx === arr.map((x) => x.name === e.name && x.status === "running").lastIndexOf(true)
+              ? { ...p, status: e.type === "tool_done" ? "done" : "error", ms: e.ms, error: (e as any).error }
+              : p,
+          ),
+        );
+        break;
+      case "complete":
+        setMessages(e.messages);
+        setPending(e.kind === "pending_confirm" ? (e.pending ?? []) : []);
+        break;
+      case "error":
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            role: "assistant",
+            content: `⚠️ ${e.error}`,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        break;
+    }
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
     setInput("");
     setSending(true);
+    setProgress([]);
 
     // Optimistic user message
     const optimisticUser: Message = {
@@ -121,38 +207,25 @@ export default function AssistantWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, timezone: tz }),
       });
-      const json = await res.json();
-      if (!json.success) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `err-${Date.now()}`,
-            role: "assistant",
-            content: `⚠️ ${json.error}`,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
+      if (!res.ok || res.headers.get("content-type")?.includes("application/json")) {
+        // Auth/validation failures still come back as JSON — handle that path.
+        const json = await res.json().catch(() => ({ error: "Connection failed" }));
+        applyEvent({ type: "error", error: json.error ?? "Request failed" });
         return;
       }
-      setMessages(json.data.messages);
-      setPending(json.data.kind === "pending_confirm" ? json.data.pending : []);
+      await consumeStream(res, applyEvent);
     } catch (e) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          role: "assistant",
-          content: "⚠️ Connection failed. Try again.",
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      applyEvent({ type: "error", error: "Connection failed. Try again." });
     } finally {
       setSending(false);
+      // Hold the progress chips one frame so the "done" check is visible,
+      // then clear when the next send starts.
     }
   }
 
   async function handleConfirm(messageId: string, approve: boolean) {
     setConfirming(messageId);
+    setProgress([]);
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const res = await fetch("/api/ai/confirm", {
@@ -160,13 +233,12 @@ export default function AssistantWidget() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messageId, approve, timezone: tz }),
       });
-      const json = await res.json();
-      if (!json.success) {
-        alert(json.error ?? "Failed to confirm");
+      if (!res.ok || res.headers.get("content-type")?.includes("application/json")) {
+        const json = await res.json().catch(() => ({ error: "Connection failed" }));
+        applyEvent({ type: "error", error: json.error ?? "Failed to confirm" });
         return;
       }
-      setMessages(json.data.messages);
-      setPending(json.data.kind === "pending_confirm" ? json.data.pending : []);
+      await consumeStream(res, applyEvent);
     } finally {
       setConfirming(null);
     }
@@ -281,9 +353,14 @@ export default function AssistantWidget() {
                 onConfirm={(approve) => handleConfirm(p.messageId, approve)}
               />
             ))}
-            {sending && (
-              <div className="flex items-center gap-2 text-xs text-gray-500 px-1">
-                <Loader2 size={12} className="animate-spin" /> Thinking…
+            {(sending || (confirming && progress.length > 0)) && (
+              <div className="flex flex-col gap-1.5 px-1">
+                {progress.map((p, i) => (
+                  <ProgressChip key={`${p.name}-${i}`} progress={p} />
+                ))}
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Loader2 size={12} className="animate-spin" /> Thinking…
+                </div>
               </div>
             )}
           </div>
@@ -315,6 +392,31 @@ export default function AssistantWidget() {
         </div>
       )}
     </>
+  );
+}
+
+function ProgressChip({ progress }: { progress: ToolProgress }) {
+  const label = toolLabel(progress.name);
+  const isRunning = progress.status === "running";
+  const isError   = progress.status === "error";
+  return (
+    <div
+      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-xs ${
+        isError
+          ? "bg-red-50 border-red-100 text-red-700"
+          : isRunning
+            ? "bg-blue-50 border-blue-100 text-blue-700"
+            : "bg-gray-50 border-gray-100 text-gray-600"
+      }`}
+    >
+      {isRunning && <Loader2 size={11} className="animate-spin shrink-0" />}
+      {progress.status === "done"  && <Check size={11} className="text-green-600 shrink-0" />}
+      {isError                      && <AlertCircle size={11} className="shrink-0" />}
+      <span className="truncate">{label}</span>
+      {progress.status === "done" && progress.ms !== undefined && (
+        <span className="ml-auto text-[10px] text-gray-400">{(progress.ms / 1000).toFixed(1)}s</span>
+      )}
+    </div>
   );
 }
 
@@ -386,16 +488,14 @@ function MessageBubble({ message }: { message: Message }) {
   }
 
   if (message.role === "tool_use") {
-    // Pending confirms are rendered as ConfirmCard separately.
-    if (message.toolStatus === "pending_confirm") return null;
-    const label = labelForStatus(message.toolStatus);
-    return (
-      <div className="flex justify-start">
-        <div className="text-[10px] uppercase tracking-wider text-gray-400 px-2 py-1 inline-flex items-center gap-1">
-          {label.icon} {label.text} <code className="font-mono">{message.toolName}</code>
-        </div>
-      </div>
-    );
+    // Tool use is invisible in the persistent chat history:
+    //   - Pending confirms render as a separate ConfirmCard.
+    //   - Live progress is shown via the SSE ProgressChip stream during the
+    //     in-flight turn (visible while spinner is up, then dropped).
+    //   - After the turn, the assistant's text bubble narrates what happened.
+    //   - Errors surface via the tool_result branch below (red badge).
+    // So nothing to render here at all.
+    return null;
   }
 
   if (message.role === "tool_result") {
@@ -488,19 +588,6 @@ function MarkdownContent({ children }: { children: string }) {
       {children}
     </ReactMarkdown>
   );
-}
-
-function labelForStatus(status: string | null | undefined) {
-  switch (status) {
-    case "executed":
-      return { text: "ran", icon: <Check size={10} className="text-emerald-500" /> };
-    case "rejected":
-      return { text: "skipped", icon: <X size={10} className="text-gray-400" /> };
-    case "error":
-      return { text: "failed", icon: <AlertCircle size={10} className="text-red-500" /> };
-    default:
-      return { text: "called", icon: null };
-  }
 }
 
 function ConfirmCard({
