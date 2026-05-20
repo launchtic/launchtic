@@ -159,14 +159,14 @@ const DEFAULT_UNSUB_TEXT = "Don't want these emails? You can {unsubscribe} anyti
 // apps/renderer/components/PoweredByBadge.tsx (dark pill + blue accent) but
 // without position:fixed / hover effects, which most email clients strip.
 const LAUNCHTIC_BADGE_HTML =
-  '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0 0 0;border-collapse:collapse;">' +
+  '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:10px 0 0 0;border-collapse:collapse;">' +
     '<tr><td align="center" style="padding:8px 24px;">' +
       '<a href="https://launchtic.com" target="_blank" rel="noopener noreferrer" ' +
          'style="display:inline-block;padding:8px 14px;background:#0f172a;color:#ffffff;' +
                 'text-decoration:none;border-radius:50px;font-family:Arial,Helvetica,sans-serif;' +
                 'font-size:11px;letter-spacing:0.04em;line-height:1;">' +
-        '<span style="color:#94a3b8;font-weight:400;">Powered by</span> ' +
-        '<span style="color:#60a5fa;font-weight:700;">Launchtic</span>' +
+        '<span style="color:#f3f3f3;font-weight:400;">Powered by</span> ' +
+        '<span style="color:#91b3ff;font-weight:700;">Launchtic</span>' +
       '</a>' +
     '</td></tr>' +
   '</table>';
