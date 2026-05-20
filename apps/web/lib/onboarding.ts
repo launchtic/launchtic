@@ -39,7 +39,7 @@ export async function getOnboardingStatus(workspaceId: string): Promise<Onboardi
   const hasSmtp   = !!(settings?.smtp   as any)?.host;
   const hasStripe = !!(settings?.stripe as any)?.publishableKey;
   const hasPaypal = !!(settings?.paypal as any)?.clientId;
-  const hasAiKey  = !!(settings?.ai     as any)?.apiKeyEnc;
+  const hasAiKey  = !!(settings?.ai     as any)?.apiKey;
 
   const items: OnboardingItem[] = [
     {
@@ -61,7 +61,7 @@ export async function getOnboardingStatus(workspaceId: string): Promise<Onboardi
     {
       key:   "ai",
       label: "Configure AI Assistant",
-      help:  "Optional but powerful — generates copy, fills templates, and builds funnels from your description. Bring your own API key for Claude, DeepSeek, OpenAI, or Gemini.",
+      help:  "Let the assistant build for you — generate landing-page copy, fill templates, scaffold complete funnels, draft email sequences, and write broadcasts from a one-line description. Bring your own API key for Claude, ChatGPT, DeepSeek, or Gemini.",
       done:  hasAiKey,
       tab:   "ai-assistant",
       cta:   "Configure",
@@ -69,7 +69,7 @@ export async function getOnboardingStatus(workspaceId: string): Promise<Onboardi
     {
       key:   "funnel",
       label: "Create your first funnel",
-      help:  "The final step — combine templates into a complete customer journey: opt-in → sales → checkout → thank-you. Pick from the seeded templates to start fast.",
+      help:  "The final step — combine templates into a complete customer journey: opt-in → sales → checkout → thank-you. Pick from the seeded templates to start fast, or let the AI Assistant scaffold the whole funnel from a one-line description of your business.",
       done:  funnelCount > 0,
       route: "funnels",
       cta:   "Start",

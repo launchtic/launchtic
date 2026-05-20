@@ -4,7 +4,7 @@
 
 import { generateObject } from "ai";
 import { z } from "zod";
-import { getAiSettings, getDecryptedApiKey } from "../ai/settings";
+import { getAiSettings, getApiKey } from "../ai/settings";
 import { getModel } from "../ai/llm";
 
 export type AiBrief = {
@@ -69,7 +69,7 @@ export async function fillSlotsWithAI(opts: {
   if (!settings || !settings.enabled) {
     throw new Error("AI is not configured for this workspace. Add an API key in Settings → AI.");
   }
-  const apiKey = await getDecryptedApiKey(opts.workspaceId);
+  const apiKey = await getApiKey(opts.workspaceId);
   if (!apiKey) {
     throw new Error("AI API key not available for this workspace.");
   }

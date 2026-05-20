@@ -3,7 +3,6 @@ import { z } from "zod";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { getAiSettings } from "../../../../lib/ai/settings";
-import { decrypt } from "../../../../lib/crypto";
 import { getOrCreateConversation, appendMessage } from "../../../../lib/ai/conversation";
 import { runChat } from "../../../../lib/ai/llm";
 
@@ -22,10 +21,8 @@ export async function POST(req: NextRequest) {
     if (!ai || !ai.enabled) {
       return err("AI assistant is not configured. Add an API key in Settings → AI Assistant.", 400);
     }
-
-    let apiKey: string;
-    try { apiKey = decrypt(ai.apiKeyEnc); }
-    catch { return err("Stored API key is corrupted. Re-enter it in Settings.", 500); }
+    if (!ai.apiKey) return err("API key missing — re-enter it in Settings.", 500);
+    const apiKey = ai.apiKey;
 
     const { message, timezone } = sendSchema.parse(await req.json());
 

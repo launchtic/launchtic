@@ -5,7 +5,7 @@ import { requireAccess } from "../../../../lib/permissions";
 import { getPublicAiSettings, saveAiSettings, deleteAiSettings } from "../../../../lib/ai/settings";
 
 const updateSchema = z.object({
-  provider: z.enum(["anthropic", "google", "deepseek"]),
+  provider: z.enum(["anthropic", "google", "deepseek", "openai"]),
   model: z.string().min(1),
   apiKey: z.string().optional(),
   enabled: z.boolean(),

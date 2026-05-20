@@ -562,7 +562,7 @@ model WorkspaceSettings {
   paypal      Json? // { clientId, clientSecret, webhookId, mode }
   smtp        Json? // { provider, host, port, username, passwordEnc, maxPerDay }
   storage     Json? // { driver, endpoint, region, bucket, accessKey, secretKeyEnc, publicUrl }
-  ai          Json? // { provider: "anthropic", model, apiKeyEnc, enabled }
+  ai          Json? // { provider, model, apiKey, enabled } — apiKey plaintext (same as stripe.secretKey pattern)
   emailFooter Json? // { customText?, physicalAddress? } — appended to every marketing email above the unsubscribe link
 
   // Set to true when the operator dismisses the onboarding checklist on the

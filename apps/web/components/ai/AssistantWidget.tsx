@@ -338,6 +338,7 @@ function NotConfiguredState() {
 
 function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   const suggestions = [
+    "Build a funnel to sell my digital product",
     "What's my revenue this week?",
     "List recent orders",
     "Show me active sequences",

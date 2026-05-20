@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Bot, Loader2, Check, AlertCircle, Eye, EyeOff, ExternalLink, History, ChevronDown, ChevronUp, X as XIcon } from "lucide-react";
 import { useToast } from "../ui/Toast";
 
-type Provider = "anthropic" | "google" | "deepseek";
+type Provider = "anthropic" | "google" | "deepseek" | "openai";
 
 type Settings = {
   provider: Provider;
   model: string;
   enabled: boolean;
   hasApiKey: boolean;
+  apiKey: string;
 };
 
 const MODELS: { id: string; provider: Provider; label: string; hint: string }[] = [
@@ -20,10 +21,13 @@ const MODELS: { id: string; provider: Provider; label: string; hint: string }[] 
   { id: "gemini-2.5-flash",          provider: "google",    label: "Gemini 2.5 Flash",  hint: "Higher quality, free tier." },
   { id: "gemini-2.5-pro",            provider: "google",    label: "Gemini 2.5 Pro",    hint: "Most capable Gemini." },
   { id: "deepseek-chat",             provider: "deepseek",  label: "DeepSeek V3 (chat)", hint: "Cheapest. Top up $5 covers months of use." },
+  { id: "gpt-4o-mini",               provider: "openai",    label: "GPT-4o mini",       hint: "Cheap + fast." },
+  { id: "gpt-4o",                    provider: "openai",    label: "GPT-4o",            hint: "Balanced quality + speed." },
 ];
 
 const PROVIDERS: { id: Provider; label: string; keyHint: string; consoleUrl: string; badge?: string }[] = [
   { id: "google",    label: "Google Gemini",     keyHint: "AIzaSy...",  consoleUrl: "https://aistudio.google.com/apikey",          },
+  { id: "openai",    label: "OpenAI (ChatGPT)",  keyHint: "sk-...",     consoleUrl: "https://platform.openai.com/api-keys",        },
   { id: "deepseek",  label: "DeepSeek",          keyHint: "sk-...",     consoleUrl: "https://platform.deepseek.com/api_keys", },
   { id: "anthropic", label: "Anthropic Claude",  keyHint: "sk-ant-...", consoleUrl: "https://console.anthropic.com/settings/keys" },
 ];
@@ -32,6 +36,7 @@ const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   google:    "gemini-2.0-flash",
   deepseek:  "deepseek-chat",
+  openai:    "gpt-4o-mini",
 };
 
 const inputCls =
@@ -73,6 +78,9 @@ export default function AiAssistantPanel() {
         setProvider(json.data.provider);
         setModel(json.data.model);
         setEnabled(json.data.enabled);
+        // Populate input with the stored key (matches PaymentPanel pattern).
+        // UI hides it behind the eye toggle by default.
+        setApiKey(json.data.apiKey ?? "");
       }
     } finally {
       setLoading(false);
@@ -103,7 +111,7 @@ export default function AiAssistantPanel() {
       const json = await res.json();
       if (json.success) {
         setSettings(json.data);
-        setApiKey("");
+        setApiKey(json.data.apiKey ?? "");
         toast.success("AI assistant settings saved");
       } else {
         toast.error(json.error ?? "Failed to save");
@@ -120,10 +128,11 @@ export default function AiAssistantPanel() {
       const res = await fetch("/api/ai/settings", { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        setSettings({ provider: "google", model: "gemini-2.0-flash", enabled: false, hasApiKey: false });
+        setSettings({ provider: "google", model: "gemini-2.0-flash", enabled: false, hasApiKey: false, apiKey: "" });
         setProvider("google");
         setModel("gemini-2.0-flash");
         setEnabled(false);
+        setApiKey("");
         toast.success("AI assistant disconnected");
       }
     } finally {

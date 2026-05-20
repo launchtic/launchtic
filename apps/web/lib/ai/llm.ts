@@ -22,6 +22,7 @@ import { generateText, stepCountIs, type ModelMessage, type ToolCallPart, type T
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
 // Vercel AI SDK v5 vs v4 compat helpers — v5 renamed call.args → call.input
@@ -134,6 +135,8 @@ export function getModel(settings: AiSettings, apiKey: string): LanguageModel {
       return createGoogleGenerativeAI({ apiKey })(settings.model);
     case "deepseek":
       return createDeepSeek({ apiKey })(settings.model);
+    case "openai":
+      return createOpenAI({ apiKey })(settings.model);
     default:
       throw new Error(`Unknown provider: ${(settings as any).provider}`);
   }

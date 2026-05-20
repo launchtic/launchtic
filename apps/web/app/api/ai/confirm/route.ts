@@ -4,7 +4,6 @@ import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { runChat, executeConfirmedTool } from "../../../../lib/ai/llm";
 import { getAiSettings } from "../../../../lib/ai/settings";
-import { decrypt } from "../../../../lib/crypto";
 import { getOrCreateConversation } from "../../../../lib/ai/conversation";
 
 const schema = z.object({
@@ -21,10 +20,8 @@ export async function POST(req: NextRequest) {
 
     const ai = await getAiSettings(workspaceId);
     if (!ai || !ai.enabled) return err("AI assistant disabled", 400);
-
-    let apiKey: string;
-    try { apiKey = decrypt(ai.apiKeyEnc); }
-    catch { return err("Stored API key is corrupted", 500); }
+    if (!ai.apiKey) return err("API key missing — re-enter it in Settings.", 500);
+    const apiKey = ai.apiKey;
 
     const { messageId, approve, timezone } = schema.parse(await req.json());
 
