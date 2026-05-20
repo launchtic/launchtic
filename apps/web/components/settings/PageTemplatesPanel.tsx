@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
   FileText, TrendingUp, ShoppingCart, CheckCircle,
@@ -446,6 +446,8 @@ export default function PageTemplatesPanel() {
   const [settingsFor, setSettingsFor] = useState<Template | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
+  const params = useParams();
+  const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
 
   const fetchData = useCallback(async (q: string, p: number, t: StepType | "ALL", s: StatusFilter) => {
@@ -520,12 +522,12 @@ export default function PageTemplatesPanel() {
   function handleCreated(id: string) {
     setShowCreate(false);
     setNavigating(id);
-    router.push(`/page-template-editor/${id}`);
+    router.push(`/${slug}/page-template-editor/${id}`);
   }
 
   function handleDesign(id: string) {
     setNavigating(id);
-    router.push(`/page-template-editor/${id}`);
+    router.push(`/${slug}/page-template-editor/${id}`);
   }
 
   function handleSaved(updated: Template) {
