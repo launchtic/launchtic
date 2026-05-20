@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     const r = await requireAccess("settings:write");
     if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const sp       = req.nextUrl.searchParams;
     const type     = sp.get("type") as any | null;
     const status   = sp.get("status") ?? "all";
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     const page     = Math.max(1, parseInt(sp.get("page") ?? "1", 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(sp.get("pageSize") ?? "25", 10)));
 
-    const where: any = {};
+    const where: any = { workspaceId };
     if (type)              where.type     = type;
     if (status === "active")    where.isActive = true;
     if (status === "disabled")  where.isActive = false;
@@ -69,11 +70,13 @@ export async function POST(req: NextRequest) {
   try {
     const r = await requireAccess("settings:write");
     if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const body = await req.json();
     const data = createSchema.parse(body);
 
     const template = await db.pageTemplate.create({
       data: {
+        workspaceId,
         name: data.name,
         type: data.type,
         description: data.description ?? null,

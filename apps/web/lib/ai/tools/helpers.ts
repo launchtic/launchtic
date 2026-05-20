@@ -87,18 +87,18 @@ export async function getDefaultSender(ctx: ToolContext): Promise<{ name: string
 
 // ─── Page templates ─────────────────────────────────────────────────────────
 
-// Pick the default PageTemplate for a step type. Order: isDefault → oldest →
-// empty pageJson. Empty pageJson is still valid (operator customizes after).
-// Also returns meta so callers can carry over page-level settings (font, seo
-// defaults, tracking) from the template onto the new step.
-export async function pickDefaultPageTemplate(stepType: string): Promise<{ pageJson: any; meta: any }> {
+// Pick the default PageTemplate for a step type within a workspace. Order:
+// isDefault → oldest → empty pageJson. Empty pageJson is still valid (operator
+// customizes after). Also returns meta so callers can carry over page-level
+// settings (font, seo defaults, tracking) from the template onto the new step.
+export async function pickDefaultPageTemplate(workspaceId: string, stepType: string): Promise<{ pageJson: any; meta: any }> {
   const tpl =
     (await db.pageTemplate.findFirst({
-      where: { type: stepType as any, isDefault: true, isActive: true },
+      where: { workspaceId, type: stepType as any, isDefault: true, isActive: true },
       select: { pageJson: true, meta: true },
     })) ??
     (await db.pageTemplate.findFirst({
-      where: { type: stepType as any, isActive: true },
+      where: { workspaceId, type: stepType as any, isActive: true },
       orderBy: { createdAt: "asc" },
       select: { pageJson: true, meta: true },
     }));

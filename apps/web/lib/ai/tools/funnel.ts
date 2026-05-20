@@ -307,8 +307,8 @@ const createFunnelFromSpec = defineTool({
       const emptySeo = { title: "", description: "" };
       let pageJson: any;
       if (overrideId) {
-        const explicit = await db.pageTemplate.findUnique({
-          where: { id: overrideId },
+        const explicit = await db.pageTemplate.findFirst({
+          where: { id: overrideId, workspaceId: ctx.workspaceId },
           select: { pageJson: true, type: true, name: true },
         });
         if (!explicit) throw new Error(`Template ${overrideId} not found`);
@@ -318,10 +318,10 @@ const createFunnelFromSpec = defineTool({
         pageJson = explicit.pageJson;
       } else {
         const t = await db.pageTemplate.findFirst({
-          where: { type: type as any, isDefault: true, isActive: true },
+          where: { workspaceId: ctx.workspaceId, type: type as any, isDefault: true, isActive: true },
           select: { pageJson: true },
         }) ?? await db.pageTemplate.findFirst({
-          where: { type: type as any, isActive: true },
+          where: { workspaceId: ctx.workspaceId, type: type as any, isActive: true },
           orderBy: { createdAt: "asc" },
           select: { pageJson: true },
         });
@@ -742,8 +742,8 @@ const addFunnelStep = defineTool({
 
       let tpl: { pageJson: unknown } | null;
       if (args.templateId) {
-        const explicit = await tx.pageTemplate.findUnique({
-          where: { id: args.templateId },
+        const explicit = await tx.pageTemplate.findFirst({
+          where: { id: args.templateId, workspaceId: ctx.workspaceId },
           select: { pageJson: true, type: true, name: true },
         });
         if (!explicit) throw new Error(`Template ${args.templateId} not found`);
@@ -752,8 +752,8 @@ const addFunnelStep = defineTool({
         }
         tpl = { pageJson: explicit.pageJson };
       } else {
-        tpl = (await tx.pageTemplate.findFirst({ where: { type: args.type as any, isDefault: true, isActive: true }, select: { pageJson: true } }))
-          ?? (await tx.pageTemplate.findFirst({ where: { type: args.type as any, isActive: true }, orderBy: { createdAt: "asc" }, select: { pageJson: true } }));
+        tpl = (await tx.pageTemplate.findFirst({ where: { workspaceId: ctx.workspaceId, type: args.type as any, isDefault: true, isActive: true }, select: { pageJson: true } }))
+          ?? (await tx.pageTemplate.findFirst({ where: { workspaceId: ctx.workspaceId, type: args.type as any, isActive: true }, orderBy: { createdAt: "asc" }, select: { pageJson: true } }));
       }
 
       const step = await tx.funnelStep.create({

@@ -45,6 +45,10 @@ COPY --from=prisma-cli /prisma/node_modules/@prisma ./node_modules/@prisma
 # Migration schema
 COPY packages/database/prisma ./packages/database/prisma
 
+# Seed data (page templates JSON + asset images). Used by the register
+# endpoint to populate each new workspace's templates on first signup.
+COPY packages/database/src/seed-data ./packages/database/src/seed-data
+
 # Next.js standalone output
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static

@@ -44,8 +44,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const r = await requireAccess("settings:write");
     if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const { id } = await params;
-    const template = await db.pageTemplate.findUnique({ where: { id } });
+    const template = await db.pageTemplate.findFirst({ where: { id, workspaceId } });
     if (!template) return err("Template not found", 404);
     return ok(template);
   } catch (error) {
@@ -59,6 +60,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const r = await requireAccess("settings:write");
     if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const { id } = await params;
     const body = await req.json();
     const data = patchSchema.parse(body);
@@ -74,12 +76,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (Object.keys(updateData).length === 0) return err("No fields to update", 400);
 
-    const { workspaceId } = r;
-    if (data.thumbnailUrl !== undefined) {
-      const current = await db.pageTemplate.findUnique({ where: { id }, select: { thumbnailUrl: true } });
-      if (current?.thumbnailUrl && current.thumbnailUrl !== data.thumbnailUrl) {
-        deleteOldThumb(current.thumbnailUrl, workspaceId).catch(() => {});
-      }
+    // Scoped check: template must belong to caller's workspace.
+    const current = await db.pageTemplate.findFirst({
+      where: { id, workspaceId },
+      select: { thumbnailUrl: true },
+    });
+    if (!current) return err("Template not found", 404);
+
+    if (data.thumbnailUrl !== undefined && current.thumbnailUrl && current.thumbnailUrl !== data.thumbnailUrl) {
+      deleteOldThumb(current.thumbnailUrl, workspaceId).catch(() => {});
     }
 
     const template = await db.pageTemplate.update({
@@ -100,10 +105,14 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const r = await requireAccess("settings:write");
     if (!r.ok) return r.response;
-    const { id } = await params;
     const { workspaceId } = r;
-    const template = await db.pageTemplate.findUnique({ where: { id }, select: { thumbnailUrl: true } });
-    if (template?.thumbnailUrl) deleteOldThumb(template.thumbnailUrl, workspaceId).catch(() => {});
+    const { id } = await params;
+    const template = await db.pageTemplate.findFirst({
+      where: { id, workspaceId },
+      select: { thumbnailUrl: true },
+    });
+    if (!template) return err("Template not found", 404);
+    if (template.thumbnailUrl) deleteOldThumb(template.thumbnailUrl, workspaceId).catch(() => {});
     await db.pageTemplate.delete({ where: { id } });
     return ok({ deleted: true });
   } catch (error) {

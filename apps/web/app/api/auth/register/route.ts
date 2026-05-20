@@ -3,6 +3,11 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
+import {
+  loadPageTemplatesSeed,
+  resolveAssetPlaceholders,
+  copySeedAssetsToWorkspace,
+} from "../../../../lib/seed-data";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(100),
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
       slug = `${baseSlug}-${attempt}`;
     }
 
-    const user = await db.$transaction(async (tx) => {
+    const { user, workspaceId } = await db.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           name: data.name,
@@ -53,7 +58,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await tx.workspace.create({
+      const newWorkspace = await tx.workspace.create({
         data: {
           name: data.workspaceName,
           slug,
@@ -67,8 +72,42 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return newUser;
+      // Seed default page templates into the new workspace. Asset URLs in the
+      // JSON use {{ASSET}} placeholder; we resolve them to a path scoped under
+      // the new workspace's uploads folder. The matching files are copied to
+      // disk after the transaction commits (file I/O is non-transactional).
+      const assetPrefix = `/uploads/${newWorkspace.id}/seed`;
+      const seedTemplates = loadPageTemplatesSeed();
+      const seedData = seedTemplates.map((t) => {
+        const resolved = resolveAssetPlaceholders(t, assetPrefix);
+        return {
+          workspaceId: newWorkspace.id,
+          name:         resolved.name,
+          description:  resolved.description,
+          thumbnailUrl: resolved.thumbnailUrl,
+          type:         resolved.type,
+          tags:         resolved.tags ?? [],
+          pageJson:     resolved.pageJson ?? {},
+          meta:         resolved.meta ?? {},
+          isDefault:    resolved.isDefault ?? false,
+          isActive:     resolved.isActive ?? true,
+        };
+      });
+      if (seedData.length > 0) {
+        await tx.pageTemplate.createMany({ data: seedData });
+      }
+
+      return { user: newUser, workspaceId: newWorkspace.id };
     });
+
+    // Copy asset files outside the DB transaction. Failure here doesn't roll
+    // back the account — templates will render with broken images but the
+    // workspace is still usable. Logged for ops visibility.
+    try {
+      copySeedAssetsToWorkspace(workspaceId);
+    } catch (e) {
+      console.error("[register] seed asset copy failed:", e);
+    }
 
     return ok({ id: user.id, email: user.email, name: user.name }, 201);
   } catch (error) {

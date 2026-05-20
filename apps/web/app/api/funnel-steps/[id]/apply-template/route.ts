@@ -40,8 +40,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
     if (!step) return err("Funnel step not found", 404);
 
-    const tpl = await db.pageTemplate.findUnique({
-      where: { id: body.templateId },
+    // Template must belong to the same workspace as the funnel — prevents
+    // applying a sibling workspace's template by guessing its id.
+    const tpl = await db.pageTemplate.findFirst({
+      where: { id: body.templateId, workspaceId: step.funnel.workspaceId },
       select: { id: true, type: true, pageJson: true },
     });
     if (!tpl) return err("Template not found", 404);

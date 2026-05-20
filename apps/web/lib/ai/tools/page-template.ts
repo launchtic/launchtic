@@ -1,6 +1,7 @@
 // Page template tools — let AI list available templates and pick the best
-// match per step when creating/editing funnels. Templates are workspace-wide
-// (shared across all workspaces in the install).
+// match per step when creating/editing funnels. Templates are workspace-
+// scoped: each workspace sees only its own (seeded on register, plus any
+// the operator created or imported).
 //
 // AI usage pattern:
 //   1. list_page_templates({ type: "SALES" }) → see options + descriptions
@@ -31,8 +32,8 @@ const listPageTemplates = defineTool({
       .describe("Filter by tags (any-of match). Pick from convention above based on product context — e.g. ['ebook', 'urgent', 'long-form'] for info-product launch."),
   }),
   requiresConfirm: false,
-  execute: async ({ type, tags }) => {
-    const where: any = { isActive: true };
+  execute: async ({ type, tags }, ctx) => {
+    const where: any = { workspaceId: ctx.workspaceId, isActive: true };
     if (type) where.type = type;
     if (tags && tags.length > 0) where.tags = { hasSome: tags };
 
@@ -95,8 +96,8 @@ const swapStepTemplate = defineTool({
         where: { id: a.stepId, funnel: { workspaceId: ctx.workspaceId } },
         select: { name: true, type: true, funnel: { select: { name: true } } },
       }),
-      db.pageTemplate.findUnique({
-        where: { id: a.templateId },
+      db.pageTemplate.findFirst({
+        where: { id: a.templateId, workspaceId: ctx.workspaceId },
         select: { name: true, type: true },
       }),
     ]);
@@ -110,8 +111,8 @@ const swapStepTemplate = defineTool({
     });
     if (!step) throw new Error("Step not found");
 
-    const template = await db.pageTemplate.findUnique({
-      where: { id: args.templateId },
+    const template = await db.pageTemplate.findFirst({
+      where: { id: args.templateId, workspaceId: ctx.workspaceId },
       select: { pageJson: true, meta: true, type: true, name: true },
     });
     if (!template) throw new Error("Template not found");

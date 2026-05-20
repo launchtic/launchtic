@@ -11,16 +11,18 @@ export async function POST(_req: NextRequest, { params }: Params) {
   try {
     const r = await requireAccess("settings:write");
     if (!r.ok) return r.response;
+    const { workspaceId } = r;
     const { id } = await params;
 
-    const source = await db.pageTemplate.findUnique({
-      where: { id },
+    const source = await db.pageTemplate.findFirst({
+      where: { id, workspaceId },
       select: { name: true, description: true, type: true, tags: true, pageJson: true, meta: true },
     });
     if (!source) return err("Template not found", 404);
 
     const cloned = await db.pageTemplate.create({
       data: {
+        workspaceId,
         name: nextCopyName(source.name),
         description: source.description,
         type: source.type,
