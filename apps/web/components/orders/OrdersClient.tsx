@@ -7,6 +7,7 @@ import {
   Search, ChevronDown, Loader2, ShoppingCart,
   CheckCircle, Clock, XCircle, RotateCcw, Ban, Repeat, Timer,
 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 type Contact = { id: string; email: string; firstName: string | null; lastName: string | null };
 type FunnelStep = { name: string; funnel: { name: string } };
 type OrderSubscription = { id: string; status: string; trialEnd: string | null };
@@ -88,7 +89,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
     if (status) params.set("status", status);
     if (kind)   params.set("kind", kind);
     if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`/api/orders?${params}`);
+    const res = await apiFetch(`/api/orders?${params}`);
     return res.json();
   }, []);
 

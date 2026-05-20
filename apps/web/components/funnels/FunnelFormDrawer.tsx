@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2, Lock, AlertTriangle } from "lucide-react";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
+import { apiFetch } from "../../lib/api-client";
 
 const CURRENCIES = SUPPORTED_CURRENCIES;
 
@@ -49,7 +50,7 @@ function FaviconUpload({ value, onChange }: { value: string; onChange: (url: str
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
+      const res = await apiFetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
       const url = res.data?.url ?? res.url;
       if (url) onChange(url);
     } finally {
@@ -129,9 +130,9 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
     if (!editId) return;
     setLoading(true);
     Promise.all([
-      fetch(`/api/funnels/${editId}`).then((r) => r.json()),
-      fetch(`/api/domains`).then((r) => r.json()),
-      fetch(`/api/funnel-domains?funnelId=${editId}`).then((r) => r.json()),
+      apiFetch(`/api/funnels/${editId}`).then((r) => r.json()),
+      apiFetch(`/api/domains`).then((r) => r.json()),
+      apiFetch(`/api/funnel-domains?funnelId=${editId}`).then((r) => r.json()),
     ])
       .then(([funnelRes, domainsRes, funnelDomainsRes]) => {
         const funnel = funnelRes?.data ?? funnelRes;
@@ -160,7 +161,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
 
     try {
       if (!isEdit) {
-        const res = await fetch("/api/funnels", {
+        const res = await apiFetch("/api/funnels", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: trimmed, currency }),
@@ -175,7 +176,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
         // append -2/-3 if it collides with another funnel on the same URL space.
         const stepErrors: string[] = [];
         for (const step of GOAL_STEPS[goal]) {
-          const stepRes = await fetch(`/api/funnels/${funnelId}/steps`, {
+          const stepRes = await apiFetch(`/api/funnels/${funnelId}/steps`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -201,7 +202,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
 
       if (!editId) return;
 
-      const patchRes = await fetch(`/api/funnels/${editId}`, {
+      const patchRes = await apiFetch(`/api/funnels/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmed, currency, favicon: favicon.trim() || null }),
@@ -215,7 +216,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
       const currentAssigned = initialAssignedIds[0] ?? "";
       if (assignedDomainId !== currentAssigned) {
         for (const id of initialAssignedIds) {
-          const delRes = await fetch("/api/funnel-domains", {
+          const delRes = await apiFetch("/api/funnel-domains", {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ funnelId: editId, domainId: id }),
@@ -227,7 +228,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
           }
         }
         if (assignedDomainId) {
-          const postRes = await fetch("/api/funnel-domains", {
+          const postRes = await apiFetch("/api/funnel-domains", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ funnelId: editId, domainId: assignedDomainId }),

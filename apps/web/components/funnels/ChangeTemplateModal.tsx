@@ -5,6 +5,7 @@ import {
   X, Loader2, LayoutTemplate, CheckCircle, Sparkles, Search,
   FileText, TrendingUp, ShoppingCart, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 const PAGE_SIZE = 24; // 3 cols × 8 rows — fits the modal viewport without crowding.
 
@@ -95,7 +96,7 @@ export default function ChangeTemplateModal({
       if (q) params.set("search", q);
 
       try {
-        const res = await fetch(`/api/page-templates?${params}`).then((r) => r.json());
+        const res = await apiFetch(`/api/page-templates?${params}`).then((r) => r.json());
         const items: Template[] = res.data?.items ?? [];
         const totalPages: number = res.data?.totalPages ?? 1;
         setTemplates((prev) => (append ? [...prev, ...items] : items));
@@ -135,7 +136,7 @@ export default function ChangeTemplateModal({
     if (!selected) return;
     setApplying(true);
 
-    await fetch(`/api/funnel-steps/${stepId}/apply-template`, {
+    await apiFetch(`/api/funnel-steps/${stepId}/apply-template`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

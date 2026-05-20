@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "../../lib/api-client";
 
 // UPSELL and DOWNSELL exist in the schema but aren't supported in the UI
 // yet — hidden from the creation dropdown. Existing records of those types
@@ -31,7 +32,7 @@ export default function AddStepDialog({ funnelId, fullWidth }: { funnelId: strin
 
     // Slug is auto-generated server-side from `name` and uniqueness-resolved
     // across the funnel's URL space. Users edit the slug later in step settings.
-    const res = await fetch(`/api/funnels/${funnelId}/steps`, {
+    const res = await apiFetch(`/api/funnels/${funnelId}/steps`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, type }),

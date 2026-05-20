@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "../../../lib/api-client";
 // Single-tenant first-run setup form. Renders only when the install has
 // zero users — after the admin account is created, the parent server page
 // redirects back to /login. The /api/auth/register backend enforces the
@@ -25,7 +26,7 @@ export default function RegisterForm() {
     const password = form.get("password") as string;
     const workspaceName = form.get("workspaceName") as string;
 
-    const res = await fetch("/api/auth/register", {
+    const res = await apiFetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, password, workspaceName }),

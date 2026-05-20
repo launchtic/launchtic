@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MailCheck, Loader2, Info, RotateCcw } from "lucide-react";
 import { useToast } from "../ui/Toast";
+import { apiFetch } from "../../lib/api-client";
 
 type Footer = {
   unsubscribeText: string | null;
@@ -27,7 +28,7 @@ export default function EmailFooterPanel() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/email-footer");
+      const res = await apiFetch("/api/email-footer");
       const json = await res.json();
       if (json.success) {
         setUnsubscribeText(json.data.unsubscribeText ?? "");
@@ -41,7 +42,7 @@ export default function EmailFooterPanel() {
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch("/api/email-footer", {
+      const res = await apiFetch("/api/email-footer", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

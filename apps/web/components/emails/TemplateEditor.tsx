@@ -11,6 +11,7 @@ import type { Editor as TiptapEditor } from "@tiptap/react";
 import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import RichEmailEditor from "./RichEmailEditor";
+import { apiFetch } from "../../lib/api-client";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
 
@@ -99,7 +100,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     const body: Record<string, unknown> = { name, subject, htmlBody };
     if (!initial.isSystem) body.category = category;
 
-    const res = await fetch(`/api/email-templates/${initial.id}`, {
+    const res = await apiFetch(`/api/email-templates/${initial.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -201,7 +202,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     // Save first if dirty so test reflects current content
     if (dirty) await handleSave();
 
-    const res = await fetch(`/api/email-templates/${initial.id}/test-send`, {
+    const res = await apiFetch(`/api/email-templates/${initial.id}/test-send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sendTo: testTo }),
@@ -225,7 +226,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     });
     if (!ok) return;
 
-    const res = await fetch(`/api/email-templates/${initial.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/email-templates/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
     if (json.success) router.push(`/${slug}/emails/templates`);
   }

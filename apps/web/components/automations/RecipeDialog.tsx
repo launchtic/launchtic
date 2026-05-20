@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { X, Loader2, Plus, Sparkles, ArrowRight } from "lucide-react";
 import { RECIPES, BLANK_TEMPLATE, type Recipe } from "./recipes";
 import { useToast } from "../ui/Toast";
+import { apiFetch } from "../../lib/api-client";
 
 export default function RecipeDialog({
   open, onClose,
@@ -22,7 +23,7 @@ export default function RecipeDialog({
 
   async function pickRecipe(template: Recipe["template"], recipeId: string) {
     setCreating(recipeId);
-    const res = await fetch("/api/automations", {
+    const res = await apiFetch("/api/automations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(template),

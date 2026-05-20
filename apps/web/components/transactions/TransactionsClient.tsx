@@ -8,6 +8,7 @@ import {
   ArrowDownCircle, RotateCcw, AlertTriangle,
   CheckCircle, Clock, XCircle,
 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type Contact = { id: string; email: string; firstName: string | null; lastName: string | null };
 type OrderRef = {
@@ -82,7 +83,7 @@ export default function TransactionsClient({ initialTotal = 0 }: { initialTotal?
     if (type)   params.set("type", type);
     if (status) params.set("status", status);
     if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`/api/transactions?${params}`);
+    const res = await apiFetch(`/api/transactions?${params}`);
     return res.json();
   }, []);
 

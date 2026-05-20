@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, Plus, Pencil, Trash2, Check, X, Building2 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type Workspace = { id: string; name: string; slug: string; ownerId: string; userRole: string };
 
@@ -50,7 +51,7 @@ export default function WorkspacePanel({
     if (!newName.trim()) return;
     setCreating(true);
     setCreateError(null);
-    const res = await fetch("/api/workspaces", {
+    const res = await apiFetch("/api/workspaces", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newName.trim() }),
@@ -81,7 +82,7 @@ export default function WorkspacePanel({
     if (!trimmed || trimmed === ws.name) { setRenamingId(null); return; }
     setRenameSaving(true);
     setRenameError(null);
-    const res = await fetch(`/api/workspaces/${ws.id}`, {
+    const res = await apiFetch(`/api/workspaces/${ws.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: trimmed }),
@@ -108,7 +109,7 @@ export default function WorkspacePanel({
     if (!deleteTarget || deleteConfirm !== deleteTarget.name) return;
     setDeleting(true);
     setDeleteError(null);
-    const res = await fetch(`/api/workspaces/${deleteTarget.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/workspaces/${deleteTarget.id}`, { method: "DELETE" });
     const json = await res.json();
     setDeleting(false);
     if (!res.ok) { setDeleteError(json.error ?? "Failed to delete"); return; }

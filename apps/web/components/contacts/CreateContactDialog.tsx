@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, UserPlus, Loader2 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type Field = { key: string; label: string; type?: string; required?: boolean };
 
@@ -38,7 +39,7 @@ export default function CreateContactDialog({
     if (!form.email?.trim()) { setError("Email is required"); return; }
     setSaving(true);
     setError("");
-    const res = await fetch("/api/contacts", {
+    const res = await apiFetch("/api/contacts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(

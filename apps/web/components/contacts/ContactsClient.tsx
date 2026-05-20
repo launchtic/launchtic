@@ -10,6 +10,7 @@ import {
 import ImportDialog from "./ImportDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 type Tag = { id: string; name: string; color: string | null };
 type Contact = {
   id: string;
@@ -55,7 +56,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
     if (q)   params.set("search", q);
     if (tag) params.set("tagId", tag);
     if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`/api/contacts?${params}`);
+    const res = await apiFetch(`/api/contacts?${params}`);
     return res.json();
   }, []);
 
@@ -71,7 +72,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
 
   // Workspace-level total count (separate from list — uses fast indexed count).
   const refreshTotal = useCallback(async () => {
-    const res = await fetch("/api/contacts/count");
+    const res = await apiFetch("/api/contacts/count");
     const json = await res.json();
     if (json.success) setTotal(json.data.total);
   }, []);

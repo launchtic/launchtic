@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { toolLabel } from "../../lib/ai/tools/labels";
+import { apiFetch } from "../../lib/api-client";
 
 // Server SSE events — mirrors the union in /api/ai/chat. Kept as a local
 // type to avoid importing server-side modules into a "use client" file.
@@ -95,7 +96,7 @@ export default function AssistantWidget() {
 
   async function checkAvailability() {
     try {
-      const res = await fetch("/api/ai/settings");
+      const res = await apiFetch("/api/ai/settings");
       const json = await res.json();
       setAvailable(json.success && json.data.hasApiKey && json.data.enabled);
     } catch {
@@ -106,7 +107,7 @@ export default function AssistantWidget() {
   async function loadHistory() {
     setLoadingHistory(true);
     try {
-      const res = await fetch("/api/ai/history");
+      const res = await apiFetch("/api/ai/history");
       const json = await res.json();
       if (json.success) setMessages(json.data.messages);
     } catch {
@@ -202,7 +203,7 @@ export default function AssistantWidget() {
       // Pass browser timezone so the LLM converts natural-language times
       // ("9 AM tomorrow") to UTC ISO using the operator's local zone, not UTC.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const res = await fetch("/api/ai/chat", {
+      const res = await apiFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, timezone: tz }),
@@ -228,7 +229,7 @@ export default function AssistantWidget() {
     setProgress([]);
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const res = await fetch("/api/ai/confirm", {
+      const res = await apiFetch("/api/ai/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messageId, approve, timezone: tz }),
@@ -252,7 +253,7 @@ export default function AssistantWidget() {
       variant: "danger",
     });
     if (!ok) return;
-    await fetch("/api/ai/clear", { method: "POST" });
+    await apiFetch("/api/ai/clear", { method: "POST" });
     setMessages([]);
     setPending([]);
   }

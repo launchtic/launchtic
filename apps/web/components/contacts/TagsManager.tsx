@@ -10,6 +10,7 @@ import {
 import { useConfirm } from "../ui/ConfirmDialog";
 import FormDrawer from "../ui/FormDrawer";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type TagRow = { id: string; name: string; color: string | null; _count?: { contacts: number }; count?: number };
 type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
@@ -63,7 +64,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
     setLoading(true);
     const params = new URLSearchParams({ page: String(p), pageSize: "25" });
     if (q) params.set("search", q);
-    const res = await fetch(`/api/tags?${params}`);
+    const res = await apiFetch(`/api/tags?${params}`);
     const json = await res.json();
     if (json.success) {
       setItems(json.data.items);
@@ -136,7 +137,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
     });
     if (!ok) return;
     setDeleting(tag.id);
-    await fetch(`/api/tags/${tag.id}`, { method: "DELETE" });
+    await apiFetch(`/api/tags/${tag.id}`, { method: "DELETE" });
     setDeleting(null);
     fetchData(search, page);
   }

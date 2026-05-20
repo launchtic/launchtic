@@ -13,6 +13,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useUnsavedChanges } from "../../contexts/UnsavedChangesContext";
 import EmailComposeDrawer, { EmailComposeButton } from "../emails/EmailComposeDrawer";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "ACTIVE" | "PAUSED";
 
@@ -141,7 +142,7 @@ export default function SequenceBuilder({
 
   const handleSave = useCallback(async () => {
     setSave("saving"); setSaveErr(null);
-    const res = await fetch(`/api/sequences/${initial.id}`, {
+    const res = await apiFetch(`/api/sequences/${initial.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -215,7 +216,7 @@ export default function SequenceBuilder({
     try {
       if (dirty) await handleSave();
 
-      const res = await fetch(`/api/sequences/${initial.id}/status`, {
+      const res = await apiFetch(`/api/sequences/${initial.id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next }),
@@ -238,7 +239,7 @@ export default function SequenceBuilder({
       variant: "danger",
     });
     if (!ok) return;
-    const res = await fetch(`/api/sequences/${initial.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/sequences/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
     if (json.success) router.push(`/${slug}/sequences`);
   }
@@ -884,7 +885,7 @@ function SingleEnrollForm({
     setSearching(true);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/contacts?search=${encodeURIComponent(query.trim())}`);
+        const res = await apiFetch(`/api/contacts?search=${encodeURIComponent(query.trim())}`);
         const json = await res.json();
         if (json.success) {
           const all = (json.data?.items ?? json.data ?? []) as ContactHit[];
@@ -1031,7 +1032,7 @@ function TagEnrollForm({
   const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
-    fetch("/api/tags").then((r) => r.json()).then((j) => {
+    apiFetch("/api/tags").then((r) => r.json()).then((j) => {
       if (j.success) setTags(j.data ?? []);
     });
   }, []);
@@ -1040,7 +1041,7 @@ function TagEnrollForm({
   useEffect(() => {
     if (!tagId) { setTaggedCount(null); return; }
     let cancelled = false;
-    fetch(`/api/contacts/count?tagId=${tagId}`)
+    apiFetch(`/api/contacts/count?tagId=${tagId}`)
       .then((r) => r.json())
       .then((j) => { if (!cancelled && j.success) setTaggedCount(j.data?.total ?? null); });
     return () => { cancelled = true; };
@@ -1061,7 +1062,7 @@ function TagEnrollForm({
 
     setEnrolling(true);
     try {
-      const res = await fetch(`/api/sequences/${sequenceId}/enroll-by-tag`, {
+      const res = await apiFetch(`/api/sequences/${sequenceId}/enroll-by-tag`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tagId }),

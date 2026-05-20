@@ -5,6 +5,7 @@ import "@maily-to/core/style.css";
 import { Editor } from "@maily-to/core";
 import { ImageUploadExtension } from "@maily-to/core/extensions";
 import type { Editor as TiptapEditor, JSONContent } from "@tiptap/core";
+import { apiFetch } from "../../lib/api-client";
 
 // `value` and `onChange` are JSON-stringified TipTap docs (maily.to format).
 // Empty/invalid input falls back to an empty doc — strict JSON only.
@@ -117,7 +118,7 @@ export default function RichEmailEditor({
     const fd = new FormData();
     fd.append("file", file as File);
     fd.append("folder", "emails");
-    const res = await fetch("/api/media/upload", { method: "POST", body: fd });
+    const res = await apiFetch("/api/media/upload", { method: "POST", body: fd });
     const json = await res.json();
     if (!json.success) throw new Error(json.error ?? "Upload failed");
     return json.data.url as string;

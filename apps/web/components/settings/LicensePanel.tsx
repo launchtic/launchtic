@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Key, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type LicenseStatus = {
   plan: string;
@@ -23,7 +24,7 @@ export default function LicensePanel() {
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/license")
+    apiFetch("/api/license")
       .then((r) => r.json())
       .then((r) => { if (r.success) setStatus(r.data); })
       .finally(() => setLoading(false));
@@ -35,7 +36,7 @@ export default function LicensePanel() {
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch("/api/license", {
+      const res = await apiFetch("/api/license", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ licenseKey: keyInput.trim() }),

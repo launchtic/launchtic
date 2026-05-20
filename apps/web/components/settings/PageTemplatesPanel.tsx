@@ -9,6 +9,7 @@ import {
   Power,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { apiFetch } from "../../lib/api-client";
 
 type StepType = "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
 
@@ -120,7 +121,7 @@ async function resizeImage(file: File): Promise<Blob> {
 }
 
 async function deleteMedia(key: string) {
-  await fetch("/api/media/delete", {
+  await apiFetch("/api/media/delete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key }),
@@ -140,7 +141,7 @@ function ThumbnailUpload({ url, onUpload }: { url: string | null; onUpload: (url
       const blob = await resizeImage(file);
       const fd = new FormData();
       fd.append("file", new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
-      const res = await fetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
+      const res = await apiFetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
       const uploaded = res.data?.url ?? res.url;
       const key      = res.data?.key ?? null;
       if (uploaded) {
@@ -221,7 +222,7 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
     const finalTags = tagInput.trim()
       ? [...tags, normalizeTag(tagInput)].filter((t, i, a) => t && a.indexOf(t) === i)
       : tags;
-    const res = await fetch(`/api/page-templates/${template.id}`, {
+    const res = await apiFetch(`/api/page-templates/${template.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, description: description || null, thumbnailUrl, isActive, tags: finalTags }),
@@ -377,7 +378,7 @@ function CreateTemplateModal({ onClose, onCreate }: { onClose: () => void; onCre
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true); setError(null);
-    const res = await fetch("/api/page-templates", {
+    const res = await apiFetch("/api/page-templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, type }),
@@ -456,7 +457,7 @@ export default function PageTemplatesPanel() {
     if (q) params.set("search", q);
     if (t !== "ALL") params.set("type", t);
     if (s !== "all") params.set("status", s);
-    const res = await fetch(`/api/page-templates?${params}`);
+    const res = await apiFetch(`/api/page-templates?${params}`);
     const json = await res.json();
     if (json.success) {
       setItems(json.data.items);
@@ -486,7 +487,7 @@ export default function PageTemplatesPanel() {
 
   async function handleClone(template: Template) {
     setCloning(template.id);
-    const res = await fetch(`/api/page-templates/${template.id}/clone`, { method: "POST" });
+    const res = await apiFetch(`/api/page-templates/${template.id}/clone`, { method: "POST" });
     setCloning(null);
     if (res.ok) fetchData(search, page, typeFilter, statusFilter);
   }
@@ -494,7 +495,7 @@ export default function PageTemplatesPanel() {
   async function handleToggleActive(template: Template) {
     setToggling(template.id);
     const next = !template.isActive;
-    const res = await fetch(`/api/page-templates/${template.id}`, {
+    const res = await apiFetch(`/api/page-templates/${template.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: next }),
@@ -514,7 +515,7 @@ export default function PageTemplatesPanel() {
     });
     if (!ok) return;
     setDeleting(template.id);
-    await fetch(`/api/page-templates/${template.id}`, { method: "DELETE" });
+    await apiFetch(`/api/page-templates/${template.id}`, { method: "DELETE" });
     setDeleting(null);
     fetchData(search, page, typeFilter, statusFilter);
   }

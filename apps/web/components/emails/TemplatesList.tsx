@@ -9,6 +9,7 @@ import {
 import { EMPTY_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
 
@@ -62,7 +63,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
 
   function handleCreate() {
     startCreate(async () => {
-      const res = await fetch("/api/email-templates", {
+      const res = await apiFetch("/api/email-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -79,7 +80,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
 
   async function handleDuplicate(id: string) {
     setDuplicating(id);
-    const res = await fetch(`/api/email-templates/${id}/duplicate`, { method: "POST" });
+    const res = await apiFetch(`/api/email-templates/${id}/duplicate`, { method: "POST" });
     const json = await res.json();
     setDuplicating(null);
     if (json.success) {
@@ -100,7 +101,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
     if (!ok) return;
 
     setDeleting(t.id);
-    const res = await fetch(`/api/email-templates/${t.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/email-templates/${t.id}`, { method: "DELETE" });
     const json = await res.json();
     setDeleting(null);
     if (json.success) setItems((prev) => prev.filter((x) => x.id !== t.id));

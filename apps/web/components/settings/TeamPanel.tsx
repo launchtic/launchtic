@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Plus, Trash2, Crown, ShieldCheck, Pencil, Eye, X, Copy, Check } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type Member = {
   userId:   string;
@@ -93,7 +94,7 @@ export default function TeamPanel({
     if (!inviteEmail.trim()) return;
     setInviting(true);
     setInviteError(null);
-    const res  = await fetch("/api/team", {
+    const res  = await apiFetch("/api/team", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
@@ -123,7 +124,7 @@ export default function TeamPanel({
 
   async function handleRoleChange(member: Member, newRole: string) {
     setChangingRole(member.userId);
-    const res  = await fetch(`/api/team/${member.userId}`, {
+    const res  = await apiFetch(`/api/team/${member.userId}`, {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ role: newRole }),
@@ -142,7 +143,7 @@ export default function TeamPanel({
   async function handleRemove(member: Member) {
     if (!confirm(`Remove ${member.user.name ?? member.user.email} from this workspace?`)) return;
     setRemoving(member.userId);
-    const res  = await fetch(`/api/team/${member.userId}`, { method: "DELETE" });
+    const res  = await apiFetch(`/api/team/${member.userId}`, { method: "DELETE" });
     const json = await res.json();
     setRemoving(null);
     if (!res.ok) { alert(json.error ?? "Failed to remove member"); return; }

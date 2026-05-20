@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Check, X, Circle, ChevronDown, ChevronUp, Rocket } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import type { OnboardingStatus, OnboardingItem } from "../../lib/onboarding";
+import { apiFetch } from "../../lib/api-client";
 
 // Floating "Getting Started" guide pinned bottom-right.
 // Coexists with AssistantWidget (also bottom-right): when AI is configured
@@ -72,7 +73,7 @@ export default function OnboardingChecklist({ status }: { status: OnboardingStat
     setHidden(true);
     startDismiss(async () => {
       try {
-        await fetch("/api/onboarding/dismiss", { method: "POST" });
+        await apiFetch("/api/onboarding/dismiss", { method: "POST" });
       } catch {
         setHidden(false); // re-show on failure
       }

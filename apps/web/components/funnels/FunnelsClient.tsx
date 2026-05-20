@@ -10,6 +10,7 @@ import {
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Domain = { domain: string; verified: boolean };
 type Funnel = {
@@ -60,7 +61,7 @@ export default function FunnelsClient({
     const params = new URLSearchParams({ page: String(p), pageSize: "25" });
     if (q) params.set("search", q);
     params.set("status", v === "trash" ? "TRASHED" : "ACTIVE");
-    const res = await fetch(`/api/funnels?${params}`);
+    const res = await apiFetch(`/api/funnels?${params}`);
     const json = await res.json();
     if (json.success) {
       setItems(json.data.items);
@@ -94,7 +95,7 @@ export default function FunnelsClient({
     });
     if (!ok) return;
     setBusyId(funnel.id);
-    await fetch(`/api/funnels/${funnel.id}`, { method: "DELETE" });
+    await apiFetch(`/api/funnels/${funnel.id}`, { method: "DELETE" });
     setBusyId(null);
     fetchData(search, page, view);
     router.refresh();
@@ -102,7 +103,7 @@ export default function FunnelsClient({
 
   async function handleRestore(funnel: Funnel) {
     setBusyId(funnel.id);
-    await fetch(`/api/funnels/${funnel.id}/restore`, { method: "POST" });
+    await apiFetch(`/api/funnels/${funnel.id}/restore`, { method: "POST" });
     setBusyId(null);
     fetchData(search, page, view);
     router.refresh();
@@ -117,7 +118,7 @@ export default function FunnelsClient({
     });
     if (!ok) return;
     setBusyId(funnel.id);
-    await fetch(`/api/funnels/${funnel.id}?permanent=1`, { method: "DELETE" });
+    await apiFetch(`/api/funnels/${funnel.id}?permanent=1`, { method: "DELETE" });
     setBusyId(null);
     fetchData(search, page, view);
     router.refresh();

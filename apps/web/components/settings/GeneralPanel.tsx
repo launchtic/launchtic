@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, AlertTriangle } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 function slugify(value: string) {
   return value
@@ -35,7 +36,7 @@ export default function GeneralPanel({
     e.preventDefault();
     if (!name.trim() || name.trim() === workspaceName) return;
     setSavingName(true); setNameError(null); setNameSuccess(false);
-    const res = await fetch(`/api/workspaces/${workspaceId}`, {
+    const res = await apiFetch(`/api/workspaces/${workspaceId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
@@ -66,7 +67,7 @@ export default function GeneralPanel({
     const trimmed = slug.replace(/^-|-$/g, "");
     if (!trimmed || trimmed === workspaceSlug) return;
     setSavingSlug(true); setSlugError(null); setSlugSuccess(false);
-    const res = await fetch(`/api/workspaces/${workspaceId}`, {
+    const res = await apiFetch(`/api/workspaces/${workspaceId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ slug: trimmed }),

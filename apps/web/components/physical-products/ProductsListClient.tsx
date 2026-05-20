@@ -9,6 +9,7 @@ import ProductQuickCreateDrawer from "./ProductQuickCreateDrawer";
 import ProductEditDrawer from "./ProductEditDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Product = {
   id: string;
@@ -47,7 +48,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
     setLoading(true);
     const params = new URLSearchParams({ page: String(p), pageSize: "25" });
     if (q) params.set("search", q);
-    const res = await fetch(`/api/physical-products?${params}`);
+    const res = await apiFetch(`/api/physical-products?${params}`);
     const json = await res.json();
     if (json.success) {
       setItems(json.data.items);
@@ -74,7 +75,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
     });
     if (!ok) return;
     setDeleting(product.id);
-    await fetch(`/api/physical-products/${product.id}`, { method: "DELETE" });
+    await apiFetch(`/api/physical-products/${product.id}`, { method: "DELETE" });
     setDeleting(null);
     fetchData(search, page);
     router.refresh();

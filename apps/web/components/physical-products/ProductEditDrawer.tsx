@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { GripVertical, Plus, Trash2, Loader2 } from "lucide-react";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
+import { apiFetch } from "../../lib/api-client";
 
 type ProductVariant = {
   id: string;
@@ -130,7 +131,7 @@ function VariantImageUpload({ image, onUpload }: { image: string | null; onUploa
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
+      const res = await apiFetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
       const url = res.data?.url ?? res.url;
       if (url) onUpload(url);
     } finally {
@@ -165,7 +166,7 @@ function MediaTab({ images, onChange }: { images: string[]; onChange: (imgs: str
       for (const file of files) {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
+        const res = await apiFetch("/api/media/upload", { method: "POST", body: fd }).then((r) => r.json());
         const url = res.data?.url ?? res.url;
         if (url) urls.push(url);
       }
@@ -273,7 +274,7 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
     setTab("details");
     setSelectedVariantIds(new Set());
     setLoading(true);
-    fetch(`/api/physical-products/${productId}`)
+    apiFetch(`/api/physical-products/${productId}`)
       .then((r) => r.json())
       .then((p: Product | { error: string }) => {
         if ("error" in p) { setError(p.error); return; }
@@ -292,7 +293,7 @@ export default function ProductEditDrawer({ open, onClose, productId, onSaved }:
     if (!form || !productId) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/physical-products/${productId}`, {
+      const res = await apiFetch(`/api/physical-products/${productId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

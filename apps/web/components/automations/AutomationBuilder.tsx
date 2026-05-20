@@ -14,6 +14,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import EmailComposeDrawer, { EmailComposeButton } from "../emails/EmailComposeDrawer";
 import { validateAutomation, type ValidationIssue } from "../../lib/automation-validation";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "ACTIVE" | "PAUSED";
 type TriggerType = "NEW_SALE" | "SALE_CANCELED" | "SUBSCRIPTION_PAYMENT_FAILED" | "FORM_SUBMIT" | "TAG_ADDED" | "TAG_REMOVED" | "EMAIL_LINK_CLICKED";
@@ -236,7 +237,7 @@ export default function AutomationBuilder({
 
   const handleSave = useCallback(async () => {
     setSave("saving"); setSaveErr(null);
-    const res = await fetch(`/api/automations/${initial.id}`, {
+    const res = await apiFetch(`/api/automations/${initial.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -317,7 +318,7 @@ export default function AutomationBuilder({
     try {
       if (dirty) await handleSave();
 
-      const res = await fetch(`/api/automations/${initial.id}/status`, {
+      const res = await apiFetch(`/api/automations/${initial.id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next }),
@@ -340,7 +341,7 @@ export default function AutomationBuilder({
       variant: "danger",
     });
     if (!ok) return;
-    const res = await fetch(`/api/automations/${initial.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/automations/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
     if (json.success) router.push(`/${slug}/automations`);
   }
@@ -1188,7 +1189,7 @@ function RunHistoryDrawer({ automationId, onClose }: { automationId: string; onC
   const [runs, setRuns] = useState<any[] | null>(null);
 
   useEffect(() => {
-    fetch(`/api/automations/${automationId}/runs?limit=50`)
+    apiFetch(`/api/automations/${automationId}/runs?limit=50`)
       .then((r) => r.json())
       .then((j) => { if (j.success) setRuns(j.data); });
   }, [automationId]);

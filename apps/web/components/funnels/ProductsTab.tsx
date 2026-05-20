@@ -7,6 +7,7 @@ import {
   Ticket, ExternalLink, ChevronDown, ChevronUp, ShoppingBag, GraduationCap, Monitor,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { apiFetch } from "../../lib/api-client";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -511,7 +512,7 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
   async function remove(couponId: string) {
     const next = stepCouponIds.filter((id) => id !== couponId);
     setSaving(true);
-    await fetch(`/api/funnel-steps/${stepId}/coupons`, {
+    await apiFetch(`/api/funnel-steps/${stepId}/coupons`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ couponIds: next }),
     });
@@ -522,7 +523,7 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
   async function add(couponId: string) {
     const next = [...stepCouponIds, couponId];
     setSaving(true);
-    await fetch(`/api/funnel-steps/${stepId}/coupons`, {
+    await apiFetch(`/api/funnel-steps/${stepId}/coupons`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ couponIds: next }),
     });
@@ -648,7 +649,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
   const [headlineVal, setHeadlineVal] = useState(bump.headline ?? "");
 
   async function patchBump(body: object): Promise<OrderBump> {
-    const res = await fetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -684,7 +685,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
 
   async function toggleResource(type: string, resourceId: string) {
     setSavingRes(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/resources`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/resources`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, resourceId }),
     });
@@ -695,7 +696,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
 
   async function addPlan(form: PlanForm) {
     setSavingPlan(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/price-plans`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/price-plans`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.name, type: form.type,
@@ -712,7 +713,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
 
   async function editPlan(id: string, form: PlanForm) {
     setSavingPlan(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/price-plans/${id}`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/price-plans/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.name, type: form.type,
@@ -728,14 +729,14 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
   }
 
   async function deletePlan(id: string) {
-    await fetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/price-plans/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}/price-plans/${id}`, { method: "DELETE" });
     onUpdate({ ...bump, pricePlans: bump.pricePlans.filter((p) => p.id !== id) });
   }
 
   async function handleDelete() {
     const ok = await confirm({ title: `Delete "${bump.label}"?`, description: "This will remove the order bump and all its price plans.", variant: "danger", confirmLabel: "Delete" });
     if (!ok) return;
-    await fetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}`, { method: "DELETE" });
+    await apiFetch(`/api/funnel-steps/${stepId}/order-bumps/${bump.id}`, { method: "DELETE" });
     onDelete();
   }
 
@@ -928,7 +929,7 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
   async function addBump() {
     if (!newName.trim()) return;
     setSaving(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/order-bumps`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/order-bumps`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label: newName.trim() }),
     });
@@ -1037,13 +1038,13 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
 
   const fetchData = useCallback(async () => {
     const [stepRes, plansRes, productsRes, tagsRes, couponsRes, resourcesRes, bumpsRes] = await Promise.all([
-      fetch(`/api/funnel-steps/${stepId}`).then((r) => r.json()),
-      fetch(`/api/funnel-steps/${stepId}/price-plans`).then((r) => r.json()),
-      fetch("/api/physical-products").then((r) => r.json()),
-      fetch("/api/tags").then((r) => r.json()),
-      fetch("/api/coupons").then((r) => r.json()),
-      fetch(`/api/funnel-steps/${stepId}/resources`).then((r) => r.json()),
-      fetch(`/api/funnel-steps/${stepId}/order-bumps`).then((r) => r.json()),
+      apiFetch(`/api/funnel-steps/${stepId}`).then((r) => r.json()),
+      apiFetch(`/api/funnel-steps/${stepId}/price-plans`).then((r) => r.json()),
+      apiFetch("/api/physical-products").then((r) => r.json()),
+      apiFetch("/api/tags").then((r) => r.json()),
+      apiFetch("/api/coupons").then((r) => r.json()),
+      apiFetch(`/api/funnel-steps/${stepId}/resources`).then((r) => r.json()),
+      apiFetch(`/api/funnel-steps/${stepId}/order-bumps`).then((r) => r.json()),
     ]);
 
     const step = stepRes.data ?? stepRes;
@@ -1065,7 +1066,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
 
   async function saveOfferType(type: "DIGITAL" | "PHYSICAL", productId?: string | null, fee?: string) {
     setSavingOfferType(true);
-    await fetch(`/api/funnel-steps/${stepId}/offer-type`, {
+    await apiFetch(`/api/funnel-steps/${stepId}/offer-type`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         offerType: type,
@@ -1080,7 +1081,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
 
   async function saveShippingFee(value: string) {
     setShippingFee(value);
-    await fetch(`/api/funnel-steps/${stepId}/offer-type`, {
+    await apiFetch(`/api/funnel-steps/${stepId}/offer-type`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         offerType: "PHYSICAL",
@@ -1092,7 +1093,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
 
   async function toggleResource(type: string, resourceId: string) {
     setSavingResources(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/resources`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/resources`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, resourceId }),
     });
@@ -1103,7 +1104,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
 
   async function handleAddPlan(form: PlanForm) {
     setSavingPlan(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/price-plans`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/price-plans`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.name, type: form.type,
@@ -1120,7 +1121,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
 
   async function handleEditPlan(id: string, form: PlanForm) {
     setSavingPlan(true);
-    const res = await fetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, {
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.name, type: form.type,
@@ -1136,7 +1137,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleDeletePlan(id: string) {
-    await fetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, { method: "DELETE" });
     setPlans((prev) => prev.filter((p) => p.id !== id));
   }
 

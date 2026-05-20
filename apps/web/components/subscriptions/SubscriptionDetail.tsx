@@ -8,6 +8,7 @@ import {
   CheckCircle, Timer, Ban, AlertCircle, Clock, Ticket, XCircle, RotateCcw,
 } from "lucide-react";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Contact = {
   id: string; email: string;
@@ -108,7 +109,7 @@ function CancelModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/subscriptions/${sub.id}/cancel`, {
+      const res = await apiFetch(`/api/subscriptions/${sub.id}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ immediate }),
@@ -242,7 +243,7 @@ function ResumeModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/subscriptions/${sub.id}/resume`, {
+      const res = await apiFetch(`/api/subscriptions/${sub.id}/resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });

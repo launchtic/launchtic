@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { HardDrive, Cloud, Check, Loader2, Eye, EyeOff } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type Driver = "local" | "s3";
 
@@ -113,7 +114,7 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/settings/storage", {
+      const res = await apiFetch("/api/settings/storage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ driver, endpoint, region, bucket, accessKey, secretKey: secretKey || "__KEEP__", publicUrl }),

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Loader2, Check, AlertCircle, Eye, EyeOff, ExternalLink, History, ChevronDown, ChevronUp, X as XIcon } from "lucide-react";
 import { useToast } from "../ui/Toast";
+import { apiFetch } from "../../lib/api-client";
 
 type Provider = "anthropic" | "google" | "deepseek" | "openai";
 
@@ -71,7 +72,7 @@ export default function AiAssistantPanel() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/ai/settings");
+      const res = await apiFetch("/api/ai/settings");
       const json = await res.json();
       if (json.success) {
         setSettings(json.data);
@@ -98,7 +99,7 @@ export default function AiAssistantPanel() {
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/ai/settings", {
+      const res = await apiFetch("/api/ai/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -125,7 +126,7 @@ export default function AiAssistantPanel() {
     if (!confirm("Remove the API key and disable the AI assistant?")) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/ai/settings", { method: "DELETE" });
+      const res = await apiFetch("/api/ai/settings", { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
         setSettings({ provider: "google", model: "gemini-2.0-flash", enabled: false, hasApiKey: false, apiKey: "" });
@@ -326,7 +327,7 @@ function AuditLogSection() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/ai/audit");
+      const res = await apiFetch("/api/ai/audit");
       const json = await res.json();
       if (json.success) setActions(json.data.actions);
     } finally {

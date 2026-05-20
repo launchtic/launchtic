@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
+import { apiFetch } from "../../lib/api-client";
 
 const CURRENCIES = SUPPORTED_CURRENCIES;
 
@@ -28,7 +29,7 @@ export default function ProductQuickCreateDrawer({ open, onClose, onCreated }: {
 
     setSubmitting(true);
     setError("");
-    const res = await fetch("/api/physical-products", {
+    const res = await apiFetch("/api/physical-products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: trimmed, currency }),

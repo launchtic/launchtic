@@ -44,6 +44,7 @@ import AddStepDialog from "./AddStepDialog";
 import ProductsTab from "./ProductsTab";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import ChangeTemplateModal from "./ChangeTemplateModal";
+import { apiFetch } from "../../lib/api-client";
 
 type Step = {
   id: string;
@@ -200,7 +201,7 @@ function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelI
     setSaving(true);
     setError(null);
 
-    const res = await fetch(`/api/funnel-steps/${step.id}`, {
+    const res = await apiFetch(`/api/funnel-steps/${step.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, slug }),
@@ -340,7 +341,7 @@ export default function FunnelStepManager({
     const reordered = arrayMove(steps, oldIndex, newIndex).map((s, i) => ({ ...s, order: i + 1 }));
     setSteps(reordered);
 
-    await fetch(`/api/funnels/${funnel.id}/steps/reorder`, {
+    await apiFetch(`/api/funnels/${funnel.id}/steps/reorder`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderedIds: reordered.map((s) => s.id) }),
@@ -359,7 +360,7 @@ export default function FunnelStepManager({
     if (!ok) return;
 
     setDeleting(stepId);
-    await fetch(`/api/funnel-steps/${stepId}`, { method: "DELETE" });
+    await apiFetch(`/api/funnel-steps/${stepId}`, { method: "DELETE" });
     const remaining = steps.filter((s) => s.id !== stepId);
     setSteps(remaining);
     if (selectedId === stepId) {

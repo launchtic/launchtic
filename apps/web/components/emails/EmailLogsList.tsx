@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "QUEUED" | "SENT" | "FAILED" | "BOUNCED";
 type SourceType = "BROADCAST" | "TEMPLATE" | "AUTOMATION" | "SEQUENCE" | "TRANSACTIONAL";
@@ -175,7 +176,7 @@ export default function EmailLogsList() {
       if (source !== "ALL") body.source = source;
       if (range !== "all")  body.range  = range;
 
-      const res = await fetch("/api/emails/logs/clear", {
+      const res = await apiFetch("/api/emails/logs/clear", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -357,7 +358,7 @@ function DetailDrawer({ id, onClose, onRetried }: { id: string; onClose: () => v
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/emails/logs/${id}`)
+    apiFetch(`/api/emails/logs/${id}`)
       .then((r) => r.json())
       .then((json) => {
         if (cancelled) return;
@@ -379,7 +380,7 @@ function DetailDrawer({ id, onClose, onRetried }: { id: string; onClose: () => v
     if (!ok) return;
 
     setRetrying(true);
-    const res = await fetch(`/api/emails/logs/${id}/retry`, { method: "POST" });
+    const res = await apiFetch(`/api/emails/logs/${id}/retry`, { method: "POST" });
     const json = await res.json();
     setRetrying(false);
     if (!json.success) { toast.error(json.error ?? "Retry failed"); return; }

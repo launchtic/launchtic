@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, X, Loader2 } from "lucide-react";
 import FormDrawer from "../ui/FormDrawer";
+import { apiFetch } from "../../lib/api-client";
 
 type Tag = { id: string; name: string; color: string | null };
 type CustomField = { key: string; value: string };
@@ -66,7 +67,7 @@ export default function ContactFormDrawer({ open, onClose, onSuccess, allTags, e
 
     if (isEdit && editContactId) {
       setLoading(true);
-      fetch(`/api/contacts/${editContactId}`)
+      apiFetch(`/api/contacts/${editContactId}`)
         .then((r) => r.json())
         .then((json) => {
           if (!json.success) throw new Error(json.error);
@@ -161,14 +162,14 @@ export default function ContactFormDrawer({ open, onClose, onSuccess, allTags, e
       const toRemove = [...initialTagIds].filter((id) => !selectedTagIds.has(id));
       await Promise.all([
         ...toAdd.map((tagId) =>
-          fetch(`/api/contacts/${contactId}/tags`, {
+          apiFetch(`/api/contacts/${contactId}/tags`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tagId }),
           })
         ),
         ...toRemove.map((tagId) =>
-          fetch(`/api/contacts/${contactId}/tags`, {
+          apiFetch(`/api/contacts/${contactId}/tags`, {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tagId }),
@@ -178,7 +179,7 @@ export default function ContactFormDrawer({ open, onClose, onSuccess, allTags, e
     } else if (selectedTagIds.size > 0) {
       await Promise.all(
         [...selectedTagIds].map((tagId) =>
-          fetch(`/api/contacts/${contactId}/tags`, {
+          apiFetch(`/api/contacts/${contactId}/tags`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ tagId }),

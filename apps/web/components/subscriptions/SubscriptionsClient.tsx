@@ -7,6 +7,7 @@ import {
   Search, ChevronDown, Loader2, Repeat,
   CheckCircle, Timer, Ban, AlertCircle, Clock,
 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type Contact = { id: string; email: string; firstName: string | null; lastName: string | null };
 type FunnelStep = { name: string; funnel: { name: string } };
@@ -88,7 +89,7 @@ export default function SubscriptionsClient({ initialTotal = 0 }: { initialTotal
     if (q)      params.set("search", q);
     if (status) params.set("status", status);
     if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`/api/subscriptions?${params}`);
+    const res = await apiFetch(`/api/subscriptions?${params}`);
     return res.json();
   }, []);
 

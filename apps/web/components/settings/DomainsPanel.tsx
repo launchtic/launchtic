@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Globe, Trash2, CheckCircle, Clock, Plus, Loader2, Copy, Check, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { apiFetch } from "../../lib/api-client";
 
 type Domain = {
   id: string;
@@ -55,7 +56,7 @@ export default function DomainsPanel({
     setAdding(true);
     setError(null);
 
-    const res = await fetch("/api/domains", {
+    const res = await apiFetch("/api/domains", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ domain: input.trim() }),
@@ -74,7 +75,7 @@ export default function DomainsPanel({
 
   async function handleVerify(id: string) {
     setVerifying(id);
-    const res = await fetch(`/api/domains/${id}`, { method: "PATCH" });
+    const res = await apiFetch(`/api/domains/${id}`, { method: "PATCH" });
     const json = await res.json();
     setVerifying(null);
     if (res.ok) {
@@ -91,7 +92,7 @@ export default function DomainsPanel({
     });
     if (!ok) return;
 
-    const res = await fetch(`/api/domains/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/domains/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
       setError(json.error ?? "Failed to remove domain");
@@ -103,7 +104,7 @@ export default function DomainsPanel({
   async function handleSetDefault(id: string) {
     setPromoting(id);
     setError(null);
-    const res = await fetch(`/api/domains/${id}/set-default`, { method: "POST" });
+    const res = await apiFetch(`/api/domains/${id}/set-default`, { method: "POST" });
     setPromoting(null);
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));

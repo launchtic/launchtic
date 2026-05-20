@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Upload, X, FileText, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 type ImportResult = { imported: number; skipped: number; errors: string[]; total: number };
 
@@ -69,7 +70,7 @@ export default function ImportDialog({
           ALL_HEADERS.filter((h) => row[h]).map((h) => [h, row[h]])
         )
       );
-      const res = await fetch("/api/contacts/import", {
+      const res = await apiFetch("/api/contacts/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(contacts),

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
+import { apiFetch } from "../../lib/api-client";
 
 type Tag = { id: string; name: string; color: string | null };
 type ContactTag = { tag: Tag; addedAt: string };
@@ -107,7 +108,7 @@ export default function ContactDetail({
 
   async function addTag(tag: Tag) {
     setAddingTag(tag.id);
-    const res = await fetch(`/api/contacts/${contact.id}/tags`, {
+    const res = await apiFetch(`/api/contacts/${contact.id}/tags`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tagId: tag.id }),
@@ -123,7 +124,7 @@ export default function ContactDetail({
 
   async function removeTag(tagId: string) {
     setRemovingTag(tagId);
-    await fetch(`/api/contacts/${contact.id}/tags`, {
+    await apiFetch(`/api/contacts/${contact.id}/tags`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tagId }),
@@ -141,7 +142,7 @@ export default function ContactDetail({
     });
     if (!ok) return;
     setDeleting(true);
-    await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
+    await apiFetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
     router.push(`/${slug}/contacts`);
   }
 

@@ -8,6 +8,7 @@ import {
 import FormDrawer from "../../../../components/ui/FormDrawer";
 import { useConfirm } from "../../../../components/ui/ConfirmDialog";
 import { useRole } from "../../../../lib/role";
+import { apiFetch } from "../../../../lib/api-client";
 
 type Coupon = {
   id: string; code: string; type: "percentage" | "fixed";
@@ -49,7 +50,7 @@ export default function CouponsPage() {
     setLoading(true);
     const params = new URLSearchParams({ page: String(p), pageSize: "25" });
     if (q) params.set("search", q);
-    const res = await fetch(`/api/coupons?${params}`);
+    const res = await apiFetch(`/api/coupons?${params}`);
     const json = await res.json();
     if (json.success) {
       setItems(json.data.items);
@@ -134,13 +135,13 @@ export default function CouponsPage() {
     });
     if (!ok) return;
     setDeletingId(coupon.id);
-    await fetch(`/api/coupons/${coupon.id}`, { method: "DELETE" });
+    await apiFetch(`/api/coupons/${coupon.id}`, { method: "DELETE" });
     setDeletingId(null);
     fetchData(search, page);
   }
 
   async function toggleActive(coupon: Coupon) {
-    const res = await fetch(`/api/coupons/${coupon.id}`, {
+    const res = await apiFetch(`/api/coupons/${coupon.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !coupon.active }),

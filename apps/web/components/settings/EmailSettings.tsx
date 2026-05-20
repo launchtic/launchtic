@@ -9,6 +9,7 @@ import {
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import EmailFooterPanel from "./EmailFooterPanel";
+import { apiFetch } from "../../lib/api-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
       password:      pwTouched ? password : "__KEEP__",
     };
 
-    const res  = await fetch("/api/settings/smtp", {
+    const res  = await apiFetch("/api/settings/smtp", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify(body),
@@ -280,7 +281,7 @@ function SenderIdentitiesSection({ initial }: { initial: Identity[] }) {
   const toast = useToast();
 
   async function refresh() {
-    const res = await fetch("/api/sender-identities");
+    const res = await apiFetch("/api/sender-identities");
     const json = await res.json();
     if (json.success) setItems(json.data);
   }
@@ -288,7 +289,7 @@ function SenderIdentitiesSection({ initial }: { initial: Identity[] }) {
   async function setDefault(id: Identity) {
     if (id.isDefault) return;
     setBusy(id.id);
-    const res = await fetch(`/api/sender-identities/${id.id}/default`, { method: "POST" });
+    const res = await apiFetch(`/api/sender-identities/${id.id}/default`, { method: "POST" });
     setBusy(null);
     if ((await res.json()).success) refresh();
   }
@@ -302,7 +303,7 @@ function SenderIdentitiesSection({ initial }: { initial: Identity[] }) {
     });
     if (!ok) return;
     setBusy(id.id);
-    const res = await fetch(`/api/sender-identities/${id.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/sender-identities/${id.id}`, { method: "DELETE" });
     const json = await res.json();
     setBusy(null);
     if (!json.success) { toast.error(json.error ?? "Failed to delete identity"); return; }
@@ -440,7 +441,7 @@ function EditDialog({
     if (!json.success) { setError(json.error ?? "Failed"); return; }
 
     if (!isNew && isDefault && !identity!.isDefault) {
-      await fetch(`/api/sender-identities/${identity!.id}/default`, { method: "POST" });
+      await apiFetch(`/api/sender-identities/${identity!.id}/default`, { method: "POST" });
     }
     onSaved();
   }
@@ -533,7 +534,7 @@ function TestDialog({
 
   async function handleTest() {
     setState("sending"); setError(null);
-    const res = await fetch(`/api/sender-identities/${identity.id}/test`, {
+    const res = await apiFetch(`/api/sender-identities/${identity.id}/test`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sendTo }),

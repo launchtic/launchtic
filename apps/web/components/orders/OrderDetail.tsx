@@ -9,6 +9,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Contact = {
   id: string;
@@ -127,7 +128,7 @@ function RefundModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/orders/${order.id}/refund`, {
+      const res = await apiFetch(`/api/orders/${order.id}/refund`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

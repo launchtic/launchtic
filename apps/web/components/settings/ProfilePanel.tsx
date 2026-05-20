@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 export default function ProfilePanel({
   initialName,
@@ -25,7 +26,7 @@ export default function ProfilePanel({
     e.preventDefault();
     if (!name.trim() || name.trim() === initialName) return;
     setSavingName(true); setNameError(null); setNameSuccess(false);
-    const res = await fetch("/api/profile", {
+    const res = await apiFetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
@@ -52,7 +53,7 @@ export default function ProfilePanel({
     if (newPw !== confirmPw) { setPwError("Passwords do not match."); return; }
     if (newPw.length < 6)   { setPwError("Password must be at least 6 characters."); return; }
     setSavingPw(true); setPwError(null); setPwSuccess(false);
-    const res = await fetch("/api/profile", {
+    const res = await apiFetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),

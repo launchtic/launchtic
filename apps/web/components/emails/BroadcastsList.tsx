@@ -10,6 +10,7 @@ import { WELCOME_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "FAILED" | "CANCELED";
 type Target = "ALL_CONTACTS" | "TAG" | "SEGMENT";
@@ -72,7 +73,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
 
   function handleCreate() {
     startCreate(async () => {
-      const res = await fetch("/api/broadcasts", {
+      const res = await apiFetch("/api/broadcasts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -99,7 +100,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
     if (!ok) return;
 
     setDeleting(b.id);
-    const res = await fetch(`/api/broadcasts/${b.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/broadcasts/${b.id}`, { method: "DELETE" });
     const json = await res.json();
     setDeleting(null);
     if (json.success) setItems((prev) => prev.filter((x) => x.id !== b.id));

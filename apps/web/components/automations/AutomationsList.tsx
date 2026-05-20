@@ -12,6 +12,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import RecipeDialog from "./RecipeDialog";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "ACTIVE" | "PAUSED";
 type TriggerType = "NEW_SALE" | "SALE_CANCELED" | "SUBSCRIPTION_PAYMENT_FAILED" | "FORM_SUBMIT" | "TAG_ADDED" | "TAG_REMOVED" | "EMAIL_LINK_CLICKED";
@@ -80,7 +81,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
   async function toggleStatus(a: Row) {
     const next: Status = a.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
     setBusy(a.id);
-    const res = await fetch(`/api/automations/${a.id}/status`, {
+    const res = await apiFetch(`/api/automations/${a.id}/status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: next }),
@@ -101,7 +102,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
     if (!ok) return;
 
     setBusy(a.id);
-    const res = await fetch(`/api/automations/${a.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/automations/${a.id}`, { method: "DELETE" });
     const json = await res.json();
     setBusy(null);
     if (json.success) setItems((prev) => prev.filter((x) => x.id !== a.id));

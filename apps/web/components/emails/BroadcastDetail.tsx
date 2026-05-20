@@ -13,6 +13,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useUnsavedChanges } from "../../contexts/UnsavedChangesContext";
 import RichEmailEditor from "./RichEmailEditor";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "FAILED" | "CANCELED";
 type Target = "ALL_CONTACTS" | "TAG" | "SEGMENT";
@@ -112,7 +113,7 @@ export default function BroadcastDetail({
   useEffect(() => {
     if (!isEditable && !isScheduled) return;
     const t = setTimeout(async () => {
-      const res = await fetch("/api/broadcasts/audience", {
+      const res = await apiFetch("/api/broadcasts/audience", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetType, targetTagIds, excludeUnsubscribed }),
@@ -128,7 +129,7 @@ export default function BroadcastDetail({
     if (!isSent && initial.status !== "FAILED") return;
     let cancelled = false;
     async function fetchStats() {
-      const res = await fetch(`/api/broadcasts/${initial.id}/stats`);
+      const res = await apiFetch(`/api/broadcasts/${initial.id}/stats`);
       const json = await res.json();
       if (!cancelled && json.success) setStats(json.data);
     }
@@ -182,7 +183,7 @@ export default function BroadcastDetail({
   const handleSave = useCallback(async () => {
     if (!isEditable) return;
     setSave("saving"); setSaveErr(null);
-    const res = await fetch(`/api/broadcasts/${initial.id}`, {
+    const res = await apiFetch(`/api/broadcasts/${initial.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -250,7 +251,7 @@ export default function BroadcastDetail({
     // string (maily doc), so it would render as raw text. Just update parent
     // state; RichEmailEditor's external-value useEffect parses the JSON via
     // parseValue() and sets the editor content correctly.
-    fetch(`/api/email-templates/${templateId}`)
+    apiFetch(`/api/email-templates/${templateId}`)
       .then((r) => r.json())
       .then((json) => {
         if (!json.success) return;
@@ -294,7 +295,7 @@ export default function BroadcastDetail({
     // Save first to ensure latest content is in DB
     if (dirty) await handleSave();
 
-    const res = await fetch(`/api/broadcasts/${initial.id}/send`, {
+    const res = await apiFetch(`/api/broadcasts/${initial.id}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(scheduledAt ? { scheduledAt } : {}),
@@ -314,7 +315,7 @@ export default function BroadcastDetail({
       variant: "warning",
     });
     if (!ok) return;
-    const res = await fetch(`/api/broadcasts/${initial.id}/cancel`, { method: "POST" });
+    const res = await apiFetch(`/api/broadcasts/${initial.id}/cancel`, { method: "POST" });
     const json = await res.json();
     if (!json.success) { toast.error(json.error ?? "Failed to cancel"); return; }
     toast.success("Schedule canceled — back to draft");
@@ -329,7 +330,7 @@ export default function BroadcastDetail({
       variant: "danger",
     });
     if (!ok) return;
-    const res = await fetch(`/api/broadcasts/${initial.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/broadcasts/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
     if (json.success) router.push(`/${slug}/emails/broadcasts`);
   }
@@ -346,7 +347,7 @@ export default function BroadcastDetail({
     if (!ok) return;
 
     setRetrying(true);
-    const res = await fetch(`/api/broadcasts/${initial.id}/retry-failed`, { method: "POST" });
+    const res = await apiFetch(`/api/broadcasts/${initial.id}/retry-failed`, { method: "POST" });
     const json = await res.json();
     setRetrying(false);
     if (!json.success) { toast.error(json.error ?? "Retry failed"); return; }
@@ -354,7 +355,7 @@ export default function BroadcastDetail({
     // Poll stats until queue drains (capped at 5 minutes)
     const start = Date.now();
     const interval = setInterval(async () => {
-      const r = await fetch(`/api/broadcasts/${initial.id}/stats`);
+      const r = await apiFetch(`/api/broadcasts/${initial.id}/stats`);
       const j = await r.json();
       if (j.success) {
         setStats(j.data);

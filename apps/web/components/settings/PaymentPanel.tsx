@@ -6,6 +6,7 @@ import {
   CheckCircle, XCircle, AlertCircle, ExternalLink, Zap,
   ChevronDown, Copy, BookOpen,
 } from "lucide-react";
+import { apiFetch } from "../../lib/api-client";
 
 const WEBHOOK_EVENTS = [
   "customer.subscription.updated",
@@ -415,7 +416,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
 
   async function handleTest() {
     setTest({ status: "testing" });
-    const res  = await fetch("/api/settings/payment/stripe/test", {
+    const res  = await apiFetch("/api/settings/payment/stripe/test", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ secretKey: sk }),
@@ -436,7 +437,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setSaveErr(null);
-    const res  = await fetch("/api/settings/payment", {
+    const res  = await apiFetch("/api/settings/payment", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({
@@ -568,7 +569,7 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
 
   async function handleTest() {
     setTest({ status: "testing" });
-    const res  = await fetch("/api/settings/payment/paypal/test", {
+    const res  = await apiFetch("/api/settings/payment/paypal/test", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ clientId, clientSecret, mode }),
@@ -587,7 +588,7 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setSaveErr(null);
-    const res  = await fetch("/api/settings/payment", {
+    const res  = await apiFetch("/api/settings/payment", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({

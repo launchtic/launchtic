@@ -10,6 +10,7 @@ import { WELCOME_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useRole } from "../../lib/role";
+import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "ACTIVE" | "PAUSED";
 
@@ -62,7 +63,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
 
   async function handleCreate() {
     setCreating(true);
-    const res = await fetch("/api/sequences", {
+    const res = await apiFetch("/api/sequences", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -85,7 +86,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
   async function toggleStatus(s: Row) {
     const next: Status = s.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
     setBusy(s.id);
-    const res = await fetch(`/api/sequences/${s.id}/status`, {
+    const res = await apiFetch(`/api/sequences/${s.id}/status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: next }),
@@ -106,7 +107,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
     if (!ok) return;
 
     setBusy(s.id);
-    const res = await fetch(`/api/sequences/${s.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/sequences/${s.id}`, { method: "DELETE" });
     const json = await res.json();
     setBusy(null);
     if (json.success) setItems((prev) => prev.filter((x) => x.id !== s.id));

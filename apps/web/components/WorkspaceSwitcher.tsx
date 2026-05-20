@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ChevronDown, Plus, Building2, Loader2 } from "lucide-react";
+import { apiFetch } from "../lib/api-client";
 
 type Workspace = { id: string; name: string; slug: string };
 
@@ -45,7 +46,7 @@ export default function WorkspaceSwitcher({
     if (!newName.trim()) return;
     setCreating(true);
     setError(null);
-    const res = await fetch("/api/workspaces", {
+    const res = await apiFetch("/api/workspaces", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newName.trim() }),
