@@ -220,7 +220,7 @@ async function buildPageData(
   });
   const owner = workspace?.owner;
   const isLicenseActive =
-    owner?.plan !== "FREE" &&
+    owner?.plan !== "COMMUNITY" &&
     (owner?.licenseExpiresAt == null || owner.licenseExpiresAt > new Date());
   const showBadge = !isLicenseActive;
 

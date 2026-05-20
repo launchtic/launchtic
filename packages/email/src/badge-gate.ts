@@ -1,7 +1,7 @@
 // "Powered by Launchtic" badge gating — mirrors the rule used by the
 // published-page renderer (apps/renderer/lib/page-loader.ts): badge appears
-// when the workspace owner is on the FREE plan OR their license has expired.
-// PRO/Enterprise are white-label and never display the badge.
+// when the workspace owner is on the COMMUNITY plan OR their license has
+// expired. STARTER / AGENCY / CUSTOM tiers remove the badge.
 //
 // Pure function — no DB dependency — so it can be reused from worker queues,
 // web API routes, and anywhere else that needs the same rule. The caller is
@@ -12,7 +12,7 @@ export function shouldShowLaunchticBadge(
   licenseExpiresAt: Date | null | undefined,
 ): boolean {
   const isLicenseActive =
-    plan !== "FREE" &&
+    plan !== "COMMUNITY" &&
     plan != null &&
     (licenseExpiresAt == null || licenseExpiresAt > new Date());
   return !isLicenseActive;

@@ -1,6 +1,7 @@
 import { auth } from "../../lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@launchtic/database";
+import WorkspaceFetchHeader from "../../components/WorkspaceFetchHeader";
 
 // redirect is used only for the unauthenticated → /login case; notFound
 // handles invalid slugs without picking an arbitrary fallback workspace.
@@ -38,5 +39,10 @@ export default async function WorkspaceLayout({
   });
   if (!member) notFound();
 
-  return <>{children}</>;
+  return (
+    <>
+      <WorkspaceFetchHeader slug={workspaceSlug} />
+      {children}
+    </>
+  );
 }
