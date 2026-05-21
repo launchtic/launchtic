@@ -13,6 +13,7 @@ const listAutomations = defineTool({
     status: z.enum(["DRAFT", "ACTIVE", "PAUSED"]).optional(),
   }),
   requiresConfirm: false,
+  requiredPermission: "automations:read",
   execute: async ({ status }, ctx) => {
     const automations = await db.automation.findMany({
       where: { workspaceId: ctx.workspaceId, ...(status && { status }) },
@@ -46,6 +47,7 @@ const updateAutomationStatus = defineTool({
     status:       z.enum(["ACTIVE", "PAUSED"]),
   }),
   requiresConfirm: true,
+  requiredPermission: "automations:write",
   summary: async (a, ctx) => {
     const label = await resolveAutomationLabel(a.automationId, ctx);
     return `${a.status === "ACTIVE" ? "Activate" : "Pause"} automation "${label}"`;

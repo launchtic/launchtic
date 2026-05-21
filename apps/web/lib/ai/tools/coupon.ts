@@ -23,6 +23,7 @@ const listCoupons = defineTool({
     limit:        z.number().int().min(1).max(100).default(25),
   }),
   requiresConfirm: false,
+  requiredPermission: "coupons:read",
   execute: async ({ search, activeOnly, limit }, ctx) => {
     const where: Record<string, unknown> = { workspaceId: ctx.workspaceId };
     if (search?.trim()) where.code = { contains: search.trim(), mode: "insensitive" };
@@ -67,6 +68,7 @@ const createCoupon = defineTool({
     expiresAt: z.string().datetime().optional().describe("ISO 8601 UTC expiry. Omit for no expiry."),
   }),
   requiresConfirm: true,
+  requiredPermission: "coupons:write",
   summary: (a) => {
     const amount = a.type === "percentage" ? `${a.discount}% off` : `$${a.discount} off`;
     const limit  = a.maxUses ? ` · max ${a.maxUses} uses` : "";
@@ -113,6 +115,7 @@ const attachCouponToStep = defineTool({
     couponId: z.string().describe("Coupon ID from list_coupons."),
   }),
   requiresConfirm: true,
+  requiredPermission: "coupons:write",
   summary: async (a, ctx) => {
     const [step, coupon] = await Promise.all([
       db.funnelStep.findFirst({
@@ -175,6 +178,7 @@ const detachCouponFromStep = defineTool({
     couponId: z.string(),
   }),
   requiresConfirm: true,
+  requiredPermission: "coupons:write",
   summary: async (a, ctx) => {
     const [step, coupon] = await Promise.all([
       db.funnelStep.findFirst({

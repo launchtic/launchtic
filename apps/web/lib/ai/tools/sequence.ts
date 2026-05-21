@@ -37,6 +37,7 @@ const listSequences = defineTool({
     status: z.enum(["DRAFT", "ACTIVE", "PAUSED"]).optional(),
   }),
   requiresConfirm: false,
+  requiredPermission: "sequences:read",
   execute: async ({ status }, ctx) => {
     const sequences = await db.emailSequence.findMany({
       where: { workspaceId: ctx.workspaceId, ...(status && { status }) },
@@ -69,6 +70,7 @@ const getSequenceDetails = defineTool({
     sequenceId: z.string(),
   }),
   requiresConfirm: false,
+  requiredPermission: "sequences:read",
   execute: async ({ sequenceId }, ctx) => {
     const seq = await db.emailSequence.findFirst({
       where: { id: sequenceId, workspaceId: ctx.workspaceId },
@@ -109,6 +111,7 @@ const updateSequenceStatus = defineTool({
     status:     z.enum(["ACTIVE", "PAUSED"]),
   }),
   requiresConfirm: true,
+  requiredPermission: "sequences:write",
   summary: async (a, ctx) => {
     const label = await resolveSequenceLabel(a.sequenceId, ctx);
     return `${a.status === "ACTIVE" ? "Activate" : "Pause"} sequence "${label}"`;
@@ -139,6 +142,7 @@ const createSequenceFromSpec = defineTool({
     })).min(1).describe("Ordered steps. First step has delayDays=0 (immediate)."),
   }),
   requiresConfirm: true,
+  requiredPermission: "sequences:write",
   summary: (a) => {
     const stepSummary = a.steps.map((s, i) =>
       `${i + 1}) ${s.delayDays === 0 ? "immediate" : `+${s.delayDays}d`}: "${s.emailSubject}"`,
@@ -187,6 +191,7 @@ const addSequenceStep = defineTool({
     emailBody:    richBodySchema,
   }),
   requiresConfirm: true,
+  requiredPermission: "sequences:write",
   summary: async (a, ctx) => {
     const label = await resolveSequenceLabel(a.sequenceId, ctx);
     return `Add step (+${a.delayDays}d, "${a.emailSubject}") to sequence "${label}"`;
@@ -228,6 +233,7 @@ const updateSequenceStep = defineTool({
     emailBody:    richBodySchema.optional().describe("Replaces existing body entirely."),
   }),
   requiresConfirm: true,
+  requiredPermission: "sequences:write",
   summary: async (a, ctx) => {
     const step = await db.sequenceStep.findFirst({
       where: { id: a.stepId, sequence: { workspaceId: ctx.workspaceId } },

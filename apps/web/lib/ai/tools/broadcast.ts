@@ -133,6 +133,7 @@ const listBroadcasts = defineTool({
     limit:  z.number().int().min(1).max(30).default(10),
   }),
   requiresConfirm: false,
+  requiredPermission: "broadcasts:read",
   execute: async ({ status, limit }, ctx) => {
     const broadcasts = await db.broadcast.findMany({
       where: { workspaceId: ctx.workspaceId, ...(status && { status }) },
@@ -170,6 +171,7 @@ const getBroadcastDetails = defineTool({
     broadcastId: z.string().describe("Use list_broadcasts to find."),
   }),
   requiresConfirm: false,
+  requiredPermission: "broadcasts:read",
   execute: async ({ broadcastId }, ctx) => {
     const b = await db.broadcast.findFirst({
       where: { id: broadcastId, workspaceId: ctx.workspaceId },
@@ -231,6 +233,7 @@ const createBroadcastFromSpec = defineTool({
     scheduledAt: z.string().datetime().optional().describe("ISO 8601 datetime. Must be ≥10 minutes in future. Omit for DRAFT (operator schedules later)."),
   }),
   requiresConfirm: true,
+  requiredPermission: "broadcasts:write",
   summary: (a) => {
     const aud = a.audience.type === "ALL_CONTACTS"
       ? "all contacts"
@@ -317,6 +320,7 @@ const updateBroadcast = defineTool({
     scheduledAt: z.string().datetime().optional().describe("ISO 8601 UTC. Must be ≥10 min in future. Promotes DRAFT → SCHEDULED (or reschedules a SCHEDULED broadcast)."),
   }),
   requiresConfirm: true,
+  requiredPermission: "broadcasts:write",
   summary: async (a, ctx) => {
     const b = await db.broadcast.findFirst({
       where: { id: a.broadcastId, workspaceId: ctx.workspaceId },
@@ -390,6 +394,7 @@ const cancelBroadcast = defineTool({
     broadcastId: z.string(),
   }),
   requiresConfirm: true,
+  requiredPermission: "broadcasts:write",
   summary: async (a, ctx) => {
     const b = await db.broadcast.findFirst({
       where: { id: a.broadcastId, workspaceId: ctx.workspaceId },
