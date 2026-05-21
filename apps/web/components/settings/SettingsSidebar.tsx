@@ -38,7 +38,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
   {
     label: "WORKSPACE",
     items: [
-      { segment: "workspaces",     label: "Workspaces",       icon: Building2,    proOnly: true                                            },
+      { segment: "workspaces",     label: "Workspaces",       icon: Building2,    proOnly: true, requirePerm: "workspace:manage"             },
       { segment: "team",           label: "Team",             icon: Users,        proOnly: true, requirePerm: "members:read"                },
       { segment: "roles",          label: "Roles",            icon: Shield,       proOnly: true, requirePerm: "roles:read"                  },
       { segment: "domains",        label: "Custom Domains",   icon: Globe,                       requirePerm: "settings:domains:read"        },

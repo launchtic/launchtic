@@ -14,13 +14,21 @@ export default async function NotFound() {
   let dashboardHref = "/login";
 
   if (session?.user?.id) {
-    const member = await db.workspaceMember.findFirst({
-      where: { userId: session.user.id as string },
-      select: { workspace: { select: { slug: true } } },
-      orderBy: { joinedAt: "asc" },
+    const userId = session.user.id as string;
+    // Find any workspace the user can reach: owned via Organization OR
+    // invited as a member. Org owners don't have a WorkspaceMember row.
+    const workspace = await db.workspace.findFirst({
+      where: {
+        OR: [
+          { organization: { ownerId: userId } },
+          { members: { some: { userId } } },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      select: { slug: true },
     });
-    if (member?.workspace.slug) {
-      dashboardHref = `/${member.workspace.slug}/dashboard`;
+    if (workspace?.slug) {
+      dashboardHref = `/${workspace.slug}/dashboard`;
     }
   }
 

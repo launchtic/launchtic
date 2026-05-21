@@ -8,7 +8,6 @@ import {
   resolveAssetPlaceholders,
   copySeedAssetsToWorkspace,
 } from "../../../../lib/seed-data";
-import { seedDefaultRoles, findAdminRoleId } from "../../../../lib/seed-roles";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(100),
@@ -80,21 +79,11 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Seed the 4 default roles (Admin / Marketer / Designer / Viewer) for
-      // this workspace, then seat the founder as Admin. Founder permission
-      // doesn't actually flow through their roleId — they're the Organization
-      // owner and bypass via requireAccess() shortcut — but the FK is NOT
-      // NULL so we pick the most permissive role as the natural default.
-      const roles       = await seedDefaultRoles(tx, newWorkspace.id);
-      const adminRoleId = findAdminRoleId(roles);
-
-      await tx.workspaceMember.create({
-        data: {
-          workspaceId: newWorkspace.id,
-          userId:      newUser.id,
-          roleId:      adminRoleId,
-        },
-      });
+      // No roles are seeded — the workspace starts empty. The Owner doesn't
+      // need a WorkspaceMember row either: requireAccess() / requireWorkspaceFromSlug
+      // detect them via Organization.ownerId and bypass every permission check.
+      // The Owner creates roles from scratch in Settings → Roles before
+      // inviting their first team member.
 
       // Seed default page templates into the new workspace. Asset URLs in the
       // JSON use {{ASSET}} placeholder; we resolve them to a path scoped under

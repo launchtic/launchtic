@@ -4,7 +4,6 @@ import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
 import { canCreateWorkspace } from "@launchtic/ee";
 import { getOrganizationForOwner, getEffectivePlan } from "../../../lib/organization";
-import { seedDefaultRoles, findAdminRoleId } from "../../../lib/seed-roles";
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -47,32 +46,16 @@ export async function POST(req: NextRequest) {
       slug = `${baseSlug}-${attempt}`;
     }
 
-    // Create workspace + seed default roles + seat creator as Admin in one tx
-    // so partial failure rolls back cleanly. The creator is the Org owner (in
-    // B-minimal) and bypasses permissions anyway — Admin is the natural FK
-    // default since roleId is NOT NULL.
-    const workspace = await db.$transaction(async (tx) => {
-      const ws = await tx.workspace.create({
-        data: {
-          name,
-          slug,
-          ownerId:        userId,
-          organizationId: organization.id,
-        },
-      });
-
-      const roles       = await seedDefaultRoles(tx, ws.id);
-      const adminRoleId = findAdminRoleId(roles);
-
-      await tx.workspaceMember.create({
-        data: {
-          workspaceId: ws.id,
-          userId,
-          roleId:      adminRoleId,
-        },
-      });
-
-      return ws;
+    // No roles seeded, no WorkspaceMember row for the Owner — the Owner
+    // bypasses permission checks via Organization.ownerId. They'll create
+    // roles in Settings → Roles before inviting members.
+    const workspace = await db.workspace.create({
+      data: {
+        name,
+        slug,
+        ownerId:        userId,
+        organizationId: organization.id,
+      },
     });
 
     return ok({ id: workspace.id, name: workspace.name, slug: workspace.slug }, 201);

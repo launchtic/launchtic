@@ -48,8 +48,17 @@ export default async function DashboardLayout({
     }),
     db.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     getOnboardingStatus(workspaceId),
+    // Workspaces the user can switch to: workspaces they own via the
+    // Organization OR are explicitly invited to. Org owners don't have a
+    // WorkspaceMember row (they bypass via Organization.ownerId), so the
+    // member-only filter would miss their own workspaces.
     db.workspace.findMany({
-      where: { members: { some: { userId } } },
+      where: {
+        OR: [
+          { organization: { ownerId: userId } },
+          { members: { some: { userId } } },
+        ],
+      },
       select: { id: true, name: true, slug: true },
       orderBy: { createdAt: "asc" },
     }),
@@ -86,7 +95,11 @@ export default async function DashboardLayout({
               {children}
             </main>
           </div>
-          {onboarding && !onboarding.isComplete && !onboarding.isDismissed && (
+          {/* Onboarding checklist — Owner-only. Every onboarding action
+              (configure SMTP / payment / AI / create funnel) requires
+              workspace owner permissions; invited members can't act on any
+              of these and would just see a checklist they can't complete. */}
+          {isOwner && onboarding && !onboarding.isComplete && !onboarding.isDismissed && (
             <OnboardingChecklist status={onboarding} />
           )}
           <AssistantWidget />

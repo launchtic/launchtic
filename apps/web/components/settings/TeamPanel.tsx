@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Trash2, Crown, X, Copy, Check } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { Loader2, Plus, Trash2, Crown, X, Copy, Check, AlertTriangle } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
 type Role = {
@@ -10,13 +12,23 @@ type Role = {
   permissions: string[];
 };
 
+// Member = invited user with a WorkspaceMember row. The Organization owner
+// is rendered separately from `ownerInfo` because they don't have (and
+// don't need) a WorkspaceMember row — they bypass permissions via
+// Organization.ownerId.
 type Member = {
   userId:   string;
   roleId:   string;
   role:     Role;
-  isOwner:  boolean;
   joinedAt: string;
   user: { id: string; name: string | null; email: string; avatar: string | null };
+};
+
+type OwnerInfo = {
+  userId: string;
+  name:   string | null;
+  email:  string;
+  avatar: string | null;
 };
 
 type CreatedCredentials = {
@@ -54,30 +66,37 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function TeamPanel({
+  ownerInfo,
   initialMembers,
   currentUserId,
   currentUserRole,
   isOwner: viewerIsOwner,
 }: {
+  ownerInfo:        OwnerInfo | null;
   initialMembers:   Member[];
   currentUserId:    string;
   currentUserRole:  string;
   /** True when the viewer is the Organization owner (always full access). */
   isOwner:          boolean;
 }) {
+  const params = useParams<{ workspaceSlug: string }>();
+  const workspaceSlug = params?.workspaceSlug ?? "";
+
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [roles, setRoles]     = useState<Role[]>([]);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
 
-  // Anyone with members:manage can manage. Owner has it via bypass; Admin role
-  // has it by default. We approximate at UI level via role name === "Admin"
-  // or viewerIsOwner — server still enforces the real check.
+  // Anyone with members:manage can manage. Owner has it via bypass; Admin
+  // role has it by default (if Owner created one). Server enforces the
+  // real check — this is just to hide UI affordances early.
   const canManage = viewerIsOwner || currentUserRole === "Admin";
 
   // Fetch available roles for the invite dropdown
   useEffect(() => {
     apiFetch("/api/roles")
       .then((r) => r.json())
-      .then((r) => { if (r.success) setRoles(r.data); });
+      .then((r) => { if (r.success) setRoles(r.data); })
+      .finally(() => setRolesLoaded(true));
   }, []);
 
   // ── Invite ──────────────────────────────────────────────
@@ -89,12 +108,10 @@ export default function TeamPanel({
 
   const [credentials, setCredentials] = useState<CreatedCredentials | null>(null);
 
-  // Default invite role to the first non-Admin role (usually Viewer) when
-  // roles load — Admin is too much access for a default selection.
+  // Default invite role to the first available role when roles load.
   useEffect(() => {
     if (!inviteRoleId && roles.length > 0) {
-      const safe = roles.find((r) => r.name !== "Admin") ?? roles[0];
-      setInviteRoleId(safe.id);
+      setInviteRoleId(roles[0].id);
     }
   }, [roles, inviteRoleId]);
 
@@ -161,10 +178,11 @@ export default function TeamPanel({
   }
 
   function canEditMember(member: Member): boolean {
-    if (member.isOwner) return false;                          // Org owner protected
     if (member.userId === currentUserId) return false;         // Can't edit yourself
     return canManage;
   }
+
+  const noRoles = rolesLoaded && roles.length === 0;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -184,12 +202,39 @@ export default function TeamPanel({
         )}
       </div>
 
-      {/* Member list */}
+      {/* Member list — Owner row always first, then invited members */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        {members.map((member, i) => (
+        {/* Owner row (Organization founder) */}
+        {ownerInfo && (
+          <div className="flex items-center gap-3 px-5 py-4">
+            <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-xs font-semibold text-amber-700 shrink-0">
+              {ownerInfo.avatar
+                ? <img src={ownerInfo.avatar} alt="" className="w-full h-full rounded-full object-cover" />
+                : initials(ownerInfo.name, ownerInfo.email)
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {ownerInfo.name ?? ownerInfo.email}
+                {ownerInfo.userId === currentUserId && (
+                  <span className="ml-1.5 text-xs text-gray-400">(you)</span>
+                )}
+              </p>
+              {ownerInfo.name && (
+                <p className="text-xs text-gray-400 truncate">{ownerInfo.email}</p>
+              )}
+            </div>
+            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
+              <Crown size={12} className="text-amber-500" />
+              Owner
+            </span>
+          </div>
+        )}
+
+        {members.map((member) => (
           <div
             key={member.userId}
-            className={`flex items-center gap-3 px-5 py-4 ${i > 0 ? "border-t border-gray-100" : ""}`}
+            className="flex items-center gap-3 px-5 py-4 border-t border-gray-100"
           >
             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600 shrink-0">
               {member.user.avatar
@@ -210,13 +255,8 @@ export default function TeamPanel({
               )}
             </div>
 
-            {/* Role badge / selector */}
-            {member.isOwner ? (
-              <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
-                <Crown size={12} className="text-amber-500" />
-                Owner
-              </span>
-            ) : canEditMember(member) ? (
+            {/* Role selector (editable) or badge (locked: self / not manager) */}
+            {canEditMember(member) ? (
               <div className="relative shrink-0">
                 {changingRole === member.userId ? (
                   <Loader2 size={14} className="animate-spin text-gray-400" />
@@ -238,7 +278,6 @@ export default function TeamPanel({
               </span>
             )}
 
-            {/* Remove button */}
             {canEditMember(member) && (
               <button
                 onClick={() => handleRemove(member)}
@@ -273,52 +312,85 @@ export default function TeamPanel({
               </button>
             </div>
 
-            {inviteError && (
-              <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{inviteError}</p>
-            )}
+            {/* Empty roles state — block invite until at least one role exists */}
+            {noRoles ? (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-700 leading-relaxed">
+                    <p className="font-medium mb-0.5">No roles defined</p>
+                    <p>Create at least one role before inviting members. Roles control what new members can do in this workspace.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowInvite(false)}
+                    className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <Link
+                    href={`/${workspaceSlug}/settings/roles`}
+                    className="flex-1 flex items-center justify-center gap-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
+                  >
+                    Create role
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <>
+                {inviteError && (
+                  <p className="mb-3 text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{inviteError}</p>
+                )}
 
-            <form onSubmit={handleInvite} className="space-y-3">
-              <input
-                autoFocus
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="Email address"
-                required
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
-                <select
-                  value={inviteRoleId}
-                  onChange={(e) => setInviteRoleId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[11px] text-gray-400">
-                  Customize roles in Settings → Roles.
-                </p>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowInvite(false)}
-                  className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={inviting || !inviteEmail.trim() || !inviteRoleId}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-colors"
-                >
-                  {inviting ? <><Loader2 size={13} className="animate-spin" /> Creating…</> : "Create & add"}
-                </button>
-              </div>
-            </form>
+                <form onSubmit={handleInvite} className="space-y-3">
+                  <input
+                    autoFocus
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Email address"
+                    required
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                    <select
+                      value={inviteRoleId}
+                      onChange={(e) => setInviteRoleId(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      Manage roles in{" "}
+                      <Link href={`/${workspaceSlug}/settings/roles`} className="text-blue-600 hover:underline">
+                        Settings → Roles
+                      </Link>.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowInvite(false)}
+                      className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={inviting || !inviteEmail.trim() || !inviteRoleId}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-colors"
+                    >
+                      {inviting ? <><Loader2 size={13} className="animate-spin" /> Creating…</> : "Create & add"}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}

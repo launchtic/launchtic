@@ -11,9 +11,12 @@ export default async function Page({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  // No permission gate beyond membership — Workspaces lists what the user
-  // owns or belongs to. Sidebar hides this tab for non-Agency plans.
-  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
+  // Workspaces tab is OWNER-only — it surfaces create/rename/delete actions
+  // on the workspaces under this Organization. Regular members switch
+  // between their workspaces via the TopNav WorkspaceSwitcher chip; they
+  // don't need this management view. `workspace:manage` is granted only to
+  // the Organization owner via the requireAccess bypass.
+  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug, "workspace:manage");
 
   const [workspaces, ws] = await Promise.all([
     db.workspace.findMany({

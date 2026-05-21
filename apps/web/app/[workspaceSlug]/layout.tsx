@@ -33,11 +33,20 @@ export default async function WorkspaceLayout({
   //     redirect; the 404 page links back to dashboard.
   //   - Post-login routing to the user's actual workspace is handled in the
   //     auth callback, not here.
-  const member = await db.workspaceMember.findFirst({
-    where: { userId, workspace: { slug: workspaceSlug } },
-    select: { workspaceId: true },
+  // Reachable workspaces: owned via Organization OR explicitly a member.
+  // Org owners don't have a WorkspaceMember row (they bypass permissions
+  // via Organization.ownerId), so a member-only check would 404 them.
+  const workspace = await db.workspace.findFirst({
+    where: {
+      slug: workspaceSlug,
+      OR: [
+        { organization: { ownerId: userId } },
+        { members: { some: { userId } } },
+      ],
+    },
+    select: { id: true },
   });
-  if (!member) notFound();
+  if (!workspace) notFound();
 
   return (
     <>
