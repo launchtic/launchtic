@@ -22,7 +22,7 @@ const STATUSES = ["DRAFT", "ACTIVE", "PAUSED"] as const;
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("sequences:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("sequences:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

@@ -25,7 +25,7 @@ export default async function DashboardLayout({
   if (!session?.user?.id) redirect("/login");
 
   const { workspaceSlug } = await params;
-  const { workspaceId, userId, role } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId, userId, role, permissions, isOwner } = await requireWorkspaceFromSlug(workspaceSlug);
 
   // Need workspace.organizationId before we can re-verify or read plan. Plan
   // now lives on Organization — Workspace just points to its billing parent.
@@ -67,7 +67,7 @@ export default async function DashboardLayout({
     .slice(0, 2);
 
   return (
-    <WorkspaceRoleProvider role={role}>
+    <WorkspaceRoleProvider role={role} permissions={permissions} isOwner={isOwner}>
     <ConfirmProvider>
       <ToastProvider>
         <UnsavedChangesProvider>

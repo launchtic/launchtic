@@ -11,7 +11,7 @@ async function getProduct(id: string, workspaceId: string) {
 }
 
 export async function GET(_req: NextRequest, { params }: Props) {
-  const r = await requireAccess();
+  const r = await requireAccess("products:read");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;
@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  const r = await requireAccess("products:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;
@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  const r = await requireAccess("products:delete");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;

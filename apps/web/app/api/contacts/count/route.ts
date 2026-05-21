@@ -11,7 +11,7 @@ import { requireAccess } from "../../../../lib/permissions";
 // bulk-enroll-by-tag preview). Costs one indexed lookup on ContactTag.
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("contacts:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

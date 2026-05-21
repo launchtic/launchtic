@@ -9,7 +9,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "im
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("media:upload");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

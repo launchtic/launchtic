@@ -1,27 +1,31 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { ok, err, handleError, getUserId } from "../../../lib/api";
+import { ok, err, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
 import { verifyLicenseKey } from "../../../lib/license";
-import { getOrganizationForOwner } from "../../../lib/organization";
 
 const activateSchema = z.object({
   licenseKey: z.string().min(10),
 });
 
-// POST /api/license — activate a license key on the current user's Organization.
-// On self-host the founder owns the Organization (created at register), so the
-// license always lands on that Organization. Invited team members don't own an
-// Organization and get 404 here.
+// POST /api/license — activate a license key on the workspace's Organization.
+// Gated by `billing:manage` — only the Organization owner has this permission
+// (granted via the OWNER bypass in requireAccess). No regular role grants
+// billing:manage, so invited team members get 403 here.
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getUserId();
-    if (!userId) return err("Unauthorized", 401);
+    const r = await requireAccess("billing:manage");
+    if (!r.ok) return r.response;
+    const { organizationId } = r;
 
     const body = await req.json();
     const { licenseKey } = activateSchema.parse(body);
 
-    const organization = await getOrganizationForOwner(userId);
+    const organization = await db.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, instanceId: true },
+    });
     if (!organization) return err("Organization not found", 404);
 
     // Stable instanceId per Organization so the license server can detect key
@@ -48,13 +52,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/license — current license status for the user's Organization.
+// GET /api/license — current license status for the workspace's Organization.
+// Same `billing:manage` gate as POST so the license tab is OWNER-only end-to-end.
 export async function GET() {
   try {
-    const userId = await getUserId();
-    if (!userId) return err("Unauthorized", 401);
+    const r = await requireAccess("billing:manage");
+    if (!r.ok) return r.response;
+    const { organizationId } = r;
 
-    const organization = await getOrganizationForOwner(userId);
+    const organization = await db.organization.findUnique({
+      where: { id: organizationId },
+      select: { plan: true, licenseKey: true, licenseExpiresAt: true },
+    });
     if (!organization) return err("Organization not found", 404);
 
     const isExpired =

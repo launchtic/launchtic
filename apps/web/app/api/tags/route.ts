@@ -11,7 +11,7 @@ const createTagSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("tags:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("contacts:write");
+    const r = await requireAccess("tags:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

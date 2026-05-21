@@ -13,7 +13,7 @@ import { db } from "@launchtic/database";
 
 export async function GET() {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:ai:read");
     if (!r.ok) return r.response;
     const { workspaceId, userId } = r;
 

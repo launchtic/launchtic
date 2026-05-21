@@ -14,7 +14,7 @@ type Params = { params: Promise<{ id: string }> };
 // Slug uniqueness is unchanged because the SET of "funnels on default" is the
 // same — only the hostname changed. So no slug re-validation needed here.
 export async function POST(_req: NextRequest, { params }: Params) {
-  const r = await requireAccess("settings:write");
+  const r = await requireAccess("settings:domains:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 

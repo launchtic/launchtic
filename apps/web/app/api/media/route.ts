@@ -5,7 +5,7 @@ import { getDriver } from "../../../lib/storage";
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("media:upload");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

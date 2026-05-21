@@ -14,7 +14,7 @@ async function verifyBump(bumpId: string, stepId: string, workspaceId: string) {
 }
 
 export async function GET(_req: NextRequest, { params }: Props) {
-  const r = await requireAccess();
+  const r = await requireAccess("funnels:read");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id, bumpId } = await params;

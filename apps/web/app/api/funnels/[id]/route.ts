@@ -8,7 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const r = await requireAccess();
+    const r = await requireAccess("funnels:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const r = await requireAccess("funnels:write");
+    const r = await requireAccess("funnels:delete");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

@@ -19,7 +19,7 @@ type Params = { params: Promise<{ id: string }> };
 // GET /api/saved-blocks/:id  → returns full block including contentJson
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("funnels:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

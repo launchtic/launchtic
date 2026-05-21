@@ -27,7 +27,7 @@ const createSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("automations:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

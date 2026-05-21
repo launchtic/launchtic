@@ -1,10 +1,30 @@
 /**
  * Workspace permission matrix.
  *
- * Role hierarchy: OWNER > ADMIN > EDITOR > VIEWER
+ * Role system:
+ *   - OWNER  = derived from Organization.ownerId (NOT a role row).
+ *              Bypasses every permission check via the shortcut in
+ *              requireAccess() — founder always has full access.
+ *   - Other  = WorkspaceMember.role (FK to Role table). Role rows hold an
+ *              explicit permission list — checks read `role.permissions`
+ *              directly, no hard-coded matrix.
+ *
+ * Default roles seeded per workspace: Admin / Marketer / Designer / Viewer
+ * (see lib/seed-roles.ts). Admins can edit/delete/create custom roles via
+ * /api/roles.
+ *
+ * Permission naming:
+ *   - <resource>:<verb>   e.g. funnels:read, contacts:write, orders:refund
+ *   - settings:<sub>:<verb> e.g. settings:payment:write
+ *
+ * Verbs:
+ *   - read    — list / view detail
+ *   - write   — create + edit (combined since rarely separated in practice)
+ *   - delete  — destructive removal (separate to allow "edit but not delete")
+ *   - special action — refund, send, cancel, import, export, resend, upload
  *
  * Usage in API routes:
- *   const r = await requireAccess("settings:write");
+ *   const r = await requireAccess("funnels:write");
  *   if (!r.ok) return r.response;
  *   const { workspaceId, userId } = r;
  */
@@ -16,109 +36,228 @@ import { db } from "@launchtic/database";
 import { err } from "./api";
 
 export type Permission =
+  // ── Dashboard ──
+  | "dashboard:read"
+
+  // ── Funnels & Pages (includes steps, plans, bumps, domains, saved blocks) ──
+  | "funnels:read"
   | "funnels:write"
+  | "funnels:delete"
+
+  // ── Sales: Physical Products ──
+  | "products:read"
+  | "products:write"
+  | "products:delete"
+
+  // ── Sales: Orders ──
+  | "orders:read"
+  | "orders:refund"          // refund + cancel order (irreversible financial)
+
+  // ── Sales: Subscriptions ──
+  | "subscriptions:read"
+  | "subscriptions:cancel"   // cancel + resume
+
+  // ── Sales: Transactions ──
+  | "transactions:read"      // immutable audit log
+
+  // ── Sales: Coupons ──
+  | "coupons:read"
+  | "coupons:write"
+  | "coupons:delete"
+
+  // ── Contacts ──
+  | "contacts:read"
   | "contacts:write"
-  | "emails:write"
+  | "contacts:delete"
+  | "contacts:import"        // bulk CSV import (data quality)
+  | "contacts:export"        // GDPR-sensitive PII export
+
+  // ── Tags ──
+  | "tags:read"
+  | "tags:write"
+  | "tags:delete"
+
+  // ── Emails: Broadcasts ──
+  | "broadcasts:read"
+  | "broadcasts:write"       // create + edit drafts
+  | "broadcasts:send"        // actually send to recipients (irreversible)
+  | "broadcasts:delete"
+
+  // ── Emails: Sequences (drip campaigns) ──
+  | "sequences:read"
+  | "sequences:write"        // create + edit + enroll/exit contacts
+  | "sequences:delete"
+
+  // ── Emails: Templates ──
+  | "email_templates:read"
+  | "email_templates:write"
+  | "email_templates:delete"
+
+  // ── Emails: Logs ──
+  | "email_logs:read"
+  | "email_logs:resend"      // retry failed sends + clear log
+
+  // ── Automations ──
+  | "automations:read"
   | "automations:write"
-  | "orders:write"       // refund, cancel
-  | "settings:read"
-  | "settings:write"     // payment, smtp, storage, domains, etc.
-  | "billing:manage"     // license, plan changes
+  | "automations:delete"
+
+  // ── Media ──
+  | "media:read"
+  | "media:upload"
+  | "media:delete"
+
+  // ── Settings: General (workspace name, defaults) ──
+  | "settings:general:read"
+  | "settings:general:write"
+
+  // ── Settings: Custom Domains ──
+  | "settings:domains:read"
+  | "settings:domains:write"
+
+  // ── Settings: Payment (Stripe/PayPal credentials) 🔴 ──
+  | "settings:payment:read"
+  | "settings:payment:write"
+
+  // ── Settings: Email (SMTP creds + sender identities + footer) 🔴 ──
+  | "settings:email:read"
+  | "settings:email:write"
+
+  // ── Settings: Storage (S3 keys + bucket config) 🔴 ──
+  | "settings:storage:read"
+  | "settings:storage:write"
+
+  // ── Settings: Page Templates ──
+  | "settings:page_templates:read"
+  | "settings:page_templates:write"
+
+  // ── Settings: AI Assistant (BYOK key) 🔴 ──
+  | "settings:ai:read"
+  | "settings:ai:write"
+
+  // ── Team / Roles ──
   | "members:read"
-  | "members:manage"     // invite, remove, change role
-  | "workspace:manage";  // rename, delete workspace
+  | "members:manage"         // invite, remove, change role
+  | "roles:read"
+  | "roles:manage"           // CRUD custom roles
 
-// What each role is allowed to do.
-const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
-  OWNER: new Set([
-    "funnels:write",
-    "contacts:write",
-    "emails:write",
-    "automations:write",
-    "orders:write",
-    "settings:read",
-    "settings:write",
-    "billing:manage",
-    "members:read",
-    "members:manage",
-    "workspace:manage",
-  ]),
-  ADMIN: new Set([
-    "funnels:write",
-    "contacts:write",
-    "emails:write",
-    "automations:write",
-    "orders:write",
-    "settings:read",
-    "settings:write",
-    "members:read",
-    "members:manage",
-  ]),
-  EDITOR: new Set([
-    "funnels:write",
-    "contacts:write",
-    "emails:write",
-    "automations:write",
-    "members:read",
-  ]),
-  VIEWER: new Set([
-    "members:read",
-  ]),
-};
+  // ── OWNER-only (granted only via Organization.ownerId bypass) 👑 ──
+  | "billing:manage"         // activate license, view billing
+  | "workspace:manage";      // rename, delete workspace
 
-export function can(role: string, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
+/** All permissions — used to fill in the bypass return for organization owner. */
+export const ALL_PERMISSIONS: Permission[] = [
+  "dashboard:read",
+  "funnels:read", "funnels:write", "funnels:delete",
+  "products:read", "products:write", "products:delete",
+  "orders:read", "orders:refund",
+  "subscriptions:read", "subscriptions:cancel",
+  "transactions:read",
+  "coupons:read", "coupons:write", "coupons:delete",
+  "contacts:read", "contacts:write", "contacts:delete", "contacts:import", "contacts:export",
+  "tags:read", "tags:write", "tags:delete",
+  "broadcasts:read", "broadcasts:write", "broadcasts:send", "broadcasts:delete",
+  "sequences:read", "sequences:write", "sequences:delete",
+  "email_templates:read", "email_templates:write", "email_templates:delete",
+  "email_logs:read", "email_logs:resend",
+  "automations:read", "automations:write", "automations:delete",
+  "media:read", "media:upload", "media:delete",
+  "settings:general:read", "settings:general:write",
+  "settings:domains:read", "settings:domains:write",
+  "settings:payment:read", "settings:payment:write",
+  "settings:email:read", "settings:email:write",
+  "settings:storage:read", "settings:storage:write",
+  "settings:page_templates:read", "settings:page_templates:write",
+  "settings:ai:read", "settings:ai:write",
+  "members:read", "members:manage",
+  "roles:read", "roles:manage",
+  "billing:manage", "workspace:manage",
+];
+
+/** Check whether a permission list grants the given permission. */
+export function can(permissions: readonly string[], permission: Permission): boolean {
+  return permissions.includes(permission);
 }
 
-type Access = { ok: true; userId: string; workspaceId: string; role: string };
+type Access = {
+  ok: true;
+  userId: string;
+  workspaceId: string;
+  organizationId: string;
+  /** Role name e.g. "Admin", "Marketer", or "OWNER" for the founder. */
+  role: string;
+  /** Effective permission list (full set when isOwner). */
+  permissions: readonly string[];
+  /** True if user is the Organization.ownerId — bypassed every check. */
+  isOwner: boolean;
+};
 type Denied = { ok: false; response: ReturnType<typeof err> };
 
 /**
  * Use in every API route handler.
- * - No permission arg → any authenticated workspace member is allowed (read-only routes).
- * - With permission arg → role must have that permission.
+ * - No permission arg → any authenticated workspace member is allowed.
+ * - With permission arg → role.permissions must include it (or user is OWNER).
  *
- * Workspace resolution: STRICTLY URL-driven via `X-Workspace-Slug` header.
- * The client `apiFetch` wrapper sets it from the current URL path
- * (`/{slug}/...`). Session no longer carries workspace state, so there's no
- * fallback — a missing header means the caller never went through apiFetch
- * (or hit /api/* outside a workspace-scoped page) and gets 401.
- *
- * Pattern (unchanged):
- *   const r = await requireAccess("funnels:write");
- *   if (!r.ok) return r.response;
- *   const { workspaceId, userId } = r;
+ * Workspace resolution: STRICTLY URL-driven via X-Workspace-Slug header.
+ * The client apiFetch wrapper sets it from the current URL path. Session no
+ * longer carries workspace state, so missing header = 400.
  */
 export async function requireAccess(permission?: Permission): Promise<Access | Denied> {
   const session = await auth();
   const userId  = session?.user?.id;
   if (!userId) return { ok: false, response: err("Unauthorized", 401) };
 
-  // Resolve workspace from URL slug (header set by apiFetch). No fallback.
   const h = await headers();
   const slug = h.get("x-workspace-slug");
   if (!slug) return { ok: false, response: err("Missing workspace context", 400) };
 
   const ws = await db.workspace.findFirst({
     where: { slug },
-    select: { id: true },
+    select: {
+      id: true,
+      organizationId: true,
+      organization: { select: { ownerId: true } },
+      members: {
+        where: { userId },
+        select: { role: { select: { name: true, permissions: true } } },
+        take: 1,
+      },
+    },
   });
   if (!ws) return { ok: false, response: err("Workspace not found", 404) };
-  const workspaceId = ws.id;
 
-  // Membership check enforces that the URL slug is actually a workspace the
-  // caller is a member of — non-member callers get 401.
-  const member = await db.workspaceMember.findUnique({
-    where: { workspaceId_userId: { workspaceId, userId } },
-    select: { role: true },
-  });
+  const isOwner = ws.organization.ownerId === userId;
+
+  if (isOwner) {
+    return {
+      ok: true,
+      userId,
+      workspaceId:    ws.id,
+      organizationId: ws.organizationId,
+      role:           "OWNER",
+      permissions:    ALL_PERMISSIONS,
+      isOwner:        true,
+    };
+  }
+
+  const member = ws.members[0];
   if (!member) return { ok: false, response: err("Unauthorized", 401) };
 
-  if (permission && !can(member.role, permission)) {
+  const perms = member.role.permissions ?? [];
+
+  if (permission && !can(perms, permission)) {
     return { ok: false, response: err("Forbidden", 403) };
   }
 
-  return { ok: true, userId, workspaceId, role: member.role };
+  return {
+    ok: true,
+    userId,
+    workspaceId:    ws.id,
+    organizationId: ws.organizationId,
+    role:           member.role.name,
+    permissions:    perms,
+    isOwner:        false,
+  };
 }
 
 /** Low-level helper — use requireAccess() in routes instead. */
@@ -130,41 +269,63 @@ export async function getWorkspaceAccess(): Promise<{
 }
 
 /**
- * Server-component helper: resolve workspace from the URL slug param.
- *
- *   export default async function Page({ params }) {
- *     const { workspaceSlug } = await params;
- *     const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
- *     // ... use workspaceId in db queries
- *   }
- *
- * Replaces the legacy `session.workspaceId` reads. URL is the only source of
- * truth — multi-tab safe, share-link safe, bookmark safe.
- *
- * Redirects to /login if unauthenticated; 404s if the user isn't a member of
- * the URL workspace (parent layout already validates this, but the page is
- * defensive in case it's mounted standalone or the layout check is bypassed).
+ * Server-component helper: resolve workspace + caller's role from the URL
+ * slug param. Returns role name + full permission list — server components
+ * feed these into WorkspaceRoleProvider so client components can call
+ * useRole().hasPermission() without an extra fetch.
  */
 export async function requireWorkspaceFromSlug(slug: string): Promise<{
-  userId:        string;
-  workspaceId:   string;
-  workspaceSlug: string;
-  role:          string; // OWNER | ADMIN | EDITOR | VIEWER
+  userId:         string;
+  workspaceId:    string;
+  workspaceSlug:  string;
+  organizationId: string;
+  role:           string;
+  permissions:    readonly string[];
+  isOwner:        boolean;
 }> {
   const session = await auth();
   const userId = session?.user?.id as string | undefined;
   if (!userId) redirect("/login");
-  // Single query gets workspace + caller's role on it. Role drives client UI
-  // gates (canWrite, canManageSettings) via WorkspaceRoleProvider.
+
   const ws = await db.workspace.findFirst({
-    where: { slug, members: { some: { userId } } },
+    where: { slug },
     select: {
       id: true,
       slug: true,
-      members: { where: { userId }, select: { role: true }, take: 1 },
+      organizationId: true,
+      organization: { select: { ownerId: true } },
+      members: {
+        where: { userId },
+        select: { role: { select: { name: true, permissions: true } } },
+        take: 1,
+      },
     },
   });
   if (!ws) notFound();
-  const role = ws.members[0]?.role ?? "VIEWER";
-  return { userId, workspaceId: ws.id, workspaceSlug: ws.slug, role };
+
+  const isOwner = ws.organization.ownerId === userId;
+  if (isOwner) {
+    return {
+      userId,
+      workspaceId:    ws.id,
+      workspaceSlug:  ws.slug,
+      organizationId: ws.organizationId,
+      role:           "OWNER",
+      permissions:    ALL_PERMISSIONS,
+      isOwner:        true,
+    };
+  }
+
+  const member = ws.members[0];
+  if (!member) notFound();
+
+  return {
+    userId,
+    workspaceId:    ws.id,
+    workspaceSlug:  ws.slug,
+    organizationId: ws.organizationId,
+    role:           member.role.name,
+    permissions:    member.role.permissions ?? [],
+    isOwner:        false,
+  };
 }

@@ -9,7 +9,7 @@ function fmt(amount: number, currency: string) {
 }
 
 export async function GET(_req: NextRequest, { params }: Props) {
-  const r = await requireAccess();
+  const r = await requireAccess("orders:read");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 

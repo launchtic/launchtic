@@ -5,10 +5,15 @@ import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 
 const patchSchema = z.object({
-  role: z.enum(["ADMIN", "EDITOR", "VIEWER"]),
+  roleId: z.string().min(1),
 });
 
-// PATCH /api/team/[userId] — change a member's role
+// PATCH /api/team/[userId] — change a member's role. The Organization owner
+// (founder) cannot be demoted via this endpoint — ownership transfer goes
+// through a separate flow. Non-owners with `members:manage` can change
+// anyone else's role; the lateral-attack protection (admin can't demote
+// admin) used to live here, but with custom roles it doesn't generalize —
+// keep that policy at the UI layer and rely on Org owner as last resort.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -16,32 +21,51 @@ export async function PATCH(
   try {
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
-    const { workspaceId, role: callerRole } = r;
+    const { workspaceId, organizationId } = r;
 
     const { userId: targetUserId } = await params;
-    const { role } = patchSchema.parse(await req.json());
+    const { roleId } = patchSchema.parse(await req.json());
 
-    const target = await db.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+    // Org owner is protected — can't be re-roled (they bypass permissions
+    // anyway via Organization.ownerId derivation).
+    const org = await db.organization.findUnique({
+      where: { id: organizationId },
+      select: { ownerId: true },
     });
-    if (!target) return err("Member not found.", 404);
-    if (target.role === "OWNER") return err("The workspace owner's role cannot be changed.", 403);
-    if (callerRole === "ADMIN" && target.role === "ADMIN") {
-      return err("Admins cannot change another admin's role.", 403);
+    if (org?.ownerId === targetUserId) {
+      return err("The workspace owner's role cannot be changed.", 403);
     }
+
+    // Validate target membership + new roleId both belong to this workspace.
+    const [target, newRole] = await Promise.all([
+      db.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+      }),
+      db.role.findFirst({
+        where: { id: roleId, workspaceId },
+        select: { id: true, name: true, permissions: true },
+      }),
+    ]);
+    if (!target)  return err("Member not found.", 404);
+    if (!newRole) return err("Invalid role.", 400);
 
     const updated = await db.workspaceMember.update({
       where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
-      data: { role },
+      data:  { roleId },
     });
 
-    return ok({ userId: updated.userId, role: updated.role });
+    return ok({
+      userId: updated.userId,
+      roleId: updated.roleId,
+      role:   { id: newRole.id, name: newRole.name, permissions: newRole.permissions },
+    });
   } catch (error) {
     return handleError(error);
   }
 }
 
-// DELETE /api/team/[userId] — remove a member
+// DELETE /api/team/[userId] — remove a member from the workspace. The Org
+// owner cannot be removed via this endpoint (they own the workspace).
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
@@ -49,19 +73,23 @@ export async function DELETE(
   try {
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
-    const { workspaceId, userId: callerId, role: callerRole } = r;
+    const { workspaceId, userId: callerId, organizationId } = r;
 
     const { userId: targetUserId } = await params;
     if (targetUserId === callerId) return err("You cannot remove yourself.", 400);
+
+    const org = await db.organization.findUnique({
+      where: { id: organizationId },
+      select: { ownerId: true },
+    });
+    if (org?.ownerId === targetUserId) {
+      return err("The workspace owner cannot be removed.", 403);
+    }
 
     const target = await db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
     });
     if (!target) return err("Member not found.", 404);
-    if (target.role === "OWNER") return err("The workspace owner cannot be removed.", 403);
-    if (callerRole === "ADMIN" && target.role === "ADMIN") {
-      return err("Admins cannot remove another admin.", 403);
-    }
 
     await db.workspaceMember.delete({
       where: { workspaceId_userId: { workspaceId, userId: targetUserId } },

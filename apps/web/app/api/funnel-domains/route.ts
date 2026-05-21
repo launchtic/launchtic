@@ -8,7 +8,7 @@ import { requireAccess } from "../../../lib/permissions";
 
 // GET /api/funnel-domains?funnelId=xxx — list domains assigned to funnel
 export async function GET(req: NextRequest) {
-  const r = await requireAccess();
+  const r = await requireAccess("funnels:read");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 

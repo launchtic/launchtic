@@ -28,7 +28,7 @@ const PAGE_SIZE = 50;
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("contacts:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

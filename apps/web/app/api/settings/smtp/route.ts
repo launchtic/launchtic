@@ -20,7 +20,7 @@ const schema = z.object({
 
 export async function GET() {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:email:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -46,7 +46,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:email:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

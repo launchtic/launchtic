@@ -15,7 +15,7 @@ type Params = { params: Promise<{ id: string }> };
 // provider's error message so the user can verify on their side.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:email:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

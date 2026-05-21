@@ -7,7 +7,7 @@ const schema = z.object({ secretKey: z.string().min(1) });
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:payment:read");
     if (!r.ok) return r.response;
 
     const { secretKey } = schema.parse(await req.json());

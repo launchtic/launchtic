@@ -9,12 +9,12 @@ export const metadata = { title: "Settings" };
 
 export default async function SettingsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId, userId, isOwner } = await requireWorkspaceFromSlug(workspaceSlug);
 
   // Lazy-seed PAGES_DOMAIN as the workspace's default Domain on first visit.
   await ensureDefaultDomain(workspaceId);
 
-  const [user, workspaceWithOrg, domains, settings, senderIdentities, workspaces, teamMembers, currentMember] = await Promise.all([
+  const [user, workspaceWithOrg, domains, settings, senderIdentities, workspaces, teamMembers, currentMember, organization] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true },
@@ -37,20 +37,33 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
       where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
       select: {
         id: true, name: true, slug: true, ownerId: true,
-        members: { where: { userId }, select: { role: true }, take: 1 },
+        members: {
+          where: { userId },
+          select: { role: { select: { name: true } } },
+          take: 1,
+        },
       },
       orderBy: { createdAt: "asc" },
     }),
     db.workspaceMember.findMany({
       where: { workspaceId },
-      include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+      include: {
+        user: { select: { id: true, name: true, email: true, avatar: true } },
+        role: { select: { id: true, name: true, permissions: true } },
+      },
       orderBy: { joinedAt: "asc" },
     }),
     db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
-      select: { role: true },
+      select: { role: { select: { name: true } } },
+    }),
+    db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { organization: { select: { ownerId: true } } },
     }),
   ]);
+
+  const orgOwnerId = organization?.organization?.ownerId ?? null;
 
   const stripe  = settings?.stripe  as any;
   const paypal  = settings?.paypal  as any;
@@ -62,7 +75,9 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
   const workspacePlan   = getEffectivePlan(workspaceWithOrg?.organization);
   const userName        = user?.name  ?? "";
   const userEmail       = user?.email ?? "";
-  const currentUserRole = currentMember?.role ?? "OWNER";
+  // For non-owners, role name comes from their assigned Role. For Org owner,
+  // we hardcode "OWNER" — they bypass permission checks anyway.
+  const currentUserRole = isOwner ? "OWNER" : (currentMember?.role.name ?? "Viewer");
 
   return (
         <SettingsClient
@@ -72,13 +87,19 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
           currentWorkspaceSlug={workspaceSlug}
           workspacePlan={workspacePlan}
           userId={userId}
-          workspaces={workspaces.map((w) => ({ ...w, userRole: w.members[0]?.role ?? "OWNER" }))}
+          workspaces={workspaces.map((w) => ({
+            ...w,
+            userRole: w.ownerId === userId ? "OWNER" : (w.members[0]?.role?.name ?? "Viewer"),
+          }))}
           userName={userName}
           userEmail={userEmail}
           currentUserRole={currentUserRole}
+          isOwner={isOwner}
           teamMembers={teamMembers.map((m) => ({
             userId:   m.userId,
-            role:     m.role,
+            roleId:   m.roleId,
+            role:     { id: m.role.id, name: m.role.name, permissions: m.role.permissions },
+            isOwner:  m.userId === orgOwnerId,
             joinedAt: m.joinedAt.toISOString(),
             user: {
               id:     m.user.id,

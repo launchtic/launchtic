@@ -1,30 +1,125 @@
 "use client";
 
-import { useWorkspaceRole, type Role } from "../components/WorkspaceRoleProvider";
+import { useWorkspaceRole } from "../components/WorkspaceRoleProvider";
 
-export type { Role };
+// Client-side permission helpers. Reads role + permissions from
+// WorkspaceRoleProvider context (URL-driven, set by dashboard layout).
+//
+// Pattern: prefer `hasPermission("foo:bar")` for granular checks. The
+// domain helpers below are convenience for common gates.
+//
+// OWNER (Organization founder) automatically passes every check via the
+// isOwner flag — they have all permissions.
 
-const ROLE_RANK: Record<Role, number> = {
-  OWNER: 4,
-  ADMIN: 3,
-  EDITOR: 2,
-  VIEWER: 1,
-};
-
-// Reads role from WorkspaceRoleProvider (URL-driven, set by dashboard layout).
-// Previously read from session.workspaceRole — that field was removed during
-// the URL-driven refactor and silently defaulted to VIEWER, hiding every
-// create/edit button in the UI.
 export function useRole() {
-  const role = useWorkspaceRole();
+  const { role, permissions, isOwner } = useWorkspaceRole();
+
+  const hasPermission = (perm: string): boolean =>
+    isOwner || permissions.includes(perm);
+
   return {
     role,
-    isOwner:  role === "OWNER",
-    isAdmin:  role === "OWNER" || role === "ADMIN",
-    canWrite: role === "OWNER" || role === "ADMIN" || role === "EDITOR",
-    canManageSettings: role === "OWNER" || role === "ADMIN",
-    canManageBilling:  role === "OWNER",
-    canManageTeam:     role === "OWNER" || role === "ADMIN",
-    atLeast: (min: Role) => ROLE_RANK[role] >= ROLE_RANK[min],
+    isOwner,
+    permissions,
+    hasPermission,
+
+    // ─── Domain shortcuts (granular per resource/action) ────────────────
+
+    // Funnels
+    canReadFunnels:        hasPermission("funnels:read"),
+    canManageFunnels:      hasPermission("funnels:write"),
+    canDeleteFunnels:      hasPermission("funnels:delete"),
+
+    // Products
+    canReadProducts:       hasPermission("products:read"),
+    canManageProducts:     hasPermission("products:write"),
+    canDeleteProducts:     hasPermission("products:delete"),
+
+    // Sales — Orders / Subscriptions / Transactions
+    canReadOrders:         hasPermission("orders:read"),
+    canRefundOrders:       hasPermission("orders:refund"),
+    canReadSubscriptions:  hasPermission("subscriptions:read"),
+    canCancelSubscriptions: hasPermission("subscriptions:cancel"),
+    canReadTransactions:   hasPermission("transactions:read"),
+
+    // Coupons
+    canReadCoupons:        hasPermission("coupons:read"),
+    canManageCoupons:      hasPermission("coupons:write"),
+    canDeleteCoupons:      hasPermission("coupons:delete"),
+
+    // Contacts
+    canReadContacts:       hasPermission("contacts:read"),
+    canManageContacts:     hasPermission("contacts:write"),
+    canDeleteContacts:     hasPermission("contacts:delete"),
+    canImportContacts:     hasPermission("contacts:import"),
+    canExportContacts:     hasPermission("contacts:export"),
+
+    // Tags
+    canReadTags:           hasPermission("tags:read"),
+    canManageTags:         hasPermission("tags:write"),
+    canDeleteTags:         hasPermission("tags:delete"),
+
+    // Emails — Broadcasts / Sequences / Templates / Logs
+    canReadBroadcasts:     hasPermission("broadcasts:read"),
+    canManageBroadcasts:   hasPermission("broadcasts:write"),
+    canSendBroadcasts:     hasPermission("broadcasts:send"),
+    canDeleteBroadcasts:   hasPermission("broadcasts:delete"),
+    canReadSequences:      hasPermission("sequences:read"),
+    canManageSequences:    hasPermission("sequences:write"),
+    canDeleteSequences:    hasPermission("sequences:delete"),
+    canReadEmailTemplates: hasPermission("email_templates:read"),
+    canManageEmailTemplates: hasPermission("email_templates:write"),
+    canDeleteEmailTemplates: hasPermission("email_templates:delete"),
+    canReadEmailLogs:      hasPermission("email_logs:read"),
+    canResendEmails:       hasPermission("email_logs:resend"),
+
+    // Automations
+    canReadAutomations:    hasPermission("automations:read"),
+    canManageAutomations:  hasPermission("automations:write"),
+    canDeleteAutomations:  hasPermission("automations:delete"),
+
+    // Media
+    canReadMedia:          hasPermission("media:read"),
+    canUploadMedia:        hasPermission("media:upload"),
+    canDeleteMedia:        hasPermission("media:delete"),
+
+    // Settings per sub-tab
+    canReadGeneralSettings:   hasPermission("settings:general:read"),
+    canManageGeneralSettings: hasPermission("settings:general:write"),
+    canReadDomains:           hasPermission("settings:domains:read"),
+    canManageDomains:         hasPermission("settings:domains:write"),
+    canReadPayment:           hasPermission("settings:payment:read"),
+    canManagePayment:         hasPermission("settings:payment:write"),
+    canReadEmailSettings:     hasPermission("settings:email:read"),
+    canManageEmailSettings:   hasPermission("settings:email:write"),
+    canReadStorage:           hasPermission("settings:storage:read"),
+    canManageStorage:         hasPermission("settings:storage:write"),
+    canReadPageTemplates:     hasPermission("settings:page_templates:read"),
+    canManagePageTemplates:   hasPermission("settings:page_templates:write"),
+    canReadAi:                hasPermission("settings:ai:read"),
+    canManageAi:              hasPermission("settings:ai:write"),
+
+    // Team / Roles
+    canReadMembers:        hasPermission("members:read"),
+    canManageTeam:         hasPermission("members:manage"),
+    canReadRoles:          hasPermission("roles:read"),
+    canManageRoles:        hasPermission("roles:manage"),
+
+    // OWNER-only
+    canManageBilling:      hasPermission("billing:manage"),
+    canManageWorkspace:    hasPermission("workspace:manage"),
+
+    // ─── Legacy / aggregate helpers (backward compat) ───────────────────
+    isAdmin: isOwner || role === "Admin",
+    /** Any content write — kept for existing components, prefer specific. */
+    canWrite:
+      hasPermission("funnels:write") ||
+      hasPermission("contacts:write") ||
+      hasPermission("broadcasts:write") ||
+      hasPermission("sequences:write") ||
+      hasPermission("email_templates:write") ||
+      hasPermission("automations:write"),
+    /** Legacy alias of canManageGeneralSettings — components may use this. */
+    canManageSettings: hasPermission("settings:general:write"),
   };
 }

@@ -15,7 +15,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("email_templates:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("email_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("email_templates:delete");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

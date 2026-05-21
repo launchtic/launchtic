@@ -62,7 +62,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [recipeOpen, setRecipeOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const { canWrite } = useRole();
+  const { canManageAutomations } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -120,7 +120,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
             Run actions automatically when something happens — orders, form submissions, tag changes.
           </p>
         </div>
-        {canWrite && (
+        {canManageAutomations && (
           <button
             onClick={handleCreate}
             className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
@@ -160,7 +160,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
           <p className="text-sm text-gray-500 mb-4">
             {items.length === 0 ? "No automations yet. Start with a recipe or build from scratch." : "No automations match your filters."}
           </p>
-          {items.length === 0 && canWrite && (
+          {items.length === 0 && canManageAutomations && (
             <button
               onClick={() => setRecipeOpen(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
@@ -217,7 +217,7 @@ export default function AutomationsList({ initial }: { initial: Row[] }) {
                   >
                     <FileEdit size={14} />
                   </Link>
-                  {canWrite && (
+                  {canManageAutomations && (
                     <button
                       onClick={() => handleDelete(a)}
                       disabled={busy === a.id}

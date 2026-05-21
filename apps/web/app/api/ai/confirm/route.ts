@@ -19,7 +19,7 @@ const schema = z.object({
 // progress is streamed.
 
 export async function POST(req: NextRequest) {
-  const r = await requireAccess("settings:write");
+  const r = await requireAccess("settings:ai:read");
   if (!r.ok) return r.response;
   const { workspaceId, userId } = r;
 

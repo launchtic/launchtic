@@ -9,7 +9,7 @@ type Params = { params: Promise<{ id: string }> };
 // transaction.
 export async function POST(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:email:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

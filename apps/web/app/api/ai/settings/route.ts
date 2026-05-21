@@ -13,7 +13,7 @@ const updateSchema = z.object({
 
 export async function GET() {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:ai:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const settings = await getPublicAiSettings(workspaceId);
@@ -25,7 +25,7 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:ai:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const data = updateSchema.parse(await req.json());
@@ -38,7 +38,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE() {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:ai:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     await deleteAiSettings(workspaceId);

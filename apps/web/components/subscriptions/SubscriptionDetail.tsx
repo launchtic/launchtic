@@ -318,7 +318,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
   const router = useRouter();
   const params = useParams();
   const slug = params.workspaceSlug as string;
-  const { canManageSettings } = useRole();
+  const { canCancelSubscriptions } = useRole();
 
   const contactName = [sub.contact.firstName, sub.contact.lastName].filter(Boolean).join(" ") || sub.contact.email;
   const shortId = sub.id.slice(-8).toUpperCase();
@@ -432,7 +432,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
 
         {/* Actions */}
         <div className="px-5 py-4 mt-auto flex items-center gap-2">
-          {canCancel && canManageSettings && (
+          {canCancel && canCancelSubscriptions && (
             <button
               onClick={() => setShowCancel(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-xl transition-colors"
@@ -440,7 +440,7 @@ export default function SubscriptionDetail({ subscription: initial }: { subscrip
               <XCircle size={12} /> Cancel subscription
             </button>
           )}
-          {canResume && canManageSettings && (
+          {canResume && canCancelSubscriptions && (
             <button
               onClick={() => setShowResume(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-green-700 border border-green-200 hover:bg-green-50 rounded-xl transition-colors"

@@ -58,7 +58,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
   const [deleting, setDeleting] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirm = useConfirm();
-  const { canWrite } = useRole();
+  const { canManageTags, canDeleteTags } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -168,7 +168,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
               className="w-full pl-9 pr-3 py-2 text-base sm:text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          {canWrite && (
+          {canManageTags && (
             <button
               onClick={openCreate}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
@@ -225,7 +225,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {canWrite && (
+                        {canManageTags && (
                           <button
                             onClick={() => openEdit(tag)}
                             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -234,7 +234,7 @@ export default function TagsManager({ initialTotal = 0 }: { initialTotal?: numbe
                             <Pencil size={14} />
                           </button>
                         )}
-                        {canWrite && (
+                        {canDeleteTags && (
                           <button
                             onClick={() => deleteTag(tag)}
                             disabled={deleting === tag.id}

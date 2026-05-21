@@ -33,7 +33,7 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("email_logs:resend");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

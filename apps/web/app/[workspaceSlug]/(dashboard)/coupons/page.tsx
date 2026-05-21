@@ -44,7 +44,7 @@ export default function CouponsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirm = useConfirm();
-  const { canWrite } = useRole();
+  const { canManageCoupons } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -176,7 +176,7 @@ export default function CouponsPage() {
               className="w-full pl-9 pr-3 py-2 text-base sm:text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          {canWrite && (
+          {canManageCoupons && (
             <button
               onClick={openCreate}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors shrink-0"
@@ -253,7 +253,7 @@ export default function CouponsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {canWrite && (
+                        {canManageCoupons && (
                           <button
                             onClick={() => toggleActive(coupon)}
                             title={coupon.active ? "Deactivate" : "Activate"}
@@ -264,7 +264,7 @@ export default function CouponsPage() {
                               : <ToggleLeft size={20} />}
                           </button>
                         )}
-                        {canWrite && (
+                        {canManageCoupons && (
                           <button
                             onClick={() => openEdit(coupon)}
                             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -273,7 +273,7 @@ export default function CouponsPage() {
                             <Pencil size={14} />
                           </button>
                         )}
-                        {canWrite && (
+                        {canManageCoupons && (
                           <button
                             onClick={() => handleDelete(coupon)}
                             disabled={deletingId === coupon.id}

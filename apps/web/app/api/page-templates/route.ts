@@ -22,7 +22,7 @@ const createSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:page_templates:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const sp       = req.nextUrl.searchParams;
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:page_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const body = await req.json();

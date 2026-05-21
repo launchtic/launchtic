@@ -57,7 +57,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [creating, startCreate] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
-  const { canWrite } = useRole();
+  const { canManageBroadcasts } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -119,7 +119,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
             One-time email campaigns sent to your contacts.
           </p>
         </div>
-        {canWrite && (
+        {canManageBroadcasts && (
           <button
             onClick={handleCreate}
             disabled={creating}
@@ -193,7 +193,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
                     </span>
                   )}
                 </div>
-                {canWrite && (b.status === "DRAFT" || b.status === "SCHEDULED" || b.status === "CANCELED" || b.status === "FAILED") && (
+                {canManageBroadcasts && (b.status === "DRAFT" || b.status === "SCHEDULED" || b.status === "CANCELED" || b.status === "FAILED") && (
                   <button
                     onClick={() => handleDelete(b)}
                     disabled={deleting === b.id}

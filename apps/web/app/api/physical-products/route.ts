@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../lib/permissions";
 
 export async function GET(req: NextRequest) {
-  const r = await requireAccess();
+  const r = await requireAccess("products:read");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const r = await requireAccess("funnels:write");
+  const r = await requireAccess("products:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 

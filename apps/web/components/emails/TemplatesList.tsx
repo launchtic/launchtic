@@ -47,7 +47,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
   const [creating, startCreate] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState<string | null>(null);
-  const { canWrite } = useRole();
+  const { canManageEmailTemplates, canDeleteEmailTemplates } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -119,7 +119,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
             Reusable email content for broadcasts, automations, and transactional sends.
           </p>
         </div>
-        {canWrite && (
+        {canManageEmailTemplates && (
           <button
             onClick={handleCreate}
             disabled={creating}
@@ -186,7 +186,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
                 >
                   <Pencil size={14} />
                 </Link>
-                {canWrite && (
+                {canManageEmailTemplates && (
                   <button
                     onClick={() => handleDuplicate(t.id)}
                     disabled={duplicating === t.id}
@@ -196,7 +196,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
                     {duplicating === t.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                   </button>
                 )}
-                {canWrite && !t.isSystem && (
+                {canDeleteEmailTemplates && !t.isSystem && (
                   <button
                     onClick={() => handleDelete(t)}
                     disabled={deleting === t.id}

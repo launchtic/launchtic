@@ -108,6 +108,7 @@ model Workspace {
   aiConversations     AiConversation[]
   savedBlocks         SavedBlock[]
   pageTemplates       PageTemplate[]
+  roles               Role[]
 
   @@index([organizationId])
 }
@@ -135,13 +136,46 @@ model PasswordResetToken {
 model WorkspaceMember {
   workspaceId String
   userId      String
-  role        Role     @default(EDITOR)
+  // Role driving permission gates. References a Role row in the same
+  // workspace. Founder (Organization.ownerId) bypasses this check via the
+  // OWNER shortcut in requireAccess — so the founder's actual roleId here
+  // doesn't determine their permissions (typically set to "Admin" anyway).
+  roleId      String
   joinedAt    DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   @@id([workspaceId, userId])
+  @@index([roleId])
+}
+
+// Role = permission preset, scoped per Workspace. Every workspace gets 4
+// defaults seeded at creation (Admin, Marketer, Designer, Viewer) — all
+// editable/deletable by users with `roles:manage`. Custom roles can be
+// created on top.
+//
+// OWNER is NOT a role here — it's derived from Organization.ownerId and
+// short-circuits the permission check in requireAccess. So this table only
+// holds non-owner roles.
+//
+// Permissions stored as text[] for native Postgres @> / ANY support and
+// easy JSON serialization to the client.
+model Role {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   WorkspaceMember[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 // ─────────────────────────────────────────
@@ -1066,13 +1100,6 @@ enum Plan {
   STARTER
   AGENCY
   CUSTOM
-}
-
-enum Role {
-  OWNER
-  ADMIN
-  EDITOR
-  VIEWER
 }
 
 enum FunnelStatus {

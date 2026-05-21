@@ -42,7 +42,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:page_templates:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;
@@ -58,7 +58,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:page_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;
@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:page_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;

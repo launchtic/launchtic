@@ -8,7 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("email_logs:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

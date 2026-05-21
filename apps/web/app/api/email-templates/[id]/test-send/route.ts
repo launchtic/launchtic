@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("email_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

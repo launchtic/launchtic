@@ -30,7 +30,7 @@ async function read(workspaceId: string): Promise<Footer> {
 
 export async function GET() {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("settings:email:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     return ok(await read(workspaceId));
@@ -41,7 +41,7 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("settings:email:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

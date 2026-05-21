@@ -49,7 +49,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { canWrite } = useRole();
+  const { canManageContacts } = useRole();
 
   const fetchPage = useCallback(async (q: string, tag: string | null, cursor: string | null) => {
     const params = new URLSearchParams();
@@ -156,7 +156,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
               <TagIcon size={13} />
               <span className="hidden sm:inline">Manage Tags</span>
             </Link>
-            {canWrite && (
+            {canManageContacts && (
               <button
                 onClick={() => setImportOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
@@ -165,7 +165,7 @@ export default function ContactsClient({ allTags, initialTotal = 0 }: { allTags:
                 <span className="hidden sm:inline">Import CSV</span>
               </button>
             )}
-            {canWrite && (
+            {canManageContacts && (
               <button
                 onClick={() => setCreateOpen(true)}
                 className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"

@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Plus, Trash2, Crown, ShieldCheck, Pencil, Eye, X, Copy, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, Plus, Trash2, Crown, X, Copy, Check } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+
+type Role = {
+  id:          string;
+  name:        string;
+  permissions: string[];
+};
 
 type Member = {
   userId:   string;
-  role:     string;
+  roleId:   string;
+  role:     Role;
+  isOwner:  boolean;
   joinedAt: string;
   user: { id: string; name: string | null; email: string; avatar: string | null };
 };
@@ -15,27 +23,6 @@ type CreatedCredentials = {
   name:     string;
   email:    string;
   password: string;
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  OWNER:  "Owner",
-  ADMIN:  "Admin",
-  EDITOR: "Editor",
-  VIEWER: "Viewer",
-};
-
-const ROLE_ICON: Record<string, React.ReactNode> = {
-  OWNER:  <Crown       size={12} className="text-amber-500" />,
-  ADMIN:  <ShieldCheck size={12} className="text-blue-500" />,
-  EDITOR: <Pencil      size={12} className="text-violet-500" />,
-  VIEWER: <Eye         size={12} className="text-gray-400" />,
-};
-
-const ROLE_BADGE: Record<string, string> = {
-  OWNER:  "bg-amber-50 text-amber-700 border-amber-200",
-  ADMIN:  "bg-blue-50 text-blue-700 border-blue-200",
-  EDITOR: "bg-violet-50 text-violet-700 border-violet-200",
-  VIEWER: "bg-gray-50 text-gray-600 border-gray-200",
 };
 
 function initials(name: string | null, email: string) {
@@ -70,34 +57,56 @@ export default function TeamPanel({
   initialMembers,
   currentUserId,
   currentUserRole,
+  isOwner: viewerIsOwner,
 }: {
   initialMembers:   Member[];
   currentUserId:    string;
   currentUserRole:  string;
+  /** True when the viewer is the Organization owner (always full access). */
+  isOwner:          boolean;
 }) {
   const [members, setMembers] = useState<Member[]>(initialMembers);
+  const [roles, setRoles]     = useState<Role[]>([]);
 
-  const canManage = currentUserRole === "OWNER" || currentUserRole === "ADMIN";
+  // Anyone with members:manage can manage. Owner has it via bypass; Admin role
+  // has it by default. We approximate at UI level via role name === "Admin"
+  // or viewerIsOwner — server still enforces the real check.
+  const canManage = viewerIsOwner || currentUserRole === "Admin";
+
+  // Fetch available roles for the invite dropdown
+  useEffect(() => {
+    apiFetch("/api/roles")
+      .then((r) => r.json())
+      .then((r) => { if (r.success) setRoles(r.data); });
+  }, []);
 
   // ── Invite ──────────────────────────────────────────────
   const [showInvite, setShowInvite]   = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole]   = useState<"ADMIN" | "EDITOR" | "VIEWER">("EDITOR");
+  const [inviteRoleId, setInviteRoleId] = useState<string>("");
   const [inviting, setInviting]       = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  // Show credentials after successful creation
   const [credentials, setCredentials] = useState<CreatedCredentials | null>(null);
+
+  // Default invite role to the first non-Admin role (usually Viewer) when
+  // roles load — Admin is too much access for a default selection.
+  useEffect(() => {
+    if (!inviteRoleId && roles.length > 0) {
+      const safe = roles.find((r) => r.name !== "Admin") ?? roles[0];
+      setInviteRoleId(safe.id);
+    }
+  }, [roles, inviteRoleId]);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    if (!inviteEmail.trim() || !inviteRoleId) return;
     setInviting(true);
     setInviteError(null);
     const res  = await apiFetch("/api/team", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      body:    JSON.stringify({ email: inviteEmail.trim(), roleId: inviteRoleId }),
     });
     const json = await res.json();
     setInviting(false);
@@ -106,7 +115,6 @@ export default function TeamPanel({
     setMembers((prev) => [...prev, json.data]);
     setShowInvite(false);
 
-    // If a new account was created, show credentials
     if (json.data.generatedPassword) {
       setCredentials({
         name:     json.data.user.email,
@@ -116,24 +124,26 @@ export default function TeamPanel({
     }
 
     setInviteEmail("");
-    setInviteRole("EDITOR");
   }
 
   // ── Change role ─────────────────────────────────────────
   const [changingRole, setChangingRole] = useState<string | null>(null);
 
-  async function handleRoleChange(member: Member, newRole: string) {
+  async function handleRoleChange(member: Member, newRoleId: string) {
     setChangingRole(member.userId);
     const res  = await apiFetch(`/api/team/${member.userId}`, {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ role: newRole }),
+      body:    JSON.stringify({ roleId: newRoleId }),
     });
     const json = await res.json();
     setChangingRole(null);
     if (!res.ok) { alert(json.error ?? "Failed to change role"); return; }
     setMembers((prev) =>
-      prev.map((m) => m.userId === member.userId ? { ...m, role: json.data.role } : m)
+      prev.map((m) => m.userId === member.userId
+        ? { ...m, roleId: json.data.roleId, role: json.data.role }
+        : m
+      )
     );
   }
 
@@ -151,9 +161,8 @@ export default function TeamPanel({
   }
 
   function canEditMember(member: Member): boolean {
-    if (member.role === "OWNER") return false;
-    if (member.userId === currentUserId) return false;
-    if (currentUserRole === "ADMIN" && member.role === "ADMIN") return false;
+    if (member.isOwner) return false;                          // Org owner protected
+    if (member.userId === currentUserId) return false;         // Can't edit yourself
     return canManage;
   }
 
@@ -175,24 +184,6 @@ export default function TeamPanel({
         )}
       </div>
 
-      {/* Role legend */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {(["OWNER", "ADMIN", "EDITOR", "VIEWER"] as const).map((r) => (
-          <div key={r} className="bg-white border border-gray-100 rounded-xl px-3 py-2.5">
-            <div className="flex items-center gap-1.5 mb-1">
-              {ROLE_ICON[r]}
-              <span className="text-xs font-semibold text-gray-700">{ROLE_LABELS[r]}</span>
-            </div>
-            <p className="text-[11px] text-gray-400 leading-snug">
-              {r === "OWNER"  && "Full access. Billing & workspace control."}
-              {r === "ADMIN"  && "Full access. Can manage team & settings."}
-              {r === "EDITOR" && "Edit funnels, contacts, emails. No settings."}
-              {r === "VIEWER" && "Read-only access across the workspace."}
-            </p>
-          </div>
-        ))}
-      </div>
-
       {/* Member list */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         {members.map((member, i) => (
@@ -200,7 +191,6 @@ export default function TeamPanel({
             key={member.userId}
             className={`flex items-center gap-3 px-5 py-4 ${i > 0 ? "border-t border-gray-100" : ""}`}
           >
-            {/* Avatar */}
             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600 shrink-0">
               {member.user.avatar
                 ? <img src={member.user.avatar} alt="" className="w-full h-full rounded-full object-cover" />
@@ -208,7 +198,6 @@ export default function TeamPanel({
               }
             </div>
 
-            {/* Info */}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
                 {member.user.name ?? member.user.email}
@@ -222,26 +211,30 @@ export default function TeamPanel({
             </div>
 
             {/* Role badge / selector */}
-            {canEditMember(member) ? (
+            {member.isOwner ? (
+              <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
+                <Crown size={12} className="text-amber-500" />
+                Owner
+              </span>
+            ) : canEditMember(member) ? (
               <div className="relative shrink-0">
                 {changingRole === member.userId ? (
                   <Loader2 size={14} className="animate-spin text-gray-400" />
                 ) : (
                   <select
-                    value={member.role}
+                    value={member.roleId}
                     onChange={(e) => handleRoleChange(member, e.target.value)}
                     className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                   >
-                    <option value="ADMIN">Admin</option>
-                    <option value="EDITOR">Editor</option>
-                    <option value="VIEWER">Viewer</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
                   </select>
                 )}
               </div>
             ) : (
-              <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${ROLE_BADGE[member.role]}`}>
-                {ROLE_ICON[member.role]}
-                {ROLE_LABELS[member.role]}
+              <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border bg-gray-50 text-gray-600 border-gray-200">
+                {member.role.name}
               </span>
             )}
 
@@ -297,14 +290,17 @@ export default function TeamPanel({
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
                 <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as typeof inviteRole)}
+                  value={inviteRoleId}
+                  onChange={(e) => setInviteRoleId(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value="ADMIN">Admin — full access, can manage team & settings</option>
-                  <option value="EDITOR">Editor — edit funnels, contacts, emails</option>
-                  <option value="VIEWER">Viewer — read-only</option>
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
                 </select>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Customize roles in Settings → Roles.
+                </p>
               </div>
               <div className="flex gap-2 pt-1">
                 <button
@@ -316,7 +312,7 @@ export default function TeamPanel({
                 </button>
                 <button
                   type="submit"
-                  disabled={inviting || !inviteEmail.trim()}
+                  disabled={inviting || !inviteEmail.trim() || !inviteRoleId}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-colors"
                 >
                   {inviting ? <><Loader2 size={13} className="animate-spin" /> Creating…</> : "Create & add"}

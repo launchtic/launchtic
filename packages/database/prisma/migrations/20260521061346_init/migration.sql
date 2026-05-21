@@ -2,9 +2,6 @@
 CREATE TYPE "Plan" AS ENUM ('COMMUNITY', 'STARTER', 'AGENCY', 'CUSTOM');
 
 -- CreateEnum
-CREATE TYPE "Role" AS ENUM ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER');
-
--- CreateEnum
 CREATE TYPE "FunnelStatus" AS ENUM ('ACTIVE', 'TRASHED');
 
 -- CreateEnum
@@ -122,10 +119,23 @@ CREATE TABLE "PasswordResetToken" (
 CREATE TABLE "WorkspaceMember" (
     "workspaceId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "role" "Role" NOT NULL DEFAULT 'EDITOR',
+    "roleId" TEXT NOT NULL,
     "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "WorkspaceMember_pkey" PRIMARY KEY ("workspaceId","userId")
+);
+
+-- CreateTable
+CREATE TABLE "Role" (
+    "id" TEXT NOT NULL,
+    "workspaceId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "permissions" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -731,6 +741,15 @@ CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("
 CREATE INDEX "PasswordResetToken_userId_idx" ON "PasswordResetToken"("userId");
 
 -- CreateIndex
+CREATE INDEX "WorkspaceMember_roleId_idx" ON "WorkspaceMember"("roleId");
+
+-- CreateIndex
+CREATE INDEX "Role_workspaceId_idx" ON "Role"("workspaceId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Role_workspaceId_name_key" ON "Role"("workspaceId", "name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Domain_domain_key" ON "Domain"("domain");
 
 -- CreateIndex
@@ -930,6 +949,12 @@ ALTER TABLE "WorkspaceMember" ADD CONSTRAINT "WorkspaceMember_workspaceId_fkey" 
 
 -- AddForeignKey
 ALTER TABLE "WorkspaceMember" ADD CONSTRAINT "WorkspaceMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkspaceMember" ADD CONSTRAINT "WorkspaceMember_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Role" ADD CONSTRAINT "Role_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Domain" ADD CONSTRAINT "Domain_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

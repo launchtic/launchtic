@@ -10,7 +10,7 @@ import { requireAccess } from "../../../../lib/permissions";
 
 export async function POST(_req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:general:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

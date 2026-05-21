@@ -49,7 +49,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const { canWrite } = useRole();
+  const { canManageSequences } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -124,7 +124,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
             Drip campaigns — automated email series sent on a schedule (Day 0, 3, 7, …) per enrolled contact.
           </p>
         </div>
-        {canWrite && (
+        {canManageSequences && (
           <button
             onClick={handleCreate}
             disabled={creating}
@@ -163,7 +163,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
           <p className="text-sm text-gray-500 mb-4">
             {items.length === 0 ? "No sequences yet — create your first drip campaign." : "No sequences match your filters."}
           </p>
-          {items.length === 0 && canWrite && (
+          {items.length === 0 && canManageSequences && (
             <button
               onClick={handleCreate}
               disabled={creating}
@@ -223,7 +223,7 @@ export default function SequencesList({ initial }: { initial: Row[] }) {
                 >
                   <FileEdit size={14} />
                 </Link>
-                {canWrite && (
+                {canManageSequences && (
                   <button
                     onClick={() => handleDelete(s)}
                     disabled={busy === s.id}

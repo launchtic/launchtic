@@ -17,7 +17,7 @@ const CHUNK_SIZE = 50;
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("contacts:write");
+    const r = await requireAccess("contacts:import");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

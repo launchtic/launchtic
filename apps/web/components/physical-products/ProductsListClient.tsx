@@ -42,7 +42,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const confirm = useConfirm();
-  const { canWrite } = useRole();
+  const { canManageProducts, canDeleteProducts } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number) => {
     setLoading(true);
@@ -101,7 +101,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          {canWrite && (
+          {canManageProducts && (
             <button
               onClick={() => setCreateOpen(true)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
@@ -171,7 +171,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        {canWrite && (
+                        {canManageProducts && (
                           <button
                             onClick={() => setEditId(p.id)}
                             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -180,7 +180,7 @@ export default function ProductsListClient({ initialTotal = 0 }: { initialTotal?
                             <Settings size={14} />
                           </button>
                         )}
-                        {canWrite && (
+                        {canDeleteProducts && (
                           <button
                             onClick={() => handleDelete(p)}
                             disabled={deleting === p.id}

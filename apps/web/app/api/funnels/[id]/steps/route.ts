@@ -22,7 +22,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id: funnelId } = await params;
-    const r = await requireAccess();
+    const r = await requireAccess("funnels:read");
     if (!r.ok) return r.response;
 
     const steps = await db.funnelStep.findMany({

@@ -8,7 +8,7 @@ type Params = { params: Promise<{ id: string }> };
 const PAGES_DOMAIN = process.env.PAGES_DOMAIN ?? "";
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
-  const r = await requireAccess("settings:write");
+  const r = await requireAccess("settings:domains:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 
@@ -30,7 +30,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
 // Verify domain: check that CNAME points correctly to PAGES_DOMAIN
 export async function PATCH(_req: NextRequest, { params }: Params) {
-  const r = await requireAccess("settings:write");
+  const r = await requireAccess("settings:domains:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
 

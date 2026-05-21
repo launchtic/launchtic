@@ -12,7 +12,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("orders:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -38,7 +38,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("orders:write");
+    // Order status updates (cancel, mark refunded) share the same gate as
+    // refund — destructive financial actions live behind orders:refund.
+    const r = await requireAccess("orders:refund");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

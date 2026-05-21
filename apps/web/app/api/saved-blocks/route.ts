@@ -20,7 +20,7 @@ const createSchema = z.object({
 // GET /api/saved-blocks?kind=section|row&tag=hero
 export async function GET(req: NextRequest) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("funnels:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

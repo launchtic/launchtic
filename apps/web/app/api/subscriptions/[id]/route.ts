@@ -5,7 +5,7 @@ import { requireAccess } from "../../../../lib/permissions";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess();
+    const r = await requireAccess("subscriptions:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

@@ -8,6 +8,7 @@ import {
   resolveAssetPlaceholders,
   copySeedAssetsToWorkspace,
 } from "../../../../lib/seed-data";
+import { seedDefaultRoles, findAdminRoleId } from "../../../../lib/seed-roles";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(100),
@@ -76,12 +77,22 @@ export async function POST(req: NextRequest) {
           slug,
           ownerId:        newUser.id,
           organizationId: newOrganization.id,
-          members: {
-            create: {
-              userId: newUser.id,
-              role: "OWNER",
-            },
-          },
+        },
+      });
+
+      // Seed the 4 default roles (Admin / Marketer / Designer / Viewer) for
+      // this workspace, then seat the founder as Admin. Founder permission
+      // doesn't actually flow through their roleId — they're the Organization
+      // owner and bypass via requireAccess() shortcut — but the FK is NOT
+      // NULL so we pick the most permissive role as the natural default.
+      const roles       = await seedDefaultRoles(tx, newWorkspace.id);
+      const adminRoleId = findAdminRoleId(roles);
+
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: newWorkspace.id,
+          userId:      newUser.id,
+          roleId:      adminRoleId,
         },
       });
 

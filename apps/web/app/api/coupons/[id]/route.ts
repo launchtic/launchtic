@@ -6,7 +6,7 @@ import { requireAccess } from "../../../../lib/permissions";
 type Props = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Props) {
-  const r = await requireAccess("orders:write");
+  const r = await requireAccess("coupons:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Props) {
-  const r = await requireAccess("orders:write");
+  const r = await requireAccess("coupons:delete");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;

@@ -6,7 +6,7 @@ import { requireAccess } from "../../../../../lib/permissions";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("orders:write");
+    const r = await requireAccess("subscriptions:cancel");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

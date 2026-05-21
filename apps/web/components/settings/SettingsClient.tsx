@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key,
-  Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users,
+  Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users, Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { isAgencyPlan }   from "../../lib/plan";
+import { useRole }        from "../../lib/role";
 import ProfilePanel       from "./ProfilePanel";
 import GeneralPanel       from "./GeneralPanel";
 import DomainsPanel       from "./DomainsPanel";
@@ -19,9 +20,17 @@ import AiAssistantPanel   from "./AiAssistantPanel";
 import LicensePanel       from "./LicensePanel";
 import WorkspacePanel     from "./WorkspacePanel";
 import TeamPanel          from "./TeamPanel";
+import RolesPanel         from "./RolesPanel";
 
 type Domain         = { id: string; domain: string; verified: boolean; isDefault: boolean; createdAt: string };
-type TeamMember     = { userId: string; role: string; joinedAt: string; user: { id: string; name: string | null; email: string; avatar: string | null } };
+type TeamMember     = {
+  userId:  string;
+  roleId:  string;
+  role:    { id: string; name: string; permissions: string[] };
+  isOwner: boolean;
+  joinedAt: string;
+  user:    { id: string; name: string | null; email: string; avatar: string | null };
+};
 type StripeData     = { publishableKey: string; secretKey: string; webhookSecret: string | null; mode: string } | null;
 type PaypalData     = { clientId: string; clientSecret: string; webhookId: string | null; mode: string } | null;
 type SmtpData       = { provider: string; host: string; port: number; username: string; password: string; maxPerDay: number; maxPerSecond?: number; maxConcurrent?: number } | null;
@@ -29,11 +38,19 @@ type StorageData    = { driver: "local" | "s3"; endpoint: string; region: string
 type SenderIdentity = { id: string; name: string; email: string; isDefault: boolean };
 
 type NavItemDef = {
-  id:        string;
-  label:     string;
-  icon:      LucideIcon;
-  proOnly?:  boolean;
-  freeOnly?: boolean;
+  id:           string;
+  label:        string;
+  icon:         LucideIcon;
+  /** Hidden if true and current plan is below AGENCY. */
+  proOnly?:     boolean;
+  /** Hidden if true and current plan is AGENCY+. */
+  freeOnly?:    boolean;
+  /**
+   * Permission key required to see this tab. Owner bypasses all permission
+   * checks (sees every tab regardless). If undefined, no permission gate
+   * (e.g. Profile is always visible — it's user-scoped, not workspace-scoped).
+   */
+  requirePerm?: string;
 };
 
 const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
@@ -41,21 +58,23 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
     label: "ACCOUNT",
     items: [
       { id: "profile", label: "Profile", icon: UserCircle },
-      { id: "general", label: "General", icon: Settings2, freeOnly: true },
+      // General settings — workspace-level basic config.
+      { id: "general", label: "General", icon: Settings2, freeOnly: true, requirePerm: "settings:general:read" },
     ],
   },
   {
     label: "WORKSPACE",
     items: [
-      { id: "workspaces",     label: "Workspaces",      icon: Building2,    proOnly: true  },
-      { id: "team",           label: "Team",            icon: Users,        proOnly: true  },
-      { id: "domains",        label: "Custom Domains",   icon: Globe                       },
-      { id: "payment",        label: "Payment Settings", icon: CreditCard                  },
-      { id: "email",          label: "Email Settings",   icon: Mail                        },
-      { id: "storage",        label: "Storage",          icon: HardDrive                   },
-      { id: "page-templates", label: "Page Templates",   icon: LayoutTemplate              },
-      { id: "ai-assistant",   label: "AI Assistant",     icon: Bot                         },
-      { id: "license",        label: "License",          icon: Key                         },
+      { id: "workspaces",     label: "Workspaces",       icon: Building2,    proOnly: true  },
+      { id: "team",           label: "Team",             icon: Users,        proOnly: true,  requirePerm: "members:read"                  },
+      { id: "roles",          label: "Roles",            icon: Shield,       proOnly: true,  requirePerm: "roles:read"                    },
+      { id: "domains",        label: "Custom Domains",   icon: Globe,                        requirePerm: "settings:domains:read"          },
+      { id: "payment",        label: "Payment Settings", icon: CreditCard,                   requirePerm: "settings:payment:read"          },
+      { id: "email",          label: "Email Settings",   icon: Mail,                         requirePerm: "settings:email:read"            },
+      { id: "storage",        label: "Storage",          icon: HardDrive,                    requirePerm: "settings:storage:read"          },
+      { id: "page-templates", label: "Page Templates",   icon: LayoutTemplate,               requirePerm: "settings:page_templates:read"   },
+      { id: "ai-assistant",   label: "AI Assistant",     icon: Bot,                          requirePerm: "settings:ai:read"               },
+      { id: "license",        label: "License",          icon: Key,                          requirePerm: "billing:manage"                 },
     ],
   },
 ];
@@ -63,7 +82,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
 export default function SettingsClient({
   domains, stripe, paypal, smtp, storage, senderIdentities, rendererUrl, rendererHost,
   currentWorkspaceId, currentWorkspaceSlug, workspacePlan, userId, workspaces,
-  userName, userEmail, teamMembers, currentUserRole,
+  userName, userEmail, teamMembers, currentUserRole, isOwner,
 }: {
   domains:          Domain[];
   stripe:           StripeData;
@@ -82,21 +101,26 @@ export default function SettingsClient({
   userEmail:       string;
   teamMembers:     TeamMember[];
   currentUserRole: string;
+  isOwner:         boolean;
 }) {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const pathname     = usePathname();
+  const { hasPermission } = useRole();
   // Multi-workspace + team are Agency-tier features (not Starter/"Pro").
   // Naming kept as `isPro` for now to avoid touching every reference below —
   // the variable semantically gates "is this an agency-or-better account?".
   const isPro        = isAgencyPlan(workspacePlan);
 
-  // Filter items based on plan.
+  // Filter items based on plan + permission. Owner has every permission via
+  // bypass, so they see all tabs regardless. Members only see tabs whose
+  // `requirePerm` they hold — Designer doesn't see Payment, etc.
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
-      if (item.proOnly  && !isPro) return false;
-      if (item.freeOnly &&  isPro) return false;
+      if (item.proOnly    && !isPro) return false;
+      if (item.freeOnly   &&  isPro) return false;
+      if (item.requirePerm && !hasPermission(item.requirePerm)) return false;
       return true;
     }),
   })).filter((s) => s.items.length > 0);
@@ -191,7 +215,8 @@ export default function SettingsClient({
                 workspaces={workspaces}
               />
             )}
-            {active === "team"          && <TeamPanel initialMembers={teamMembers} currentUserId={userId} currentUserRole={currentUserRole} />}
+            {active === "team"          && <TeamPanel initialMembers={teamMembers} currentUserId={userId} currentUserRole={currentUserRole} isOwner={isOwner} />}
+            {active === "roles"         && <RolesPanel />}
             {active === "domains"       && <DomainsPanel initialDomains={domains} rendererHost={rendererHost} />}
             {active === "payment"       && <PaymentPanel stripe={stripe} paypal={paypal} rendererUrl={rendererUrl} />}
             {active === "email"         && <EmailSettings smtp={smtp} senderIdentities={senderIdentities} />}

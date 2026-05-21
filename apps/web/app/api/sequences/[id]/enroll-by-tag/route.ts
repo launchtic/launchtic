@@ -19,7 +19,7 @@ type Params = { params: Promise<{ id: string }> };
 // only adds newly-tagged contacts.
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    const r = await requireAccess("emails:write");
+    const r = await requireAccess("sequences:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

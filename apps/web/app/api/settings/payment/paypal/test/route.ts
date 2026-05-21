@@ -11,7 +11,7 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("settings:write");
+    const r = await requireAccess("settings:payment:read");
     if (!r.ok) return r.response;
 
     const { clientId, clientSecret, mode } = schema.parse(await req.json());

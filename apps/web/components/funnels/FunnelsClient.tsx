@@ -54,7 +54,7 @@ export default function FunnelsClient({
   const params = useParams();
   const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
-  const { canWrite } = useRole();
+  const { canManageFunnels, canDeleteFunnels } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number, v: View) => {
     setLoading(true);
@@ -165,7 +165,7 @@ export default function FunnelsClient({
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          {view === "active" && canWrite && (
+          {view === "active" && canManageFunnels && (
             <button
               onClick={() => setCreateOpen(true)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
@@ -256,7 +256,7 @@ export default function FunnelsClient({
                         )}
                         {view === "active" ? (
                           <>
-                            {canWrite && (
+                            {canManageFunnels && (
                               <button
                                 onClick={() => setEditId(f.id)}
                                 className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -264,7 +264,7 @@ export default function FunnelsClient({
                                 <Settings size={14} />
                               </button>
                             )}
-                            {canWrite && (
+                            {canManageFunnels && (
                               <button
                                 onClick={() => handleMoveToTrash(f)}
                                 disabled={busyId === f.id}
@@ -277,7 +277,7 @@ export default function FunnelsClient({
                           </>
                         ) : (
                           <>
-                            {canWrite && (
+                            {canManageFunnels && (
                               <button
                                 onClick={() => handleRestore(f)}
                                 disabled={busyId === f.id}
@@ -287,7 +287,7 @@ export default function FunnelsClient({
                                 {busyId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />}
                               </button>
                             )}
-                            {canWrite && (
+                            {canDeleteFunnels && (
                               <button
                                 onClick={() => handleDeleteForever(f)}
                                 disabled={busyId === f.id}

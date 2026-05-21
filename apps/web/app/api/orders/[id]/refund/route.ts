@@ -35,7 +35,7 @@ const refundSchema = z.object({
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("orders:write");
+    const r = await requireAccess("orders:refund");
     if (!r.ok) return r.response;
     const { workspaceId, userId } = r;
 

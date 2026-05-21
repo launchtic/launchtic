@@ -262,7 +262,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
   const router = useRouter();
   const params = useParams();
   const slug = params.workspaceSlug as string;
-  const { canManageSettings } = useRole();
+  const { canRefundOrders } = useRole();
 
   const contactName = [order.contact.firstName, order.contact.lastName].filter(Boolean).join(" ") || order.contact.email;
   const shortId = order.id.slice(-8).toUpperCase();
@@ -324,7 +324,7 @@ export default function OrderDetail({ order: initial }: { order: Order }) {
             >
               <FileText size={12} /> Export PDF
             </a>
-            {canRefund && canManageSettings && (
+            {canRefund && canRefundOrders && (
               <button
                 onClick={() => setShowRefund(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-orange-700 border border-orange-200 hover:bg-orange-50 rounded-xl transition-colors"
