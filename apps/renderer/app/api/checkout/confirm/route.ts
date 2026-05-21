@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { fireTrigger } from "../../../../lib/automations";
+import { grantOrderResources } from "../../../../lib/resources";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -55,6 +56,10 @@ async function markOrderPaid(orderId: string) {
       }),
     ]);
   }
+
+  await grantOrderResources(orderId).catch((err) =>
+    console.error("[/api/checkout/confirm] grantOrderResources(bump)", err),
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -110,6 +115,12 @@ export async function POST(req: NextRequest) {
         }).catch(() => {});
       }
     }
+
+    // Grant configured resources. Idempotent — runs whether this call or a
+    // prior webhook moved the order to PAID/TRIAL.
+    await grantOrderResources(order.id).catch((err) =>
+      console.error("[/api/checkout/confirm] grantOrderResources", err),
+    );
 
     // Mark bump orders as PAID
     if (Array.isArray(bumpOrderIds) && bumpOrderIds.length > 0) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { StripeProvider } from "../../../../lib/payments/stripe";
 import { fireTrigger } from "../../../../lib/automations";
+import { grantOrderResources } from "../../../../lib/resources";
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature") ?? "";
@@ -147,6 +148,10 @@ export async function POST(req: NextRequest) {
           funnelStepId: order.funnelStepId ?? undefined,
         }).catch(() => {});
 
+        await grantOrderResources(order.id).catch((err) =>
+          console.error("[webhook/stripe] grantOrderResources (payment.succeeded)", err),
+        );
+
         break;
       }
 
@@ -200,6 +205,10 @@ export async function POST(req: NextRequest) {
         }
 
         await db.$transaction(ops);
+
+        await grantOrderResources(order.id).catch((err) =>
+          console.error("[webhook/stripe] grantOrderResources (invoice_payment.paid)", err),
+        );
         break;
       }
 

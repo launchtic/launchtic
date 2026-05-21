@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { redis } from "../../../../lib/redis";
 import { getPayPalProvider } from "../../../../lib/payments/registry";
+import { grantOrderResources } from "../../../../lib/resources";
 import type { CheckoutInput, BumpPlanRow, PricePlanRow } from "../../../../lib/payments/types";
 
 function ok(data: unknown) { return NextResponse.json({ success: true, data }); }
@@ -124,6 +125,12 @@ export async function POST(req: NextRequest) {
         }),
       ]);
     }
+
+    // Grant configured resources for both PAID and TRIAL orders — trial users
+    // get access immediately; access is later revoked if the trial cancels.
+    await grantOrderResources(order.id).catch((err) =>
+      console.error("[/api/checkout/activate] grantOrderResources", err),
+    );
 
     // Delete Redis key — no longer needed
     await redis.del(`paypal:sub:${paypalSubscriptionId}`);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { PayPalProvider } from "../../../../lib/payments/paypal";
 import { fireTrigger } from "../../../../lib/automations";
+import { grantOrderResources } from "../../../../lib/resources";
 
 function ok() { return NextResponse.json({ received: true }); }
 
@@ -216,6 +217,10 @@ export async function POST(req: NextRequest) {
           funnelStepId: order.funnelStepId ?? undefined,
         }).catch(() => {});
 
+        await grantOrderResources(order.id).catch((err) =>
+          console.error("[webhook/paypal] grantOrderResources (payment.succeeded)", err),
+        );
+
         break;
       }
 
@@ -280,6 +285,10 @@ export async function POST(req: NextRequest) {
               data: { status: "ACTIVE" },
             }),
           ]);
+
+          await grantOrderResources(initialOrder.id).catch((err) =>
+            console.error("[webhook/paypal] grantOrderResources (subscription.renewed backfill)", err),
+          );
           break;
         }
 

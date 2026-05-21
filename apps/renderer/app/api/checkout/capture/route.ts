@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { redis } from "../../../../lib/redis";
 import { getPayPalProvider } from "../../../../lib/payments/registry";
+import { grantOrderResources } from "../../../../lib/resources";
 import type { CheckoutInput, BumpPlanRow, PricePlanRow } from "../../../../lib/payments/types";
 
 function ok(data: unknown) { return NextResponse.json({ success: true, data }); }
@@ -112,6 +113,10 @@ export async function POST(req: NextRequest) {
         data: { contactId: input.contactId, type: "PURCHASE", data: { orderId: order.id, amount: total, currency } },
       }),
     ]);
+
+    await grantOrderResources(order.id).catch((err) =>
+      console.error("[/api/checkout/capture] grantOrderResources", err),
+    );
 
     // Delete Redis key — no longer needed
     await redis.del(`paypal:order:${paypalOrderId}`);
