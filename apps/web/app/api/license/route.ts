@@ -3,12 +3,16 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
 import { verifyLicenseKey } from "../../../lib/license";
+import { getOrganizationForOwner } from "../../../lib/organization";
 
 const activateSchema = z.object({
   licenseKey: z.string().min(10),
 });
 
-// POST /api/license — activate a license key
+// POST /api/license — activate a license key on the current user's Organization.
+// On self-host the founder owns the Organization (created at register), so the
+// license always lands on that Organization. Invited team members don't own an
+// Organization and get 404 here.
 export async function POST(req: NextRequest) {
   try {
     const userId = await getUserId();
@@ -17,18 +21,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { licenseKey } = activateSchema.parse(body);
 
-    // Fetch or generate a stable instanceId for this installation.
-    const existing = await db.user.findUnique({
-      where: { id: userId },
-      select: { instanceId: true },
-    });
-    const instanceId = existing?.instanceId ?? crypto.randomUUID();
+    const organization = await getOrganizationForOwner(userId);
+    if (!organization) return err("Organization not found", 404);
+
+    // Stable instanceId per Organization so the license server can detect key
+    // sharing across installations.
+    const instanceId = organization.instanceId ?? crypto.randomUUID();
 
     const result = await verifyLicenseKey(licenseKey, instanceId);
     if (!result.valid) return err(result.error ?? "Invalid license key.", 400);
 
-    await db.user.update({
-      where: { id: userId },
+    await db.organization.update({
+      where: { id: organization.id },
       data: {
         plan:              result.plan as any,
         licenseKey,
@@ -44,27 +48,23 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/license — get current license status
+// GET /api/license — current license status for the user's Organization.
 export async function GET() {
   try {
     const userId = await getUserId();
     if (!userId) return err("Unauthorized", 401);
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { plan: true, licenseKey: true, licenseExpiresAt: true },
-    });
-
-    if (!user) return err("User not found", 404);
+    const organization = await getOrganizationForOwner(userId);
+    if (!organization) return err("Organization not found", 404);
 
     const isExpired =
-      user.licenseExpiresAt != null &&
-      user.licenseExpiresAt < new Date();
+      organization.licenseExpiresAt != null &&
+      organization.licenseExpiresAt < new Date();
 
     return ok({
-      plan: isExpired ? "COMMUNITY" : user.plan,
-      licenseKey: user.licenseKey ? maskKey(user.licenseKey) : null,
-      expiresAt: user.licenseExpiresAt?.toISOString() ?? null,
+      plan: isExpired ? "COMMUNITY" : organization.plan,
+      licenseKey: organization.licenseKey ? maskKey(organization.licenseKey) : null,
+      expiresAt: organization.licenseExpiresAt?.toISOString() ?? null,
       isExpired,
     });
   } catch (error) {

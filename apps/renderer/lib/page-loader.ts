@@ -216,12 +216,12 @@ async function buildPageData(
 
   const workspace = await db.workspace.findUnique({
     where: { id: funnelStep.funnel.workspaceId },
-    select: { owner: { select: { plan: true, licenseExpiresAt: true } } },
+    select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
   });
-  const owner = workspace?.owner;
+  const organization = workspace?.organization;
   const isLicenseActive =
-    owner?.plan !== "COMMUNITY" &&
-    (owner?.licenseExpiresAt == null || owner.licenseExpiresAt > new Date());
+    organization?.plan !== "COMMUNITY" &&
+    (organization?.licenseExpiresAt == null || organization.licenseExpiresAt > new Date());
   const showBadge = !isLicenseActive;
 
   const pageData: RendererPageData = {

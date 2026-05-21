@@ -3,6 +3,7 @@ import SettingsClient from "../../../../components/settings/SettingsClient";
 import { decrypt } from "../../../../lib/crypto";
 import { ensureDefaultDomain } from "../../../../lib/domains/default-domain";
 import { requireWorkspaceFromSlug } from "../../../../lib/permissions";
+import { getEffectivePlan } from "../../../../lib/organization";
 
 export const metadata = { title: "Settings" };
 
@@ -13,10 +14,14 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
   // Lazy-seed PAGES_DOMAIN as the workspace's default Domain on first visit.
   await ensureDefaultDomain(workspaceId);
 
-  const [user, domains, settings, senderIdentities, workspaces, teamMembers, currentMember] = await Promise.all([
+  const [user, workspaceWithOrg, domains, settings, senderIdentities, workspaces, teamMembers, currentMember] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, plan: true },
+      select: { name: true, email: true },
+    }),
+    db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
     }),
     db.domain.findMany({
       where: { workspaceId },
@@ -54,7 +59,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
 
   const rendererUrl  = process.env.RENDERER_URL!;
   const rendererHost = new URL(rendererUrl).host;
-  const workspacePlan   = user?.plan ?? "COMMUNITY";
+  const workspacePlan   = getEffectivePlan(workspaceWithOrg?.organization);
   const userName        = user?.name  ?? "";
   const userEmail       = user?.email ?? "";
   const currentUserRole = currentMember?.role ?? "OWNER";

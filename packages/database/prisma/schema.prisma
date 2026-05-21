@@ -14,23 +14,62 @@ datasource db {
 // ─────────────────────────────────────────
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  passwordHash     String
-  name             String?
-  avatar           String?
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // The Organization this User owns (founder of the install). Only the user
+  // who registered first ever owns an Organization on self-host (register
+  // endpoint is locked down after the first signup). Team members invited
+  // via /api/team have ownedOrganization = null — they're WorkspaceMembers
+  // only, not Organization owners.
+  ownedOrganization   Organization?
+  ownedWorkspaces     Workspace[]
+  memberships         WorkspaceMember[]
+  passwordResetTokens PasswordResetToken[]
+  refundedOrders      Order[]              @relation("OrderRefundedBy")
+}
+
+// The billing/org entity. Source of truth for plan + license. On self-host
+// there is exactly one Organization per instance (founder owns it; team
+// members access its workspaces via WorkspaceMember). Permission checks
+// read plan from the workspace's Organization — not from the logged-in
+// User — so an invited team member working inside an Agency workspace gets
+// full Agency features.
+//
+// SaaS-ready: when launchtic launches a hosted mode, removing the register
+// lockdown lets each signup auto-create their own Organization (Slack/Linear
+// pattern). Adding Stripe fields (stripeCustomerId, stripeSubscriptionId) or
+// OrganizationMember/OrganizationInvite tables later is purely additive —
+// no migration of existing rows required.
+model Organization {
+  id   String @id @default(cuid())
+  name String
+
+  // Plan + license (paste from launchtic.com for self-host)
   plan              Plan      @default(COMMUNITY)
   licenseKey        String?
   licenseExpiresAt  DateTime?
   licenseVerifiedAt DateTime?
+  // Stable per-install ID sent with license verify so the license server can
+  // detect key sharing across installations.
   instanceId        String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
 
-  ownedWorkspaces      Workspace[]
-  memberships          WorkspaceMember[]
-  passwordResetTokens  PasswordResetToken[]
-  refundedOrders  Order[]           @relation("OrderRefundedBy")
+  // Founder — primary admin and (for now) the only user who can manage this
+  // Organization's billing. Unique today because B-minimal is single-owner;
+  // drop the unique constraint + add OrganizationMember when multi-owner is
+  // needed (additive, no data loss).
+  ownerId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner      User        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  workspaces Workspace[]
 }
 
 model Workspace {
@@ -38,11 +77,16 @@ model Workspace {
   name      String
   slug      String   @unique
   ownerId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Billing parent. Inherited from owner's Organization at create time —
+  // never changes for a given Workspace. Plan/license checks for this
+  // workspace read from organization.plan.
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  owner   User              @relation(fields: [ownerId], references: [id])
-  members WorkspaceMember[]
+  owner        User              @relation(fields: [ownerId],        references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      WorkspaceMember[]
 
   funnels             Funnel[]
   contacts            Contact[]
@@ -64,6 +108,8 @@ model Workspace {
   aiConversations     AiConversation[]
   savedBlocks         SavedBlock[]
   pageTemplates       PageTemplate[]
+
+  @@index([organizationId])
 }
 
 // One-time tokens for the "forgot password" flow. Token itself is never

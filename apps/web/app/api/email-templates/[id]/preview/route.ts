@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       db.emailTemplate.findFirst({ where: { id, workspaceId } }),
       db.workspace.findUnique({
         where: { id: workspaceId },
-        select: { name: true, owner: { select: { plan: true, licenseExpiresAt: true } } },
+        select: { name: true, organization: { select: { plan: true, licenseExpiresAt: true } } },
       }),
     ]);
     if (!template) return err("Template not found", 404);
@@ -28,8 +28,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const subject = render(template.subject, vars);
     const html = await renderEmailContent(template.htmlBody, vars, {
       appendPoweredByBadge: shouldShowLaunchticBadge(
-        workspace?.owner?.plan,
-        workspace?.owner?.licenseExpiresAt,
+        workspace?.organization?.plan,
+        workspace?.organization?.licenseExpiresAt,
       ),
     });
 

@@ -2,6 +2,7 @@ import { auth } from "../../../lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { reVerifyIfStale } from "../../../lib/license";
+import { getEffectivePlan } from "../../../lib/organization";
 import { requireWorkspaceFromSlug } from "../../../lib/permissions";
 import TopNav from "../../../components/TopNav";
 import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
@@ -26,16 +27,26 @@ export default async function DashboardLayout({
   const { workspaceSlug } = await params;
   const { workspaceId, userId, role } = await requireWorkspaceFromSlug(workspaceSlug);
 
-  // Re-verify license in background — no-op if checked within last 24h.
-  await reVerifyIfStale(userId);
+  // Need workspace.organizationId before we can re-verify or read plan. Plan
+  // now lives on Organization — Workspace just points to its billing parent.
+  const wsHead = await db.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { name: true, organizationId: true },
+  });
+  if (!wsHead) redirect("/dashboard");
 
-  // Workspace + user details for TopNav. Fetched per-request (no session
-  // cache) since session no longer carries workspace state. `workspaces` is
-  // the list of all workspaces the user is a member of — drives the
-  // WorkspaceSwitcher dropdown.
-  const [ws, user, onboarding, workspaces] = await Promise.all([
-    db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
-    db.user.findUnique({ where: { id: userId }, select: { name: true, email: true, plan: true } }),
+  // Re-verify the workspace's Organization license in background — no-op if
+  // checked within last 24h. Operates on the workspace's Organization, not
+  // the viewer's own org — so an invited team member's page load still keeps
+  // the host workspace's license fresh.
+  await reVerifyIfStale(wsHead.organizationId);
+
+  const [organization, user, onboarding, workspaces] = await Promise.all([
+    db.organization.findUnique({
+      where: { id: wsHead.organizationId },
+      select: { plan: true, licenseExpiresAt: true },
+    }),
+    db.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     getOnboardingStatus(workspaceId),
     db.workspace.findMany({
       where: { members: { some: { userId } } },
@@ -44,8 +55,8 @@ export default async function DashboardLayout({
     }),
   ]);
 
-  const workspaceName = ws?.name ?? workspaceSlug;
-  const workspacePlan = user?.plan ?? "COMMUNITY";
+  const workspaceName = wsHead.name;
+  const workspacePlan = getEffectivePlan(organization);
 
   const fullName = user?.name ?? user?.email ?? "User";
   const initials = fullName

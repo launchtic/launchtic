@@ -32,7 +32,7 @@ export async function marketingRenderOptions(workspaceId: string): Promise<Rende
     loadWorkspaceFooter(workspaceId),
     db.workspace.findUnique({
       where: { id: workspaceId },
-      select: { owner: { select: { plan: true, licenseExpiresAt: true } } },
+      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
     }),
   ]);
   return {
@@ -40,8 +40,8 @@ export async function marketingRenderOptions(workspaceId: string): Promise<Rende
     unsubscribeText: footer.unsubscribeText,
     physicalAddress: footer.physicalAddress,
     appendPoweredByBadge: shouldShowLaunchticBadge(
-      workspace?.owner?.plan,
-      workspace?.owner?.licenseExpiresAt,
+      workspace?.organization?.plan,
+      workspace?.organization?.licenseExpiresAt,
     ),
   };
 }

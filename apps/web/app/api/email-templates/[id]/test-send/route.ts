@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       db.workspaceSettings.findUnique({ where: { workspaceId } }),
       db.workspace.findUnique({
         where: { id: workspaceId },
-        select: { name: true, owner: { select: { plan: true, licenseExpiresAt: true } } },
+        select: { name: true, organization: { select: { plan: true, licenseExpiresAt: true } } },
       }),
       db.senderIdentity.findFirst({
         where: { workspaceId },
@@ -50,8 +50,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const subject = render(template.subject, vars);
     const html = await renderEmailContent(template.htmlBody, vars, {
       appendPoweredByBadge: shouldShowLaunchticBadge(
-        workspace?.owner?.plan,
-        workspace?.owner?.licenseExpiresAt,
+        workspace?.organization?.plan,
+        workspace?.organization?.licenseExpiresAt,
       ),
     });
 

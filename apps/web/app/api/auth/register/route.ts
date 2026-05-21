@@ -58,11 +58,24 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Auto-create the founder's Organization. On self-host this is the only
+      // Organization that will ever exist on this instance (register endpoint
+      // locks down after the first signup). Organization holds plan/license;
+      // every Workspace on this instance will point to it.
+      const newOrganization = await tx.organization.create({
+        data: {
+          name:    `${data.name}'s Org`,
+          ownerId: newUser.id,
+          // plan defaults to COMMUNITY
+        },
+      });
+
       const newWorkspace = await tx.workspace.create({
         data: {
           name: data.workspaceName,
           slug,
-          ownerId: newUser.id,
+          ownerId:        newUser.id,
+          organizationId: newOrganization.id,
           members: {
             create: {
               userId: newUser.id,

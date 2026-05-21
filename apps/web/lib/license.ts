@@ -32,14 +32,15 @@ export async function verifyLicenseKey(
 }
 
 /**
- * Called on every dashboard page load.
+ * Re-verify a workspace's Organization license against the license server.
+ * Called on every dashboard page load with the workspace's organizationId.
  * - No-op if verified within the last 24h.
  * - Calls license server if stale → downgrades immediately on revoke.
  * - Grace period of 7 days if server is unreachable.
  */
-export async function reVerifyIfStale(userId: string): Promise<void> {
-  const user = await db.user.findUnique({
-    where: { id: userId },
+export async function reVerifyIfStale(organizationId: string): Promise<void> {
+  const organization = await db.organization.findUnique({
+    where: { id: organizationId },
     select: {
       plan:              true,
       licenseKey:        true,
@@ -49,21 +50,21 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
     },
   });
 
-  // Nothing to verify for FREE users or users without a key.
-  if (!user?.licenseKey || user.plan === "COMMUNITY") return;
+  // Nothing to verify for COMMUNITY orgs or those without a key.
+  if (!organization?.licenseKey || organization.plan === "COMMUNITY") return;
 
-  const now         = Date.now();
-  const lastVerified = user.licenseVerifiedAt?.getTime() ?? 0;
+  const now          = Date.now();
+  const lastVerified = organization.licenseVerifiedAt?.getTime() ?? 0;
 
   // Still fresh — skip.
   if (now - lastVerified < VERIFY_INTERVAL_MS) return;
 
-  const result = await verifyLicenseKey(user.licenseKey, user.instanceId ?? userId);
+  const result = await verifyLicenseKey(organization.licenseKey, organization.instanceId ?? organizationId);
 
   if (result.valid) {
     // Update plan (may have changed, e.g. STARTER → AGENCY upgrade) + reset timer.
-    await db.user.update({
-      where: { id: userId },
+    await db.organization.update({
+      where: { id: organizationId },
       data: { plan: result.plan as any, licenseVerifiedAt: new Date() },
     });
     return;
@@ -71,8 +72,8 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
 
   if (result.reachable) {
     // Server responded: key is invalid or revoked → downgrade immediately.
-    await db.user.update({
-      where: { id: userId },
+    await db.organization.update({
+      where: { id: organizationId },
       data: { plan: "COMMUNITY", licenseKey: null, licenseVerifiedAt: new Date() },
     });
     return;
@@ -80,8 +81,8 @@ export async function reVerifyIfStale(userId: string): Promise<void> {
 
   // Server unreachable — check grace period.
   if (now - lastVerified > GRACE_PERIOD_MS) {
-    await db.user.update({
-      where: { id: userId },
+    await db.organization.update({
+      where: { id: organizationId },
       data: { plan: "COMMUNITY" },
     });
   }

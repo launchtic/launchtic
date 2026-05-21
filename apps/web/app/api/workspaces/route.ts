@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
 import { canCreateWorkspace } from "@launchtic/ee";
+import { getOrganizationForOwner, getEffectivePlan } from "../../../lib/organization";
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -24,14 +25,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name } = createSchema.parse(body);
 
-    const [user, currentCount] = await Promise.all([
-      db.user.findUnique({ where: { id: userId }, select: { plan: true, licenseKey: true, licenseExpiresAt: true } }),
-      db.workspace.count({ where: { ownerId: userId } }),
-    ]);
+    // The gate runs against the user's owned Organization — that org's plan
+    // controls how many workspaces it can hold (Agency = unlimited). License
+    // expiry is folded into the effective plan via getEffectivePlan.
+    const organization = await getOrganizationForOwner(userId);
+    if (!organization) return err("Organization not found", 404);
 
-    const isExpired = user?.licenseExpiresAt != null && user.licenseExpiresAt < new Date();
-    const hasLicense = user?.licenseKey != null && !isExpired;
-    const currentPlan = hasLicense ? (user?.plan ?? "COMMUNITY") : "COMMUNITY";
+    const currentCount = await db.workspace.count({ where: { organizationId: organization.id } });
+    const currentPlan  = getEffectivePlan(organization);
 
     if (!canCreateWorkspace(currentPlan, currentCount)) {
       return err("Upgrade to Pro to create additional workspaces.", 403);
@@ -49,7 +50,8 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         slug,
-        ownerId: userId,
+        ownerId:        userId,
+        organizationId: organization.id,
         members: {
           create: { userId, role: "OWNER" },
         },
