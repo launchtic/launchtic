@@ -149,14 +149,22 @@ export async function requireWorkspaceFromSlug(slug: string): Promise<{
   userId:        string;
   workspaceId:   string;
   workspaceSlug: string;
+  role:          string; // OWNER | ADMIN | EDITOR | VIEWER
 }> {
   const session = await auth();
   const userId = session?.user?.id as string | undefined;
   if (!userId) redirect("/login");
+  // Single query gets workspace + caller's role on it. Role drives client UI
+  // gates (canWrite, canManageSettings) via WorkspaceRoleProvider.
   const ws = await db.workspace.findFirst({
     where: { slug, members: { some: { userId } } },
-    select: { id: true, slug: true },
+    select: {
+      id: true,
+      slug: true,
+      members: { where: { userId }, select: { role: true }, take: 1 },
+    },
   });
   if (!ws) notFound();
-  return { userId, workspaceId: ws.id, workspaceSlug: ws.slug };
+  const role = ws.members[0]?.role ?? "VIEWER";
+  return { userId, workspaceId: ws.id, workspaceSlug: ws.slug, role };
 }

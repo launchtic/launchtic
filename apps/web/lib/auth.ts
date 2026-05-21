@@ -28,23 +28,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const { email, password } = parsed.data;
 
+        // Workspace data is no longer needed at login — fetched per-request
+        // from URL in dashboard layout (see WorkspaceRoleProvider).
         const user = await db.user.findUnique({
           where: { email },
-          include: {
-            memberships: {
-              select: {
-                role: true,
-                workspace: {
-                  select: {
-                    id: true, name: true, slug: true,
-                    owner: { select: { plan: true, licenseKey: true, licenseExpiresAt: true } },
-                  },
-                },
-              },
-              orderBy: { joinedAt: "asc" },
-              take: 1,
-            },
-          },
+          select: { id: true, email: true, name: true, avatar: true, passwordHash: true },
         });
 
         if (!user) return null;
@@ -52,29 +40,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
-        const membership = user.memberships[0] ?? null;
-        const workspace  = membership?.workspace ?? null;
-        const workspaceRole = membership?.role ?? null;
-
-        // Inherit plan from the workspace owner
-        let workspacePlan = "COMMUNITY";
-        if (workspace) {
-          const owner = workspace.owner;
-          const isExpired  = owner.licenseExpiresAt != null && owner.licenseExpiresAt < new Date();
-          const hasLicense = owner.licenseKey != null && !isExpired;
-          workspacePlan = hasLicense ? (owner.plan ?? "COMMUNITY") : "COMMUNITY";
-        }
-
+        // Workspace context (id/slug/name/plan/role) is no longer stamped on
+        // the JWT — it's derived per-request from the URL. We just return the
+        // user identity here; downstream code looks up workspace data fresh
+        // each time (see requireWorkspaceFromSlug, WorkspaceRoleProvider).
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           image: user.avatar,
-          workspaceId:   workspace?.id   ?? null,
-          workspaceName: workspace?.name ?? null,
-          workspaceSlug: workspace?.slug ?? null,
-          workspacePlan,
-          workspaceRole,
         };
       },
     }),

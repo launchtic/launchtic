@@ -9,6 +9,7 @@ import { ToastProvider } from "../../../components/ui/Toast";
 import { UnsavedChangesProvider } from "../../../contexts/UnsavedChangesContext";
 import AssistantWidget from "../../../components/ai/AssistantWidget";
 import OnboardingChecklist from "../../../components/dashboard/OnboardingChecklist";
+import { WorkspaceRoleProvider } from "../../../components/WorkspaceRoleProvider";
 import { getOnboardingStatus } from "../../../lib/onboarding";
 import NextTopLoader from "nextjs-toploader";
 
@@ -23,7 +24,7 @@ export default async function DashboardLayout({
   if (!session?.user?.id) redirect("/login");
 
   const { workspaceSlug } = await params;
-  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId, userId, role } = await requireWorkspaceFromSlug(workspaceSlug);
 
   // Re-verify license in background — no-op if checked within last 24h.
   await reVerifyIfStale(userId);
@@ -48,6 +49,7 @@ export default async function DashboardLayout({
     .slice(0, 2);
 
   return (
+    <WorkspaceRoleProvider role={role}>
     <ConfirmProvider>
       <ToastProvider>
         <UnsavedChangesProvider>
@@ -72,5 +74,6 @@ export default async function DashboardLayout({
         </UnsavedChangesProvider>
       </ToastProvider>
     </ConfirmProvider>
+    </WorkspaceRoleProvider>
   );
 }

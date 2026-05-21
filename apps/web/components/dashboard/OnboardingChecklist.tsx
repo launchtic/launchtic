@@ -201,12 +201,6 @@ function ChecklistRow({
           {item.label}
         </span>
 
-        {/* Optional badge — only on AI Assistant */}
-        {item.key === "ai" && !item.done && (
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 shrink-0">
-            Optional
-          </span>
-        )}
 
         {/* Expand chevron — rotates when expanded */}
         <ChevronDown

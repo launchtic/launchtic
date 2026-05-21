@@ -35,7 +35,9 @@ export default function WorkspacePanel({
   async function handleSwitch(ws: Workspace) {
     if (ws.id === activeId) return;
     setSwitchingId(ws.id);
-    await update({ workspaceId: ws.id, workspaceSlug: ws.slug, workspaceName: ws.name, workspaceRole: ws.userRole });
+    // No session.update — workspace context now comes from URL (header for APIs,
+    // params for server components). Just navigate; the new dashboard layout
+    // re-fetches role/plan/etc for the target workspace.
     setActiveId(ws.id);
     setSwitchingId(null);
     router.push(`/${ws.slug}/dashboard`);

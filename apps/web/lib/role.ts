@@ -1,8 +1,8 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useWorkspaceRole, type Role } from "../components/WorkspaceRoleProvider";
 
-export type Role = "OWNER" | "ADMIN" | "EDITOR" | "VIEWER";
+export type { Role };
 
 const ROLE_RANK: Record<Role, number> = {
   OWNER: 4,
@@ -11,10 +11,12 @@ const ROLE_RANK: Record<Role, number> = {
   VIEWER: 1,
 };
 
+// Reads role from WorkspaceRoleProvider (URL-driven, set by dashboard layout).
+// Previously read from session.workspaceRole — that field was removed during
+// the URL-driven refactor and silently defaulted to VIEWER, hiding every
+// create/edit button in the UI.
 export function useRole() {
-  const { data: session } = useSession();
-  const role = ((session as any)?.workspaceRole ?? "VIEWER") as Role;
-
+  const role = useWorkspaceRole();
   return {
     role,
     isOwner:  role === "OWNER",
