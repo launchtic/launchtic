@@ -9,7 +9,7 @@ type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export default async function BroadcastDetailPage({ params }: PageProps) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "broadcasts:read");
 
   const { id } = await params;
   const [broadcast, tags, templates, senderIdentities] = await Promise.all([

@@ -9,16 +9,43 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { isAgencyPlan } from "../lib/plan";
+import { useRole } from "../lib/role";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 type WorkspaceListItem = { id: string; name: string; slug: string };
 
-type NavLink = { href: string; label: string; icon: LucideIcon };
+/**
+ * `requirePerm` — permission key required to see this link. If undefined,
+ * always visible. Owner bypasses every permission check so they see all.
+ * Groups (with children) are hidden if every child is filtered out.
+ */
+type NavLink = { href: string; label: string; icon: LucideIcon; requirePerm?: string };
 type NavGroup = { label: string; icon: LucideIcon; children: NavLink[] };
 type NavItem = NavLink | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {
   return "children" in item;
+}
+
+/**
+ * Filter nav items by viewer's permissions. Drops links the viewer can't
+ * read and collapses empty groups. Called per-render — cheap because the
+ * NAV_ITEMS list is short.
+ */
+function filterNavItems(items: NavItem[], hasPermission: (p: string) => boolean): NavItem[] {
+  return items
+    .map((item) => {
+      if (isGroup(item)) {
+        const visibleChildren = item.children.filter(
+          (c) => !c.requirePerm || hasPermission(c.requirePerm),
+        );
+        if (visibleChildren.length === 0) return null;
+        return { ...item, children: visibleChildren };
+      }
+      if (item.requirePerm && !hasPermission(item.requirePerm)) return null;
+      return item;
+    })
+    .filter((item): item is NavItem => item !== null);
 }
 
 function activeChildHref(children: NavLink[], pathname: string): string | null {
@@ -32,40 +59,43 @@ function activeChildHref(children: NavLink[], pathname: string): string | null {
 }
 
 // Bare paths — prefixed with /{workspaceSlug} at render time.
+// `requirePerm` gates visibility — Owner bypasses all checks (sees everything).
+// Settings has no requirePerm because its sub-tabs filter individually (Profile
+// is always available even to Viewer).
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard },
-  { href: "/funnels",     label: "Funnels",             icon: Zap       },
+  { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard, requirePerm: "dashboard:read" },
+  { href: "/funnels",     label: "Funnels",            icon: Zap,             requirePerm: "funnels:read"   },
   {
     label: "Sales",
     icon: TrendingUp,
     children: [
-      { href: "/physical-products", label: "Physical Products", icon: Package },
-      { href: "/orders",        label: "Orders",        icon: ShoppingCart },
-      { href: "/subscriptions", label: "Subscriptions", icon: Repeat       },
-      { href: "/transactions",  label: "Transactions",  icon: Receipt      },
-      { href: "/coupons",       label: "Coupons",       icon: Ticket       },
+      { href: "/physical-products", label: "Physical Products", icon: Package,      requirePerm: "products:read"      },
+      { href: "/orders",            label: "Orders",            icon: ShoppingCart, requirePerm: "orders:read"        },
+      { href: "/subscriptions",     label: "Subscriptions",     icon: Repeat,       requirePerm: "subscriptions:read" },
+      { href: "/transactions",      label: "Transactions",      icon: Receipt,      requirePerm: "transactions:read"  },
+      { href: "/coupons",           label: "Coupons",           icon: Ticket,       requirePerm: "coupons:read"       },
     ],
   },
   {
     label: "Contacts",
     icon: Users,
     children: [
-      { href: "/contacts",      label: "All contacts", icon: Users   },
-      { href: "/contacts/tags", label: "Tags",         icon: TagIcon },
+      { href: "/contacts",      label: "All contacts", icon: Users,   requirePerm: "contacts:read" },
+      { href: "/contacts/tags", label: "Tags",         icon: TagIcon, requirePerm: "tags:read"     },
     ],
   },
   {
     label: "Emails",
     icon: Mail,
     children: [
-      { href: "/emails/broadcasts", label: "Broadcasts",  icon: Megaphone },
-      { href: "/sequences",         label: "Sequences",   icon: Repeat    },
-      { href: "/emails/templates",  label: "Templates",   icon: FileText  },
-      { href: "/emails/logs",       label: "Email Logs",  icon: Inbox     },
+      { href: "/emails/broadcasts", label: "Broadcasts",  icon: Megaphone, requirePerm: "broadcasts:read"      },
+      { href: "/sequences",         label: "Sequences",   icon: Repeat,    requirePerm: "sequences:read"       },
+      { href: "/emails/templates",  label: "Templates",   icon: FileText,  requirePerm: "email_templates:read" },
+      { href: "/emails/logs",       label: "Email Logs",  icon: Inbox,     requirePerm: "email_logs:read"      },
     ],
   },
-  { href: "/automations", label: "Automations", icon: GitBranch },
-  { href: "/settings",    label: "Settings",    icon: Settings  },
+  { href: "/automations", label: "Automations", icon: GitBranch, requirePerm: "automations:read" },
+  { href: "/settings",    label: "Settings",    icon: Settings                                   },
 ];
 
 function prefixItems(items: NavItem[], slug: string): NavItem[] {
@@ -202,7 +232,11 @@ export default function TopNav({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = prefixItems(NAV_ITEMS, workspaceSlug);
+  const { hasPermission } = useRole();
+  // Filter by permission BEFORE prefixing — drops links the viewer can't
+  // access. Owner bypasses → sees all items. Members only see what they
+  // have :read permission for. Empty groups are collapsed entirely.
+  const navItems = prefixItems(filterNavItems(NAV_ITEMS, hasPermission), workspaceSlug);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
@@ -230,8 +264,12 @@ export default function TopNav({
         )}
 
         {/* Desktop nav links — min-w-0 so it can shrink before clipping the
-            user menu / switcher on tight viewports. */}
-        <nav className="hidden md:flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+            user menu / switcher on tight viewports. NOTE: do NOT use
+            `overflow-hidden` here — it clips absolutely-positioned dropdowns
+            (Sales / Contacts / Emails submenus rendered via NavDropdown).
+            Use `overflow-x-clip` instead: clips horizontally without forcing
+            the Y axis to auto, so vertical dropdowns escape the nav box. */}
+        <nav className="hidden md:flex items-center gap-1 flex-1 min-w-0 overflow-x-clip">
           {navItems.map((item) => {
             if (isGroup(item)) {
               return <NavDropdown key={item.label} item={item} pathname={pathname} />;

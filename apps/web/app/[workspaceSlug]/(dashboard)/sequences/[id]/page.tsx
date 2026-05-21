@@ -9,7 +9,7 @@ type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export default async function SequenceDetailPage({ params }: PageProps) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "sequences:read");
 
   const { id } = await params;
   const [sequence, templates, senderIdentities] = await Promise.all([

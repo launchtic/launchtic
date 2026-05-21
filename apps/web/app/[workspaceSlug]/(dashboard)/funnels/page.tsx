@@ -6,7 +6,7 @@ export const metadata = { title: "Funnels" };
 
 export default async function FunnelsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "funnels:read");
   const total = await db.funnel.count({ where: { workspaceId, status: "ACTIVE" } });
 
   return (

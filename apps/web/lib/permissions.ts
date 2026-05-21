@@ -273,8 +273,21 @@ export async function getWorkspaceAccess(): Promise<{
  * slug param. Returns role name + full permission list — server components
  * feed these into WorkspaceRoleProvider so client components can call
  * useRole().hasPermission() without an extra fetch.
+ *
+ * Optional `permission` arg gates page access. Behavior on denial:
+ *   - User is NOT a member of the workspace → notFound() (page truly doesn't
+ *     exist for them — they shouldn't know the workspace exists)
+ *   - User IS a member but lacks the permission → redirect to the in-workspace
+ *     `/forbidden?perm=<key>` page, which shows a human-readable explanation
+ *     and a link back to the dashboard. Better UX than a bare 404.
+ *
+ *   // app/[workspaceSlug]/(dashboard)/orders/page.tsx
+ *   const { workspaceId } = await requireWorkspaceFromSlug(slug, "orders:read");
  */
-export async function requireWorkspaceFromSlug(slug: string): Promise<{
+export async function requireWorkspaceFromSlug(
+  slug: string,
+  permission?: Permission,
+): Promise<{
   userId:         string;
   workspaceId:    string;
   workspaceSlug:  string;
@@ -319,13 +332,22 @@ export async function requireWorkspaceFromSlug(slug: string): Promise<{
   const member = ws.members[0];
   if (!member) notFound();
 
+  const perms = member.role.permissions ?? [];
+
+  // Page-level permission gate. Member-but-no-perm → redirect to the
+  // in-workspace 403 page (preserves layout, gives the user context). Versus
+  // not-a-member → notFound() above (workspace shouldn't exist for them).
+  if (permission && !perms.includes(permission)) {
+    redirect(`/${ws.slug}/forbidden?perm=${encodeURIComponent(permission)}`);
+  }
+
   return {
     userId,
     workspaceId:    ws.id,
     workspaceSlug:  ws.slug,
     organizationId: ws.organizationId,
     role:           member.role.name,
-    permissions:    member.role.permissions ?? [],
+    permissions:    perms,
     isOwner:        false,
   };
 }

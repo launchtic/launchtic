@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: Params) {
 
 export default async function FunnelDetailPage({ params }: Params) {
   const { id, workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "funnels:read");
 
   const funnel = await db.funnel.findUnique({
     where: { id, workspaceId },

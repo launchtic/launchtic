@@ -6,7 +6,7 @@ export const metadata = { title: "Subscriptions" };
 
 export default async function SubscriptionsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "subscriptions:read");
 
   const total = await db.subscription.count({ where: { workspaceId } });
 

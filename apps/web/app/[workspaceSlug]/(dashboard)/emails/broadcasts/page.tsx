@@ -6,7 +6,7 @@ export const metadata = { title: "Broadcasts" };
 
 export default async function BroadcastsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "broadcasts:read");
 
   const broadcasts = await db.broadcast.findMany({
     where: { workspaceId },

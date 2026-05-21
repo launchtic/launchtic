@@ -6,7 +6,7 @@ export const metadata = { title: "Sequences" };
 
 export default async function SequencesPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "sequences:read");
 
   const sequences = await db.emailSequence.findMany({
     where: { workspaceId },

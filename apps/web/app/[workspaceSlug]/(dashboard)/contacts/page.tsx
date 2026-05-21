@@ -6,7 +6,7 @@ export const metadata = { title: "Contacts" };
 
 export default async function ContactsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "contacts:read");
 
   const [totalContacts, tags] = await Promise.all([
     db.contact.count({ where: { workspaceId } }),

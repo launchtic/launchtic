@@ -77,10 +77,7 @@ export const DEFAULT_ROLES = [
       "automations:read", "automations:write",
       // Media — upload, no delete
       "media:read", "media:upload",
-      // Settings — only need read for email (verify SMTP works), AI (use AI),
-      // page templates (apply templates)
-      "settings:email:read",
-      "settings:ai:read",
+    
       "settings:page_templates:read",
       // Team — see members only
       "members:read",
@@ -93,18 +90,11 @@ export const DEFAULT_ROLES = [
       "dashboard:read",
       // Funnels & Pages — write but not delete
       "funnels:read", "funnels:write",
-      // Products needed to assign to funnel steps
-      "products:read", "products:write",
       // Email templates — read to copy styles
       "email_templates:read",
       // Media — full management for assets
       "media:read", "media:upload", "media:delete",
-      // Settings — need domains/storage info, can manage page templates
-      "settings:domains:read",
-      "settings:storage:read",
       "settings:page_templates:read", "settings:page_templates:write",
-      // Team — see members only
-      "members:read",
     ],
   },
   {

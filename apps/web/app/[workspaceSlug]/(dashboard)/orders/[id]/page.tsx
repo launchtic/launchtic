@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Params) {
 
 export default async function OrderDetailPage({ params }: Params) {
   const { id, workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "orders:read");
 
   const order = await db.order.findFirst({
     where: { id, workspaceId },

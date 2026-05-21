@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Params) {
 
 export default async function ContactDetailPage({ params }: Params) {
   const { id, workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "contacts:read");
 
   const [contact, tags, enrollments] = await Promise.all([
     db.contact.findFirst({

@@ -6,7 +6,7 @@ export const metadata = { title: "Tags" };
 
 export default async function TagsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "tags:read");
 
   const total = await db.tag.count({ where: { workspaceId } });
 

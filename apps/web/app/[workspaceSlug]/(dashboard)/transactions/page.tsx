@@ -6,7 +6,7 @@ export const metadata = { title: "Transactions" };
 
 export default async function TransactionsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "transactions:read");
 
   const total = await db.transaction.count({ where: { order: { workspaceId } } });
 

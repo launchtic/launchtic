@@ -5,7 +5,7 @@ export const metadata = { title: "Email Logs" };
 
 export default async function EmailLogsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "email_logs:read");
 
   return <EmailLogsList />;
 }

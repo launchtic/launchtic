@@ -9,7 +9,7 @@ type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export default async function EditTemplatePage({ params }: PageProps) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "email_templates:read");
 
   const { id } = await params;
   const template = await db.emailTemplate.findFirst({ where: { id, workspaceId } });

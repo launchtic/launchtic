@@ -9,7 +9,7 @@ type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
 export default async function AutomationDetailPage({ params }: PageProps) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "automations:read");
 
   const { id } = await params;
   const [automation, tags, templates, funnels, sequences, senderIdentities] = await Promise.all([
