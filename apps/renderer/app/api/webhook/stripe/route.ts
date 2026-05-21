@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { StripeProvider } from "../../../../lib/payments/stripe";
 import { fireTrigger } from "../../../../lib/automations";
 import { grantOrderResources } from "../../../../lib/resources";
+import { recordCouponUsage } from "../../../../lib/coupons";
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature") ?? "";
@@ -135,6 +136,12 @@ export async function POST(req: NextRequest) {
 
         await db.$transaction(ops);
 
+        // Skip increment if the order was already TRIAL — /confirm already
+        // counted it at trial creation. Only true PENDING→PAID transitions count.
+        if (order.status === "PENDING") {
+          await recordCouponUsage(workspaceId, order.couponCode);
+        }
+
         // Fire NEW_SALE automation trigger (best-effort; never block webhook on this)
         const funnelStep = order.funnelStepId
           ? await db.funnelStep.findUnique({ where: { id: order.funnelStepId }, select: { funnelId: true } })
@@ -205,6 +212,8 @@ export async function POST(req: NextRequest) {
         }
 
         await db.$transaction(ops);
+
+        await recordCouponUsage(workspaceId, order.couponCode);
 
         await grantOrderResources(order.id).catch((err) =>
           console.error("[webhook/stripe] grantOrderResources (invoice_payment.paid)", err),

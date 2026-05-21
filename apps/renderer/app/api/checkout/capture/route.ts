@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { redis } from "../../../../lib/redis";
 import { getPayPalProvider } from "../../../../lib/payments/registry";
 import { grantOrderResources } from "../../../../lib/resources";
+import { recordCouponUsage } from "../../../../lib/coupons";
 import type { CheckoutInput, BumpPlanRow, PricePlanRow } from "../../../../lib/payments/types";
 
 function ok(data: unknown) { return NextResponse.json({ success: true, data }); }
@@ -113,6 +114,8 @@ export async function POST(req: NextRequest) {
         data: { contactId: input.contactId, type: "PURCHASE", data: { orderId: order.id, amount: total, currency } },
       }),
     ]);
+
+    await recordCouponUsage(input.workspaceId, input.couponCode);
 
     await grantOrderResources(order.id).catch((err) =>
       console.error("[/api/checkout/capture] grantOrderResources", err),

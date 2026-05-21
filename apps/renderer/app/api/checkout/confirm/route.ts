@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { fireTrigger } from "../../../../lib/automations";
 import { grantOrderResources } from "../../../../lib/resources";
+import { recordCouponUsage } from "../../../../lib/coupons";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -56,6 +57,8 @@ async function markOrderPaid(orderId: string) {
       }),
     ]);
   }
+
+  await recordCouponUsage(order.workspaceId, order.couponCode);
 
   await grantOrderResources(orderId).catch((err) =>
     console.error("[/api/checkout/confirm] grantOrderResources(bump)", err),
@@ -114,6 +117,10 @@ export async function POST(req: NextRequest) {
           funnelStepId: order.funnelStepId ?? undefined,
         }).catch(() => {});
       }
+
+      // Record coupon use exactly once, on first PENDING→PAID/TRIAL transition.
+      // Must stay inside the !alreadyDone guard — not idempotent.
+      await recordCouponUsage(order.workspaceId, order.couponCode);
     }
 
     // Grant configured resources. Idempotent — runs whether this call or a

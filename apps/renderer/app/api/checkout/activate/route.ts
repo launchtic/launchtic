@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { redis } from "../../../../lib/redis";
 import { getPayPalProvider } from "../../../../lib/payments/registry";
 import { grantOrderResources } from "../../../../lib/resources";
+import { recordCouponUsage } from "../../../../lib/coupons";
 import type { CheckoutInput, BumpPlanRow, PricePlanRow } from "../../../../lib/payments/types";
 
 function ok(data: unknown) { return NextResponse.json({ success: true, data }); }
@@ -125,6 +126,10 @@ export async function POST(req: NextRequest) {
         }),
       ]);
     }
+
+    // Coupon usage is recorded once on first PAID/TRIAL creation. Trial
+    // converting to PAID later doesn't re-count (no re-creation happens).
+    await recordCouponUsage(input.workspaceId, input.couponCode);
 
     // Grant configured resources for both PAID and TRIAL orders — trial users
     // get access immediately; access is later revoked if the trial cancels.

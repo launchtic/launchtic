@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { PayPalProvider } from "../../../../lib/payments/paypal";
 import { fireTrigger } from "../../../../lib/automations";
 import { grantOrderResources } from "../../../../lib/resources";
+import { recordCouponUsage } from "../../../../lib/coupons";
 
 function ok() { return NextResponse.json({ received: true }); }
 
@@ -204,6 +205,8 @@ export async function POST(req: NextRequest) {
           }),
         ]);
 
+        await recordCouponUsage(workspaceId, order.couponCode);
+
         // Fire NEW_SALE automation trigger (best-effort)
         const funnelStep = order.funnelStepId
           ? await db.funnelStep.findUnique({ where: { id: order.funnelStepId }, select: { funnelId: true } })
@@ -285,6 +288,13 @@ export async function POST(req: NextRequest) {
               data: { status: "ACTIVE" },
             }),
           ]);
+
+          // Only count the coupon if this is a true backfill (order was PENDING,
+          // meaning /activate never ran). A TRIAL→PAID conversion here had its
+          // coupon counted at /activate time.
+          if (initialOrder.status === "PENDING") {
+            await recordCouponUsage(workspaceId, initialOrder.couponCode);
+          }
 
           await grantOrderResources(initialOrder.id).catch((err) =>
             console.error("[webhook/paypal] grantOrderResources (subscription.renewed backfill)", err),
