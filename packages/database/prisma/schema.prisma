@@ -27,8 +27,9 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  ownedWorkspaces Workspace[]
-  memberships     WorkspaceMember[]
+  ownedWorkspaces      Workspace[]
+  memberships          WorkspaceMember[]
+  passwordResetTokens  PasswordResetToken[]
   refundedOrders  Order[]           @relation("OrderRefundedBy")
 }
 
@@ -63,6 +64,26 @@ model Workspace {
   aiConversations     AiConversation[]
   savedBlocks         SavedBlock[]
   pageTemplates       PageTemplate[]
+}
+
+// One-time tokens for the "forgot password" flow. Token itself is never
+// stored — only its SHA-256 hash. The raw token lives in the reset email
+// link and the user's clipboard for the duration of the flow.
+//   - expiresAt: 1 hour from creation
+//   - usedAt:    set when the user successfully resets via this token
+// On successful reset, all other tokens for the same user are deleted to
+// invalidate concurrent attempts.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model WorkspaceMember {

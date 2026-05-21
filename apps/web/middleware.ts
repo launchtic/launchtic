@@ -8,10 +8,17 @@ import { NextResponse } from "next/server";
 
 const { auth } = NextAuth(authConfig);
 
+// Pages that don't require an authenticated session — login + the
+// pre-auth password reset flow. Authed users on /login or /register get
+// punted to /dashboard; on /forgot-password or /reset they're left alone
+// (a logged-in user can still reset their password via the email link).
+const PRE_AUTH_PAGES = new Set(["/login", "/register", "/forgot-password", "/reset"]);
+const LOGIN_REDIRECT_PAGES = new Set(["/login", "/register"]);
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
-  const isAuthPage = pathname === "/login" || pathname === "/register";
-  const isPublic = isAuthPage || pathname.startsWith("/api/") || pathname === "/";
+  const isPreAuthPage = PRE_AUTH_PAGES.has(pathname);
+  const isPublic = isPreAuthPage || pathname.startsWith("/api/") || pathname === "/";
 
   if (!req.auth && !isPublic) {
     const loginUrl = new URL("/login", req.nextUrl);
@@ -19,7 +26,7 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (req.auth && isAuthPage) {
+  if (req.auth && LOGIN_REDIRECT_PAGES.has(pathname)) {
     // Authed user on /login or /register — punt to /dashboard, which is a
     // server component that resolves the user's default workspace from DB
     // and 302s to /{slug}/dashboard. Middleware is edge-runtime and can't
