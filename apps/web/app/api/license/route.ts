@@ -72,23 +72,6 @@ export async function GET() {
   }
 }
 
-// DELETE /api/license — remove license key (downgrade to FREE)
-export async function DELETE() {
-  try {
-    const userId = await getUserId();
-    if (!userId) return err("Unauthorized", 401);
-
-    await db.user.update({
-      where: { id: userId },
-      data: { plan: "COMMUNITY", licenseKey: null, licenseExpiresAt: null },
-    });
-
-    return ok({ plan: "COMMUNITY" });
-  } catch (error) {
-    return handleError(error);
-  }
-}
-
 
 function maskKey(key: string): string {
   if (key.length <= 8) return "••••••••";

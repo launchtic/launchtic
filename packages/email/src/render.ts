@@ -154,20 +154,16 @@ export type RenderOptions = {
 
 const DEFAULT_UNSUB_TEXT = "Don't want these emails? You can {unsubscribe} anytime.";
 
-// Email-safe "Powered by Launchtic" badge — table-based layout + inline
-// styles so Outlook desktop renders consistently. Visual mirrors
-// apps/renderer/components/PoweredByBadge.tsx (dark pill + blue accent) but
-// without position:fixed / hover effects, which most email clients strip.
+// Email-safe "Powered by Launchtic" badge — subtle gray text with the brand
+// name as an underlined link. Industry-standard footer pattern (Mailchimp,
+// Substack, ConvertKit) — looks like a signature line, not a banner ad.
+// Table layout + inline styles for Outlook desktop compatibility.
 const LAUNCHTIC_BADGE_HTML =
-  '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:10px 0 0 0;border-collapse:collapse;">' +
-    '<tr><td align="center" style="padding:8px 24px;">' +
+  '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0 0 0;border-collapse:collapse;">' +
+    '<tr><td align="center" style="padding:8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af;line-height:1.4;">' +
+      'Powered by ' +
       '<a href="https://launchtic.com" target="_blank" rel="noopener noreferrer" ' +
-         'style="display:inline-block;padding:8px 14px;background:#0f172a;color:#ffffff;' +
-                'text-decoration:none;border-radius:50px;font-family:Arial,Helvetica,sans-serif;' +
-                'font-size:11px;letter-spacing:0.04em;line-height:1;">' +
-        '<span style="color:#f3f3f3;font-weight:400;">Powered by</span> ' +
-        '<span style="color:#91b3ff;font-weight:700;">Launchtic</span>' +
-      '</a>' +
+         'style="color:#6b7280;text-decoration:underline;">Launchtic</a>' +
     '</td></tr>' +
   '</table>';
 
