@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MailCheck, Loader2, Info, RotateCcw } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type Footer = {
   unsubscribeText: string | null;
@@ -18,6 +19,7 @@ const inputCls =
 
 export default function EmailFooterPanel() {
   const toast = useToast();
+  const { canManageEmailSettings } = useRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [unsubscribeText, setUnsubscribeText] = useState("");
@@ -101,9 +103,10 @@ export default function EmailFooterPanel() {
                 onChange={(e) => setUnsubscribeText(e.target.value)}
                 placeholder={DEFAULT_UNSUB_TEXT}
                 maxLength={500}
-                className={inputCls + " pr-9"}
+                disabled={!canManageEmailSettings}
+                className={inputCls + " pr-9" + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
-              {unsubscribeText && (
+              {unsubscribeText && canManageEmailSettings && (
                 <button
                   onClick={() => setUnsubscribeText("")}
                   title="Reset to default"
@@ -134,20 +137,23 @@ export default function EmailFooterPanel() {
               placeholder={`Acme Inc.\n123 Market St, Suite 400\nSan Francisco, CA 94105`}
               rows={3}
               maxLength={500}
-              className={inputCls + " resize-none"}
+              disabled={!canManageEmailSettings}
+              className={inputCls + " resize-none" + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
             <p className="mt-1 text-[11px] text-gray-500">
               Required by US CAN-SPAM Act for commercial emails. Improves deliverability across all regions.
             </p>
           </div>
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 inline-flex items-center gap-2"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />} Save
-          </button>
+          {canManageEmailSettings && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {saving && <Loader2 size={14} className="animate-spin" />} Save
+            </button>
+          )}
         </div>
 
         {/* Preview — right, narrower, sticky on tall screens */}

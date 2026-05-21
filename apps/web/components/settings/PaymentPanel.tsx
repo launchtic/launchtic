@@ -7,6 +7,7 @@ import {
   ChevronDown, Copy, BookOpen,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 const WEBHOOK_EVENTS = [
   "customer.subscription.updated",
@@ -81,7 +82,7 @@ function KeyStatus({ status }: { status: "empty" | "valid" | "invalid" }) {
 // ─── Shared components ────────────────────────────────────────────────────────
 
 function SecretInput({
-  label, value, onChange, placeholder, hint, validity,
+  label, value, onChange, placeholder, hint, validity, disabled,
 }: {
   label: string;
   value: string;
@@ -89,6 +90,7 @@ function SecretInput({
   placeholder?: string;
   hint?: string;
   validity: "empty" | "valid" | "invalid";
+  disabled?: boolean;
 }) {
   const [show, setShow] = useState(false);
   const borderCls =
@@ -105,7 +107,8 @@ function SecretInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full border rounded-xl px-3 py-2.5 pr-16 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 placeholder:text-gray-300 transition-colors ${borderCls}`}
+          disabled={disabled}
+          className={`w-full border rounded-xl px-3 py-2.5 pr-16 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 placeholder:text-gray-300 transition-colors ${borderCls} ${disabled ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <div className="absolute right-3 flex items-center gap-1.5">
           <KeyStatus status={validity} />
@@ -124,7 +127,7 @@ function SecretInput({
 }
 
 function TextInput({
-  label, value, onChange, placeholder, hint, validity,
+  label, value, onChange, placeholder, hint, validity, disabled,
 }: {
   label: string;
   value: string;
@@ -132,6 +135,7 @@ function TextInput({
   placeholder?: string;
   hint?: string;
   validity: "empty" | "valid" | "invalid";
+  disabled?: boolean;
 }) {
   const borderCls =
     validity === "valid"   ? "border-green-400 focus:ring-green-400" :
@@ -146,7 +150,8 @@ function TextInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full border rounded-xl px-3 py-2.5 pr-8 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 placeholder:text-gray-300 transition-colors ${borderCls}`}
+          disabled={disabled}
+          className={`w-full border rounded-xl px-3 py-2.5 pr-8 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 placeholder:text-gray-300 transition-colors ${borderCls} ${disabled ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <div className="absolute right-3">
           <KeyStatus status={validity} />
@@ -158,11 +163,12 @@ function TextInput({
 }
 
 function ModeToggle({
-  value, onChange, options,
+  value, onChange, options, disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string; color: string }[];
+  disabled?: boolean;
 }) {
   return (
     <div className="flex gap-2">
@@ -171,11 +177,12 @@ function ModeToggle({
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
+          disabled={disabled}
           className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
             value === opt.value
               ? `${opt.color} text-white border-transparent`
               : "border-gray-200 text-gray-500 hover:border-gray-300 bg-white"
-          }`}
+          } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           {opt.label}
         </button>
@@ -385,6 +392,7 @@ function WebhookSetupGuide({ mode, webhookUrl }: { mode: string; webhookUrl: str
 // ─── Stripe form ──────────────────────────────────────────────────────────────
 
 function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: string }) {
+  const { canManagePayment } = useRole();
   const [pk, setPk]     = useState(initial?.publishableKey ?? "");
   const [sk, setSk]     = useState(initial?.secretKey ?? "");
   const [wh, setWh]     = useState(initial?.webhookSecret ?? "");
@@ -466,6 +474,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
         <ModeToggle
           value={mode}
           onChange={setMode}
+          disabled={!canManagePayment}
           options={[
             { value: "test", label: "Test",  color: "bg-blue-500" },
             { value: "live", label: "Live",  color: "bg-green-600" },
@@ -486,6 +495,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
         placeholder="pk_test_..."
         hint="Starts with pk_test_ or pk_live_ — safe to expose on frontend."
         validity={pkValidity}
+        disabled={!canManagePayment}
       />
 
       {/* Secret key */}
@@ -496,6 +506,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
         placeholder="sk_test_..."
         hint="Starts with sk_test_ or sk_live_ — never share or expose this."
         validity={skValidity}
+        disabled={!canManagePayment}
       />
 
       {/* Webhook */}
@@ -506,6 +517,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
         placeholder="whsec_..."
         hint="Required only if you sell subscriptions — see setup guide below."
         validity={whValidity}
+        disabled={!canManagePayment}
       />
 
       <WebhookSetupGuide mode={mode} webhookUrl={webhookUrl} />
@@ -516,26 +528,30 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
 
       {/* Actions */}
       <div className="flex items-center gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={saving || !canSave}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl transition-colors"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
-          {saved ? "Saved!" : "Save"}
-        </button>
+        {canManagePayment && (
+          <>
+            <button
+              type="submit"
+              disabled={saving || !canSave}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl transition-colors"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
+              {saved ? "Saved!" : "Save"}
+            </button>
 
-        <button
-          type="button"
-          onClick={handleTest}
-          disabled={!canTest || test.status === "testing"}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 rounded-xl transition-colors"
-        >
-          {test.status === "testing"
-            ? <Loader2 size={14} className="animate-spin" />
-            : <Zap size={14} />}
-          Test connection
-        </button>
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={!canTest || test.status === "testing"}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 rounded-xl transition-colors"
+            >
+              {test.status === "testing"
+                ? <Loader2 size={14} className="animate-spin" />
+                : <Zap size={14} />}
+              Test connection
+            </button>
+          </>
+        )}
 
         <a
           href="https://dashboard.stripe.com/apikeys"
@@ -553,6 +569,7 @@ function StripeForm({ initial, webhookUrl }: { initial: StripeData; webhookUrl: 
 // ─── PayPal form ──────────────────────────────────────────────────────────────
 
 function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: string }) {
+  const { canManagePayment } = useRole();
   const [clientId,     setClientId]     = useState(initial?.clientId ?? "");
   const [clientSecret, setClientSecret] = useState(initial?.clientSecret ?? "");
   const [webhookId,    setWebhookId]    = useState(initial?.webhookId ?? "");
@@ -616,6 +633,7 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
         <ModeToggle
           value={mode}
           onChange={(v) => { setMode(v); setTest({ status: "idle" }); }}
+          disabled={!canManagePayment}
           options={[
             { value: "sandbox", label: "Sandbox", color: "bg-blue-500" },
             { value: "live",    label: "Live",    color: "bg-green-600" },
@@ -630,6 +648,7 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
         placeholder="AaBbCcDd..."
         hint="From PayPal Developer → My Apps & Credentials."
         validity={idValidity}
+        disabled={!canManagePayment}
       />
 
       <SecretInput
@@ -639,6 +658,7 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
         placeholder="EeFfGgHh..."
         hint="Never share this — used only on the server."
         validity={secretValidity}
+        disabled={!canManagePayment}
       />
 
       <div>
@@ -649,7 +669,8 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
           value={webhookId}
           onChange={(e) => setWebhookId(e.target.value)}
           placeholder="XXXXXXXXXXXX"
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300"
+          disabled={!canManagePayment}
+          className={`w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300 ${!canManagePayment ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <p className="mt-1 text-xs text-gray-400">From PayPal → Webhooks. Required to verify signatures — see setup guide below.</p>
       </div>
@@ -659,26 +680,30 @@ function PaypalForm({ initial, webhookUrl }: { initial: PaypalData; webhookUrl: 
       <TestResultBanner result={test} />
 
       <div className="flex items-center gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={saving || !canSave}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl transition-colors"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
-          {saved ? "Saved!" : "Save"}
-        </button>
+        {canManagePayment && (
+          <>
+            <button
+              type="submit"
+              disabled={saving || !canSave}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl transition-colors"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
+              {saved ? "Saved!" : "Save"}
+            </button>
 
-        <button
-          type="button"
-          onClick={handleTest}
-          disabled={!canTest || test.status === "testing"}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 rounded-xl transition-colors"
-        >
-          {test.status === "testing"
-            ? <Loader2 size={14} className="animate-spin" />
-            : <Zap size={14} />}
-          Test connection
-        </button>
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={!canTest || test.status === "testing"}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-40 rounded-xl transition-colors"
+            >
+              {test.status === "testing"
+                ? <Loader2 size={14} className="animate-spin" />
+                : <Zap size={14} />}
+              Test connection
+            </button>
+          </>
+        )}
 
         <a
           href="https://developer.paypal.com/dashboard/applications"

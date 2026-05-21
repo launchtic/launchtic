@@ -6,6 +6,7 @@ import { Users, ShoppingCart, Wrench, Loader2, Plus, Trash2, Lock, AlertTriangle
 import { SUPPORTED_CURRENCIES } from "@launchtic/types";
 import FormDrawer from "../ui/FormDrawer";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 const CURRENCIES = SUPPORTED_CURRENCIES;
 
@@ -95,6 +96,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
   const params = useParams();
   const slug = params.workspaceSlug as string;
   const isEdit = mode === "edit";
+  const { canManageFunnels } = useRole();
 
   const GOALS = [
     { id: "audience" as GoalId, label: "Build an Audience", description: "Collect leads and grow your list", icon: <Users size={22} className="text-violet-500" /> },
@@ -153,6 +155,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
   }, [open, isEdit, editId]);
 
   async function handleSubmit() {
+    if (!canManageFunnels) return;
     const trimmed = name.trim();
     if (!trimmed) { setError("Name is required"); return; }
 
@@ -261,7 +264,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
       width={isEdit ? "md" : "lg"}
       submitLabel={isEdit ? "Save Changes" : "Create Funnel"}
       submitting={submitting}
-      submitDisabled={loading || !name.trim()}
+      submitDisabled={loading || !name.trim() || !canManageFunnels}
       onSubmit={handleSubmit}
     >
       {loading ? (

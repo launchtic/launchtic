@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Key, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { planLabel, planColor } from "../../lib/plan";
+import { useRole } from "../../lib/role";
 
 type LicenseStatus = {
   plan: string;
@@ -17,6 +18,7 @@ type LicenseStatus = {
 export default function LicensePanel() {
   const { update } = useSession();
   const router = useRouter();
+  const { canManageBilling } = useRole();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [keyInput, setKeyInput] = useState("");
@@ -111,6 +113,7 @@ export default function LicensePanel() {
       )}
 
       {/* Activate form */}
+      {canManageBilling && (
       <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
         <p className="text-sm font-medium text-gray-700">
           {status?.licenseKey ? "Update License Key" : "Activate License Key"}
@@ -148,6 +151,7 @@ export default function LicensePanel() {
           </p>
         )}
       </div>
+      )}
 
       {/* Upgrade CTA */}
       {status?.plan === "COMMUNITY" && (

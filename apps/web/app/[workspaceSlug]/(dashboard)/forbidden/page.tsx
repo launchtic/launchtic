@@ -112,7 +112,7 @@ export default async function ForbiddenPage({ params, searchParams }: Props) {
         )}
 
         <p className="text-xs text-gray-400 mb-6">
-          Ask the workspace owner or an admin to update your role in Settings → Roles.
+          Ask the workspace owner to update your role or grant you the necessary permissions.
         </p>
 
         {perm && (

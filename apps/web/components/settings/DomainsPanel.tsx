@@ -5,6 +5,7 @@ import { Globe, Trash2, CheckCircle, Clock, Plus, Loader2, Copy, Check, Star } f
 import { useRouter } from "next/navigation";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type Domain = {
   id: string;
@@ -41,6 +42,7 @@ export default function DomainsPanel({
   initialDomains: Domain[];
   rendererHost: string;
 }) {
+  const { canManageDomains } = useRole();
   const [domains, setDomains] = useState(initialDomains);
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
@@ -128,23 +130,25 @@ export default function DomainsPanel({
       </p>
 
       {/* Add domain form */}
-      <form onSubmit={handleAdd} className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="mycustomdomain.com"
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button
-          type="submit"
-          disabled={adding || !input.trim()}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60 transition-colors"
-        >
-          {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          Add
-        </button>
-      </form>
+      {canManageDomains && (
+        <form onSubmit={handleAdd} className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="mycustomdomain.com"
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={adding || !input.trim()}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60 transition-colors"
+          >
+            {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            Add
+          </button>
+        </form>
+      )}
 
       {error && (
         <p className="text-sm text-red-600 mb-4">{error}</p>
@@ -188,7 +192,7 @@ export default function DomainsPanel({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {!d.verified && (
+                  {canManageDomains && !d.verified && (
                     <button
                       onClick={() => handleVerify(d.id)}
                       disabled={verifying === d.id}
@@ -198,7 +202,7 @@ export default function DomainsPanel({
                       Verify
                     </button>
                   )}
-                  {d.verified && !d.isDefault && (
+                  {canManageDomains && d.verified && !d.isDefault && (
                     <button
                       onClick={() => handleSetDefault(d.id)}
                       disabled={promoting === d.id}
@@ -209,7 +213,7 @@ export default function DomainsPanel({
                       Set as default
                     </button>
                   )}
-                  {!d.isDefault && (
+                  {canManageDomains && !d.isDefault && (
                     <button
                       onClick={() => handleDelete(d.id, d.domain)}
                       className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

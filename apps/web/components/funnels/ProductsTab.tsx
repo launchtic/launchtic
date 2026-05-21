@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1019,6 +1020,7 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
 export default function ProductsTab({ stepId }: { stepId: string }) {
   const params = useParams();
   const slug = params.workspaceSlug as string;
+  const { canManageFunnels } = useRole();
   const [offerType, setOfferType]               = useState<"DIGITAL" | "PHYSICAL" | null>(null);
   const [funnelCurrency, setFunnelCurrency]     = useState<string>("usd");
   const [physicalProductId, setPhysicalProductId] = useState<string | null>(null);
@@ -1065,6 +1067,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function saveOfferType(type: "DIGITAL" | "PHYSICAL", productId?: string | null, fee?: string) {
+    if (!canManageFunnels) return;
     setSavingOfferType(true);
     await apiFetch(`/api/funnel-steps/${stepId}/offer-type`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1080,6 +1083,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function saveShippingFee(value: string) {
+    if (!canManageFunnels) return;
     setShippingFee(value);
     await apiFetch(`/api/funnel-steps/${stepId}/offer-type`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1092,6 +1096,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function toggleResource(type: string, resourceId: string) {
+    if (!canManageFunnels) return;
     setSavingResources(true);
     const res = await apiFetch(`/api/funnel-steps/${stepId}/resources`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1103,6 +1108,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleAddPlan(form: PlanForm) {
+    if (!canManageFunnels) return;
     setSavingPlan(true);
     const res = await apiFetch(`/api/funnel-steps/${stepId}/price-plans`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1120,6 +1126,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleEditPlan(id: string, form: PlanForm) {
+    if (!canManageFunnels) return;
     setSavingPlan(true);
     const res = await apiFetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1137,6 +1144,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleDeletePlan(id: string) {
+    if (!canManageFunnels) return;
     await apiFetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, { method: "DELETE" });
     setPlans((prev) => prev.filter((p) => p.id !== id));
   }
@@ -1158,7 +1166,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
         <OfferTypeSelector
           value={offerType}
           onChange={(type) => saveOfferType(type, type === "PHYSICAL" ? physicalProductId : null)}
-          disabled={savingOfferType}
+          disabled={savingOfferType || !canManageFunnels}
         />
       </div>
 

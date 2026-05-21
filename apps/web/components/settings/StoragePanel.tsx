@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { HardDrive, Cloud, Check, Loader2, Eye, EyeOff } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type Driver = "local" | "s3";
 
@@ -66,7 +67,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-function SecretField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+function SecretField({ value, onChange, placeholder, disabled }: { value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean }) {
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
@@ -75,7 +76,8 @@ function SecretField({ value, onChange, placeholder }: { value: string; onChange
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "••••••••"}
-        className={inputCls + " pr-9"}
+        disabled={disabled}
+        className={inputCls + " pr-9" + (disabled ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
       />
       <button
         type="button"
@@ -89,6 +91,7 @@ function SecretField({ value, onChange, placeholder }: { value: string; onChange
 }
 
 export default function StoragePanel({ initial }: { initial: StorageData | null }) {
+  const { canManageStorage } = useRole();
   const def = initial ?? { driver: "local", endpoint: "", region: "", bucket: "", accessKey: "", secretKey: "", publicUrl: "" };
 
   const [driver, setDriver] = useState<Driver>(def.driver);
@@ -146,9 +149,10 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
           <button
             key={id}
             onClick={() => setDriver(id)}
+            disabled={!canManageStorage}
             className={`flex-1 flex flex-col items-start gap-1 p-3.5 rounded-xl border-2 text-left transition-colors ${
               driver === id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-            }`}
+            } ${!canManageStorage ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             <div className="flex items-center gap-2">
               <Icon size={15} className={driver === id ? "text-blue-600" : "text-gray-500"} />
@@ -169,7 +173,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 <button
                   key={key}
                   onClick={() => applyPreset(key)}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                  disabled={!canManageStorage}
+                  className={`px-3 py-1.5 text-xs rounded-lg border border-gray-200 hover:border-blue-400 hover:text-blue-600 transition-colors ${!canManageStorage ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   {p.label}
                 </button>
@@ -182,7 +187,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
               placeholder="https://{accountId}.r2.cloudflarestorage.com"
-              className={inputCls}
+              disabled={!canManageStorage}
+              className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
 
@@ -192,7 +198,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="us-east-1"
-                className={inputCls}
+                disabled={!canManageStorage}
+                className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
             <Field label="Bucket name">
@@ -200,7 +207,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 value={bucket}
                 onChange={(e) => setBucket(e.target.value)}
                 placeholder="my-bucket"
-                className={inputCls}
+                disabled={!canManageStorage}
+                className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
           </div>
@@ -210,7 +218,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={accessKey}
               onChange={(e) => setAccessKey(e.target.value)}
               placeholder="AKIAIOSFODNN7EXAMPLE"
-              className={inputCls}
+              disabled={!canManageStorage}
+              className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
 
@@ -219,6 +228,7 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={secretKey}
               onChange={setSecretKey}
               placeholder={initial?.secretKey ? "••••••••  (unchanged)" : "wJalrXUtnFEMI/..."}
+              disabled={!canManageStorage}
             />
           </Field>
 
@@ -227,7 +237,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={publicUrl}
               onChange={(e) => setPublicUrl(e.target.value)}
               placeholder="https://cdn.example.com"
-              className={inputCls}
+              disabled={!canManageStorage}
+              className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
         </div>
@@ -237,15 +248,17 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
         <p className="mt-3 text-xs text-red-500">{error}</p>
       )}
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="mt-5 flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
-        style={{ background: saved ? "#16a34a" : "#2563eb" }}
-      >
-        {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}
-        {saved ? "Saved!" : saving ? "Saving…" : "Save storage settings"}
-      </button>
+      {canManageStorage && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-5 flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
+          style={{ background: saved ? "#16a34a" : "#2563eb" }}
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}
+          {saved ? "Saved!" : saving ? "Saving…" : "Save storage settings"}
+        </button>
+      )}
     </div>
   );
 }

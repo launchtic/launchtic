@@ -45,6 +45,7 @@ import ProductsTab from "./ProductsTab";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import ChangeTemplateModal from "./ChangeTemplateModal";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type Step = {
   id: string;
@@ -109,17 +110,21 @@ function SortableStepItem({
   step,
   isSelected,
   deleting,
+  canManage,
+  canDelete,
   onSelect,
   onDelete,
 }: {
   step: Step;
   isSelected: boolean;
   deleting: boolean;
+  canManage: boolean;
+  canDelete: boolean;
   onSelect: () => void;
   onDelete: (e: React.MouseEvent) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: step.id });
+    useSortable({ id: step.id, disabled: !canManage });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -141,14 +146,18 @@ function SortableStepItem({
       }`}
     >
       {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-        className="text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing touch-none shrink-0"
-      >
-        <GripVertical size={13} />
-      </button>
+      {canManage ? (
+        <button
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          className="text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing touch-none shrink-0"
+        >
+          <GripVertical size={13} />
+        </button>
+      ) : (
+        <span className="w-[13px] shrink-0" />
+      )}
 
       {/* Type icon */}
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${iconColor}`}>
@@ -166,14 +175,16 @@ function SortableStepItem({
       </div>
 
       {/* Delete — hover on desktop, always visible on mobile */}
-      <button
-        onClick={onDelete}
-        disabled={deleting}
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all disabled:opacity-40 sm:opacity-0 sm:group-hover/item:opacity-100"
-        title="Delete step"
-      >
-        {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-      </button>
+      {canDelete && (
+        <button
+          onClick={onDelete}
+          disabled={deleting}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all disabled:opacity-40 sm:opacity-0 sm:group-hover/item:opacity-100"
+          title="Delete step"
+        >
+          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+        </button>
+      )}
 
       {/* Arrow hint for mobile */}
       <ChevronRight size={14} className="text-gray-300 shrink-0 sm:hidden" />
@@ -183,6 +194,7 @@ function SortableStepItem({
 
 /* ─── Configuration tab ─── */
 function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelId: string; rendererUrl: string; onUpdate: (updated: Step) => void }) {
+  const { canManageFunnels } = useRole();
   const [name, setName] = useState(step.name);
   const [slug, setSlug] = useState(step.slug);
   const [saving, setSaving] = useState(false);
@@ -238,7 +250,8 @@ function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelI
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={!canManageFunnels}
+            className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${!canManageFunnels ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
           />
         </div>
 
@@ -254,7 +267,8 @@ function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelI
               value={slug}
               placeholder="(root)"
               onChange={(e) => setSlug(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              disabled={!canManageFunnels}
+              className={`flex-1 px-3 py-2 text-sm border border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${!canManageFunnels ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
             />
           </div>
           <div className="sm:hidden">
@@ -264,20 +278,23 @@ function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelI
               value={slug}
               placeholder="(root)"
               onChange={(e) => setSlug(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              disabled={!canManageFunnels}
+              className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${!canManageFunnels ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
             />
           </div>
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors"
-      >
-        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-        {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
-      </button>
+      {canManageFunnels && (
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
+        </button>
+      )}
     </form>
   );
 }
@@ -305,6 +322,7 @@ export default function FunnelStepManager({
   initialSteps: Step[];
   rendererUrl: string;
 }) {
+  const { canManageFunnels, canDeleteFunnels } = useRole();
   const [steps, setSteps] = useState(initialSteps);
   const [selectedId, setSelectedId] = useState<string | null>(initialSteps[0]?.id ?? null);
   const [activeTab, setActiveTab] = useState("configuration");
@@ -333,6 +351,7 @@ export default function FunnelStepManager({
   );
 
   async function handleDragEnd(event: DragEndEvent) {
+    if (!canManageFunnels) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -393,13 +412,15 @@ export default function FunnelStepManager({
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-gray-900 truncate">{funnel.name}</h2>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="shrink-0 flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <Settings size={13} />
-            Settings
-          </button>
+          {canManageFunnels && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="shrink-0 flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Settings size={13} />
+              Settings
+            </button>
+          )}
         </div>
       </div>
 
@@ -413,6 +434,8 @@ export default function FunnelStepManager({
                 step={step}
                 isSelected={step.id === selectedId}
                 deleting={deleting === step.id}
+                canManage={canManageFunnels}
+                canDelete={canDeleteFunnels}
                 onSelect={() => handleStepSelect(step.id)}
                 onDelete={(e) => handleDelete(e, step.id)}
               />
@@ -428,9 +451,11 @@ export default function FunnelStepManager({
       </div>
 
       {/* Add step */}
-      <div className="p-3 border-t border-gray-100">
-        <AddStepDialog funnelId={funnel.id} fullWidth />
-      </div>
+      {canManageFunnels && (
+        <div className="p-3 border-t border-gray-100">
+          <AddStepDialog funnelId={funnel.id} fullWidth />
+        </div>
+      )}
     </div>
   );
 
@@ -463,13 +488,15 @@ export default function FunnelStepManager({
               >
                 <Eye size={16} />
               </a>
-              <a
-                href={`/${slug}/editor/${selectedStep.id}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-              >
-                <Pencil size={13} />
-                Edit
-              </a>
+              {canManageFunnels && (
+                <a
+                  href={`/${slug}/editor/${selectedStep.id}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  <Pencil size={13} />
+                  Edit
+                </a>
+              )}
             </div>
 
             {/* Desktop breadcrumb + actions */}
@@ -492,20 +519,24 @@ export default function FunnelStepManager({
                   <Eye size={13} />
                   View
                 </a>
-                <a
-                  href={`/${slug}/editor/${selectedStep.id}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                >
-                  <Pencil size={13} />
-                  Edit page
-                </a>
-                <button
-                  onClick={() => setChangeTemplateOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
-                >
-                  <RefreshCw size={13} />
-                  Change template
-                </button>
+                {canManageFunnels && (
+                  <a
+                    href={`/${slug}/editor/${selectedStep.id}`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  >
+                    <Pencil size={13} />
+                    Edit page
+                  </a>
+                )}
+                {canManageFunnels && (
+                  <button
+                    onClick={() => setChangeTemplateOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <RefreshCw size={13} />
+                    Change template
+                  </button>
+                )}
               </div>
             </div>
 

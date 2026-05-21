@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type StepType = "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
 
@@ -129,7 +130,7 @@ async function deleteMedia(key: string) {
 }
 
 /* ─── Thumbnail Upload ─── */
-function ThumbnailUpload({ url, onUpload }: { url: string | null; onUpload: (url: string | null) => void }) {
+function ThumbnailUpload({ url, onUpload, disabled }: { url: string | null; onUpload: (url: string | null) => void; disabled?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const uploadedKey = useRef<string | null>(null);
 
@@ -166,17 +167,24 @@ function ThumbnailUpload({ url, onUpload }: { url: string | null; onUpload: (url
       {url ? (
         <>
           <img src={url} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <label className="cursor-pointer px-3 py-1.5 bg-white/90 rounded-lg text-xs font-medium text-gray-700 hover:bg-white">
-              <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
-              Change
-            </label>
-            <button type="button" onClick={handleRemove}
-              className="px-3 py-1.5 bg-red-500/90 rounded-lg text-xs font-medium text-white hover:bg-red-600">
-              Remove
-            </button>
-          </div>
+          {!disabled && (
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <label className="cursor-pointer px-3 py-1.5 bg-white/90 rounded-lg text-xs font-medium text-gray-700 hover:bg-white">
+                <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
+                Change
+              </label>
+              <button type="button" onClick={handleRemove}
+                className="px-3 py-1.5 bg-red-500/90 rounded-lg text-xs font-medium text-white hover:bg-red-600">
+                Remove
+              </button>
+            </div>
+          )}
         </>
+      ) : disabled ? (
+        <div className="flex flex-col items-center justify-center gap-2 w-full h-full py-6">
+          <ImageIcon size={20} className="text-gray-300" />
+          <span className="text-xs text-gray-400">No thumbnail</span>
+        </div>
       ) : (
         <label className="flex flex-col items-center justify-center gap-2 cursor-pointer w-full h-full py-6">
           <input type="file" accept="image/*" className="sr-only" onChange={handleFile} />
@@ -194,6 +202,8 @@ function ThumbnailUpload({ url, onUpload }: { url: string | null; onUpload: (url
 function TemplateSettingsPanel({ template, onClose, onSaved }: {
   template: Template; onClose: () => void; onSaved: (t: Template) => void;
 }) {
+  const { canManagePageTemplates, canUploadMedia } = useRole();
+  const canUploadThumb = canManagePageTemplates && canUploadMedia;
   const [name, setName] = useState(template.name);
   const [description, setDescription] = useState(template.description ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(template.thumbnailUrl);
@@ -248,7 +258,7 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
           {error && <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{error}</div>}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Thumbnail</label>
-            <ThumbnailUpload url={thumbnailUrl} onUpload={setThumbnailUrl} />
+            <ThumbnailUpload url={thumbnailUrl} onUpload={setThumbnailUrl} disabled={!canUploadThumb} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Name <span className="text-red-500">*</span></label>
@@ -352,13 +362,15 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
             </p>
           </div>
         </form>
-        <div className="px-5 py-4 border-t border-gray-100">
-          <button onClick={handleSave} disabled={saving || !name.trim()}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Save changes
-          </button>
-        </div>
+        {canManagePageTemplates && (
+          <div className="px-5 py-4 border-t border-gray-100">
+            <button onClick={handleSave} disabled={saving || !name.trim()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Save changes
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -432,6 +444,7 @@ function CreateTemplateModal({ onClose, onCreate }: { onClose: () => void; onCre
 
 /* ─── Main Panel ─── */
 export default function PageTemplatesPanel() {
+  const { canManagePageTemplates } = useRole();
   const [items, setItems] = useState<Template[]>([]);
   const [meta, setMeta] = useState<PageMeta>({ total: 0, page: 1, pageSize: 25, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -578,10 +591,12 @@ export default function PageTemplatesPanel() {
             </select>
             <ChevronRight size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 rotate-90 pointer-events-none" />
           </div>
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">
-            <Plus size={16} /> New Template
-          </button>
+          {canManagePageTemplates && (
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">
+              <Plus size={16} /> New Template
+            </button>
+          )}
         </div>
       </div>
 
@@ -670,52 +685,56 @@ export default function PageTemplatesPanel() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleDesign(t.id)}
-                            disabled={navigating === t.id}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="Design"
-                          >
-                            {navigating === t.id
-                              ? <Loader2 size={14} className="animate-spin text-blue-500" />
-                              : <Pencil size={14} />
-                            }
-                          </button>
-                          <button
-                            onClick={() => handleToggleActive(t)}
-                            disabled={toggling === t.id}
-                            className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
-                              t.isActive
-                                ? "text-green-600 hover:text-gray-700 hover:bg-gray-100"
-                                : "text-gray-300 hover:text-green-600 hover:bg-green-50"
-                            }`}
-                            title={t.isActive ? "Disable" : "Activate"}
-                          >
-                            {toggling === t.id ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-                          </button>
-                          <button
-                            onClick={() => setSettingsFor(t)}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Settings"
-                          >
-                            <Settings size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleClone(t)}
-                            disabled={cloning === t.id}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="Clone"
-                          >
-                            {cloning === t.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(t)}
-                            disabled={deleting === t.id}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                            title="Delete"
-                          >
-                            {deleting === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                          </button>
+                          {canManagePageTemplates && (
+                            <>
+                              <button
+                                onClick={() => handleDesign(t.id)}
+                                disabled={navigating === t.id}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Design"
+                              >
+                                {navigating === t.id
+                                  ? <Loader2 size={14} className="animate-spin text-blue-500" />
+                                  : <Pencil size={14} />
+                                }
+                              </button>
+                              <button
+                                onClick={() => handleToggleActive(t)}
+                                disabled={toggling === t.id}
+                                className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                                  t.isActive
+                                    ? "text-green-600 hover:text-gray-700 hover:bg-gray-100"
+                                    : "text-gray-300 hover:text-green-600 hover:bg-green-50"
+                                }`}
+                                title={t.isActive ? "Disable" : "Activate"}
+                              >
+                                {toggling === t.id ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
+                              </button>
+                              <button
+                                onClick={() => setSettingsFor(t)}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Settings"
+                              >
+                                <Settings size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleClone(t)}
+                                disabled={cloning === t.id}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Clone"
+                              >
+                                {cloning === t.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(t)}
+                                disabled={deleting === t.id}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Delete"
+                              >
+                                {deleting === t.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

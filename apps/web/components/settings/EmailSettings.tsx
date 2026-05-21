@@ -10,6 +10,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import EmailFooterPanel from "./EmailFooterPanel";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,9 +51,9 @@ function Field({ label, required, children, hint }: {
   );
 }
 
-function SecretField({ label, value, onChange, placeholder, hint, required }: {
+function SecretField({ label, value, onChange, placeholder, hint, required, disabled }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; hint?: string; required?: boolean;
+  placeholder?: string; hint?: string; required?: boolean; disabled?: boolean;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -63,7 +64,8 @@ function SecretField({ label, value, onChange, placeholder, hint, required }: {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`${inputCls} pr-10`}
+          disabled={disabled}
+          className={`${inputCls} pr-10 ${disabled ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <button
           type="button"
@@ -99,6 +101,7 @@ export default function EmailSettings({
 // ─── SMTP section ─────────────────────────────────────────────────────────────
 
 function SmtpSection({ initial }: { initial: SmtpData }) {
+  const { canManageEmailSettings } = useRole();
   const [host,          setHost]          = useState(initial?.host     ?? "");
   const [port,          setPort]          = useState(initial?.port     ?? 587);
   const [username,      setUsername]      = useState(initial?.username ?? "");
@@ -168,7 +171,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
                 value={host}
                 onChange={(e) => setHost(e.target.value)}
                 placeholder="smtp.example.com"
-                className={inputCls}
+                disabled={!canManageEmailSettings}
+                className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
           </div>
@@ -176,7 +180,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
             <select
               value={port}
               onChange={(e) => setPort(Number(e.target.value))}
-              className={inputCls}
+              disabled={!canManageEmailSettings}
+              className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             >
               <option value={587}>587</option>
               <option value={465}>465</option>
@@ -193,7 +198,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="username"
-              className={inputCls}
+              disabled={!canManageEmailSettings}
+              className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
           <SecretField
@@ -202,6 +208,7 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
             onChange={(v) => { setPassword(v); setPwTouched(true); }}
             placeholder="Password or API key"
             required={!initial}
+            disabled={!canManageEmailSettings}
           />
         </div>
 
@@ -230,7 +237,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
                     type="number" min={1}
                     value={maxPerSecond}
                     onChange={(e) => setMaxPerSecond(Number(e.target.value))}
-                    className={inputCls}
+                    disabled={!canManageEmailSettings}
+                    className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
                   />
                 </Field>
                 <Field label="Max concurrent">
@@ -238,7 +246,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
                     type="number" min={1}
                     value={maxConcurrent}
                     onChange={(e) => setMaxConcurrent(Number(e.target.value))}
-                    className={inputCls}
+                    disabled={!canManageEmailSettings}
+                    className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
                   />
                 </Field>
                 <Field label="Max / day">
@@ -246,7 +255,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
                     type="number" min={1}
                     value={maxPerDay}
                     onChange={(e) => setMaxPerDay(Number(e.target.value))}
-                    className={inputCls}
+                    disabled={!canManageEmailSettings}
+                    className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
                   />
                 </Field>
               </div>
@@ -255,16 +265,18 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
         </div>
 
         {/* Save */}
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            type="submit"
-            disabled={saving || !canSave}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl transition-colors"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
-            {saved ? "Saved" : "Save"}
-          </button>
-        </div>
+        {canManageEmailSettings && (
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={saving || !canSave}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-xl transition-colors"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : <Save size={14} />}
+              {saved ? "Saved" : "Save"}
+            </button>
+          </div>
+        )}
       </form>
     </section>
   );
@@ -273,6 +285,7 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
 // ─── Sender Identities section ────────────────────────────────────────────────
 
 function SenderIdentitiesSection({ initial }: { initial: Identity[] }) {
+  const { canManageEmailSettings } = useRole();
   const [items, setItems]     = useState<Identity[]>(initial);
   const [editing, setEditing] = useState<Identity | "new" | null>(null);
   const [busy, setBusy]       = useState<string | null>(null);
@@ -322,40 +335,50 @@ function SenderIdentitiesSection({ initial }: { initial: Identity[] }) {
             "From" addresses available when composing broadcasts and automations.
           </p>
         </div>
-        <button
-          onClick={() => setEditing("new")}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
-        >
-          <Plus size={14} /> Add identity
-        </button>
+        {canManageEmailSettings && (
+          <button
+            onClick={() => setEditing("new")}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0"
+          >
+            <Plus size={14} /> Add identity
+          </button>
+        )}
       </div>
 
       {items.length === 0 ? (
         <div className="bg-white border border-dashed border-gray-200 rounded-xl py-12 px-4 text-center">
           <p className="text-sm text-gray-500 mb-3">No sender identities yet.</p>
-          <button
-            onClick={() => setEditing("new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
-          >
-            <Plus size={14} /> Add your first identity
-          </button>
+          {canManageEmailSettings && (
+            <button
+              onClick={() => setEditing("new")}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
+            >
+              <Plus size={14} /> Add your first identity
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {items.map((id) => (
             <div key={id.id} className="flex items-center gap-3 px-4 py-3">
-              <button
-                onClick={() => setDefault(id)}
-                disabled={busy === id.id}
-                className={`shrink-0 p-1.5 rounded-lg transition-colors ${
-                  id.isDefault
-                    ? "text-amber-500 cursor-default"
-                    : "text-gray-300 hover:text-amber-500 hover:bg-amber-50"
-                }`}
-                title={id.isDefault ? "Default" : "Make default"}
-              >
-                <Star size={16} fill={id.isDefault ? "currentColor" : "none"} />
-              </button>
+              {canManageEmailSettings ? (
+                <button
+                  onClick={() => setDefault(id)}
+                  disabled={busy === id.id}
+                  className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+                    id.isDefault
+                      ? "text-amber-500 cursor-default"
+                      : "text-gray-300 hover:text-amber-500 hover:bg-amber-50"
+                  }`}
+                  title={id.isDefault ? "Default" : "Make default"}
+                >
+                  <Star size={16} fill={id.isDefault ? "currentColor" : "none"} />
+                </button>
+              ) : (
+                <div className={`shrink-0 p-1.5 ${id.isDefault ? "text-amber-500" : "text-gray-300"}`}>
+                  <Star size={16} fill={id.isDefault ? "currentColor" : "none"} />
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {id.name}
@@ -368,28 +391,32 @@ function SenderIdentitiesSection({ initial }: { initial: Identity[] }) {
                 <p className="text-xs text-gray-500 truncate">{id.email}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => setTestFor(id)}
-                  className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                  title="Send test"
-                >
-                  <Send size={14} />
-                </button>
-                <button
-                  onClick={() => setEditing(id)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="Edit"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => handleDelete(id)}
-                  disabled={busy === id.id}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                  title="Delete"
-                >
-                  {busy === id.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                </button>
+                {canManageEmailSettings && (
+                  <>
+                    <button
+                      onClick={() => setTestFor(id)}
+                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Send test"
+                    >
+                      <Send size={14} />
+                    </button>
+                    <button
+                      onClick={() => setEditing(id)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(id)}
+                      disabled={busy === id.id}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                      title="Delete"
+                    >
+                      {busy === id.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

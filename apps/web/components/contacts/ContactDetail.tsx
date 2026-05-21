@@ -11,6 +11,7 @@ import {
 import { useConfirm } from "../ui/ConfirmDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type Tag = { id: string; name: string; color: string | null };
 type ContactTag = { tag: Tag; addedAt: string };
@@ -66,16 +67,18 @@ const EVENT_LABEL: Record<string, string> = {
   UNSUBSCRIBED: "Unsubscribed",
 };
 
-function TagBadge({ tag, onRemove }: { tag: Tag; onRemove: () => void }) {
+function TagBadge({ tag, onRemove, canRemove }: { tag: Tag; onRemove: () => void; canRemove: boolean }) {
   return (
     <span
       className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium text-white"
       style={{ backgroundColor: tag.color ?? "#6366f1" }}
     >
       {tag.name}
-      <button onClick={onRemove} className="hover:bg-black/20 rounded-full p-0.5 transition-colors">
-        <X size={10} />
-      </button>
+      {canRemove && (
+        <button onClick={onRemove} className="hover:bg-black/20 rounded-full p-0.5 transition-colors">
+          <X size={10} />
+        </button>
+      )}
     </span>
   );
 }
@@ -89,6 +92,7 @@ export default function ContactDetail({
   allTags: Tag[];
   enrollments?: Enrollment[];
 }) {
+  const { canManageContacts, canDeleteContacts } = useRole();
   const [contact, setContact] = useState(initial);
   const [tagSearch, setTagSearch] = useState("");
   const [addingTag, setAddingTag] = useState<string | null>(null);
@@ -211,6 +215,7 @@ export default function ContactDetail({
                 key={tag.id}
                 tag={tag}
                 onRemove={() => !removingTag && removeTag(tag.id)}
+                canRemove={canManageContacts}
               />
             ))}
             {contact.tags.length === 0 && (
@@ -219,7 +224,7 @@ export default function ContactDetail({
           </div>
 
           {/* Add tag */}
-          {availableTags.length > 0 && (
+          {canManageContacts && availableTags.length > 0 && (
             <div>
               <input
                 value={tagSearch}
@@ -294,21 +299,25 @@ export default function ContactDetail({
 
         {/* Actions */}
         <div className="px-5 py-4 mt-auto flex items-center gap-2">
-          <button
-            onClick={() => setEditOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
-          >
-            <Pencil size={12} />
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
-          >
-            {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-            Delete
-          </button>
+          {canManageContacts && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+            >
+              <Pencil size={12} />
+              Edit
+            </button>
+          )}
+          {canDeleteContacts && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              Delete
+            </button>
+          )}
         </div>
       </div>
 

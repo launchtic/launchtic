@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Loader2, Plus, Pencil, Trash2, Check, X, Building2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { isAgencyPlan } from "../../lib/plan";
+import { useRole } from "../../lib/role";
 
 type Workspace = { id: string; name: string; slug: string; ownerId: string; userRole: string };
 
@@ -24,6 +25,7 @@ export default function WorkspacePanel({
 }) {
   const { update } = useSession();
   const router = useRouter();
+  const { canManageWorkspace } = useRole();
   const isPro = isAgencyPlan(workspacePlan);
 
   const [items, setItems] = useState<Workspace[]>(initialWorkspaces);
@@ -137,7 +139,7 @@ export default function WorkspacePanel({
           <h2 className="text-base font-semibold text-gray-900 mb-1">Workspaces</h2>
           <p className="text-sm text-gray-500">Manage and switch between your workspaces.</p>
         </div>
-        {isPro && (
+        {isPro && canManageWorkspace && (
           <button
             onClick={() => { setShowCreate(true); setCreateError(null); setNewName(""); }}
             className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"

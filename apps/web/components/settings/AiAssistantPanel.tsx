@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bot, Loader2, Check, AlertCircle, Eye, EyeOff, ExternalLink, History, ChevronDown, ChevronUp, X as XIcon } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 type Provider = "anthropic" | "google" | "deepseek" | "openai";
 
@@ -46,6 +47,7 @@ const inputCls =
 
 export default function AiAssistantPanel() {
   const toast = useToast();
+  const { canManageAi } = useRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -187,11 +189,12 @@ export default function AiAssistantPanel() {
                 key={p.id}
                 type="button"
                 onClick={() => setProvider(p.id)}
+                disabled={!canManageAi}
                 className={`text-left px-3 py-2.5 rounded-lg border transition-colors ${
                   provider === p.id
                     ? "border-blue-500 bg-blue-50"
                     : "border-gray-200 bg-white hover:bg-gray-50"
-                }`}
+                } ${!canManageAi ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-gray-900 truncate">{p.label}</span>
@@ -224,7 +227,8 @@ export default function AiAssistantPanel() {
                   ? "•••••••• (stored — leave blank to keep)"
                   : currentProvider.keyHint
               }
-              className={inputCls + " pr-9"}
+              disabled={!canManageAi}
+              className={inputCls + " pr-9" + (!canManageAi ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
             <button
               type="button"
@@ -251,7 +255,12 @@ export default function AiAssistantPanel() {
 
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Model</label>
-          <select value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            disabled={!canManageAi}
+            className={inputCls + (!canManageAi ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
+          >
             {filteredModels.map((m) => (
               <option key={m.id} value={m.id}>{m.label}</option>
             ))}
@@ -264,29 +273,32 @@ export default function AiAssistantPanel() {
             type="checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
+            disabled={!canManageAi}
             className="rounded border-gray-300"
           />
           Enable AI assistant
         </label>
 
-        <div className="flex items-center gap-2 pt-2">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 inline-flex items-center gap-2"
-          >
-            {saving && <Loader2 size={14} className="animate-spin" />} Save
-          </button>
-          {settings?.hasApiKey && (
+        {canManageAi && (
+          <div className="flex items-center gap-2 pt-2">
             <button
-              onClick={handleDisconnect}
+              onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 inline-flex items-center gap-2"
             >
-              Disconnect
+              {saving && <Loader2 size={14} className="animate-spin" />} Save
             </button>
-          )}
-        </div>
+            {settings?.hasApiKey && (
+              <button
+                onClick={handleDisconnect}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
+              >
+                Disconnect
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {settings?.hasApiKey && <AuditLogSection />}
