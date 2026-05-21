@@ -9,6 +9,9 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { isAgencyPlan } from "../lib/plan";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
+
+type WorkspaceListItem = { id: string; name: string; slug: string };
 
 type NavLink = { href: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string; icon: LucideIcon; children: NavLink[] };
@@ -133,7 +136,6 @@ function UserMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const isPro = isAgencyPlan(workspacePlan);
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -164,19 +166,6 @@ function UserMenu({
             <p className="text-xs text-gray-500 truncate">{email}</p>
           </div>
 
-          {/* Workspaces — AGENCY/ENTERPRISE only (multi-workspace tier) */}
-          {isPro && (
-            <div className="border-b border-gray-100 py-1">
-              <Link
-                href={`/${workspaceSlug}/settings?tab=workspaces`}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Building2 size={14} className="text-gray-400 shrink-0" />
-                Workspaces
-              </Link>
-            </div>
-          )}
 
           {/* Sign out */}
           <div className="py-1">
@@ -201,12 +190,14 @@ export default function TopNav({
   workspaceSlug,
   workspaceName,
   workspacePlan,
+  workspaces,
 }: {
   name: string;
   email: string;
   initials: string;
   workspaceSlug: string;
   workspaceName: string;
+  workspaces: WorkspaceListItem[];
   workspacePlan: string;
 }) {
   const pathname = usePathname();
@@ -219,12 +210,28 @@ export default function TopNav({
     <>
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 gap-4 shrink-0 relative z-30">
         {/* Logo */}
-        <Link href={`/${workspaceSlug}/dashboard`} className="shrink-0 mr-2 flex items-center">
+        <Link href={`/${workspaceSlug}/dashboard`} className="shrink-0 flex items-center">
           <img src="/logo.svg" alt="launchtic" className="h-7 w-auto" />
         </Link>
 
-        {/* Desktop nav links */}
-        <nav className="hidden md:flex items-center gap-1 flex-1">
+        {/* Workspace switcher — Agency-tier only feature. Below Agency the
+            operator has at most one workspace, so the switcher would be pure
+            chrome with no value. Hidden under lg breakpoint anyway to keep
+            nav room on smaller screens. */}
+        {isAgencyPlan(workspacePlan) && (
+          <div className="shrink-0 hidden lg:block">
+            <WorkspaceSwitcher
+              currentSlug={workspaceSlug}
+              currentName={workspaceName}
+              workspaces={workspaces}
+              canSwitch={workspaces.length > 1}
+            />
+          </div>
+        )}
+
+        {/* Desktop nav links — min-w-0 so it can shrink before clipping the
+            user menu / switcher on tight viewports. */}
+        <nav className="hidden md:flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
           {navItems.map((item) => {
             if (isGroup(item)) {
               return <NavDropdown key={item.label} item={item} pathname={pathname} />;
@@ -275,6 +282,17 @@ export default function TopNav({
             className="absolute top-14 left-0 right-0 bg-white border-b border-gray-200 shadow-lg px-4 py-3 flex flex-col gap-1"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Workspace section — Agency-tier only (matches desktop). Below
+                Agency there's only one workspace, so the section is hidden. */}
+            {isAgencyPlan(workspacePlan) && (
+              <MobileWorkspaceSection
+                currentSlug={workspaceSlug}
+                currentName={workspaceName}
+                workspaces={workspaces}
+                canSwitch={workspaces.length > 1}
+              />
+            )}
+
             {navItems.map((item) => {
               if (isGroup(item)) {
                 const activeHref = activeChildHref(item.children, pathname);
@@ -321,5 +339,66 @@ export default function TopNav({
         </div>
       )}
     </>
+  );
+}
+
+// Mobile-only workspace section shown at the top of the hamburger menu.
+// Static identity for single-workspace / non-Agency; expandable switcher for
+// Agency+ with multiple workspaces. Navigation is plain Link — workspace
+// context propagates via URL on the next page load.
+function MobileWorkspaceSection({
+  currentSlug,
+  currentName,
+  workspaces,
+  canSwitch,
+}: {
+  currentSlug: string;
+  currentName: string;
+  workspaces: WorkspaceListItem[];
+  canSwitch: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Static badge for non-switching case — just shows current workspace.
+  if (!canSwitch) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2.5 mb-1 rounded-xl bg-gray-50 text-sm text-gray-700">
+        <Building2 size={14} className="text-gray-400 shrink-0" />
+        <span className="truncate font-medium">{currentName}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-1">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+      >
+        <Building2 size={14} className="text-gray-400 shrink-0" />
+        <span className="truncate font-medium flex-1 text-left">{currentName}</span>
+        <ChevronDown size={13} className={`text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+
+      {expanded && (
+        <div className="mt-1 pl-2 flex flex-col gap-0.5">
+          {workspaces.map((ws) => {
+            const active = ws.slug === currentSlug;
+            return (
+              <Link
+                key={ws.id}
+                href={`/${ws.slug}/dashboard`}
+                className={`flex items-center justify-between px-4 py-2 rounded-xl text-sm transition-colors ${
+                  active ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <span className="truncate">{ws.name}</span>
+                {active && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 ml-2" />}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

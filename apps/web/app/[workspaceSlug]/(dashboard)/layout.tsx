@@ -30,11 +30,18 @@ export default async function DashboardLayout({
   await reVerifyIfStale(userId);
 
   // Workspace + user details for TopNav. Fetched per-request (no session
-  // cache) since session no longer carries workspace state.
-  const [ws, user, onboarding] = await Promise.all([
+  // cache) since session no longer carries workspace state. `workspaces` is
+  // the list of all workspaces the user is a member of — drives the
+  // WorkspaceSwitcher dropdown.
+  const [ws, user, onboarding, workspaces] = await Promise.all([
     db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
     db.user.findUnique({ where: { id: userId }, select: { name: true, email: true, plan: true } }),
     getOnboardingStatus(workspaceId),
+    db.workspace.findMany({
+      where: { members: { some: { userId } } },
+      select: { id: true, name: true, slug: true },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   const workspaceName = ws?.name ?? workspaceSlug;
@@ -62,6 +69,7 @@ export default async function DashboardLayout({
               workspaceSlug={workspaceSlug}
               workspaceName={workspaceName}
               workspacePlan={workspacePlan}
+              workspaces={workspaces}
             />
             <main className="flex-1 overflow-y-auto">
               {children}
