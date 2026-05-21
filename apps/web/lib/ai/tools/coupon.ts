@@ -210,9 +210,47 @@ const detachCouponFromStep = defineTool({
   },
 });
 
+const deleteCoupon = defineTool({
+  name: "delete_coupon",
+  description:
+    "Permanently delete a coupon. Cannot be undone. Any FunnelStep that still references the coupon code in `couponIds` will silently drop the dead reference at next save — the AI tool surfaces an attachment warning in the confirm summary.",
+  inputSchema: z.object({
+    couponId: z.string().describe("Coupon ID from list_coupons."),
+  }),
+  requiresConfirm: true,
+  requiredPermission: "coupons:delete",
+  summary: async (a, ctx) => {
+    const coupon = await db.coupon.findFirst({
+      where: { id: a.couponId, workspaceId: ctx.workspaceId },
+      select: { code: true, usedCount: true },
+    });
+    if (!coupon) return `Delete coupon ${a.couponId}`;
+    // FunnelStep.couponIds is String[] (not FK) — count steps that still
+    // reference this id so the operator sees the impact before confirming.
+    const attachedSteps = await db.funnelStep.count({
+      where: { funnel: { workspaceId: ctx.workspaceId }, couponIds: { has: a.couponId } },
+    });
+    const warnings: string[] = [];
+    if (attachedSteps > 0) warnings.push(`attached to ${attachedSteps} step(s)`);
+    if (coupon.usedCount > 0) warnings.push(`already used ${coupon.usedCount}×`);
+    const tail = warnings.length > 0 ? ` ⚠️ ${warnings.join(", ")}` : "";
+    return `Delete coupon "${coupon.code}"${tail}`;
+  },
+  execute: async (args, ctx) => {
+    const coupon = await db.coupon.findFirst({
+      where: { id: args.couponId, workspaceId: ctx.workspaceId },
+      select: { id: true, code: true },
+    });
+    if (!coupon) throw new Error("Coupon not found");
+    await db.coupon.delete({ where: { id: coupon.id } });
+    return { deleted: true, code: coupon.code };
+  },
+});
+
 export const couponTools = [
   listCoupons,
   createCoupon,
   attachCouponToStep,
   detachCouponFromStep,
+  deleteCoupon,
 ];

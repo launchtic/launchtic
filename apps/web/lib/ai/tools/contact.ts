@@ -326,6 +326,73 @@ const bulkTagContacts = defineTool({
   },
 });
 
+const deleteContact = defineTool({
+  name: "delete_contact",
+  description:
+    "Permanently delete a contact and ALL their related rows (tags, events, sequence enrollments, orders, subscriptions). Irreversible. " +
+    "Order/Subscription rows are CASCADED — financial history for this person is wiped. Prefer unsubscribing or removing tags instead unless the operator really wants to erase the record (e.g. GDPR delete request).",
+  inputSchema: z.object({
+    contactId: z.string().describe("Contact ID from list_contacts."),
+  }),
+  requiresConfirm: true,
+  requiredPermission: "contacts:delete",
+  summary: async (a, ctx) => {
+    const contact = await db.contact.findFirst({
+      where: { id: a.contactId, workspaceId: ctx.workspaceId },
+      select: {
+        email: true,
+        _count: { select: { orders: true, subscriptions: true } },
+      },
+    });
+    if (!contact) return `Delete contact ${a.contactId}`;
+    const impact: string[] = [];
+    if (contact._count.orders > 0)        impact.push(`${contact._count.orders} order(s)`);
+    if (contact._count.subscriptions > 0) impact.push(`${contact._count.subscriptions} subscription(s)`);
+    const tail = impact.length > 0 ? ` ⚠️ ALSO wipes ${impact.join(" + ")}` : "";
+    return `Delete contact "${contact.email}"${tail}`;
+  },
+  execute: async (args, ctx) => {
+    const contact = await db.contact.findFirst({
+      where: { id: args.contactId, workspaceId: ctx.workspaceId },
+      select: { id: true, email: true },
+    });
+    if (!contact) throw new Error("Contact not found");
+    await db.contact.delete({ where: { id: contact.id } });
+    return { deleted: true, email: contact.email };
+  },
+});
+
+const deleteTag = defineTool({
+  name: "delete_tag",
+  description:
+    "Permanently delete a tag. Removes the tag from every contact that has it (ContactTag rows cascade). The contact records themselves stay intact — only the tag-association rows are dropped.",
+  inputSchema: z.object({
+    tagId: z.string().describe("Tag ID from list_tags."),
+  }),
+  requiresConfirm: true,
+  requiredPermission: "tags:delete",
+  summary: async (a, ctx) => {
+    const tag = await db.tag.findFirst({
+      where: { id: a.tagId, workspaceId: ctx.workspaceId },
+      select: { name: true, _count: { select: { contacts: true } } },
+    });
+    if (!tag) return `Delete tag ${a.tagId}`;
+    const tail = tag._count.contacts > 0
+      ? ` ⚠️ removes it from ${tag._count.contacts} contact(s)`
+      : "";
+    return `Delete tag "${tag.name}"${tail}`;
+  },
+  execute: async (args, ctx) => {
+    const tag = await db.tag.findFirst({
+      where: { id: args.tagId, workspaceId: ctx.workspaceId },
+      select: { id: true, name: true },
+    });
+    if (!tag) throw new Error("Tag not found");
+    await db.tag.delete({ where: { id: tag.id } });
+    return { deleted: true, name: tag.name };
+  },
+});
+
 export const contactTools = [
   listContacts,
   listTags,
@@ -335,4 +402,6 @@ export const contactTools = [
   createContact,
   updateContact,
   bulkTagContacts,
+  deleteContact,
+  deleteTag,
 ];

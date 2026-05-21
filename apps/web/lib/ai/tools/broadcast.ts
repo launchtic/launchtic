@@ -427,10 +427,52 @@ const cancelBroadcast = defineTool({
   },
 });
 
+const deleteBroadcast = defineTool({
+  name: "delete_broadcast",
+  description:
+    "Permanently delete a broadcast. Allowed only for DRAFT, SCHEDULED, CANCELED, or FAILED status. " +
+    "Cannot delete SENDING (in progress) or SENT (preserve audit log). " +
+    "If SCHEDULED, the queued dispatch job is removed first.",
+  inputSchema: z.object({
+    broadcastId: z.string().describe("Broadcast ID from list_broadcasts."),
+  }),
+  requiresConfirm: true,
+  requiredPermission: "broadcasts:delete",
+  summary: async (a, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: a.broadcastId, workspaceId: ctx.workspaceId },
+      select: { name: true, status: true },
+    });
+    if (!b) return `Delete broadcast ${a.broadcastId}`;
+    return `Delete broadcast "${b.name}" (status: ${b.status})`;
+  },
+  execute: async (args, ctx) => {
+    const b = await db.broadcast.findFirst({
+      where: { id: args.broadcastId, workspaceId: ctx.workspaceId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!b) throw new Error("Broadcast not found");
+    if (b.status === "SENDING" || b.status === "SENT") {
+      throw new Error(`Cannot delete broadcast with status ${b.status}. Sent broadcasts are preserved as an audit record.`);
+    }
+
+    // Best-effort: pull the queued dispatch job before deleting the row, so
+    // the worker doesn't fire against a vanished ID. Failure is non-fatal —
+    // worker re-checks status and skips if row is gone.
+    if (b.status === "SCHEDULED") {
+      try { await broadcastQueue().remove(dispatchJobId(b.id)); } catch {}
+    }
+
+    await db.broadcast.delete({ where: { id: b.id } });
+    return { deleted: true, name: b.name };
+  },
+});
+
 export const broadcastTools = [
   listBroadcasts,
   getBroadcastDetails,
   createBroadcastFromSpec,
   updateBroadcast,
   cancelBroadcast,
+  deleteBroadcast,
 ];

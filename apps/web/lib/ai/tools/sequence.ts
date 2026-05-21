@@ -268,6 +268,51 @@ const updateSequenceStep = defineTool({
   },
 });
 
+const deleteSequence = defineTool({
+  name: "delete_sequence",
+  description:
+    "Permanently delete an email sequence and all its steps. Blocked if any contact is currently ACTIVE in the sequence — pause it and wait, or end the active enrollments first. " +
+    "All enrollment history (completed/exited contacts) cascades and is wiped. EmailSend audit rows are preserved (sequence FK is set to NULL).",
+  inputSchema: z.object({
+    sequenceId: z.string().describe("Sequence ID from list_sequences."),
+  }),
+  requiresConfirm: true,
+  requiredPermission: "sequences:delete",
+  summary: async (a, ctx) => {
+    const seq = await db.emailSequence.findFirst({
+      where: { id: a.sequenceId, workspaceId: ctx.workspaceId },
+      select: { name: true, status: true, activeCount: true, completedCount: true },
+    });
+    if (!seq) return `Delete sequence ${a.sequenceId}`;
+    const warn = seq.activeCount > 0
+      ? ` ⚠️ ${seq.activeCount} contact(s) currently enrolled — delete will be REFUSED`
+      : seq.completedCount > 0
+        ? ` (wipes ${seq.completedCount} completed enrollment record(s))`
+        : "";
+    return `Delete sequence "${seq.name}"${warn}`;
+  },
+  execute: async (args, ctx) => {
+    const seq = await db.emailSequence.findFirst({
+      where: { id: args.sequenceId, workspaceId: ctx.workspaceId },
+      select: { id: true, name: true },
+    });
+    if (!seq) throw new Error("Sequence not found");
+
+    // Re-check active enrollments at execute time (the count in summary
+    // could be stale by now). Live `activeCount` denorm may also drift —
+    // verify against the truth source.
+    const activeNow = await db.contactSequenceEnrollment.count({
+      where: { sequenceId: seq.id, status: "ACTIVE" },
+    });
+    if (activeNow > 0) {
+      throw new Error(`Cannot delete sequence "${seq.name}" — ${activeNow} contact(s) are still ACTIVE in it. Pause the sequence and end active enrollments first.`);
+    }
+
+    await db.emailSequence.delete({ where: { id: seq.id } });
+    return { deleted: true, name: seq.name };
+  },
+});
+
 export const sequenceTools = [
   listSequences,
   getSequenceDetails,
@@ -275,4 +320,5 @@ export const sequenceTools = [
   createSequenceFromSpec,
   addSequenceStep,
   updateSequenceStep,
+  deleteSequence,
 ];

@@ -15,8 +15,10 @@ const TOOL_LABELS: Record<string, string> = {
   list_contacts:              "Loading contacts",
   create_contact:             "Creating contact",
   update_contact:             "Updating contact",
+  delete_contact:             "Deleting contact",
   list_tags:                  "Loading tags",
   create_tag:                 "Creating tag",
+  delete_tag:                 "Deleting tag",
   tag_contact:                "Tagging contact",
   untag_contact:              "Removing tag",
   bulk_tag_contacts:          "Tagging contacts in bulk",
@@ -43,6 +45,7 @@ const TOOL_LABELS: Record<string, string> = {
   create_broadcast_from_spec: "Drafting broadcast",
   update_broadcast:           "Updating broadcast",
   cancel_broadcast:           "Canceling broadcast",
+  delete_broadcast:           "Deleting broadcast",
 
   // ─── Sequences ───────────────────────────────────────────────────────────
   list_sequences:             "Listing sequences",
@@ -51,16 +54,19 @@ const TOOL_LABELS: Record<string, string> = {
   add_sequence_step:          "Adding sequence step",
   update_sequence_step:       "Updating sequence step",
   update_sequence_status:     "Toggling sequence status",
+  delete_sequence:            "Deleting sequence",
 
   // ─── Automations ─────────────────────────────────────────────────────────
   list_automations:           "Listing automations",
   update_automation_status:   "Toggling automation status",
+  delete_automation:          "Deleting automation",
 
   // ─── Coupons ─────────────────────────────────────────────────────────────
   list_coupons:               "Listing coupons",
   create_coupon:              "Creating coupon",
   attach_coupon_to_step:      "Attaching coupon to step",
   detach_coupon_from_step:    "Detaching coupon",
+  delete_coupon:              "Deleting coupon",
 
   // ─── Products (read-only) ────────────────────────────────────────────────
   list_products:              "Listing products",
