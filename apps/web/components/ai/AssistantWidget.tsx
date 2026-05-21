@@ -104,7 +104,10 @@ export default function AssistantWidget() {
 
   async function checkAvailability() {
     try {
-      const res = await apiFetch("/api/ai/settings");
+      // Use the lightweight /availability probe (gated by `ai:use`) — not
+      // /settings, which requires `settings:ai:read` and 403s for members
+      // who can USE AI but can't see the admin config.
+      const res = await apiFetch("/api/ai/availability");
       const json = await res.json();
       setAvailable(json.success && json.data.hasApiKey && json.data.enabled);
     } catch {
