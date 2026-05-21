@@ -13,6 +13,7 @@ const listRecentOrders = defineTool({
     status: z.enum(["PENDING", "PAID", "FAILED", "REFUNDED", "CANCELED", "TRIAL"]).optional().describe("Optional status filter."),
   }),
   requiresConfirm: false,
+  requiredPermission: "orders:read",
   execute: async ({ limit, status }, ctx) => {
     const orders = await db.order.findMany({
       where: { workspaceId: ctx.workspaceId, ...(status && { status }) },
@@ -44,6 +45,7 @@ const getRevenueSummary = defineTool({
     to:   z.string().describe("End date (YYYY-MM-DD), inclusive."),
   }),
   requiresConfirm: false,
+  requiredPermission: "orders:read",
   execute: async ({ from, to }, ctx) => {
     const fromDate = new Date(from);
     const toDate = new Date(to);

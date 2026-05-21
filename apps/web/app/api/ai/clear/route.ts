@@ -4,7 +4,8 @@ import { clearConversation } from "../../../../lib/ai/conversation";
 
 export async function POST() {
   try {
-    const r = await requireAccess("settings:ai:read");
+    // Clearing your own chat history requires the same gate as chatting.
+    const r = await requireAccess("ai:use");
     if (!r.ok) return r.response;
     const { workspaceId, userId } = r;
 

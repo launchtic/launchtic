@@ -7,6 +7,7 @@
 
 import { tool, type Tool } from "ai";
 import type { ToolContext, ToolDef } from "./define";
+import { checkToolPermission } from "./define";
 
 import { orderTools }       from "./order";
 import { contactTools }     from "./contact";
@@ -67,15 +68,31 @@ export function buildSdkTools(
   const out: Record<string, Tool> = {};
   for (const t of ALL_TOOLS) {
     if (t.requiresConfirm) {
+      // Write tools omit `execute` — SDK returns the call to caller for the
+      // confirm flow. Permission is re-checked in llm.executeConfirmedTool
+      // before actually running it.
       out[t.name] = tool({
         description: t.description,
         inputSchema: t.inputSchema as any,
       });
     } else {
+      // Read tools auto-execute inside the SDK loop. Gate up-front: if user
+      // lacks `requiredPermission` (and isn't Org owner), return the structured
+      // denial as the tool result so the LLM can explain to the user.
       out[t.name] = tool({
         description: t.description,
         inputSchema: t.inputSchema as any,
         execute: async (args: any) => {
+          const denial = checkToolPermission(t, ctx);
+          if (denial) {
+            onEvent?.({
+              type:  "tool_error",
+              name:  t.name,
+              ms:    0,
+              error: `permission_denied: ${denial.permission}`,
+            });
+            return denial;
+          }
           if (!onEvent) return t.execute(args, ctx);
           const start = Date.now();
           onEvent({ type: "tool_start", name: t.name });

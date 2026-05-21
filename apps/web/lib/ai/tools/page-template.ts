@@ -32,6 +32,7 @@ const listPageTemplates = defineTool({
       .describe("Filter by tags (any-of match). Pick from convention above based on product context — e.g. ['ebook', 'urgent', 'long-form'] for info-product launch."),
   }),
   requiresConfirm: false,
+  requiredPermission: "settings:page_templates:read",
   execute: async ({ type, tags }, ctx) => {
     const where: any = { workspaceId: ctx.workspaceId, isActive: true };
     if (type) where.type = type;
@@ -90,6 +91,7 @@ const swapStepTemplate = defineTool({
     templateId: z.string().describe("PageTemplate ID. Use list_page_templates to find."),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const [step, tpl] = await Promise.all([
       db.funnelStep.findFirst({

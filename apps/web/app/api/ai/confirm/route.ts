@@ -19,9 +19,13 @@ const schema = z.object({
 // progress is streamed.
 
 export async function POST(req: NextRequest) {
-  const r = await requireAccess("settings:ai:read");
+  // Mirrors /api/ai/chat: gate with `ai:use` so only AI-permitted roles
+  // can confirm pending tool calls. Per-tool permission is ALSO re-checked
+  // inside executeConfirmedTool, so even a forged confirm POST can't run
+  // an action the user lacks the underlying perm for.
+  const r = await requireAccess("ai:use");
   if (!r.ok) return r.response;
-  const { workspaceId, userId } = r;
+  const { workspaceId, userId, permissions, isOwner } = r;
 
   const ai = await getAiSettings(workspaceId);
   if (!ai || !ai.enabled) return err("AI assistant disabled", 400);
@@ -68,7 +72,7 @@ export async function POST(req: NextRequest) {
             conversationId: conv.id,
             messageId,
             approve,
-            ctx: { workspaceId, workspaceSlug, userId },
+            ctx: { workspaceId, workspaceSlug, userId, permissions, isOwner },
           });
           if (approve && meta) {
             send({ type: "tool_done", name: meta, ms: Date.now() - confirmStart });
@@ -86,7 +90,7 @@ export async function POST(req: NextRequest) {
           settings: ai,
           apiKey,
           conversationId: conv.id,
-          ctx: { workspaceId, workspaceSlug, userId },
+          ctx: { workspaceId, workspaceSlug, userId, permissions, isOwner },
           timezone,
           onEvent: send,
         });

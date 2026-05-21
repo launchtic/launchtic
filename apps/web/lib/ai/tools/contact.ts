@@ -16,6 +16,7 @@ const listContacts = defineTool({
     limit:  z.number().int().min(1).max(50).default(10),
   }),
   requiresConfirm: false,
+  requiredPermission: "contacts:read",
   execute: async ({ search, limit }, ctx) => {
     const where: Record<string, unknown> = { workspaceId: ctx.workspaceId };
     if (search?.trim()) {
@@ -53,6 +54,7 @@ const listTags = defineTool({
   description: "List all tags in the workspace with usage counts. Use before creating a duplicate tag.",
   inputSchema: z.object({}),
   requiresConfirm: false,
+  requiredPermission: "tags:read",
   execute: async (_args, ctx) => {
     const tags = await db.tag.findMany({
       where: { workspaceId: ctx.workspaceId },
@@ -79,6 +81,7 @@ const createTag = defineTool({
     color: z.string().optional().describe("Optional hex color like #3b82f6."),
   }),
   requiresConfirm: true,
+  requiredPermission: "tags:write",
   summary: (a) => `Create tag "${a.name}"${a.color ? ` (color ${a.color})` : ""}`,
   execute: async (args, ctx) => {
     const tag = await db.tag.create({
@@ -96,6 +99,7 @@ const tagContact = defineTool({
     tagId:     z.string().describe("Tag ID. Use list_tags to find one."),
   }),
   requiresConfirm: true,
+  requiredPermission: "contacts:write",
   summary: async (a, ctx) => {
     const [contactLabel, tagLabel] = await Promise.all([
       resolveContactLabel(a.contactId, ctx),
@@ -131,6 +135,7 @@ const untagContact = defineTool({
     tagId:     z.string(),
   }),
   requiresConfirm: true,
+  requiredPermission: "contacts:write",
   summary: async (a, ctx) => {
     const [contactLabel, tagLabel] = await Promise.all([
       resolveContactLabel(a.contactId, ctx),
@@ -162,6 +167,7 @@ const createContact = defineTool({
     tagNames:  z.array(z.string()).optional().describe("Tags to add immediately. Auto-created if missing."),
   }),
   requiresConfirm: true,
+  requiredPermission: "contacts:write",
   summary: (a) => {
     const name = [a.firstName, a.lastName].filter(Boolean).join(" ").trim();
     const tags = a.tagNames?.length ? ` with tag(s) ${a.tagNames.map((t) => `"${t}"`).join(", ")}` : "";
@@ -212,6 +218,7 @@ const updateContact = defineTool({
     phone:     z.string().optional(),
   }),
   requiresConfirm: true,
+  requiredPermission: "contacts:write",
   summary: async (a, ctx) => {
     const c = await db.contact.findFirst({
       where: { id: a.contactId, workspaceId: ctx.workspaceId },
@@ -296,6 +303,7 @@ const bulkTagContacts = defineTool({
     }).describe("At least one filter required."),
   }),
   requiresConfirm: true,
+  requiredPermission: "contacts:write",
   summary: async (a, ctx) => {
     const ids = await findBulkTagContactIds(a, ctx);
     return `Add tag "${a.tagName}" to ${ids.length} contact(s) matching the filter`;

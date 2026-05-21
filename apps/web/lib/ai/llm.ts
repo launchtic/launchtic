@@ -45,6 +45,7 @@ function readToolResult(result: any): { value: unknown; isError: boolean } {
 }
 import type { AiSettings } from "./settings";
 import { buildSdkTools, getToolMeta, type ToolContext, type ToolEvent } from "./tools";
+import { checkToolPermission } from "./tools/define";
 import { appendMessage, loadMessages, updateMessageStatus, deleteMessage } from "./conversation";
 
 const MAX_STEPS = 8;
@@ -52,7 +53,7 @@ const MAX_STEPS = 8;
 // Build the system prompt fresh per request so {today} is correct. Without
 // this, LLMs without a built-in clock (most of them) guess the date from
 // training data and silently query stale ranges (e.g. "this year" → 2024).
-function buildSystemPrompt(timezone?: string): string {
+function buildSystemPrompt(timezone?: string, ctx?: ToolContext): string {
   const now = new Date();
   const today = now.toISOString().slice(0, 10); // YYYY-MM-DD
   const nowIso = now.toISOString();              // full UTC timestamp
@@ -92,6 +93,18 @@ Your job: help the operator (the logged-in user) manage their workspace. They ru
 CAPABILITIES — you have tools to:
 - Query data: orders, contacts, broadcasts, sequences, automations, tags, revenue
 - Make changes: create tags, tag/untag contacts, pause/activate sequences and automations
+
+PERMISSION AWARENESS — the operator's role gates which tools they can run. Their effective permissions are:
+${ctx?.isOwner
+  ? "  (Organization owner — all permissions granted, no restrictions)"
+  : (ctx?.permissions?.length
+      ? ctx.permissions.map((p) => `  - ${p}`).join("\n")
+      : "  (no specific permissions — workspace member only)")}
+
+How to handle permission errors:
+- A tool that returns \`{ "error": "permission_denied", "permission": "X", "message": "..." }\` failed because the operator lacks the listed permission.
+- Do NOT retry the same tool. Tell the operator plainly which action is blocked and which permission they're missing, and suggest they ask their workspace admin to grant it (or change role in Settings → Roles). Keep the response short.
+- Before proposing a write action, you MAY proactively check whether the operator has the matching permission in the list above. If not, decline up front instead of attempting and failing.
 
 DATE CONTEXT (use these for date-range tools, do NOT guess):
 - Now (UTC): ${nowIso}
@@ -270,7 +283,7 @@ export async function runChat(opts: {
   try {
     result = await generateText({
       model: getModel(settings, apiKey),
-      system: buildSystemPrompt(timezone),
+      system: buildSystemPrompt(timezone, ctx),
       tools,
       messages: sdkMessages,
       // v5: stopWhen replaced maxSteps. stepCountIs(N) terminates after N steps.
@@ -413,6 +426,24 @@ export async function executeConfirmedTool(opts: {
       toolCallId: message.toolCallId!,
       toolName: message.toolName!,
       toolStatus: "rejected",
+    });
+    return;
+  }
+
+  // Re-check the permission gate at execute time. The chat-route ALREADY
+  // gated this when first proposing the tool call, but a permission could
+  // have been revoked between propose and confirm — also forged confirm
+  // requests would bypass the SDK-level check (it lives in buildSdkTools
+  // for READ tools only; writes go through here).
+  const denial = checkToolPermission(meta, ctx);
+  if (denial) {
+    await updateMessageStatus(messageId, "error");
+    await appendMessage(conversationId, {
+      role:       "tool_result",
+      content:    denial,
+      toolCallId: message.toolCallId!,
+      toolName:   message.toolName!,
+      toolStatus: "error",
     });
     return;
   }

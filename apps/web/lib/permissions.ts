@@ -104,6 +104,13 @@ export type Permission =
   | "media:upload"
   | "media:delete"
 
+  // ── AI Assistant USE (separate from settings:ai:* which gates the config) ──
+  // Workspace-wide gate for chatting with the assistant. Admins grant this
+  // to roles that should be able to talk to the AI; revoking it hides the
+  // floating chat chip and blocks /api/ai/chat. Per-tool authority is still
+  // enforced individually (e.g. `funnels:write` to actually create a funnel).
+  | "ai:use"
+
   // ── Settings: General (workspace name, defaults) ──
   | "settings:general:read"
   | "settings:general:write"
@@ -144,6 +151,7 @@ export type Permission =
 
 /** All permissions — used to fill in the bypass return for organization owner. */
 export const ALL_PERMISSIONS: Permission[] = [
+  "ai:use",
   "funnels:read", "funnels:write", "funnels:delete",
   "products:read", "products:write", "products:delete",
   "orders:read", "orders:refund",

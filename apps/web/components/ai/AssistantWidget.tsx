@@ -9,6 +9,7 @@ import remarkGfm from "remark-gfm";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { toolLabel } from "../../lib/ai/tools/labels";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 // Server SSE events — mirrors the union in /api/ai/chat. Kept as a local
 // type to avoid importing server-side modules into a "use client" file.
@@ -46,8 +47,15 @@ type PendingToolCall = {
 export default function AssistantWidget() {
   const params = useParams();
   const slug = params.workspaceSlug as string;
+  const { canUseAi } = useRole();
   const [open, setOpen] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null); // null = unknown, false = not configured
+
+  // Workspace-level gate: hide widget for roles that don't have `ai:use`.
+  // This is the role-based "who's allowed to talk to the assistant" check —
+  // separate from per-tool permissions (which gate what the AI can actually
+  // do once chatting). Owner bypasses; admins control via Settings → Roles.
+  if (!canUseAi) return null;
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [input, setInput] = useState("");

@@ -25,6 +25,7 @@ const listFunnels = defineTool({
     includeSteps: z.boolean().default(false).describe("Include step list per funnel."),
   }),
   requiresConfirm: false,
+  requiredPermission: "funnels:read",
   execute: async ({ includeSteps }, ctx) => {
     const funnels = await db.funnel.findMany({
       // Skip trashed funnels — AI shouldn't surface deleted items.
@@ -70,6 +71,7 @@ const getFunnelDetails = defineTool({
     funnelId: z.string().describe("Funnel ID. Use list_funnels to find."),
   }),
   requiresConfirm: false,
+  requiredPermission: "funnels:read",
   execute: async ({ funnelId }, ctx) => {
     const funnel = await db.funnel.findFirst({
       where: { id: funnelId, workspaceId: ctx.workspaceId },
@@ -235,6 +237,7 @@ const createFunnelFromSpec = defineTool({
     ),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: (a) => {
     const lines: string[] = [];
     const cur = (a.currency ?? "usd").toUpperCase();
@@ -676,6 +679,7 @@ const addFunnelStep = defineTool({
       .describe("PageTemplate ID for the new step's page. Use list_page_templates({type: <step type>}) to find. Omit to use the default template for the step type."),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const f = await db.funnel.findFirst({
       where: { id: a.funnelId, workspaceId: ctx.workspaceId },
@@ -833,6 +837,7 @@ const addOrderBump = defineTool({
     grantTagNames: z.array(z.string()).optional(),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const step = await db.funnelStep.findFirst({
       where: { id: a.stepId, funnel: { workspaceId: ctx.workspaceId } },
@@ -922,6 +927,7 @@ const updateStepPricePlan = defineTool({
     amount: z.number().positive().describe("New price in dollars."),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const plan = await db.stepPricePlan.findFirst({
       where: { id: a.planId, funnelStep: { funnel: { workspaceId: ctx.workspaceId } } },
@@ -965,6 +971,7 @@ const updateOrderBumpPrice = defineTool({
     amount: z.number().positive().describe("New price in dollars."),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const plan = await db.orderBumpPricePlan.findFirst({
       where: { id: a.planId, orderBump: { funnelStep: { funnel: { workspaceId: ctx.workspaceId } } } },
@@ -1010,6 +1017,7 @@ const grantTagOnPurchase = defineTool({
     tagName: z.string().min(1).describe("Tag name (created if missing)."),
   }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const step = await db.funnelStep.findFirst({
       where: { id: a.stepId, funnel: { workspaceId: ctx.workspaceId } },
@@ -1054,6 +1062,7 @@ const deleteFunnelStep = defineTool({
     "Existing orders + subscriptions tied to the step keep their snapshot data but the step itself is gone.",
   inputSchema: z.object({ stepId: z.string() }),
   requiresConfirm: true,
+  requiredPermission: "funnels:write",
   summary: async (a, ctx) => {
     const step = await db.funnelStep.findFirst({
       where: { id: a.stepId, funnel: { workspaceId: ctx.workspaceId } },
@@ -1081,6 +1090,7 @@ const deleteFunnel = defineTool({
     "For permanent deletion the user must empty the trash manually in the UI.",
   inputSchema: z.object({ funnelId: z.string() }),
   requiresConfirm: true,
+  requiredPermission: "funnels:delete",
   summary: async (a, ctx) => {
     const funnel = await db.funnel.findFirst({
       where: { id: a.funnelId, workspaceId: ctx.workspaceId },

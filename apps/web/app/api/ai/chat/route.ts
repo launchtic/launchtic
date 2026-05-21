@@ -24,9 +24,17 @@ const sendSchema = z.object({
 export async function POST(req: NextRequest) {
   // Authorize + load context BEFORE opening the stream — failures here can
   // still return a normal JSON error response.
-  const r = await requireAccess("settings:ai:read");
+  //
+  // Two-layer gate:
+  //   1. `ai:use` — workspace-level "may this role talk to the assistant?".
+  //      Admins control via Settings → Roles.
+  //   2. Each tool's `requiredPermission` — checked at tool execution time
+  //      (see lib/ai/tools/define.ts). A user with ai:use but no funnels:write
+  //      can chat about funnels but can't create one — the AI surfaces the
+  //      permission_denied result as plain English.
+  const r = await requireAccess("ai:use");
   if (!r.ok) return r.response;
-  const { workspaceId, userId } = r;
+  const { workspaceId, userId, permissions, isOwner } = r;
 
   const ai = await getAiSettings(workspaceId);
   if (!ai || !ai.enabled) {
@@ -62,7 +70,7 @@ export async function POST(req: NextRequest) {
           settings: ai,
           apiKey,
           conversationId: conv.id,
-          ctx: { workspaceId, workspaceSlug, userId },
+          ctx: { workspaceId, workspaceSlug, userId, permissions, isOwner },
           timezone,
           onEvent: send,
         });

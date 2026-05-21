@@ -4,7 +4,8 @@ import { getOrCreateConversation, loadMessages } from "../../../../lib/ai/conver
 
 export async function GET() {
   try {
-    const r = await requireAccess("settings:ai:read");
+    // Loading your own chat history requires the same gate as chatting.
+    const r = await requireAccess("ai:use");
     if (!r.ok) return r.response;
     const { workspaceId, userId } = r;
 

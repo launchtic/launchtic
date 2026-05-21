@@ -22,6 +22,12 @@ type Role = {
 // custom role would contradict that.
 const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: string }[] }[] = [
   {
+    label: "AI Assistant",
+    perms: [
+      { key: "ai:use", label: "Use the AI Assistant (chat widget)" },
+    ],
+  },
+  {
     label: "Funnels & Pages",
     perms: [
       { key: "funnels:read",   label: "View funnels and pages" },

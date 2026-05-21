@@ -25,6 +25,10 @@ export function useRole() {
 
     // ─── Domain shortcuts (granular per resource/action) ────────────────
 
+    // AI Assistant — gates the floating chat widget + /api/ai/chat. Separate
+    // from settings:ai:read/write (which gate viewing/editing the AI config).
+    canUseAi:              hasPermission("ai:use"),
+
     // Funnels (dashboard intentionally has no helper — page is always
     // accessible; cards inside self-gate on their underlying resource perm)
     canReadFunnels:        hasPermission("funnels:read"),
