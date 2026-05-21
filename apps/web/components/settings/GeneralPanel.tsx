@@ -77,7 +77,7 @@ export default function GeneralPanel({
     if (!res.ok) { setSlugError(json.error ?? "Failed to save."); return; }
     // Slug changed → update session + navigate to new URL.
     await update({ workspaceSlug: trimmed });
-    router.push(`/${trimmed}/settings?tab=general`);
+    router.push(`/${trimmed}/settings/general`);
   }
 
   return (

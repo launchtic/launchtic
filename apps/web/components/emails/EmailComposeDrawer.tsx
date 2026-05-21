@@ -240,7 +240,7 @@ export default function EmailComposeDrawer({
               <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">From</label>
               {senderIdentities.length === 0 ? (
                 <Link
-                  href={`/${slug}/settings?tab=sender-identities`}
+                  href={`/${slug}/settings/email`}
                   className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5"
                 >
                   <AlertCircle size={11} className="inline mr-1" />

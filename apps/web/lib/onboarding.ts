@@ -10,9 +10,9 @@ export type OnboardingItem = {
   label: string;
   help: string;
   done: boolean;
-  // Where the action button takes the operator. Either a Settings tab name
-  // (`tab` for /settings?tab=...) or a relative route under the workspace
-  // (`route` for /[workspaceSlug]/<route>).
+  // Where the action button takes the operator. Either a Settings sub-page
+  // (`tab` resolves to /[workspaceSlug]/settings/<tab>) or a top-level
+  // workspace route (`route` for /[workspaceSlug]/<route>).
   tab?:   "email" | "payment" | "ai-assistant";
   route?: string;
   cta:    string;

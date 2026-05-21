@@ -430,7 +430,7 @@ function NotConfiguredState() {
       <p className="text-sm font-medium text-gray-700 mb-1">Assistant not configured</p>
       <p className="text-xs text-gray-500 mb-4">Add an API key (Gemini or Anthropic) to start using the assistant.</p>
       <Link
-        href={`/${slug}/settings?tab=ai-assistant`}
+        href={`/${slug}/settings/ai-assistant`}
         className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
       >
         Open settings

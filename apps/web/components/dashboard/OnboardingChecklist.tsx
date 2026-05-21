@@ -174,8 +174,11 @@ function ChecklistRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  // /settings is now a parent route with per-tab sub-pages (/settings/email,
+  // /settings/payment, /settings/ai-assistant) — replaces the legacy
+  // /settings?tab=xxx query-param pattern.
   const href = item.tab
-    ? `/${slug}/settings?tab=${item.tab}`
+    ? `/${slug}/settings/${item.tab}`
     : `/${slug}/${item.route}`;
 
   return (
