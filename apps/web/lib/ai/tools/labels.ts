@@ -61,6 +61,24 @@ const TOOL_LABELS: Record<string, string> = {
   create_coupon:              "Creating coupon",
   attach_coupon_to_step:      "Attaching coupon to step",
   detach_coupon_from_step:    "Detaching coupon",
+
+  // ─── Products (read-only) ────────────────────────────────────────────────
+  list_products:              "Listing products",
+  get_product_details:        "Reading product",
+
+  // ─── Subscriptions (read-only) ───────────────────────────────────────────
+  list_subscriptions:         "Listing subscriptions",
+  get_subscription_details:   "Reading subscription",
+
+  // ─── Transactions (read-only) ────────────────────────────────────────────
+  list_transactions:          "Listing transactions",
+
+  // ─── Email templates (read-only) ─────────────────────────────────────────
+  list_email_templates:       "Listing email templates",
+  get_email_template_details: "Reading email template",
+
+  // ─── Email logs (read-only) ──────────────────────────────────────────────
+  list_email_logs:            "Reading email logs",
 };
 
 export function toolLabel(name: string): string {

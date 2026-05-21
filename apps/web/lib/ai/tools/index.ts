@@ -9,14 +9,19 @@ import { tool, type Tool } from "ai";
 import type { ToolContext, ToolDef } from "./define";
 import { checkToolPermission } from "./define";
 
-import { orderTools }       from "./order";
-import { contactTools }     from "./contact";
-import { funnelTools }      from "./funnel";
-import { pageTemplateTools } from "./page-template";
-import { broadcastTools }   from "./broadcast";
-import { sequenceTools }    from "./sequence";
-import { automationTools }  from "./automation";
-import { couponTools }      from "./coupon";
+import { orderTools }         from "./order";
+import { contactTools }       from "./contact";
+import { funnelTools }        from "./funnel";
+import { pageTemplateTools }  from "./page-template";
+import { broadcastTools }     from "./broadcast";
+import { sequenceTools }      from "./sequence";
+import { automationTools }    from "./automation";
+import { couponTools }        from "./coupon";
+import { productTools }       from "./product";
+import { subscriptionTools }  from "./subscription";
+import { transactionTools }   from "./transaction";
+import { emailTemplateTools } from "./email-template";
+import { emailLogTools }      from "./email-log";
 
 // Re-export ToolContext for callers (llm.ts, conversation.ts, etc.) that
 // import it via the tools barrel.
@@ -39,6 +44,11 @@ const ALL_TOOLS: ToolDef<any>[] = [
   ...sequenceTools,
   ...automationTools,
   ...couponTools,
+  ...productTools,
+  ...subscriptionTools,
+  ...transactionTools,
+  ...emailTemplateTools,
+  ...emailLogTools,
 ];
 
 // Lifecycle events fired by the wrapped execute — surfaced to the chat UI
