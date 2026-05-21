@@ -6,6 +6,7 @@ import { requireAccess } from "../../../../../lib/permissions";
 import { extractSlotsFromPageJson } from "../../../../../lib/page-templates/slots";
 import { fillSlotsInPageJson } from "../../../../../lib/page-templates/slot-filler";
 import { fillSlotsWithAI } from "../../../../../lib/page-templates/ai-fill";
+import { generateSampleSlotValues } from "../../../../../lib/page-templates/sample-fill";
 
 // POST /api/funnel-steps/:id/apply-template
 //   body: { templateId, brief? }
@@ -27,7 +28,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const r = await requireAccess("funnels:write");
     if (!r.ok) return r.response;
+    const { permissions, isOwner } = r;
     const body = schema.parse(await req.json());
+
+    // AI slot-filling burns LLM tokens — gated separately by `ai:use` (same
+    // permission as the chat widget). Required ONLY when the caller asks
+    // for AI fill (brief present). Raw apply (no brief) needs only funnels:write.
+    if (body.brief && !isOwner && !permissions.includes("ai:use")) {
+      return err("You don't have permission to use AI features.", 403);
+    }
 
     const step = await db.funnelStep.findUnique({
       where: { id },
@@ -58,22 +67,34 @@ export async function POST(req: NextRequest, { params }: Params) {
     let aiFilled = false;
     let aiSkipReason: string | null = null;
 
+    // Slot-fill strategy:
+    //   1. Has brief + AI configured → real AI fill (best quality)
+    //   2. AI fails OR no brief OR user lacks ai:use → sample-data fill
+    //      (good-enough placeholders so the page is editable instead of
+    //      showing literal `{{slot}}` text)
+    // The page always lands with editable content — operators tweak in
+    // the page editor after applying.
     const slots = extractSlotsFromPageJson(pageJson);
-    if (slots.length > 0 && body.brief) {
-      try {
-        const values = await fillSlotsWithAI({
-          workspaceId: step.funnel.workspaceId,
-          slots,
-          brief: { industry: body.brief },
-        });
-        pageJson = fillSlotsInPageJson(pageJson, values);
-        aiFilled = true;
-      } catch (e) {
-        // Common case: workspace AI not configured. Fall through to raw paste.
-        aiSkipReason = (e as Error)?.message ?? "ai_fill_failed";
+    if (slots.length > 0) {
+      if (body.brief) {
+        try {
+          const values = await fillSlotsWithAI({
+            workspaceId: step.funnel.workspaceId,
+            slots,
+            brief: { industry: body.brief },
+          });
+          pageJson = fillSlotsInPageJson(pageJson, values);
+          aiFilled = true;
+        } catch (e) {
+          // AI not configured / key invalid / quota → fall through to samples
+          aiSkipReason = (e as Error)?.message ?? "ai_fill_failed";
+          pageJson = fillSlotsInPageJson(pageJson, generateSampleSlotValues(slots));
+        }
+      } else {
+        // No brief (or no ai:use perm — caller passed nothing) → samples
+        aiSkipReason = "no_brief";
+        pageJson = fillSlotsInPageJson(pageJson, generateSampleSlotValues(slots));
       }
-    } else if (slots.length > 0) {
-      aiSkipReason = "no_brief";
     }
 
     await db.funnelStep.update({

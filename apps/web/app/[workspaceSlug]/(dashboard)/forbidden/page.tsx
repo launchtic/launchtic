@@ -20,7 +20,7 @@ type Props = {
 // Human-friendly labels for permission keys. Keep in sync with seed-roles.ts
 // + RolesPanel categories. Falls back to the raw key when missing.
 const PERMISSION_LABELS: Record<string, string> = {
-  "ai:use":                           "use the AI Assistant",
+  "ai:use":                           "use AI features (chat, auto-fill, generation)",
   "funnels:read":                     "view funnels",
   "funnels:write":                    "create or edit funnels",
   "funnels:delete":                   "delete funnels",

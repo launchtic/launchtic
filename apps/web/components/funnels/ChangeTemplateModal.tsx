@@ -6,6 +6,7 @@ import {
   FileText, TrendingUp, ShoppingCart, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { useRole } from "../../lib/role";
 
 const PAGE_SIZE = 24; // 3 cols × 8 rows — fits the modal viewport without crowding.
 
@@ -63,6 +64,8 @@ export default function ChangeTemplateModal({
   onClose: () => void;
   onApplied: () => void;
 }) {
+  const { canUseAi } = useRole();
+
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -72,9 +75,11 @@ export default function ChangeTemplateModal({
   const [selected, setSelected] = useState<Template | null>(null);
   const [applying, setApplying] = useState(false);
   const [confirmStep, setConfirmStep] = useState(false);
-  // AI fill: only relevant when the picked template has slots. Default ON
-  // because skipping it would leave literal {{slot}} placeholders on the page.
-  const [aiFill, setAiFill] = useState(true);
+  // AI fill: only relevant when the picked template has slots AND the user
+  // has `ai:use` permission. Default ON for permitted users (skipping would
+  // leave literal {{slot}} placeholders on the page); forced OFF and hidden
+  // for users without ai:use.
+  const [aiFill, setAiFill] = useState(canUseAi);
   const [brief, setBrief] = useState(funnelName?.trim() ?? "");
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,7 +134,11 @@ export default function ChangeTemplateModal({
     fetchTemplates(search, next, true);
   }
 
-  const showAiPanel = !!selected && selected.slotCount > 0;
+  // Show AI panel only if user has `ai:use` permission. Users without it
+  // never see the auto-fill UI; their apply request sends no brief and the
+  // server falls back to sample-data fill (good-enough placeholders) so
+  // the page is editable instead of showing literal `{{slot}}` text.
+  const showAiPanel = canUseAi && !!selected && selected.slotCount > 0;
   const wantsAiFill = showAiPanel && aiFill && brief.trim().length > 0;
 
   async function handleApply() {
@@ -255,7 +264,9 @@ export default function ChangeTemplateModal({
           )}
         </div>
 
-        {/* AI fill panel — only when picked template has slots */}
+        {/* AI fill panel — only when picked template has slots AND user has ai:use.
+            Users without ai:use don't see this panel; the server applies the
+            template with sample-data fill instead. */}
         {showAiPanel && (
           <div className="px-6 py-3 border-t border-gray-100 bg-gradient-to-b from-violet-50/40 to-white shrink-0">
             <label className="flex items-center gap-2 cursor-pointer select-none">

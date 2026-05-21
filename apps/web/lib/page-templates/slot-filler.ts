@@ -4,7 +4,10 @@
 
 const SLOT_REGEX = /\{\{(\w{1,60})\}\}/g;
 
-const STRING_PROP_KEYS = ["text", "subText", "linkUrl"] as const;
+// Keep in sync with slots.ts extractor — `alt` was missing here, so slots
+// extracted from top-level `props.alt` would never be filled (they'd stay
+// as literal `{{slot}}`). Affected both AI fill and sample fill.
+const STRING_PROP_KEYS = ["text", "subText", "linkUrl", "alt"] as const;
 
 function replaceInString(str: unknown, values: Record<string, string>): string | unknown {
   if (typeof str !== "string") return str;

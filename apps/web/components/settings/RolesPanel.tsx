@@ -22,12 +22,6 @@ type Role = {
 // custom role would contradict that.
 const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: string }[] }[] = [
   {
-    label: "AI Assistant",
-    perms: [
-      { key: "ai:use", label: "Use the AI Assistant (chat widget)" },
-    ],
-  },
-  {
     label: "Funnels & Pages",
     perms: [
       { key: "funnels:read",   label: "View funnels and pages" },
@@ -135,6 +129,15 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
       { key: "media:read",   label: "View media library" },
       { key: "media:upload", label: "Upload media files" },
       { key: "media:delete", label: "Delete media files" },
+    ],
+  },
+  {
+    label: "AI Features",
+    perms: [
+      {
+        key:   "ai:use",
+        label: "Use all AI features — chat assistant, template auto-fill, copy generation",
+      },
     ],
   },
   {
