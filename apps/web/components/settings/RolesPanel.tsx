@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Loader2, Plus, Trash2, Edit2, Shield, X, Check, Users } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
+import { useConfirm } from "../ui/ConfirmDialog";
+import { useToast } from "../ui/Toast";
 
 type Role = {
   id:          string;
@@ -19,12 +21,6 @@ type Role = {
 // OWNER-only (granted via Organization.ownerId bypass). Granting them via a
 // custom role would contradict that.
 const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: string }[] }[] = [
-  {
-    label: "Dashboard",
-    perms: [
-      { key: "dashboard:read", label: "View dashboard metrics" },
-    ],
-  },
   {
     label: "Funnels & Pages",
     perms: [
@@ -202,6 +198,9 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
 
 export default function RolesPanel() {
   const { canManageRoles } = useRole();
+  // useConfirm() returns the confirm function directly (not a {confirm} object).
+  const confirm = useConfirm();
+  const toast   = useToast();
 
   const [roles, setRoles]     = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,15 +216,24 @@ export default function RolesPanel() {
 
   async function handleDelete(role: Role) {
     if (role.memberCount > 0) {
-      alert(`Reassign the ${role.memberCount} member(s) using this role first.`);
+      toast.warning(
+        `Cannot delete "${role.name}" — ${role.memberCount} member(s) still use this role. Reassign them first.`,
+      );
       return;
     }
-    if (!confirm(`Delete role "${role.name}"?`)) return;
+    const ok = await confirm({
+      title:        `Delete role "${role.name}"?`,
+      description:  "This permanently removes the role. Members assigned to it will need a new role.",
+      confirmLabel: "Delete role",
+      variant:      "danger",
+    });
+    if (!ok) return;
 
     const res  = await apiFetch(`/api/roles/${role.id}`, { method: "DELETE" });
     const json = await res.json();
-    if (!res.ok) { alert(json.error ?? "Failed to delete role"); return; }
+    if (!res.ok) { toast.error(json.error ?? "Failed to delete role"); return; }
     setRoles((prev) => prev.filter((r) => r.id !== role.id));
+    toast.success(`Role "${role.name}" deleted.`);
   }
 
   function handleSaved(saved: Role) {

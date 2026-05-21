@@ -63,7 +63,10 @@ function activeChildHref(children: NavLink[], pathname: string): string | null {
 // Settings has no requirePerm because its sub-tabs filter individually (Profile
 // is always available even to Viewer).
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard, requirePerm: "dashboard:read" },
+  // Dashboard has no requirePerm — every workspace member sees it. The
+  // dashboard itself filters cards by per-resource permissions (Designer
+  // sees no Revenue/Orders/Contacts cards but still gets the page shell).
+  { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard },
   { href: "/funnels",     label: "Funnels",            icon: Zap,             requirePerm: "funnels:read"   },
   {
     label: "Sales",

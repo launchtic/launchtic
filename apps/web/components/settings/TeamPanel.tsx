@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Loader2, Plus, Trash2, Crown, X, Copy, Check, AlertTriangle } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { useConfirm } from "../ui/ConfirmDialog";
+import { useToast } from "../ui/Toast";
 
 type Role = {
   id:          string;
@@ -81,6 +83,8 @@ export default function TeamPanel({
 }) {
   const params = useParams<{ workspaceSlug: string }>();
   const workspaceSlug = params?.workspaceSlug ?? "";
+  const confirm = useConfirm();
+  const toast   = useToast();
 
   const [members, setMembers] = useState<Member[]>(initialMembers);
   const [roles, setRoles]     = useState<Role[]>([]);
@@ -155,26 +159,36 @@ export default function TeamPanel({
     });
     const json = await res.json();
     setChangingRole(null);
-    if (!res.ok) { alert(json.error ?? "Failed to change role"); return; }
+    if (!res.ok) { toast.error(json.error ?? "Failed to change role"); return; }
     setMembers((prev) =>
       prev.map((m) => m.userId === member.userId
         ? { ...m, roleId: json.data.roleId, role: json.data.role }
         : m
       )
     );
+    toast.success(`${member.user.name ?? member.user.email}'s role updated to ${json.data.role.name}.`);
   }
 
   // ── Remove ──────────────────────────────────────────────
   const [removing, setRemoving] = useState<string | null>(null);
 
   async function handleRemove(member: Member) {
-    if (!confirm(`Remove ${member.user.name ?? member.user.email} from this workspace?`)) return;
+    const displayName = member.user.name ?? member.user.email;
+    const ok = await confirm({
+      title:        `Remove ${displayName}?`,
+      description:  "They'll lose access to this workspace immediately. Their account isn't deleted — you can re-invite them later.",
+      confirmLabel: "Remove member",
+      variant:      "danger",
+    });
+    if (!ok) return;
+
     setRemoving(member.userId);
     const res  = await apiFetch(`/api/team/${member.userId}`, { method: "DELETE" });
     const json = await res.json();
     setRemoving(null);
-    if (!res.ok) { alert(json.error ?? "Failed to remove member"); return; }
+    if (!res.ok) { toast.error(json.error ?? "Failed to remove member"); return; }
     setMembers((prev) => prev.filter((m) => m.userId !== member.userId));
+    toast.success(`${displayName} removed from the workspace.`);
   }
 
   function canEditMember(member: Member): boolean {

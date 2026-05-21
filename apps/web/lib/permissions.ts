@@ -36,9 +36,6 @@ import { db } from "@launchtic/database";
 import { err } from "./api";
 
 export type Permission =
-  // ── Dashboard ──
-  | "dashboard:read"
-
   // ── Funnels & Pages (includes steps, plans, bumps, domains, saved blocks) ──
   | "funnels:read"
   | "funnels:write"
@@ -147,7 +144,6 @@ export type Permission =
 
 /** All permissions — used to fill in the bypass return for organization owner. */
 export const ALL_PERMISSIONS: Permission[] = [
-  "dashboard:read",
   "funnels:read", "funnels:write", "funnels:delete",
   "products:read", "products:write", "products:delete",
   "orders:read", "orders:refund",

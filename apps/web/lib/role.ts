@@ -25,7 +25,8 @@ export function useRole() {
 
     // ─── Domain shortcuts (granular per resource/action) ────────────────
 
-    // Funnels
+    // Funnels (dashboard intentionally has no helper — page is always
+    // accessible; cards inside self-gate on their underlying resource perm)
     canReadFunnels:        hasPermission("funnels:read"),
     canManageFunnels:      hasPermission("funnels:write"),
     canDeleteFunnels:      hasPermission("funnels:delete"),
