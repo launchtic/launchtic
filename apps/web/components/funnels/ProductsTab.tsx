@@ -221,9 +221,10 @@ function getResourceLabel(r: StepResource, allTags: WorkspaceTag[]): string {
   return "Course";
 }
 
-function ResourcesSection({ resources, allTags, onToggle, saving }: {
+function ResourcesSection({ resources, allTags, onToggle, saving, perm }: {
   resources: StepResource[]; allTags: WorkspaceTag[];
   onToggle: (type: string, resourceId: string) => void; saving: boolean;
+  perm: CrossDomainPerm;
 }) {
   const slug = (useParams().workspaceSlug) as string;
   const [showAdd, setShowAdd]   = useState(false);
@@ -321,9 +322,13 @@ function ResourcesSection({ resources, allTags, onToggle, saving }: {
             {type === "TAG" && (
               availableTags.length === 0 ? (
                 <p className="flex-1 text-xs text-gray-400 flex items-center">
-                  {allTags.length === 0
-                    ? <><a href={`/${slug}/contacts`} className="underline text-blue-600">Create tags</a>&nbsp;first.</>
-                    : "All tags already added."}
+                  {!perm.canReadTags
+                    ? <>No permission to view tags — ask admin for <code className="font-mono bg-gray-100 px-1 rounded">tags:read</code>.</>
+                    : allTags.length === 0
+                      ? (perm.canManageTags
+                          ? <><a href={`/${slug}/contacts`} className="underline text-blue-600">Create tags</a>&nbsp;first.</>
+                          : <>No tags exist yet — ask admin to create one.</>)
+                      : "All tags already added."}
                 </p>
               ) : (
                 <select
@@ -498,10 +503,11 @@ function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, m
 
 // ─── CouponsSection ───────────────────────────────────────────────────────────
 
-function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCouponsChange }: {
+function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCouponsChange, perm }: {
   stepId: string; allCoupons: Coupon[]; stepCouponIds: string[];
   currency: string;
   onCouponsChange: (ids: string[]) => void;
+  perm: CrossDomainPerm;
 }) {
   const slug = (useParams().workspaceSlug) as string;
   const [saving, setSaving]       = useState(false);
@@ -546,12 +552,19 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
           )}
           {saving && <Loader2 size={12} className="animate-spin text-gray-400" />}
         </div>
-        <a href={`/${slug}/coupons`} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700">
-          Manage <ExternalLink size={11} />
-        </a>
+        {/* "Manage" link goes to /coupons — hide if user can't read the list
+            (the page itself would 403). Show as plain disabled text instead
+            so the section still feels complete. */}
+        {perm.canReadCoupons ? (
+          <a href={`/${slug}/coupons`} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700">
+            Manage <ExternalLink size={11} />
+          </a>
+        ) : null}
       </div>
       <p className="text-xs text-gray-400 mb-3">
-        Customers can apply these codes at checkout on this step.
+        {perm.canReadCoupons
+          ? "Customers can apply these codes at checkout on this step."
+          : <>You can&apos;t see the coupon catalog. Ask admin for <code className="font-mono bg-gray-100 px-1 rounded">coupons:read</code>.</>}
       </p>
       <div className="space-y-2">
         {assigned.map((coupon) => (
@@ -583,7 +596,7 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
           </div>
         ))}
 
-        {unassigned.length > 0 && !showPicker && (
+        {unassigned.length > 0 && !showPicker && perm.canReadCoupons && (
           <button
             onClick={() => setShowPicker(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 border border-dashed border-blue-300 rounded-xl hover:bg-blue-50 w-full"
@@ -622,8 +635,16 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
         {assigned.length === 0 && !showPicker && allCoupons.length === 0 && (
           <div className="bg-white rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center py-5 text-center">
             <Ticket size={18} className="text-gray-300 mb-1.5" />
-            <p className="text-xs text-gray-500">No coupons yet</p>
-            <a href={`/${slug}/coupons`} className="text-xs text-blue-600 hover:underline mt-0.5">Create coupons →</a>
+            <p className="text-xs text-gray-500">
+              {perm.canReadCoupons ? "No coupons yet" : "Coupon catalog hidden"}
+            </p>
+            {perm.canReadCoupons && perm.canManageCoupons ? (
+              <a href={`/${slug}/coupons`} className="text-xs text-blue-600 hover:underline mt-0.5">Create coupons →</a>
+            ) : perm.canReadCoupons ? (
+              <p className="text-xs text-gray-400 mt-0.5">Ask admin to create one.</p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-0.5">Need <code className="font-mono bg-gray-100 px-1 rounded">coupons:read</code>.</p>
+            )}
           </div>
         )}
       </div>
@@ -633,11 +654,12 @@ function CouponsSection({ stepId, allCoupons, stepCouponIds, currency, onCoupons
 
 // ─── OrderBumpCard ────────────────────────────────────────────────────────────
 
-function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, stepPhysicalProductId, onUpdate, onDelete }: {
+function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, stepPhysicalProductId, onUpdate, onDelete, perm }: {
   stepId: string; bump: OrderBump; currency: string; allTags: WorkspaceTag[];
   physicalProducts: PhysicalProduct[]; stepPhysicalProductId: string | null;
   onUpdate: (updated: OrderBump) => void;
   onDelete: () => void;
+  perm: CrossDomainPerm;
 }) {
   const slug = (useParams().workspaceSlug) as string;
   const confirm = useConfirm();
@@ -849,13 +871,25 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
           {bump.offerType === "PHYSICAL" && (
             <div className="space-y-3">
               {(() => {
+                if (!perm.canReadProducts) {
+                  return (
+                    <p className="text-sm text-amber-600">
+                      No permission to view products. Ask admin for <code className="font-mono text-xs bg-amber-50 px-1 py-0.5 rounded">products:read</code>.
+                    </p>
+                  );
+                }
                 const eligible = physicalProducts.filter(
                   (p) => p.id !== stepPhysicalProductId && p.currency.toLowerCase() === currency.toLowerCase(),
                 );
                 if (eligible.length === 0) {
                   return (
                     <p className="text-sm text-amber-600">
-                      No {currency.toUpperCase()} products available. <a href={`/${slug}/physical-products`} className="underline font-medium">Create one</a> in the funnel currency.
+                      No {currency.toUpperCase()} products available.{" "}
+                      {perm.canManageProducts ? (
+                        <><a href={`/${slug}/physical-products`} className="underline font-medium">Create one</a> in the funnel currency.</>
+                      ) : (
+                        <>Ask admin to create one.</>
+                      )}
                     </p>
                   );
                 }
@@ -898,6 +932,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
             <ResourcesSection
               resources={bump.resources} allTags={allTags}
               onToggle={toggleResource} saving={savingRes}
+              perm={perm}
             />
           )}
 
@@ -917,11 +952,12 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
 
 // ─── OrderBumpsSection ────────────────────────────────────────────────────────
 
-function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts, stepPhysicalProductId, onBumpsChange }: {
+function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts, stepPhysicalProductId, onBumpsChange, perm }: {
   stepId: string; bumps: OrderBump[]; currency: string;
   allTags: WorkspaceTag[]; physicalProducts: PhysicalProduct[];
   stepPhysicalProductId: string | null;
   onBumpsChange: (bumps: OrderBump[]) => void;
+  perm: CrossDomainPerm;
 }) {
   const [adding, setAdding]   = useState(false);
   const [newName, setNewName] = useState("");
@@ -1007,6 +1043,7 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
               stepPhysicalProductId={stepPhysicalProductId}
               onUpdate={(updated) => onBumpsChange(bumps.map((b) => (b.id === bump.id ? updated : b)))}
               onDelete={() => onBumpsChange(bumps.filter((b) => b.id !== bump.id))}
+              perm={perm}
             />
           ))}
         </div>
@@ -1017,10 +1054,36 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
+// Permission flags pulled from useRole + observed API status codes. Passed
+// down to subcomponents so they can render honest empty states:
+//   - "no data" → show normal "Create one" CTA (if user can create)
+//   - "no read perm" → show "Ask admin for X:read" instead of empty list
+//   - "no write perm" → hide the "Create one" CTA (it'd 403)
+export type CrossDomainPerm = {
+  // Cross-domain READ — derived from API response status (403 → false).
+  // Optimistic default true; flipped to false in fetchData when status === 403.
+  canReadProducts: boolean;
+  canReadTags:     boolean;
+  canReadCoupons:  boolean;
+  // Cross-domain WRITE — from useRole(). Decides whether to show "Create"
+  // links/buttons that lead to the products/tags/coupons pages.
+  canManageProducts: boolean;
+  canManageTags:     boolean;
+  canManageCoupons:  boolean;
+};
+
 export default function ProductsTab({ stepId }: { stepId: string }) {
   const params = useParams();
   const slug = params.workspaceSlug as string;
-  const { canManageFunnels } = useRole();
+  const {
+    canManageFunnels,
+    canReadProducts:   roleReadProducts,
+    canManageProducts,
+    canReadTags:       roleReadTags,
+    canManageTags,
+    canReadCoupons:    roleReadCoupons,
+    canManageCoupons,
+  } = useRole();
   const [offerType, setOfferType]               = useState<"DIGITAL" | "PHYSICAL" | null>(null);
   const [funnelCurrency, setFunnelCurrency]     = useState<string>("usd");
   const [physicalProductId, setPhysicalProductId] = useState<string | null>(null);
@@ -1034,35 +1097,73 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   const [stepCouponIds, setStepCouponIds]       = useState<string[]>([]);
   const [loading, setLoading]                   = useState(true);
 
+  // Start optimistic — flipped to false below if any of the cross-domain
+  // GETs come back 403. Useful for users with funnels:write but missing
+  // products:read / tags:read / coupons:read.
+  const [readPerm, setReadPerm] = useState({
+    products: roleReadProducts,
+    tags:     roleReadTags,
+    coupons:  roleReadCoupons,
+  });
+
   const [savingOfferType, setSavingOfferType]   = useState(false);
   const [savingResources, setSavingResources]   = useState(false);
   const [savingPlan, setSavingPlan]             = useState(false);
 
   const fetchData = useCallback(async () => {
+    // Keep the parallel fetch but defer .json() so we can read .status first.
+    // 403 from a cross-domain read isn't an error — it tells us the user
+    // can edit funnels but can't see products/tags/coupons. Surface that
+    // in `readPerm` so empty states can be honest.
     const [stepRes, plansRes, productsRes, tagsRes, couponsRes, resourcesRes, bumpsRes] = await Promise.all([
-      apiFetch(`/api/funnel-steps/${stepId}`).then((r) => r.json()),
-      apiFetch(`/api/funnel-steps/${stepId}/price-plans`).then((r) => r.json()),
-      apiFetch("/api/physical-products").then((r) => r.json()),
-      apiFetch("/api/tags").then((r) => r.json()),
-      apiFetch("/api/coupons").then((r) => r.json()),
-      apiFetch(`/api/funnel-steps/${stepId}/resources`).then((r) => r.json()),
-      apiFetch(`/api/funnel-steps/${stepId}/order-bumps`).then((r) => r.json()),
+      apiFetch(`/api/funnel-steps/${stepId}`),
+      apiFetch(`/api/funnel-steps/${stepId}/price-plans`),
+      apiFetch("/api/physical-products"),
+      apiFetch("/api/tags"),
+      apiFetch("/api/coupons"),
+      apiFetch(`/api/funnel-steps/${stepId}/resources`),
+      apiFetch(`/api/funnel-steps/${stepId}/order-bumps`),
     ]);
 
-    const step = stepRes.data ?? stepRes;
+    setReadPerm({
+      products: productsRes.status !== 403,
+      tags:     tagsRes.status !== 403,
+      coupons:  couponsRes.status !== 403,
+    });
+
+    const stepJson  = await stepRes.json();
+    const plansJson = await plansRes.json();
+    // For the cross-domain reads: if 403, keep state as empty array; the
+    // empty-state render path now handles the no-perm message itself.
+    const productsJson = productsRes.status === 403 ? [] : await productsRes.json();
+    const tagsJson     = tagsRes.status     === 403 ? [] : await tagsRes.json();
+    const couponsJson  = couponsRes.status  === 403 ? [] : await couponsRes.json();
+    const resourcesJson = await resourcesRes.json();
+    const bumpsJson     = await bumpsRes.json();
+
+    const step = stepJson.data ?? stepJson;
     setOfferType(step.offerType ?? null);
     setFunnelCurrency(step.funnel?.currency ?? "usd");
     setPhysicalProductId(step.physicalProductId ?? null);
     setStepCouponIds(step.couponIds ?? []);
     setShippingFee(((step.shippingFee ?? 0) / 100).toString());
-    setPlans(Array.isArray(plansRes) ? plansRes : []);
-    setPhysicalProducts(Array.isArray(productsRes) ? productsRes : []);
-    setAllTags(Array.isArray(tagsRes) ? tagsRes : (tagsRes.data ?? []));
-    setAllCoupons(Array.isArray(couponsRes) ? couponsRes : []);
-    setResources(Array.isArray(resourcesRes) ? resourcesRes : []);
-    setOrderBumps(Array.isArray(bumpsRes) ? bumpsRes : []);
+    setPlans(Array.isArray(plansJson) ? plansJson : []);
+    setPhysicalProducts(Array.isArray(productsJson) ? productsJson : []);
+    setAllTags(Array.isArray(tagsJson) ? tagsJson : (tagsJson.data ?? []));
+    setAllCoupons(Array.isArray(couponsJson) ? couponsJson : []);
+    setResources(Array.isArray(resourcesJson) ? resourcesJson : []);
+    setOrderBumps(Array.isArray(bumpsJson) ? bumpsJson : []);
     setLoading(false);
   }, [stepId]);
+
+  const perm: CrossDomainPerm = {
+    canReadProducts:   readPerm.products,
+    canReadTags:       readPerm.tags,
+    canReadCoupons:    readPerm.coupons,
+    canManageProducts,
+    canManageTags,
+    canManageCoupons,
+  };
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -1178,9 +1279,18 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
         return (
         <div>
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Physical Product</h3>
-          {eligible.length === 0 ? (
+          {!perm.canReadProducts ? (
             <p className="text-sm text-amber-600">
-              No {funnelCurrency.toUpperCase()} products available. <a href={`/${slug}/physical-products`} className="underline font-medium">Create one</a> in the funnel currency.
+              You don&apos;t have permission to view products. Ask your admin for <code className="font-mono text-xs bg-amber-50 px-1 py-0.5 rounded">products:read</code>.
+            </p>
+          ) : eligible.length === 0 ? (
+            <p className="text-sm text-amber-600">
+              No {funnelCurrency.toUpperCase()} products available.{" "}
+              {perm.canManageProducts ? (
+                <><a href={`/${slug}/physical-products`} className="underline font-medium">Create one</a> in the funnel currency.</>
+              ) : (
+                <>Ask your admin to create one in the funnel currency.</>
+              )}
             </p>
           ) : (
             <select
@@ -1227,6 +1337,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
           <ResourcesSection
             resources={resources} allTags={allTags}
             onToggle={toggleResource} saving={savingResources}
+            perm={perm}
           />
 
           <PricePlansSection
@@ -1246,6 +1357,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
             stepCouponIds={stepCouponIds}
             currency={funnelCurrency}
             onCouponsChange={(ids) => setStepCouponIds(ids)}
+            perm={perm}
           />
         </div>
       )}
@@ -1261,6 +1373,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
             physicalProducts={physicalProducts}
             stepPhysicalProductId={physicalProductId}
             onBumpsChange={setOrderBumps}
+            perm={perm}
           />
         </div>
       )}

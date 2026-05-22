@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { defineTool, type ToolContext } from "./define";
-import { findOrCreateTag } from "./helpers";
+import { findOrCreateTag, findOrSkipTag } from "./helpers";
 import { resolveContactLabel, resolveTagLabel } from "./resolvers";
 
 // ─── Reads ──────────────────────────────────────────────────────────────────
@@ -191,9 +191,16 @@ const createContact = defineTool({
         },
       });
 
+      // Graceful skip: contact still gets created even if user lacks
+      // tags:write — unresolvable tag names are surfaced in `skipped.tags`.
       const tagsCreated: string[] = [];
+      const skippedTags: string[] = [];
       for (const tagName of args.tagNames ?? []) {
-        const tagId = await findOrCreateTag(tagName, ctx);
+        const tagId = await findOrSkipTag(tagName, ctx);
+        if (!tagId) {
+          skippedTags.push(tagName.trim());
+          continue;
+        }
         await tx.contactTag.create({ data: { contactId: contact.id, tagId } });
         tagsCreated.push(tagName);
       }
@@ -202,6 +209,7 @@ const createContact = defineTool({
         contactId: contact.id,
         email: contact.email,
         tagsApplied: tagsCreated,
+        skipped: { tags: skippedTags },
       };
     });
   },

@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { defineTool } from "./define";
-import { findOrCreateTag, getDefaultSender, richBodyToMailyDoc, textToMailyDoc, type RichEmailBody } from "./helpers";
+import { findOrSkipTag, getDefaultSender, richBodyToMailyDoc, textToMailyDoc, type RichEmailBody } from "./helpers";
 import { broadcastQueue, dispatchJobId } from "../../queue";
 
 const MIN_LEAD_TIME_MS = 10 * 60_000;
@@ -244,13 +244,26 @@ const createBroadcastFromSpec = defineTool({
   execute: async (args, ctx) => {
     const sender = await getDefaultSender(ctx);
 
+    // Graceful skip: tag names that don't exist + user lacks tags:write
+    // are dropped from the audience list. If ZERO tags resolve, we throw —
+    // a TAG broadcast with empty audience is meaningless. If at least one
+    // resolves, the broadcast goes out to that subset and we report the
+    // skipped tags in the result.
     const targetTagIds: string[] = [];
+    const skippedTags:  string[] = [];
     if (args.audience.type === "TAG") {
       for (const tagName of args.audience.tagNames ?? []) {
-        const id = await findOrCreateTag(tagName, ctx);
-        targetTagIds.push(id);
+        const id = await findOrSkipTag(tagName, ctx);
+        if (id) targetTagIds.push(id);
+        else    skippedTags.push(tagName.trim());
       }
-      if (targetTagIds.length === 0) throw new Error("TAG audience requires at least one tag");
+      if (targetTagIds.length === 0) {
+        throw new Error(
+          skippedTags.length > 0
+            ? `TAG audience requires at least one tag that exists. All requested tags (${skippedTags.join(", ")}) don't exist yet, and the user lacks "tags:write" to create them. Suggest list_tags to pick from existing ones.`
+            : "TAG audience requires at least one tag",
+        );
+      }
     }
 
     // Validate scheduledAt + SMTP BEFORE creating row, so we don't leave
@@ -299,6 +312,7 @@ const createBroadcastFromSpec = defineTool({
       status: broadcast.status,
       scheduledAt: scheduledAt?.toISOString() ?? null,
       scheduleBumped,
+      skipped: { tags: skippedTags },
       message: status === "SCHEDULED"
         ? `Broadcast SCHEDULED${scheduleBumped ? " (bumped to ~11 min from now to satisfy minimum lead time)" : ""}. [Open in editor](/${ctx.workspaceSlug}/emails/broadcasts/${broadcast.id}) if you want to review.`
         : `Broadcast saved as DRAFT. [Open in editor](/${ctx.workspaceSlug}/emails/broadcasts/${broadcast.id}) to review and schedule.`,

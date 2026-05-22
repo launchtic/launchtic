@@ -28,9 +28,48 @@ export function slugify(s: string): string {
 }
 
 // ─── Find-or-create primitives ──────────────────────────────────────────────
+//
+// PERMISSION CASCADE (Pattern C — Hybrid):
+//
+// Composite tools (create_funnel_from_spec, add_funnel_step grantTagNames,
+// create_broadcast TAG audience, create_contact tagNames, …) used to silently
+// create Tags/Products via these helpers, gated only by the OUTER tool's
+// permission (funnels:write / broadcasts:write / contacts:write). That was
+// silent privilege escalation: a Marketer with `funnels:write` but NOT
+// `tags:write` could create new tags by typing them as a "grant on purchase"
+// — bypassing the admin's intent to lock tag creation.
+//
+// Fix: when the resource doesn't already exist, the helper now checks the
+// SUB-permission (tags:write / products:write) before creating. Missing →
+// throw a clear error so the LLM can tell the user "use an existing tag, or
+// ask admin for tags:write". Existing resources are still returned freely —
+// no need for read perms to *reference* known names.
+//
+// Owner bypasses both checks (same shortcut as everywhere else).
 
-// Tag — case-insensitive workspace-scoped match. Used by AI when user says
-// "tag with 'vip'" to reuse existing tags instead of creating duplicates.
+function hasPermission(ctx: ToolContext, perm: string): boolean {
+  return ctx.isOwner || ctx.permissions.includes(perm);
+}
+
+// Two helper variants per resource:
+//
+//   findOrCreate*  → THROWS when user lacks the sub-perm. Use when the tool's
+//                    core purpose IS the create (grant_tag_on_purchase,
+//                    bulk_tag_contacts) — skipping would defeat the action.
+//
+//   findOrSkip*    → returns null when user lacks the sub-perm. Use for
+//                    composite tools where the sub-resource is optional
+//                    (create_funnel_from_spec, create_contact tagNames,
+//                    add_funnel_step grantTagNames). Caller pushes the
+//                    skipped name onto a `skipped[]` array so the AI can
+//                    surface a brief postscript.
+//
+// Either way the user can REFERENCE an existing tag/product by name with
+// zero sub-perm — perm gating only kicks in when something new must be
+// inserted into the DB.
+
+// Tag — case-insensitive workspace-scoped match. Reuses existing tags by name
+// (no perm needed for reference). Creating new tag requires `tags:write`.
 export async function findOrCreateTag(name: string, ctx: ToolContext): Promise<string> {
   const trimmed = name.trim();
   const existing = await db.tag.findFirst({
@@ -38,14 +77,37 @@ export async function findOrCreateTag(name: string, ctx: ToolContext): Promise<s
     select: { id: true },
   });
   if (existing) return existing.id;
+  if (!hasPermission(ctx, "tags:write")) {
+    throw new Error(
+      `Tag "${trimmed}" doesn't exist yet, and the user's role doesn't include "tags:write". ` +
+      `Tell the user to either pick an existing tag (call list_tags to show options), or ask their admin to grant "tags:write" so new tags can be created here.`,
+    );
+  }
   const created = await db.tag.create({
     data: { workspaceId: ctx.workspaceId, name: trimmed },
   });
   return created.id;
 }
 
-// PhysicalProduct — match (name + currency). If found, returns existing id
-// (price stays — operator edits manually if needed).
+// Tag — graceful-skip variant. Returns null when (a) tag doesn't exist AND
+// (b) user lacks tags:write. Caller decides what to do with null (typically
+// push onto a `skippedTags[]` array and omit the wiring step).
+export async function findOrSkipTag(name: string, ctx: ToolContext): Promise<string | null> {
+  const trimmed = name.trim();
+  const existing = await db.tag.findFirst({
+    where: { workspaceId: ctx.workspaceId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  if (!hasPermission(ctx, "tags:write")) return null;
+  const created = await db.tag.create({
+    data: { workspaceId: ctx.workspaceId, name: trimmed },
+  });
+  return created.id;
+}
+
+// PhysicalProduct — match (name + currency). Reuses existing by name+currency
+// (no perm needed for reference). Creating new product requires `products:write`.
 export async function findOrCreatePhysicalProduct(
   input: { name: string; price: number; currency: string; sku?: string },
   ctx: ToolContext,
@@ -59,6 +121,40 @@ export async function findOrCreatePhysicalProduct(
     select: { id: true },
   });
   if (existing) return existing.id;
+  if (!hasPermission(ctx, "products:write")) {
+    throw new Error(
+      `Product "${input.name.trim()}" (${input.currency.toUpperCase()}) doesn't exist yet, and the user's role doesn't include "products:write". ` +
+      `Tell the user to either pick an existing product (call list_products to show options), or ask their admin to grant "products:write" so new products can be created here.`,
+    );
+  }
+  const created = await db.physicalProduct.create({
+    data: {
+      workspaceId: ctx.workspaceId,
+      name: input.name.trim(),
+      price: input.price,
+      currency: input.currency.toLowerCase(),
+      sku: input.sku ?? null,
+    },
+  });
+  return created.id;
+}
+
+// PhysicalProduct — graceful-skip variant. Returns null when (a) no name+currency
+// match exists AND (b) user lacks products:write.
+export async function findOrSkipPhysicalProduct(
+  input: { name: string; price: number; currency: string; sku?: string },
+  ctx: ToolContext,
+): Promise<string | null> {
+  const existing = await db.physicalProduct.findFirst({
+    where: {
+      workspaceId: ctx.workspaceId,
+      name: { equals: input.name.trim(), mode: "insensitive" },
+      currency: input.currency.toLowerCase(),
+    },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  if (!hasPermission(ctx, "products:write")) return null;
   const created = await db.physicalProduct.create({
     data: {
       workspaceId: ctx.workspaceId,

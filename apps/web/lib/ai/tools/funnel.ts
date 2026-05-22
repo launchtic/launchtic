@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { SUPPORTED_CURRENCY_CODES } from "@launchtic/types";
 import { defineTool, type ToolContext } from "./define";
-import { fmtMoney, findOrCreateTag, findOrCreatePhysicalProduct } from "./helpers";
+import { fmtMoney, findOrCreateTag, findOrCreatePhysicalProduct, findOrSkipTag, findOrSkipPhysicalProduct } from "./helpers";
 import { extractSlotsFromPageJson } from "../../page-templates/slots";
 import { fillSlotsInPageJson } from "../../page-templates/slot-filler";
 import { fillSlotsWithAI } from "../../page-templates/ai-fill";
@@ -418,7 +418,18 @@ const createFunnelFromSpec = defineTool({
 
       // 1. Resolve PhysicalProducts (find-or-create). Tx-local map by name
       //    so bumps/upsell with same product name reuse the row.
+      //
+      //    Permission cascade (Pattern C — graceful skip): user with
+      //    funnels:write but NOT products:write can REFERENCE an existing
+      //    product by name. For unknown names we SKIP product creation and
+      //    push the name onto `skippedProducts` so the AI can mention it in
+      //    the postscript. The funnel + steps still get created — checkout
+      //    step lands with physicalProductId = null and the operator wires
+      //    a real product in the editor afterward.
+      //    Owner bypasses (ctx.isOwner).
+      const canCreateProduct = ctx.isOwner || ctx.permissions.includes("products:write");
       const productIdByName = new Map<string, string>();
+      const skippedProducts: string[] = [];
       const collectPhysical = async (name: string, price: number, sku?: string) => {
         if (productIdByName.has(name)) return;
         const existing = await tx.physicalProduct.findFirst({
@@ -432,6 +443,10 @@ const createFunnelFromSpec = defineTool({
         if (existing) {
           productIdByName.set(name, existing.id);
           return;
+        }
+        if (!canCreateProduct) {
+          skippedProducts.push(name.trim());
+          return; // map.get(name) stays undefined → downstream writes null
         }
         const created = await tx.physicalProduct.create({
           data: {
@@ -459,7 +474,15 @@ const createFunnelFromSpec = defineTool({
 
       // 2. Resolve tags (find-or-create) — collect from product/bumps for
       //    direct_sale, or from leadMagnet for lead_capture.
+      //
+      //    Permission cascade (Pattern C — graceful skip): user with
+      //    funnels:write but NOT tags:write can REFERENCE existing tags.
+      //    Unknown tag names get SKIPPED and pushed to `skippedTags` for the
+      //    postscript. Downstream wiring uses `tagIdByName.get()` + `if (tagId)`
+      //    so skipped tags silently disappear from the grant set.
+      const canCreateTag = ctx.isOwner || ctx.permissions.includes("tags:write");
       const tagIdByName = new Map<string, string>();
+      const skippedTags: string[] = [];
       const allTagNames = new Set<string>(
         (isLeadCapture
           ? (args.leadMagnet?.grantTagNames ?? [])
@@ -476,6 +499,10 @@ const createFunnelFromSpec = defineTool({
         });
         if (existing) tagIdByName.set(name, existing.id);
         else {
+          if (!canCreateTag) {
+            skippedTags.push(name);
+            continue; // tagIdByName.get(name) stays undefined → wiring skips
+          }
           const created = await tx.tag.create({
             data: { workspaceId: ctx.workspaceId, name },
           });
@@ -639,6 +666,10 @@ const createFunnelFromSpec = defineTool({
       });
       stepsCreated.push({ id: thankStep.id, name: thankStep.name, type: "THANKYOU" });
 
+      // `skipped` surfaces sub-resources we couldn't create due to missing
+      // sub-perms (Pattern C graceful skip). AI surfaces these as a brief
+      // one-line postscript after the success message. Empty arrays = no
+      // skips, AI omits the postscript.
       return {
         funnelId: funnel.id,
         funnelName: funnel.name,
@@ -647,6 +678,10 @@ const createFunnelFromSpec = defineTool({
         steps: stepsCreated,
         editorUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
         tagsCreated: Array.from(tagIdByName.keys()),
+        skipped: {
+          products: skippedProducts,
+          tags:     skippedTags,
+        },
         message: `Funnel created. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id}) to customize copy + design.`,
       };
     });
@@ -718,14 +753,21 @@ const addFunnelStep = defineTool({
         throw new Error(`${args.type} DIGITAL step requires a price`);
       }
 
+      // Graceful skip: if user lacks products:write AND product doesn't
+      // exist by name+currency, physicalProductId stays null and we track
+      // the skip in `skippedProducts`. Step is still created — operator
+      // wires a real product in the editor afterward.
+      const skippedProducts: string[] = [];
+      const skippedTags:     string[] = [];
       let physicalProductId: string | null = null;
       if (requiresOffer && args.offerType === "PHYSICAL") {
         const productName = args.productName ?? args.name;
         const productPrice = args.price ?? 0;
-        physicalProductId = await findOrCreatePhysicalProduct(
+        physicalProductId = await findOrSkipPhysicalProduct(
           { name: productName, price: Math.round(productPrice * 100), currency: funnel.currency, sku: args.sku },
           ctx,
         );
+        if (!physicalProductId) skippedProducts.push(productName);
       }
 
       // Auto-position by type ordering: OPTIN < SALES < CHECKOUT < UPSELL < DOWNSELL < THANKYOU
@@ -801,7 +843,11 @@ const addFunnelStep = defineTool({
 
       if (args.grantTagNames?.length) {
         for (const tagName of args.grantTagNames) {
-          const tagId = await findOrCreateTag(tagName, ctx);
+          const tagId = await findOrSkipTag(tagName, ctx);
+          if (!tagId) {
+            skippedTags.push(tagName.trim());
+            continue;
+          }
           await tx.funnelStepResource.create({
             data: { funnelStepId: step.id, type: "TAG", resourceId: tagId },
           });
@@ -812,6 +858,7 @@ const addFunnelStep = defineTool({
         stepId: step.id,
         stepName: step.name,
         stepType: step.type,
+        skipped: { products: skippedProducts, tags: skippedTags },
         message: `Step "${step.name}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id})`,
       };
     });
@@ -857,13 +904,17 @@ const addOrderBump = defineTool({
         throw new Error(`Cannot add bump to ${step.type} step`);
       }
 
+      // Graceful skip: same pattern as add_funnel_step.
+      const skippedProducts: string[] = [];
+      const skippedTags:     string[] = [];
       let physicalProductId: string | null = null;
       if (args.offerType === "PHYSICAL") {
         const productName = args.productName ?? args.label;
-        physicalProductId = await findOrCreatePhysicalProduct(
+        physicalProductId = await findOrSkipPhysicalProduct(
           { name: productName, price: Math.round(args.price * 100), currency: step.funnel.currency, sku: args.sku },
           ctx,
         );
+        if (!physicalProductId) skippedProducts.push(productName);
       }
 
       const lastBump = await tx.orderBump.findFirst({
@@ -899,7 +950,11 @@ const addOrderBump = defineTool({
         });
         if (args.grantTagNames?.length) {
           for (const tagName of args.grantTagNames) {
-            const tagId = await findOrCreateTag(tagName, ctx);
+            const tagId = await findOrSkipTag(tagName, ctx);
+            if (!tagId) {
+              skippedTags.push(tagName.trim());
+              continue;
+            }
             await tx.orderBumpResource.create({
               data: { orderBumpId: bump.id, type: "TAG", resourceId: tagId },
             });
@@ -910,6 +965,7 @@ const addOrderBump = defineTool({
       return {
         bumpId: bump.id,
         label: bump.label,
+        skipped: { products: skippedProducts, tags: skippedTags },
         message: `Bump "${bump.label}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${step.funnel.id})`,
       };
     });
