@@ -23,7 +23,7 @@ async function verifyPlan(planId: string, bumpId: string, stepId: string, worksp
 }
 
 export async function PATCH(req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  const r = await requireAccess("funnels:bumps:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id, bumpId, planId } = await params;
@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  const r = await requireAccess("funnels:bumps:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id, bumpId, planId } = await params;

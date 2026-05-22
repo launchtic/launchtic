@@ -34,6 +34,10 @@ export function useRole() {
     canReadFunnels:        hasPermission("funnels:read"),
     canManageFunnels:      hasPermission("funnels:write"),
     canDeleteFunnels:      hasPermission("funnels:delete"),
+    // Sub-gates inside a funnel step (revenue-sensitive — see permissions.ts).
+    // Reads still come through `canReadFunnels`; these only gate writes.
+    canManagePricePlans:   hasPermission("funnels:price_plans:write"),
+    canManageBumps:        hasPermission("funnels:bumps:write"),
 
     // Products
     canReadProducts:       hasPermission("products:read"),

@@ -31,7 +31,9 @@ export async function GET(_req: NextRequest, { params }: Props) {
 }
 
 export async function POST(req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  // Bump price plans are inline to a bump — gated by the bump perm, not
+  // funnels:price_plans:write (that's for STEP price plans, the main offer).
+  const r = await requireAccess("funnels:bumps:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id, bumpId } = await params;

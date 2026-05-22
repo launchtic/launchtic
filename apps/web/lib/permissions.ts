@@ -36,10 +36,16 @@ import { db } from "@launchtic/database";
 import { err } from "./api";
 
 export type Permission =
-  // ── Funnels & Pages (includes steps, plans, bumps, domains, saved blocks) ──
+  // ── Funnels & Pages (steps, page content, slugs, domains, saved blocks) ──
+  // NOTE: revenue-sensitive sub-actions (price plans, order bumps) are gated
+  // SEPARATELY below so a designer can edit page copy + structure without
+  // changing what gets charged at checkout. `funnels:read` still covers
+  // READING bumps + price plans (they're part of viewing the funnel).
   | "funnels:read"
   | "funnels:write"
   | "funnels:delete"
+  | "funnels:price_plans:write"  // step price plans CRUD (main offer pricing)
+  | "funnels:bumps:write"        // order bump CRUD + inline price plans + resources
 
   // ── Sales: Physical Products ──
   | "products:read"
@@ -165,6 +171,7 @@ export type Permission =
 export const ALL_PERMISSIONS: Permission[] = [
   "ai:use",
   "funnels:read", "funnels:write", "funnels:delete",
+  "funnels:price_plans:write", "funnels:bumps:write",
   "products:read", "products:write", "products:delete",
   "orders:read", "orders:refund",
   "subscriptions:read", "subscriptions:cancel",

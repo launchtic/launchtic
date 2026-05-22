@@ -884,7 +884,10 @@ const addOrderBump = defineTool({
     grantTagNames: z.array(z.string()).optional(),
   }),
   requiresConfirm: true,
-  requiredPermission: "funnels:write",
+  // Bumps are revenue-sensitive — gated separately from funnels:write so a
+  // designer can build the funnel without adding upsells. Mirrors the API
+  // route gate at /api/funnel-steps/[id]/order-bumps.
+  requiredPermission: "funnels:bumps:write",
   summary: async (a, ctx) => {
     const step = await db.funnelStep.findFirst({
       where: { id: a.stepId, funnel: { workspaceId: ctx.workspaceId } },
@@ -983,7 +986,8 @@ const updateStepPricePlan = defineTool({
     amount: z.number().positive().describe("New price in dollars."),
   }),
   requiresConfirm: true,
-  requiredPermission: "funnels:write",
+  // Main offer pricing — gated by the price-plans perm (revenue-sensitive).
+  requiredPermission: "funnels:price_plans:write",
   summary: async (a, ctx) => {
     const plan = await db.stepPricePlan.findFirst({
       where: { id: a.planId, funnelStep: { funnel: { workspaceId: ctx.workspaceId } } },
@@ -1027,7 +1031,8 @@ const updateOrderBumpPrice = defineTool({
     amount: z.number().positive().describe("New price in dollars."),
   }),
   requiresConfirm: true,
-  requiredPermission: "funnels:write",
+  // Bump price → bumps perm (NOT price_plans perm — that's for the main offer).
+  requiredPermission: "funnels:bumps:write",
   summary: async (a, ctx) => {
     const plan = await db.orderBumpPricePlan.findFirst({
       where: { id: a.planId, orderBump: { funnelStep: { funnel: { workspaceId: ctx.workspaceId } } } },

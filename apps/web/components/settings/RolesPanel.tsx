@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Loader2, Plus, Trash2, Edit2, Shield, X, Check, Users } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Loader2, Plus, Trash2, Edit2, Shield, X, Check, Users, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -24,9 +24,11 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
   {
     label: "Funnels & Pages",
     perms: [
-      { key: "funnels:read",   label: "View funnels and pages" },
-      { key: "funnels:write",  label: "Create and edit funnels" },
-      { key: "funnels:delete", label: "Delete funnels" },
+      { key: "funnels:read",              label: "View funnels and pages" },
+      { key: "funnels:write",             label: "Create and edit funnels (page content, steps, slugs)" },
+      { key: "funnels:delete",            label: "Delete funnels" },
+      { key: "funnels:price_plans:write", label: "Edit step price plans (main offer pricing — revenue-sensitive)" },
+      { key: "funnels:bumps:write",       label: "Manage order bumps (add-on offers at checkout — revenue-sensitive)" },
     ],
   },
   {
@@ -360,6 +362,38 @@ function RoleEditor({
   const [perms, setPerms]             = useState<Set<string>>(new Set(initial?.permissions ?? []));
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  const [search, setSearch]           = useState("");
+  const [expanded, setExpanded]       = useState<Set<string>>(() => {
+    // Pre-expand categories that already have selections (helps when editing)
+    if (!initial) return new Set();
+    const initialPerms = new Set(initial.permissions);
+    return new Set(
+      PERMISSION_CATEGORIES
+        .filter((c) => c.perms.some((p) => initialPerms.has(p.key)))
+        .map((c) => c.label),
+    );
+  });
+
+  const totalPerms = useMemo(
+    () => PERMISSION_CATEGORIES.reduce((n, c) => n + c.perms.length, 0),
+    [],
+  );
+
+  // When searching, filter perms by label or key; show categories with any match.
+  const visibleCategories = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return PERMISSION_CATEGORIES;
+    return PERMISSION_CATEGORIES
+      .map((c) => ({
+        ...c,
+        perms: c.perms.filter(
+          (p) => p.label.toLowerCase().includes(q) || p.key.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((c) => c.perms.length > 0);
+  }, [search]);
+
+  const searching = search.trim().length > 0;
 
   function togglePerm(key: string) {
     setPerms((prev) => {
@@ -368,6 +402,41 @@ function RoleEditor({
       else               next.add(key);
       return next;
     });
+  }
+
+  function toggleCategory(cat: typeof PERMISSION_CATEGORIES[number]) {
+    setPerms((prev) => {
+      const next = new Set(prev);
+      const allSelected = cat.perms.every((p) => next.has(p.key));
+      if (allSelected) cat.perms.forEach((p) => next.delete(p.key));
+      else             cat.perms.forEach((p) => next.add(p.key));
+      return next;
+    });
+  }
+
+  function toggleExpand(label: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else                 next.add(label);
+      return next;
+    });
+  }
+
+  function applyPresetReadOnly() {
+    setPerms(new Set(
+      PERMISSION_CATEGORIES.flatMap((c) => c.perms)
+        .filter((p) => p.key.endsWith(":read"))
+        .map((p) => p.key),
+    ));
+  }
+
+  function applyPresetFullAccess() {
+    setPerms(new Set(PERMISSION_CATEGORIES.flatMap((c) => c.perms.map((p) => p.key))));
+  }
+
+  function applyPresetClear() {
+    setPerms(new Set());
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -399,7 +468,7 @@ function RoleEditor({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
@@ -443,34 +512,133 @@ function RoleEditor({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Permissions</label>
-            <div className="space-y-3">
-              {PERMISSION_CATEGORIES.map((cat) => (
-                <div key={cat.label}>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
-                    {cat.label}
-                  </p>
-                  <div className="space-y-1.5">
-                    {cat.perms.map((p) => (
-                      <label
-                        key={p.key}
-                        className="flex items-start gap-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900 group"
+            <div className="flex items-baseline justify-between mb-2">
+              <label className="block text-xs font-medium text-gray-700">Permissions</label>
+              <span className="text-[11px] text-gray-500 tabular-nums">
+                {perms.size} / {totalPerms} selected
+              </span>
+            </div>
+
+            {/* Toolbar — search + presets */}
+            <div className="space-y-2 mb-2">
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search permissions…"
+                  className="w-full pl-8 pr-8 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searching && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    title="Clear search"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-gray-500 mr-1">Presets:</span>
+                <button
+                  type="button"
+                  onClick={applyPresetReadOnly}
+                  className="text-[11px] font-medium px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Read-only
+                </button>
+                <button
+                  type="button"
+                  onClick={applyPresetFullAccess}
+                  className="text-[11px] font-medium px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Full access
+                </button>
+                <button
+                  type="button"
+                  onClick={applyPresetClear}
+                  className="text-[11px] font-medium px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
+
+            {/* Category list — collapsible accordion */}
+            <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+              {visibleCategories.length === 0 && (
+                <p className="text-xs text-gray-500 px-3 py-4 text-center">
+                  No permissions match "{search.trim()}"
+                </p>
+              )}
+              {visibleCategories.map((cat) => {
+                const selectedCount = cat.perms.reduce((n, p) => n + (perms.has(p.key) ? 1 : 0), 0);
+                const allSelected   = selectedCount === cat.perms.length;
+                const someSelected  = selectedCount > 0 && !allSelected;
+                // While searching: auto-expand to show matches. Otherwise: respect user toggle.
+                const isOpen = searching || expanded.has(cat.label);
+
+                const badgeColor =
+                  selectedCount === 0 ? "text-gray-400 bg-gray-100"
+                  : allSelected       ? "text-blue-700 bg-blue-100"
+                  :                     "text-blue-600 bg-blue-50";
+
+                return (
+                  <div key={cat.label}>
+                    <div className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(cat.label)}
+                        disabled={searching}
+                        className="flex items-center gap-1.5 flex-1 text-left disabled:cursor-default"
                       >
-                        <input
-                          type="checkbox"
-                          checked={perms.has(p.key)}
-                          onChange={() => togglePerm(p.key)}
-                          className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="flex-1">{p.label}</span>
-                        <code className="text-[10px] text-gray-400 group-hover:text-gray-600 font-mono shrink-0">
-                          {p.key}
-                        </code>
-                      </label>
-                    ))}
+                        {isOpen
+                          ? <ChevronDown  size={13} className="text-gray-400 shrink-0" />
+                          : <ChevronRight size={13} className="text-gray-400 shrink-0" />}
+                        <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                          {cat.label}
+                        </span>
+                        <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded ${badgeColor}`}>
+                          {selectedCount}/{cat.perms.length}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(cat)}
+                        className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors shrink-0"
+                      >
+                        {allSelected ? "Clear" : someSelected ? "Select rest" : "Select all"}
+                      </button>
+                    </div>
+
+                    {isOpen && (
+                      <div className="px-3 pb-2.5 pl-8 space-y-1.5 bg-gray-50/40">
+                        {cat.perms.map((p) => (
+                          <label
+                            key={p.key}
+                            className="flex items-start gap-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900 group pt-1"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={perms.has(p.key)}
+                              onChange={() => togglePerm(p.key)}
+                              className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="flex-1">{p.label}</span>
+                            <code className="text-[10px] text-gray-400 group-hover:text-gray-600 font-mono shrink-0">
+                              {p.key}
+                            </code>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </form>

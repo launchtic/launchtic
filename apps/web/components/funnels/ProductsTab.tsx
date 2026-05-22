@@ -375,7 +375,7 @@ function ResourcesSection({ resources, allTags, onToggle, saving, perm }: {
 
 // ─── PricePlansSection ────────────────────────────────────────────────────────
 
-function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, maxPlans }: {
+function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, maxPlans, canManage }: {
   plans: (StepPricePlan | OrderBumpPricePlan)[];
   currency: string;
   onAdd: (f: PlanForm) => Promise<void>;
@@ -383,6 +383,11 @@ function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, m
   onDelete: (id: string) => Promise<void>;
   saving: boolean;
   maxPlans?: number;
+  // When false, the "Add plan" button + per-row Edit/Delete buttons are hidden.
+  // Reads still render so the user sees what's configured. Mirrors the API
+  // gate (funnels:price_plans:write for step plans, funnels:bumps:write for
+  // bump-inline plans).
+  canManage: boolean;
 }) {
   const confirm = useConfirm();
   const [showAdd, setShowAdd]       = useState(false);
@@ -423,9 +428,13 @@ function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, m
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Price Plans</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Pricing options offered at checkout.</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {canManage
+              ? "Pricing options offered at checkout."
+              : <>You can&apos;t edit pricing. Ask admin for the matching write perm (<code className="font-mono bg-gray-100 px-1 rounded">funnels:price_plans:write</code> or <code className="font-mono bg-gray-100 px-1 rounded">funnels:bumps:write</code> for bumps).</>}
+          </p>
         </div>
-        {!showAdd && !editId && (maxPlans === undefined || plans.length < maxPlans) && (
+        {!showAdd && !editId && canManage && (maxPlans === undefined || plans.length < maxPlans) && (
           <button
             onClick={() => setShowAdd(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700"
@@ -448,7 +457,11 @@ function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, m
         <div className="bg-white rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center py-8 text-center">
           <Package size={24} className="text-gray-300 mb-2" />
           <p className="text-sm text-gray-500">No price plans yet</p>
-          <p className="text-xs text-gray-400 mt-0.5">Add a plan to enable checkout.</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {canManage
+              ? "Add a plan to enable checkout."
+              : "Ask admin to add one — pricing is revenue-sensitive."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -474,23 +487,25 @@ function PricePlansSection({ plans, currency, onAdd, onEdit, onDelete, saving, m
                   <span className="text-sm font-semibold text-gray-900 shrink-0">
                     {formatPrice(plan.amount, plan.currency)}
                   </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => { setEditId(plan.id); setShowAdd(false); }}
-                      className="p-1.5 text-gray-300 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(plan.id)}
-                      disabled={deletingId === plan.id}
-                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
-                    >
-                      {deletingId === plan.id
-                        ? <Loader2 size={13} className="animate-spin" />
-                        : <Trash2 size={13} />}
-                    </button>
-                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setEditId(plan.id); setShowAdd(false); }}
+                        className="p-1.5 text-gray-300 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(plan.id)}
+                        disabled={deletingId === plan.id}
+                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
+                      >
+                        {deletingId === plan.id
+                          ? <Loader2 size={13} className="animate-spin" />
+                          : <Trash2 size={13} />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -809,7 +824,7 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {!editName && (
+          {!editName && perm.canManageBumps && (
             <button
               onClick={() => setEditName(true)}
               className="p-1.5 text-gray-300 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -817,12 +832,14 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
               <Pencil size={13} />
             </button>
           )}
-          <button
-            onClick={handleDelete}
-            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg"
-          >
-            <Trash2 size={13} />
-          </button>
+          {perm.canManageBumps && (
+            <button
+              onClick={handleDelete}
+              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
           <button
             onClick={() => setExpanded((v) => !v)}
             className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -936,12 +953,15 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
             />
           )}
 
-          {/* Price plans — only for DIGITAL, PHYSICAL takes price from product */}
+          {/* Price plans — only for DIGITAL, PHYSICAL takes price from product.
+              Bump-inline price plans are gated by the BUMPS perm (not the
+              step price-plans perm — that's for the main offer). */}
           {bump.offerType === "DIGITAL" && (
             <PricePlansSection
               plans={bump.pricePlans} currency={currency}
               onAdd={addPlan} onEdit={editPlan} onDelete={deletePlan}
               saving={savingPlan} maxPlans={1}
+              canManage={perm.canManageBumps}
             />
           )}
         </div>
@@ -989,7 +1009,7 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
             </span>
           )}
         </div>
-        {!adding && bumps.length === 0 && (
+        {!adding && bumps.length === 0 && perm.canManageBumps && (
           <button
             onClick={() => setAdding(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white text-xs font-medium rounded-lg hover:bg-orange-600"
@@ -999,7 +1019,9 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
         )}
       </div>
       <p className="text-xs text-gray-400 mb-3">
-        Add-on offers shown at checkout. Customers can add them with a single click.
+        {perm.canManageBumps
+          ? "Add-on offers shown at checkout. Customers can add them with a single click."
+          : <>You can&apos;t manage order bumps. Ask admin for <code className="font-mono bg-gray-100 px-1 rounded">funnels:bumps:write</code>.</>}
       </p>
 
       {adding && (
@@ -1028,7 +1050,11 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
         <div className="bg-white rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center py-8 text-center">
           <ShoppingBag size={24} className="text-gray-300 mb-2" />
           <p className="text-sm text-gray-500">No order bumps yet</p>
-          <p className="text-xs text-gray-400 mt-0.5">Add a bump to increase average order value.</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {perm.canManageBumps
+              ? "Add a bump to increase average order value."
+              : "Ask admin to add one — bumps are revenue-sensitive."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1055,10 +1081,15 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
 // ─── Main component ──────────────────────────────────────────────────────────
 
 // Permission flags pulled from useRole + observed API status codes. Passed
-// down to subcomponents so they can render honest empty states:
+// down to subcomponents so they can render honest empty states + gate
+// write affordances:
 //   - "no data" → show normal "Create one" CTA (if user can create)
 //   - "no read perm" → show "Ask admin for X:read" instead of empty list
-//   - "no write perm" → hide the "Create one" CTA (it'd 403)
+//   - "no write perm" → hide the "Create one" / "Add" CTA (it'd 403)
+//
+// Bundles two unrelated concerns for prop-drilling convenience:
+//   (a) Cross-domain perms (tags / products / coupons)  → for picker UX
+//   (b) Sub-funnel perms (bumps, step price plans)      → for Add/Edit gates
 export type CrossDomainPerm = {
   // Cross-domain READ — derived from API response status (403 → false).
   // Optimistic default true; flipped to false in fetchData when status === 403.
@@ -1070,6 +1101,11 @@ export type CrossDomainPerm = {
   canManageProducts: boolean;
   canManageTags:     boolean;
   canManageCoupons:  boolean;
+  // Sub-funnel WRITE — revenue-sensitive (see permissions.ts).
+  // canManageBumps      → POST/PATCH/DELETE on order-bumps + their inline plans
+  // canManagePricePlans → POST/PATCH/DELETE on step price plans (main offer)
+  canManageBumps:      boolean;
+  canManagePricePlans: boolean;
 };
 
 export default function ProductsTab({ stepId }: { stepId: string }) {
@@ -1077,6 +1113,8 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   const slug = params.workspaceSlug as string;
   const {
     canManageFunnels,
+    canManagePricePlans,
+    canManageBumps,
     canReadProducts:   roleReadProducts,
     canManageProducts,
     canReadTags:       roleReadTags,
@@ -1163,6 +1201,8 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
     canManageProducts,
     canManageTags,
     canManageCoupons,
+    canManageBumps,
+    canManagePricePlans,
   };
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -1209,7 +1249,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleAddPlan(form: PlanForm) {
-    if (!canManageFunnels) return;
+    if (!canManagePricePlans) return;
     setSavingPlan(true);
     const res = await apiFetch(`/api/funnel-steps/${stepId}/price-plans`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -1227,7 +1267,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleEditPlan(id: string, form: PlanForm) {
-    if (!canManageFunnels) return;
+    if (!canManagePricePlans) return;
     setSavingPlan(true);
     const res = await apiFetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1245,7 +1285,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function handleDeletePlan(id: string) {
-    if (!canManageFunnels) return;
+    if (!canManagePricePlans) return;
     await apiFetch(`/api/funnel-steps/${stepId}/price-plans/${id}`, { method: "DELETE" });
     setPlans((prev) => prev.filter((p) => p.id !== id));
   }
@@ -1344,6 +1384,7 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
             plans={plans} currency={funnelCurrency}
             onAdd={handleAddPlan} onEdit={handleEditPlan} onDelete={handleDeletePlan}
             saving={savingPlan}
+            canManage={canManagePricePlans}
           />
         </>
       )}

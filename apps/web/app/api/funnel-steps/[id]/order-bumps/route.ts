@@ -35,7 +35,9 @@ export async function GET(_req: NextRequest, { params }: Props) {
 }
 
 export async function POST(req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  // Order bumps are revenue-sensitive — gated separately from funnels:write
+  // so a designer can build the funnel without adding upsells.
+  const r = await requireAccess("funnels:bumps:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;

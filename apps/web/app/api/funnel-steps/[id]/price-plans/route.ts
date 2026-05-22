@@ -31,7 +31,10 @@ export async function GET(_req: NextRequest, { params }: Props) {
 }
 
 export async function POST(req: NextRequest, { params }: Props) {
-  const r = await requireAccess("funnels:write");
+  // Price plans are revenue-sensitive — gated separately from funnels:write
+  // so a designer can edit page copy/structure without changing what gets
+  // charged at checkout.
+  const r = await requireAccess("funnels:price_plans:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;
   const { id } = await params;
