@@ -1,0 +1,86 @@
+// GET  /api/branding   → current branding (resolved + raw + capability flag)
+// PUT  /api/branding   → save branding patch (Owner-only + plan-gated)
+// DELETE /api/branding → reset to launchtic defaults (Owner-only)
+//
+// Org-level resource. ALL operations require Organization owner (founder),
+// not a permission. White-label is an identity-bound, billing-locked
+// decision — admins shouldn't be able to override the founder's brand even
+// with `settings:general:write`. Writes ALSO require AGENCY/CUSTOM plan.
+//
+// Reads are owner-only too for consistency (admins don't browse the
+// branding config). If we want admins to PREVIEW the branding later, this
+// can be relaxed — UI-only impact, no security delta.
+
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { db } from "@launchtic/database";
+import { getPlanFeatures } from "@launchtic/ee";
+import { ok, err, handleError } from "../../../lib/api";
+import { requireAccess } from "../../../lib/permissions";
+import { getBranding, saveBranding, resetBranding } from "../../../lib/branding";
+
+// Patch schema — every field optional, UI sends only what changed.
+// Color: hex form `#rgb` or `#rrggbb` (browser native input format).
+// URLs: returned from /api/media/upload OR pasted by the operator (CDN).
+const patchSchema = z.object({
+  brandName:    z.string().trim().max(60).optional(),
+  logoUrl:      z.string().trim().max(500).optional(),
+  logoLightUrl: z.string().trim().max(500).optional(),
+  faviconUrl:   z.string().trim().max(500).optional(),
+  primaryColor: z.string().trim().regex(/^#[0-9a-fA-F]{3,8}$/, "Expected hex color like #2563eb").optional(),
+});
+
+export async function GET() {
+  try {
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    if (!r.isOwner) return err("Only the Organization owner can view white-label config.", 403);
+    const branding = await getBranding(r.organizationId);
+    return ok(branding);
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    if (!r.isOwner) return err("Only the Organization owner can change white-label config.", 403);
+
+    // Plan gate — AGENCY / CUSTOM only. We fetch plan via Organization here
+    // rather than caching in requireAccess so a license downgrade takes
+    // effect immediately (no need to re-login). Single read, cheap.
+    const org = await db.organization.findUnique({
+      where: { id: r.organizationId },
+      select: { plan: true },
+    });
+    if (!org) return err("Organization not found", 404);
+    if (!getPlanFeatures(org.plan).whiteLabel) {
+      return err(
+        "White-label branding requires the Agency plan or higher. Upgrade in Settings → License.",
+        402, // Payment Required — semantic match for plan-gate denials
+      );
+    }
+
+    const patch = patchSchema.parse(await req.json());
+    const saved = await saveBranding(r.organizationId, patch);
+    return ok(saved);
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function DELETE() {
+  try {
+    const r = await requireAccess();
+    if (!r.ok) return r.response;
+    if (!r.isOwner) return err("Only the Organization owner can reset white-label config.", 403);
+    // Reset is allowed regardless of plan — owner should always be able to
+    // wipe their config (e.g. after downgrade) to fall back to defaults.
+    await resetBranding(r.organizationId);
+    return ok({ deleted: true });
+  } catch (error) {
+    return handleError(error);
+  }
+}

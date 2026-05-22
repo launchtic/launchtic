@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key,
-  Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users, Shield,
+  Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users, Shield, Palette,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { isAgencyPlan } from "../../lib/plan";
@@ -25,6 +25,12 @@ type NavItemDef = {
   freeOnly?:    boolean;
   /** Permission key required to see this tab. Owner bypasses. */
   requirePerm?: string;
+  /**
+   * Hidden for everyone except the Organization owner. Bypasses requirePerm
+   * — used for identity-bound, billing-locked settings (white-label) where
+   * even an admin with full perms shouldn't override the founder's choice.
+   */
+  ownerOnly?:   boolean;
 };
 
 const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
@@ -35,10 +41,20 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
       { segment: "general", label: "General", icon: Settings2, freeOnly: true, requirePerm: "settings:general:read" },
     ],
   },
+  // ORGANIZATION section = org-wide concerns (affect every workspace under
+  // this Organization). White Label is identity-bound (Owner-only). Workspaces
+  // is the list/CRUD of workspaces themselves — also org-scoped (Agency tier
+  // can have many under one org), not per-workspace config.
+  {
+    label: "ORGANIZATION",
+    items: [
+      { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true },
+      { segment: "workspaces",  label: "Workspaces",  icon: Building2, proOnly: true, requirePerm: "workspace:manage" },
+    ],
+  },
   {
     label: "WORKSPACE",
     items: [
-      { segment: "workspaces",     label: "Workspaces",       icon: Building2,    proOnly: true, requirePerm: "workspace:manage"             },
       { segment: "team",           label: "Team",             icon: Users,        proOnly: true, requirePerm: "members:read"                },
       { segment: "roles",          label: "Roles",            icon: Shield,       proOnly: true, requirePerm: "roles:read"                  },
       { segment: "domains",        label: "Custom Domains",   icon: Globe,                       requirePerm: "settings:domains:read"        },
@@ -66,14 +82,16 @@ export default function SettingsSidebar({
 }) {
   const pathname = usePathname();
   const router   = useRouter();
-  const { hasPermission } = useRole();
+  const { hasPermission, isOwner } = useRole();
   const isPro = isAgencyPlan(workspacePlan);
 
-  // Filter items by plan tier + permission. Owner bypasses every perm check
-  // via the WorkspaceRoleProvider, so they always see every visible-tier tab.
+  // Filter items by plan tier + permission + owner-only flag. Owner bypasses
+  // every perm check via WorkspaceRoleProvider, but ownerOnly is the inverse
+  // gate — visible ONLY to owner, never to admins (regardless of perms).
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.ownerOnly  && !isOwner) return false;
       if (item.proOnly    && !isPro) return false;
       if (item.freeOnly   &&  isPro) return false;
       if (item.requirePerm && !hasPermission(item.requirePerm)) return false;

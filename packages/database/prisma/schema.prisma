@@ -59,6 +59,13 @@ model Organization {
   // detect key sharing across installations.
   instanceId        String?
 
+  // White-label branding overrides (Agency/Custom tier only). JSON shape:
+  // Null/empty fields fall back to launchtic defaults. Gated at write time by
+  // PLAN_FEATURES[plan].whiteLabel — runtime reads always succeed (so a
+  // downgraded plan still renders the agency's saved branding rather than
+  // snapping back to launchtic mid-session; the next save will be blocked).
+  brandingConfig    Json?
+
   // Founder — primary admin and (for now) the only user who can manage this
   // Organization's billing. Unique today because B-minimal is single-owner;
   // drop the unique constraint + add OrganizationMember when multi-owner is
