@@ -44,6 +44,9 @@ const listContacts = defineTool({
         name: [c.firstName, c.lastName].filter(Boolean).join(" ") || null,
         tags: c.tags.map((t) => t.tag.name),
         status: c.unsubscribedAt ? "unsubscribed" : c.bouncedAt ? "bounced" : "active",
+        // Pre-built per-contact URL — AI must copy verbatim (LINKS rule).
+        // Without this AI hallucinates patterns like /contacts/list/{id}.
+        detailUrl: `/${ctx.workspaceSlug}/contacts/${c.id}`,
       })),
     };
   },
@@ -210,6 +213,7 @@ const createContact = defineTool({
         email: contact.email,
         tagsApplied: tagsCreated,
         skipped: { tags: skippedTags },
+        detailUrl: `/${ctx.workspaceSlug}/contacts/${contact.id}`,
       };
     });
   },
@@ -258,6 +262,7 @@ const updateContact = defineTool({
       contactId: updated.id,
       email: updated.email,
       updatedFields: Object.keys(data),
+      detailUrl: `/${ctx.workspaceSlug}/contacts/${updated.id}`,
     };
   },
 });

@@ -529,29 +529,99 @@ function MessageBubble({ message }: { message: Message }) {
   return null;
 }
 
+// Top-level routes mounted under /{workspaceSlug}/... — used to detect when
+// AI dropped the workspace prefix but KEPT the leading slash (e.g.
+// "/funnels/abc" instead of "/my-workspace/funnels/abc"). Keep in sync with
+// the apps/web/app/[workspaceSlug]/ folder structure.
+//
+// Adding a new route? Append it here so AI-generated links to it normalize
+// correctly. Forgetting = link silently 404s for chat users.
+const KNOWN_WORKSPACE_ROUTES = new Set([
+  "dashboard",
+  "funnels",
+  "contacts",
+  "products",
+  "physical-products",
+  "orders",
+  "subscriptions",
+  "transactions",
+  "coupons",
+  "tags",
+  "emails",
+  "automations",
+  "media",
+  "settings",
+  "editor",
+]);
+
 // AI sometimes generates markdown links without the leading slash and/or
-// without the workspace slug, producing URLs that browsers resolve as
-// relative to the current page (bug: `[Open](my-workspace/funnels/abc)`
-// from `/my-workspace/funnels/x` → `/my-workspace/funnels/my-workspace/funnels/abc`).
+// without the workspace slug, producing URLs that browsers resolve relative
+// to the current page (bug: `[Open](my-workspace/funnels/abc)` from
+// `/my-workspace/funnels/x` → `/my-workspace/funnels/my-workspace/funnels/abc`).
 //
 // We can't fully control LLM output formatting, so the renderer normalizes
-// at display time. Rules:
-//   - Has scheme (http://, mailto:, etc) → leave external as-is
-//   - Starts with "/"                    → already absolute, internal
-//   - Starts with "#"                    → in-page anchor
-//   - First segment === current slug     → AI dropped only the slash. Add it.
-//   - Otherwise                          → AI also dropped the workspace prefix.
-//                                          Prepend `/{currentSlug}/` since chat
-//                                          links are essentially always internal
-//                                          to the current workspace.
+// at display time. Strategy by href shape:
+//
+//   - Has scheme (http://, mailto:, tel:, …) → leave external as-is
+//   - Starts with "#"                         → in-page anchor, leave as-is
+//   - Starts with "/{currentSlug}/..."        → already correct
+//   - Starts with "/{knownRoute}/..."         → AI dropped workspace slug;
+//                                               prepend it (warn)
+//   - Starts with "/{unknown}/..."            → trust as absolute (could be
+//                                               another workspace, /forbidden,
+//                                               /login, …)
+//   - Relative, first seg === currentSlug    → AI dropped leading slash;
+//                                               add it (warn)
+//   - Relative, otherwise                    → AI dropped slash + slug;
+//                                               prepend `/{currentSlug}/` (warn)
+//
+// All normalization steps log a one-line console.warn so dev can spot
+// recurring AI hallucination patterns and tighten the system prompt.
 function normalizeAiHref(href: string | undefined, currentSlug: string): string | undefined {
   if (!href) return href;
   if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return href; // scheme present
-  if (href.startsWith("/")) return href;
   if (href.startsWith("#")) return href;
+
+  if (href.startsWith("/")) {
+    // Absolute. AI may have dropped the workspace slug while keeping the slash.
+    const firstSeg = href.split("/")[1] ?? "";
+    if (firstSeg === currentSlug) return href; // correct
+    if (KNOWN_WORKSPACE_ROUTES.has(firstSeg)) {
+      const fixed = `/${currentSlug}${href}`;
+      console.warn(`[ai-link] missing workspace slug: "${href}" → "${fixed}"`);
+      return fixed;
+    }
+    return href; // looks like another absolute path — trust it
+  }
+
+  // Relative — chat links are essentially always internal to current workspace.
   const firstSegment = href.split("/")[0];
-  if (firstSegment === currentSlug) return `/${href}`;
-  return `/${currentSlug}/${href}`;
+  if (firstSegment === currentSlug) {
+    const fixed = `/${href}`;
+    console.warn(`[ai-link] missing leading slash: "${href}" → "${fixed}"`);
+    return fixed;
+  }
+  const fixed = `/${currentSlug}/${href}`;
+  console.warn(`[ai-link] missing slash + workspace: "${href}" → "${fixed}"`);
+  return fixed;
+}
+
+// AI sometimes wraps a markdown link's bracket part with bold/italic from
+// OUTSIDE the brackets, e.g. `**[Open editor]**(/x/funnels/y)`. CommonMark
+// closes the `**` between `]` and `(`, breaking the link parse — the URL
+// renders as literal `(...)` text instead of becoming clickable.
+//
+// Fix: pre-process the markdown to move the emphasis INSIDE the brackets:
+//   **[Open]**(url)   → [**Open**](url)      ✓ link + bold
+//   *[Open]*(url)     → [*Open*](url)        ✓ link + italic
+//   ***[Open]***(url) → [***Open***](url)    ✓ link + bold + italic
+//
+// Safer to fix at display time than rely on AI prompt obedience.
+function unwrapLinkEmphasis(md: string): string {
+  return md.replace(
+    /(\*{1,3})\[([^\]\n]+)\]\1\(([^)\s]+)\)/g,
+    (_match, marks, text, href) => `[${marks}${text}${marks}](${href})`,
+  );
 }
 
 // Compact markdown renderer for chat bubbles. Tight spacing + small typography
@@ -559,6 +629,7 @@ function normalizeAiHref(href: string | undefined, currentSlug: string): string 
 function MarkdownContent({ children }: { children: string }) {
   const params = useParams();
   const slug   = params.workspaceSlug as string;
+  const fixed  = unwrapLinkEmphasis(children);
   return (
     <ReactMarkdown
       // GFM = GitHub-flavored markdown: tables, strikethrough, autolinks, task lists.
@@ -627,7 +698,7 @@ function MarkdownContent({ children }: { children: string }) {
         del:   ({ children }) => <del className="text-gray-400">{children}</del>,
       }}
     >
-      {children}
+      {fixed}
     </ReactMarkdown>
   );
 }

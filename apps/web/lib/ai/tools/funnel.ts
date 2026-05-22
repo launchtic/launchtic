@@ -113,8 +113,16 @@ const getFunnelDetails = defineTool({
       name: funnel.name,
       currency: funnel.currency.toUpperCase(),
       status: funnel.status,
+      // Pre-built URLs — AI must use these verbatim (LINKS rule). The two
+      // URL shapes are NOT interchangeable:
+      //   funnelUrl  → /{slug}/funnels/{id}    — funnel overview dashboard
+      //   editorUrl  → /{slug}/editor/{stepId} — page editor for that step
+      // AI has historically hallucinated `/funnels/{id}/steps/{stepId}` (that
+      // route doesn't exist). Returning both per call eliminates the guess.
+      funnelUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
       steps: funnel.steps.map((s) => ({
         id: s.id, name: s.name, type: s.type, slug: s.slug, order: s.order,
+        editorUrl: `/${ctx.workspaceSlug}/editor/${s.id}`,
         offerType: s.offerType,
         shippingFee: s.shippingFee ? fmtMoney(s.shippingFee, funnel.currency) : null,
         pricePlans: s.pricePlans.map((p) => ({
@@ -702,13 +710,21 @@ const createFunnelFromSpec = defineTool({
       // sub-perms (Pattern C graceful skip). AI surfaces these as a brief
       // one-line postscript after the success message. Empty arrays = no
       // skips, AI omits the postscript.
+      // URL shapes are NOT interchangeable (see get_funnel_details note):
+      //   funnelUrl → overview dashboard (list of steps + settings)
+      //   editorUrl per step → page editor for that specific step
+      // The funnel-level message links to the overview because we just
+      // created multiple steps; user picks which step to edit from there.
       return {
         funnelId: funnel.id,
         funnelName: funnel.name,
         currency: funnel.currency.toUpperCase(),
         stepsCreated: stepsCreated.length,
-        steps: stepsCreated,
-        editorUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
+        steps: stepsCreated.map((s) => ({
+          ...s,
+          editorUrl: `/${ctx.workspaceSlug}/editor/${s.id}`,
+        })),
+        funnelUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
         tagsCreated: Array.from(tagIdByName.keys()),
         skipped: {
           products:   skippedProducts,
@@ -716,7 +732,7 @@ const createFunnelFromSpec = defineTool({
           pricePlans: skippedPricePlans, // step price plan descriptors skipped
           bumps:      skippedBumps,      // bump names skipped
         },
-        message: `Funnel created. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id}) to customize copy + design.`,
+        message: `Funnel created. [Open funnel](/${ctx.workspaceSlug}/funnels/${funnel.id}) to customize each step.`,
       };
     });
   },
@@ -909,16 +925,21 @@ const addFunnelStep = defineTool({
         }
       }
 
+      // We know the exact step → link straight to its page editor (the
+      // specific URL pattern `/editor/{stepId}`, NOT the funnel overview
+      // `/funnels/{id}` which lists all steps).
       return {
         stepId: step.id,
         stepName: step.name,
         stepType: step.type,
+        editorUrl: `/${ctx.workspaceSlug}/editor/${step.id}`,
+        funnelUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
         skipped: {
           products:   skippedProducts,
           tags:       skippedTags,
           pricePlans: skippedPricePlans,
         },
-        message: `Step "${step.name}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id})`,
+        message: `Step "${step.name}" added. [Open in editor](/${ctx.workspaceSlug}/editor/${step.id})`,
       };
     });
   },
@@ -1024,11 +1045,15 @@ const addOrderBump = defineTool({
         }
       }
 
+      // Bump lives on the CHECKOUT step → link to that step's page editor.
+      // funnelUrl also exposed so AI can link to overview if it prefers.
       return {
         bumpId: bump.id,
         label: bump.label,
+        editorUrl: `/${ctx.workspaceSlug}/editor/${step.id}`,
+        funnelUrl: `/${ctx.workspaceSlug}/funnels/${step.funnel.id}`,
         skipped: { products: skippedProducts, tags: skippedTags },
-        message: `Bump "${bump.label}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${step.funnel.id})`,
+        message: `Bump "${bump.label}" added. [Open in editor](/${ctx.workspaceSlug}/editor/${step.id})`,
       };
     });
   },
@@ -1169,7 +1194,9 @@ const grantTagOnPurchase = defineTool({
       return {
         stepName: step.name,
         tagName: args.tagName,
-        message: `Tag "${args.tagName}" will be granted on purchase. [Open editor](/${ctx.workspaceSlug}/funnels/${step.funnel.id})`,
+        editorUrl: `/${ctx.workspaceSlug}/editor/${step.id}`,
+        funnelUrl: `/${ctx.workspaceSlug}/funnels/${step.funnel.id}`,
+        message: `Tag "${args.tagName}" will be granted on purchase. [Open in editor](/${ctx.workspaceSlug}/editor/${step.id})`,
       };
     });
   },

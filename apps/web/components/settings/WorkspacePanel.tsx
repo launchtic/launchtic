@@ -111,10 +111,13 @@ export default function WorkspacePanel({
     automations:    boolean;
     pageTemplates:  boolean;
     roles:          boolean;
+    settings:       boolean;
   };
   const DEFAULT_INCLUDE: CloneInclude = {
     funnels: true, emailTemplates: true, sequences: true,
     automations: true, pageTemplates: true, roles: true,
+    // Default OFF — credentials are sensitive; user opts in.
+    settings: false,
   };
   const [cloneSource, setCloneSource] = useState<Workspace | null>(null);
   const [cloneName, setCloneName] = useState("");
@@ -555,10 +558,39 @@ export default function WorkspacePanel({
                         </div>
                       );
                     })}
+
+                    {/* Sensitive: credentials — separated with amber accent */}
+                    <div>
+                      <div className="flex items-center gap-2 px-3 py-2 bg-amber-50/40">
+                        <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                          Sensitive
+                        </span>
+                        <span className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded text-amber-700 bg-amber-100">
+                          {cloneInclude.settings ? "1/1" : "0/1"}
+                        </span>
+                      </div>
+                      <div className="px-3 py-2">
+                        <label className="flex items-start gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={cloneInclude.settings}
+                            onChange={(e) => toggleInclude("settings", e.target.checked)}
+                            className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm text-gray-900">Settings &amp; credentials</span>
+                              <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">sensitive</span>
+                            </div>
+                            <p className="text-xs text-gray-500">SMTP, AI key, S3, Stripe, PayPal, email footer — copies all credentials to the new workspace</p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   <p className="text-[11px] text-gray-400 mt-2 leading-snug">
-                    Products, tags, contacts, orders and credentials are never cloned. Cloned automations come over as drafts — review and rewire them to the new workspace before activating.
+                    Products, tags, contacts, orders and send history are never cloned. Cloned automations come over as drafts — review and rewire them before activating. Uploaded images stay hosted by the source workspace, so deleting it will break them in the clone.
                   </p>
                 </div>
               </form>

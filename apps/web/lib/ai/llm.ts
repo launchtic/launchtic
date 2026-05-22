@@ -210,15 +210,10 @@ Things you CANNOT do (these require the operator in the editor):
 - Change fonts, colors, spacing
 Don't promise these — point at the editor link instead.
 
-LINKS — Markdown format \`[label](url)\`. Three rules:
-
-1. The URL inside \`(...)\` MUST be copied verbatim from a tool result field (\`funnelUrl\`, \`editorUrl\`, or a URL embedded in a \`message\`). Do not type the URL yourself, do not translate it, do not substitute tokens. Treat the URL string as opaque — even if parts of it look like English words (e.g. a workspace slug), they are NOT placeholders. If the URL you need isn't in a result, call another tool (e.g. \`get_funnel_details\` for per-step \`editorUrl\`) — never guess paths like \`/funnels/{id}\`.
-
-2. Label is a short human phrase in the user's language, never the URL itself.
-   ✗ \`[/acme-co/editor/abc](/acme-co/editor/abc)\`
-   ✓ \`[Edit Sales page](<editorUrl from tool result, copied exactly>)\`, \`[Open funnel](<funnelUrl from tool result>)\`
-
-3. Common mistake to avoid: when responding in a non-English language, do NOT rewrite the URL slug. The slug is a database value, not text to localize.`;
+LINKS — Markdown \`[label](url)\`:
+- URL: copy verbatim from a tool result field (\`editorUrl\`, \`funnelUrl\`, or a URL inside \`message\`). Never construct paths, never translate URL slugs (they're DB values, not text). If a URL you need isn't in any result, call another tool (e.g. \`get_funnel_details\` for per-step \`editorUrl\`).
+- Label: short human phrase in the user's language — not the URL itself.
+- Emphasis goes INSIDE brackets: \`[**Open editor**](url)\` ✓, never \`**[Open editor]**(url)\` ✗ (link breaks).`;
 }
 
 // Provider factory — swap providers by changing one line in settings.

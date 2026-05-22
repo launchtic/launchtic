@@ -28,10 +28,14 @@ import { getOrganizationForOwner, getEffectivePlan } from "../../../../../lib/or
 //                   triggers + actions against the new workspace's resources.
 //   - pageTemplates PageTemplate + SavedBlock.
 //   - roles         Role (permission preset).
+//   - settings      WorkspaceSettings (SMTP, AI, storage, payment credentials,
+//                   email footer). Off by default — agencies that share infra
+//                   (one SMTP provider, one AI key) opt in to carry credentials
+//                   to each new client workspace.
 //
 // What's NEVER cloned: contacts, orders, subscriptions, coupons, broadcasts,
 // emailSends, automationRuns, sequenceEnrollments, senderIdentities, domains,
-// aiConversations, members, products, tags, settings/credentials.
+// aiConversations, members, products, tags.
 //
 // FunnelStep.pageJson is Craft.js JSON that may embed product/sequence IDs
 // from the source workspace (eg. form actions). These IDs are NOT remapped —
@@ -44,6 +48,7 @@ const includeSchema = z.object({
   automations:    z.boolean().default(false),
   pageTemplates:  z.boolean().default(false),
   roles:          z.boolean().default(false),
+  settings:       z.boolean().default(false),
 });
 
 const bodySchema = z.object({
@@ -200,11 +205,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Pricing, bumps, and resource grants are intentionally dropped — they
       // reference products/tags/coupons that aren't cloned. User wires up
       // pricing per client after clone.
+      //
+      // Slug dedup: cloned funnels all land on the new ws's default PAGES_DOMAIN
+      // (FunnelDomain rows aren't carried over). Source may have had two
+      // funnels with the same step slug on DIFFERENT custom domains — valid
+      // there, but post-clone they share one URL space and would collide
+      // (silent at DB level — `@@unique([funnelId, slug])` doesn't catch it —
+      // but app-layer `assertSlugAvailable` would reject any later edit, and
+      // the renderer's URL resolution becomes ambiguous). So we track every
+      // slug claimed across all cloned funnels in this ws and suffix `-2`,
+      // `-3`, ... on collision.
       if (inc.funnels) {
         const funnels = await tx.funnel.findMany({
           where: { workspaceId: sourceId },
           include: { steps: true },
         });
+        const claimedSlugs = new Set<string>();
         for (const f of funnels) {
           const newFunnel = await tx.funnel.create({
             data: {
@@ -217,11 +233,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             select: { id: true },
           });
           for (const s of f.steps) {
+            let slug = s.slug;
+            let n = 2;
+            while (claimedSlugs.has(slug)) slug = `${s.slug}-${n++}`;
+            claimedSlugs.add(slug);
             await tx.funnelStep.create({
               data: {
                 funnelId:          newFunnel.id,
                 name:              s.name,
-                slug:              s.slug,
+                slug,
                 type:              s.type,
                 order:             s.order,
                 offerType:         s.offerType,
@@ -284,6 +304,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               name:        role.name,
               description: role.description,
               permissions: role.permissions,
+            },
+          });
+        }
+      }
+
+      // ── Workspace Settings (credentials, default OFF on UI) ─────────
+      // Carries every credential blob — SMTP, AI key, S3, Stripe, PayPal,
+      // and the email footer. Designed for agencies running shared infra
+      // across client workspaces.
+      if (inc.settings) {
+        const settings = await tx.workspaceSettings.findUnique({ where: { workspaceId: sourceId } });
+        if (settings) {
+          await tx.workspaceSettings.create({
+            data: {
+              workspaceId:         newWsId,
+              stripe:              settings.stripe      ?? undefined,
+              paypal:              settings.paypal      ?? undefined,
+              smtp:                settings.smtp        ?? undefined,
+              storage:             settings.storage     ?? undefined,
+              ai:                  settings.ai          ?? undefined,
+              emailFooter:         settings.emailFooter ?? undefined,
+              // onboardingDismissed is UX state, not config — reset.
             },
           });
         }
