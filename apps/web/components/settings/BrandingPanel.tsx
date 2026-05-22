@@ -2,13 +2,11 @@
 
 // White Label panel — Agency tier feature. Lets the Organization owner
 // override launchtic's logo / name / colors so clients see the agency's
-// brand instead. Page-level gate already enforces Owner; this panel
-// renders an upsell when the org plan lacks `whiteLabel`.
+// brand instead. Plan gate + Owner gate live at the page level; by the
+// time this renders, both have already passed.
 
 import { useState } from "react";
-import { Loader2, Check, Crown, Palette, RotateCcw, Plus, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { Loader2, Check, Palette, RotateCcw, Plus, Trash2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useToast } from "../ui/Toast";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -28,14 +26,9 @@ const INPUT_CLS =
 
 export default function BrandingPanel({
   initial,
-  plan,
-  whiteLabelEnabled,
 }: {
-  initial:           BrandingConfig;
-  plan:              string;
-  whiteLabelEnabled: boolean;
+  initial: BrandingConfig;
 }) {
-  const slug   = useParams().workspaceSlug as string;
   const toast  = useToast();
   const confirm = useConfirm();
 
@@ -48,7 +41,6 @@ export default function BrandingPanel({
     setForm((f) => ({ ...f, [k]: v }));
 
   async function handleSave() {
-    if (!whiteLabelEnabled) return;
     setSaving(true);
     const res  = await apiFetch("/api/branding", {
       method: "PUT",
@@ -83,37 +75,6 @@ export default function BrandingPanel({
     toast.success("Branding reset.");
   }
 
-  // ── Upsell view for plans that don't include white-label ─────────────
-  if (!whiteLabelEnabled) {
-    return (
-      <div className="max-w-2xl">
-        <Header />
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex gap-4">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-            <Crown size={18} className="text-amber-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-base font-semibold text-gray-900 mb-1">
-              White Label is an Agency feature
-            </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Your current plan is <strong>{plan}</strong>. Upgrade to <strong>Agency</strong> to
-              replace the launchtic logo, brand name, and colors with your own — so clients see
-              your brand, not ours.
-            </p>
-            <Link
-              href={`/${slug}/settings/license`}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg"
-            >
-              View license &amp; upgrade
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Active editor (Agency / Custom plan) ─────────────────────────────
   return (
     <div className="max-w-2xl space-y-6">
       <Header />
@@ -209,18 +170,6 @@ function Header() {
         Replace launchtic&apos;s appearance so your clients see your brand instead.
         Organization-wide — affects every workspace under this Organization.
       </p>
-    </div>
-  );
-}
-
-function Section({
-  title, description, children,
-}: { title: string; description: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-gray-900 mb-1">{title}</h3>
-      <p className="text-xs text-gray-500 mb-3">{description}</p>
-      <div className="space-y-4">{children}</div>
     </div>
   );
 }

@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getEffectivePlan } from "../../../../../lib/organization";
+import { isAgencyPlan } from "../../../../../lib/plan";
 import WorkspacePanel from "../../../../../components/settings/WorkspacePanel";
 
 export const metadata = { title: "Workspaces" };
@@ -18,33 +20,35 @@ export default async function Page({
   // the Organization owner via the requireAccess bypass.
   const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug, "workspace:manage");
 
-  const [workspaces, ws] = await Promise.all([
-    db.workspace.findMany({
-      where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
-      select: {
-        id: true, name: true, slug: true, ownerId: true,
-        members: {
-          where: { userId },
-          select: { role: { select: { name: true } } },
-          take: 1,
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.workspace.findUnique({
-      where: { id: workspaceId },
-      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
-    }),
-  ]);
+  // Plan gate (URL-hop defense). Sidebar already hides this tab for non-
+  // Agency plans; an owner who pastes the URL on COMMUNITY/STARTER gets
+  // bounced to /license instead of a panel where every action is a 402.
+  const ws = await db.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
+  });
+  if (!isAgencyPlan(getEffectivePlan(ws?.organization))) {
+    redirect(`/${workspaceSlug}/settings/license`);
+  }
 
-  const workspacePlan = getEffectivePlan(ws?.organization);
+  const workspaces = await db.workspace.findMany({
+    where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
+    select: {
+      id: true, name: true, slug: true, ownerId: true,
+      members: {
+        where: { userId },
+        select: { role: { select: { name: true } } },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
 
   return (
     <div className="p-6 sm:p-8">
       <WorkspacePanel
         currentWorkspaceId={workspaceId}
         currentWorkspaceSlug={workspaceSlug}
-        workspacePlan={workspacePlan}
         userId={userId}
         workspaces={workspaces.map((w) => ({
           ...w,

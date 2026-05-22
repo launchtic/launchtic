@@ -50,7 +50,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
   {
     label: "ORGANIZATION",
     items: [
-      { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true },
+      { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true, proOnly: true },
       { segment: "workspaces",  label: "Workspaces",  icon: Building2, proOnly: true, requirePerm: "workspace:manage" },
       { segment: "license",     label: "License",     icon: Key,                      requirePerm: "billing:manage"   },
     ],

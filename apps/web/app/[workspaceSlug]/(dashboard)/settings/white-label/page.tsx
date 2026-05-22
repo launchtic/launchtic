@@ -17,7 +17,9 @@ export default async function Page({
   // founder (Organization.ownerId). We do NOT use a custom permission key
   // because white-label decisions are billing-tier-locked and identity-bound
   // — granting via role would let admins override the founder's brand.
-  // Plan upsell still renders for owners on COMMUNITY/STARTER (panel state).
+  // The sidebar already hides this tab for non-Agency plans; the plan check
+  // below is URL-hop defense (an owner who pastes the URL on COMMUNITY just
+  // gets redirected to /license rather than a useless empty editor).
   const { workspaceId, isOwner } = await requireWorkspaceFromSlug(workspaceSlug);
   if (!isOwner) redirect(`/${workspaceSlug}/forbidden?perm=owner_only`);
 
@@ -27,16 +29,15 @@ export default async function Page({
   });
   if (!ws) return null;
 
+  if (!getPlanFeatures(ws.organization.plan).whiteLabel) {
+    redirect(`/${workspaceSlug}/settings/license`);
+  }
+
   const branding = await getBranding(ws.organizationId);
-  const features = getPlanFeatures(ws.organization.plan);
 
   return (
     <div className="p-6 sm:p-8">
-      <BrandingPanel
-        initial={branding.raw}
-        plan={ws.organization.plan}
-        whiteLabelEnabled={features.whiteLabel}
-      />
+      <BrandingPanel initial={branding.raw} />
     </div>
   );
 }

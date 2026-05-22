@@ -5,28 +5,26 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loader2, Plus, Pencil, Trash2, Check, X, Building2, Copy } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
-import { isAgencyPlan } from "../../lib/plan";
 import { useRole } from "../../lib/role";
 
 type Workspace = { id: string; name: string; slug: string; ownerId: string; userRole: string };
 
+// Plan check lives at the route (Agency+ only) — by the time this renders,
+// the operator is guaranteed Pro. No isPro branching needed here.
 export default function WorkspacePanel({
   currentWorkspaceId,
   currentWorkspaceSlug,
-  workspacePlan,
   userId,
   workspaces: initialWorkspaces,
 }: {
   currentWorkspaceId: string;
   currentWorkspaceSlug: string;
-  workspacePlan: string;
   userId: string;
   workspaces: Workspace[];
 }) {
   const { update } = useSession();
   const router = useRouter();
   const { canManageWorkspace } = useRole();
-  const isPro = isAgencyPlan(workspacePlan);
 
   const [items, setItems] = useState<Workspace[]>(initialWorkspaces);
   const [activeId, setActiveId] = useState(currentWorkspaceId);
@@ -190,7 +188,7 @@ export default function WorkspacePanel({
           <h2 className="text-base font-semibold text-gray-900 mb-1">Workspaces</h2>
           <p className="text-sm text-gray-500">Manage and switch between your workspaces.</p>
         </div>
-        {isPro && canManageWorkspace && (
+        {canManageWorkspace && (
           <button
             onClick={() => { setShowCreate(true); setCreateError(null); setNewName(""); }}
             className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
@@ -280,7 +278,7 @@ export default function WorkspacePanel({
                     <Pencil size={13} />
                   </button>
                 )}
-                {isOwner && isPro && (
+                {isOwner && (
                   <button
                     onClick={() => startClone(ws)}
                     title="Clone this workspace"
