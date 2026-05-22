@@ -9,6 +9,8 @@ import {
   buildResetEmailHtml,
   RESET_TOKEN_TTL_MS,
 } from "../../../../lib/password-reset";
+import { getInstallationBranding } from "../../../../lib/branding";
+import { absolutizeBrandUrl } from "../../../../lib/email-layout";
 
 const schema = z.object({
   email: z.string().email(),
@@ -35,7 +37,13 @@ export async function POST(req: NextRequest) {
     // Silent success — don't reveal whether the email is registered.
     if (!user) return ok({ sent: true });
 
-    const sender = await resolveResetEmailSender(user.id);
+    // Resolve installation branding (Agency white-label override or launchtic
+    // defaults). Determines fromName, subject, logo, and footer text. Logo
+    // URL is absolutized below using request origin so email clients (which
+    // live outside our app) can fetch it.
+    const branding = await getInstallationBranding();
+
+    const sender = await resolveResetEmailSender(user.id, branding.brandName);
     if (!sender) {
       // Case 3 (deferred): no workspace SMTP available. Log + silent success.
       console.warn(`[forgot-password] no SMTP available for user ${user.id} (${email})`);
@@ -57,8 +65,18 @@ export async function POST(req: NextRequest) {
     try {
       await sendEmail(sender.smtp, {
         to:        user.email,
-        subject:   "Reset your Launchtic password",
-        html:      buildResetEmailHtml({ email: user.email, resetUrl, expiresIn: "1 hour" }),
+        subject:   `Reset your ${branding.brandName} password`,
+        html:      buildResetEmailHtml({
+          email:     user.email,
+          resetUrl,
+          expiresIn: "1 hour",
+          brand: {
+            brandName: branding.brandName,
+            // Prefer the dark-bg variant since the email header is navy.
+            // Fall back to primary logo, then null (→ text wordmark).
+            logoUrl: absolutizeBrandUrl(branding.logoLightUrl ?? branding.logoUrl, origin),
+          },
+        }),
         fromEmail: sender.fromEmail,
         fromName:  sender.fromName,
       });

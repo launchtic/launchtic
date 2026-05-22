@@ -17,6 +17,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "@launchtic/database";
 import type { SmtpConfig } from "@launchtic/email/server";
+import { renderSystemEmail, esc, type EmailBranding } from "./email-layout";
 
 export const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -38,7 +39,11 @@ export type ResetEmailSender = {
 // Returns null if no workspace the user belongs to has both SMTP + a sender
 // identity. Caller should silently log this and still return a generic
 // success response to the user (Case 3 fallback handled later).
-export async function resolveResetEmailSender(userId: string): Promise<ResetEmailSender | null> {
+//
+// `fromName` is the visible sender name (account-level brand — install's
+// brandName when Agency-tier license active, else "launchtic"). The caller
+// resolves it via `getInstallationBranding()` and passes through.
+export async function resolveResetEmailSender(userId: string, fromName: string): Promise<ResetEmailSender | null> {
   // Tier 1: first OWNED workspace with SMTP + ≥1 sender identity
   const owned = await db.workspace.findFirst({
     where: {
@@ -56,7 +61,7 @@ export async function resolveResetEmailSender(userId: string): Promise<ResetEmai
     },
     orderBy: { createdAt: "asc" },
   });
-  const ownedSender = pickSender(owned);
+  const ownedSender = pickSender(owned, fromName);
   if (ownedSender) return ownedSender;
 
   // Tier 2: first MEMBER workspace (not owned) with SMTP + ≥1 sender identity
@@ -83,11 +88,12 @@ export async function resolveResetEmailSender(userId: string): Promise<ResetEmai
     },
     orderBy: { workspace: { createdAt: "asc" } },
   });
-  return pickSender(member?.workspace);
+  return pickSender(member?.workspace, fromName);
 }
 
 function pickSender(
   ws: { settings: { smtp: unknown } | null; senderIdentities: { name: string; email: string }[] } | null | undefined,
+  fromName: string,
 ): ResetEmailSender | null {
   if (!ws?.settings?.smtp) return null;
   const smtp = ws.settings.smtp as SmtpConfig;
@@ -97,59 +103,41 @@ function pickSender(
   return {
     smtp,
     fromEmail: sender.email,
-    // Always "Launchtic" — never the workspace name. Account-level email,
-    // not a workspace email, so workspace branding would be misleading.
-    fromName: "Launchtic",
+    // Always the install's brand name (Agency-tier override or "launchtic")
+    // — never the workspace name. Account-level email, not a workspace
+    // email; workspace branding would mislead.
+    fromName,
   };
 }
 
-// Build the password reset email HTML. Kept minimal + inline-styled so it
-// renders consistently across clients without external CSS.
+// Build the password reset email HTML. Uses the shared system-email layout
+// so this matches the look + branding of other system emails (welcome,
+// team invite, etc. as those get added).
 export function buildResetEmailHtml(opts: {
   email:     string;
   resetUrl:  string;
-  expiresIn: string; // human-readable, e.g. "1 hour"
+  expiresIn: string;        // human-readable, e.g. "1 hour"
+  brand:     EmailBranding; // brandName + absolute logoUrl (caller resolves)
 }): string {
-  return `<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;background:#f9fafb;color:#111827;">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
-    <tr><td style="padding:32px;">
-      <h1 style="font-size:18px;font-weight:600;color:#111827;margin:0 0 16px;">Reset your Launchtic password</h1>
-      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 16px;">
-        Someone requested a password reset for your Launchtic account
-        (<strong>${escapeHtml(opts.email)}</strong>).
-      </p>
-      <p style="font-size:14px;line-height:1.6;color:#374151;margin:0 0 24px;">
-        Click the button below to set a new password. This link expires in ${escapeHtml(opts.expiresIn)}.
-      </p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
-        <tr><td style="background:#2563eb;border-radius:8px;">
-          <a href="${escapeHtml(opts.resetUrl)}" style="display:inline-block;padding:10px 20px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;">
-            Reset password
-          </a>
-        </td></tr>
-      </table>
-      <p style="font-size:13px;line-height:1.5;color:#6b7280;margin:0 0 8px;">
-        If the button doesn't work, copy and paste this URL into your browser:
-      </p>
-      <p style="font-size:12px;line-height:1.5;color:#6b7280;word-break:break-all;margin:0 0 24px;">
-        ${escapeHtml(opts.resetUrl)}
-      </p>
-      <p style="font-size:13px;line-height:1.5;color:#9ca3af;margin:0;border-top:1px solid #f3f4f6;padding-top:16px;">
-        If you didn't request this, ignore this email — your password stays the same.
-      </p>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-}
+  const intro = `Someone requested a password reset for your <strong>${esc(opts.brand.brandName)}</strong> account (${esc(opts.email)}). Click the button below to set a new password — this link expires in ${esc(opts.expiresIn)}.`;
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  const bodyHtml = `
+    <!-- Fallback URL block for clients that block CTA buttons -->
+    <p style="margin:24px 0 8px;font-size:13px;line-height:1.5;color:#64748b;">
+      If the button doesn't work, copy and paste this URL into your browser:
+    </p>
+    <p style="margin:0;font-size:12px;line-height:1.5;color:#64748b;word-break:break-all;font-family:monospace;">
+      ${esc(opts.resetUrl)}
+    </p>
+  `;
+
+  return renderSystemEmail({
+    brand:      opts.brand,
+    preheader:  `Reset your ${opts.brand.brandName} password — link expires in ${opts.expiresIn}.`,
+    title:      `Reset your ${opts.brand.brandName} password`,
+    intro,
+    bodyHtml,
+    cta:        { label: "Reset password", url: opts.resetUrl },
+    footerNote: "If you didn't request this, ignore this email — your password stays the same.",
+  });
 }

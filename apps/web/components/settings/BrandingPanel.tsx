@@ -145,7 +145,7 @@ export default function BrandingPanel({
 
       <Field
         label="Logo (light)"
-        hint="Used on dark backgrounds — typically a white/inverted version of your logo."
+        hint="Used on dark backgrounds — Recommended 200×40 px."
       >
         <LogoUpload
           value={form.logoLightUrl ?? ""}

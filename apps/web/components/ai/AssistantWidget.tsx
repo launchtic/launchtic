@@ -310,7 +310,7 @@ export default function AssistantWidget() {
                 <Bot size={14} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Launchtic Assistant</p>
+                <p className="text-sm font-semibold text-gray-900">AI Assistant</p>
                 <p className="text-[10px] text-gray-500">Beta · BYO API key</p>
               </div>
             </div>
