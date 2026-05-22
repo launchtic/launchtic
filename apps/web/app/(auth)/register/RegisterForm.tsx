@@ -123,7 +123,7 @@ export default function RegisterForm({
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
           >
-            {loading ? "Creating admin account…" : "Create admin account"}
+            {loading ? "Creating owner account…" : "Create owner account"}
           </button>
         </form>
       </div>

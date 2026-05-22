@@ -11,10 +11,9 @@ export function shouldShowLaunchticBadge(
   plan: string | null | undefined,
   licenseExpiresAt: Date | null | undefined,
 ): boolean {
-  return true;
-  // const isLicenseActive =
-  //   plan !== "COMMUNITY" &&
-  //   plan != null &&
-  //   (licenseExpiresAt == null || licenseExpiresAt > new Date());
-  // return !isLicenseActive;
+  const isLicenseActive =
+    plan !== "COMMUNITY" &&
+    plan != null &&
+    (licenseExpiresAt == null || licenseExpiresAt > new Date());
+  return !isLicenseActive;
 }
