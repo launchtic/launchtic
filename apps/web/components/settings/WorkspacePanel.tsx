@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Loader2, Plus, Pencil, Trash2, Check, X, Building2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Check, X, Building2, Copy } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { isAgencyPlan } from "../../lib/plan";
 import { useRole } from "../../lib/role";
@@ -101,6 +101,54 @@ export default function WorkspacePanel({
       router.refresh();
     }
     setRenamingId(null);
+  }
+
+  // ── Clone ──────────────────────────────────────────────────
+  type CloneInclude = {
+    funnels:        boolean;
+    emailTemplates: boolean;
+    sequences:      boolean;
+    automations:    boolean;
+    pageTemplates:  boolean;
+    roles:          boolean;
+  };
+  const DEFAULT_INCLUDE: CloneInclude = {
+    funnels: true, emailTemplates: true, sequences: true,
+    automations: true, pageTemplates: true, roles: true,
+  };
+  const [cloneSource, setCloneSource] = useState<Workspace | null>(null);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneInclude, setCloneInclude] = useState<CloneInclude>(DEFAULT_INCLUDE);
+  const [cloning, setCloning] = useState(false);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+
+  function startClone(ws: Workspace) {
+    setCloneSource(ws);
+    setCloneName(`${ws.name} (Copy)`);
+    setCloneInclude(DEFAULT_INCLUDE);
+    setCloneError(null);
+  }
+
+  function toggleInclude(key: keyof CloneInclude, next: boolean) {
+    setCloneInclude((prev) => ({ ...prev, [key]: next }));
+  }
+
+  async function handleClone(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cloneSource || !cloneName.trim()) return;
+    setCloning(true);
+    setCloneError(null);
+    const res = await apiFetch(`/api/workspaces/${cloneSource.id}/clone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cloneName.trim(), include: cloneInclude }),
+    });
+    const json = await res.json();
+    setCloning(false);
+    if (!res.ok) { setCloneError(json.error ?? "Failed to clone"); return; }
+    const ws = { ...json.data, ownerId: userId, userRole: "OWNER" } as Workspace;
+    setItems((prev) => [...prev, ws]);
+    setCloneSource(null);
   }
 
   // ── Delete ─────────────────────────────────────────────────
@@ -229,6 +277,15 @@ export default function WorkspacePanel({
                     <Pencil size={13} />
                   </button>
                 )}
+                {isOwner && isPro && (
+                  <button
+                    onClick={() => startClone(ws)}
+                    title="Clone this workspace"
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Copy size={13} />
+                  </button>
+                )}
                 {isOwner && (
                   <button
                     onClick={() => { setDeleteTarget(ws); setDeleteConfirm(""); setDeleteError(null); }}
@@ -343,6 +400,193 @@ export default function WorkspacePanel({
           </div>
         </div>
       )}
+
+      {/* Clone modal */}
+      {cloneSource && (() => {
+        const CLONE_GROUPS: { label: string; items: { key: keyof CloneInclude; label: string; hint: string }[] }[] = [
+          {
+            label: "Pages & Content",
+            items: [
+              { key: "funnels",       label: "Funnels",        hint: "Pages, steps, layout (pricing, bumps, and product links are not carried over)" },
+              { key: "pageTemplates", label: "Page templates", hint: "Templates and saved blocks" },
+            ],
+          },
+          {
+            label: "Marketing",
+            items: [
+              { key: "emailTemplates", label: "Email templates", hint: "Reusable email designs" },
+              { key: "sequences",      label: "Email sequences", hint: "Drip campaigns with their step content" },
+              { key: "automations",    label: "Automations",     hint: "Triggers + actions — cloned as drafts for review" },
+            ],
+          },
+          {
+            label: "Team",
+            items: [
+              { key: "roles", label: "Roles", hint: "Custom permission presets" },
+            ],
+          },
+        ];
+        const TOP_LEVEL_KEYS: (keyof CloneInclude)[] = CLONE_GROUPS.flatMap((g) => g.items.map((i) => i.key));
+        const selectedCount = TOP_LEVEL_KEYS.reduce((n, k) => n + (cloneInclude[k] ? 1 : 0), 0);
+        const totalCount    = TOP_LEVEL_KEYS.length;
+
+        function selectAll() {
+          setCloneInclude((prev) => {
+            const out = { ...prev };
+            for (const k of TOP_LEVEL_KEYS) (out as any)[k] = true;
+            return out;
+          });
+        }
+        function selectNone() {
+          setCloneInclude((prev) => {
+            const out = { ...prev };
+            for (const k of TOP_LEVEL_KEYS) (out as any)[k] = false;
+            return out;
+          });
+        }
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
+            onClick={() => setCloneSource(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-200 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                    <Copy size={16} className="text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-gray-900">Clone workspace</h2>
+                    <p className="text-xs text-gray-500 truncate">
+                      Duplicate <span className="font-medium text-gray-800">{cloneSource.name}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCloneSource(null)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-lg transition-colors shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <form onSubmit={handleClone} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                {cloneError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{cloneError}</p>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">New workspace name</label>
+                  <input
+                    autoFocus
+                    value={cloneName}
+                    onChange={(e) => setCloneName(e.target.value)}
+                    required
+                    maxLength={100}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-baseline justify-between mb-2">
+                    <label className="block text-xs font-medium text-gray-700">What to clone</label>
+                    <span className="text-[11px] text-gray-500 tabular-nums">
+                      {selectedCount} / {totalCount} selected
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                    <span className="text-[11px] text-gray-500 mr-1">Presets:</span>
+                    <button
+                      type="button"
+                      onClick={selectAll}
+                      className="text-[11px] font-medium px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectNone}
+                      className="text-[11px] font-medium px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                    {CLONE_GROUPS.map((group) => {
+                      const groupSelected = group.items.filter((i) => cloneInclude[i.key]).length;
+                      const allInGroup    = groupSelected === group.items.length;
+                      const badgeColor    = groupSelected === 0
+                        ? "text-gray-400 bg-gray-100"
+                        : allInGroup
+                          ? "text-blue-700 bg-blue-100"
+                          : "text-blue-600 bg-blue-50";
+                      return (
+                        <div key={group.label}>
+                          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50/40">
+                            <span className="text-[11px] font-semibold text-gray-700 uppercase tracking-wider">
+                              {group.label}
+                            </span>
+                            <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded ${badgeColor}`}>
+                              {groupSelected}/{group.items.length}
+                            </span>
+                          </div>
+                          <div className="px-3 py-2 space-y-1">
+                            {group.items.map(({ key, label, hint }) => (
+                              <label key={key} className="flex items-start gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={cloneInclude[key]}
+                                  onChange={(e) => toggleInclude(key, e.target.checked)}
+                                  className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm text-gray-900">{label}</span>
+                                  <p className="text-xs text-gray-500">{hint}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-[11px] text-gray-400 mt-2 leading-snug">
+                    Products, tags, contacts, orders and credentials are never cloned. Cloned automations come over as drafts — review and rewire them to the new workspace before activating.
+                  </p>
+                </div>
+              </form>
+
+              <div className="flex gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setCloneSource(null)}
+                  className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  onClick={handleClone}
+                  disabled={cloning || !cloneName.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-colors"
+                >
+                  {cloning
+                    ? <><Loader2 size={13} className="animate-spin" /> Cloning…</>
+                    : <><Check size={13} /> Clone workspace</>
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

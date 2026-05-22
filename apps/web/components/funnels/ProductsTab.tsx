@@ -928,17 +928,22 @@ function OrderBumpCard({ stepId, bump, currency, allTags, physicalProducts, step
               <div>
                 <label className="text-xs font-medium text-gray-700 mb-1 block">Shipping fee</label>
                 <div className="flex items-center gap-2">
-                  <div className="flex border rounded-xl overflow-hidden w-40">
+                  <div className={`flex border rounded-xl overflow-hidden w-40 ${!perm.canManageBumps ? "opacity-60" : ""}`}>
                     <span className="px-3 py-2 text-sm bg-gray-50 text-gray-500 font-medium border-r select-none">$</span>
                     <input
                       type="number" min="0" step="0.01"
-                      className="flex-1 px-3 py-2 text-sm focus:outline-none"
+                      disabled={!perm.canManageBumps}
+                      className="flex-1 px-3 py-2 text-sm focus:outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
                       placeholder="0.00"
                       defaultValue={(bump.shippingFee / 100).toString()}
                       onBlur={(e) => saveShippingFee(e.target.value)}
                     />
                   </div>
-                  <span className="text-xs text-gray-400">Enter 0 for free shipping</span>
+                  <span className="text-xs text-gray-400">
+                    {perm.canManageBumps
+                      ? "Enter 0 for free shipping"
+                      : <>Read-only — needs <code className="font-mono bg-gray-100 px-1 rounded">funnels:bumps:write</code></>}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1224,7 +1229,9 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
   }
 
   async function saveShippingFee(value: string) {
-    if (!canManageFunnels) return;
+    // Shipping is bundled under price_plans perm (revenue-sensitive). Without
+    // it the API would 403 anyway — gate up-front for clean UX.
+    if (!canManagePricePlans) return;
     setShippingFee(value);
     await apiFetch(`/api/funnel-steps/${stepId}/offer-type`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -1354,17 +1361,22 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
           <div className="mt-4">
             <label className="text-sm font-medium text-gray-700 mb-1 block">Shipping fee</label>
             <div className="flex items-center gap-2">
-              <div className="flex border rounded-xl overflow-hidden w-40">
+              <div className={`flex border rounded-xl overflow-hidden w-40 ${!canManagePricePlans ? "opacity-60" : ""}`}>
                 <span className="px-3 py-2.5 text-sm bg-gray-50 text-gray-500 font-medium border-r select-none">$</span>
                 <input
                   type="number" min="0" step="0.01"
-                  className="flex-1 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={!canManagePricePlans}
+                  className="flex-1 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
                   placeholder="0.00" value={shippingFee}
                   onChange={(e) => setShippingFee(e.target.value)}
                   onBlur={(e) => saveShippingFee(e.target.value)}
                 />
               </div>
-              <span className="text-xs text-gray-400">Enter 0 for free shipping</span>
+              <span className="text-xs text-gray-400">
+                {canManagePricePlans
+                  ? "Enter 0 for free shipping"
+                  : <>Read-only — needs <code className="font-mono bg-gray-100 px-1 rounded">funnels:price_plans:write</code></>}
+              </span>
             </div>
           </div>
         </div>

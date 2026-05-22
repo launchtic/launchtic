@@ -571,7 +571,18 @@ const createFunnelFromSpec = defineTool({
         });
         stepsCreated.push({ id: salesStep.id, name: salesStep.name, type: "SALES" });
 
-        // 6. CHECKOUT step
+        // 6. CHECKOUT step.
+        //    Shipping fee is bundled under funnels:price_plans:write (revenue-
+        //    sensitive). Without that perm we silently zero it out — the
+        //    step still gets the PHYSICAL offerType so operator can wire
+        //    shipping in the editor afterward.
+        const wantedShippingCents = args.product!.offerType === "PHYSICAL"
+          ? Math.round((args.product!.shippingFee ?? 0) * 100)
+          : 0;
+        const checkoutShippingFee = canCreatePricePlan ? wantedShippingCents : 0;
+        if (wantedShippingCents > 0 && !canCreatePricePlan) {
+          skippedPricePlans.push(`shipping fee $${args.product!.shippingFee}`);
+        }
         const checkoutStep = await tx.funnelStep.create({
           data: {
             funnelId: funnel.id,
@@ -585,9 +596,7 @@ const createFunnelFromSpec = defineTool({
             physicalProductId: args.product!.offerType === "PHYSICAL"
               ? productIdByName.get(args.product!.name) ?? null
               : null,
-            shippingFee: args.product!.offerType === "PHYSICAL"
-              ? Math.round((args.product!.shippingFee ?? 0) * 100)
-              : 0,
+            shippingFee: checkoutShippingFee,
           },
         });
         stepsCreated.push({ id: checkoutStep.id, name: checkoutStep.name, type: "CHECKOUT" });
@@ -837,6 +846,17 @@ const addFunnelStep = defineTool({
           ?? (await tx.pageTemplate.findFirst({ where: { workspaceId: ctx.workspaceId, type: args.type as any, isActive: true }, orderBy: { createdAt: "asc" }, select: { pageJson: true } }));
       }
 
+      // Shipping fee gate — bundled under funnels:price_plans:write. If user
+      // lacks the perm we zero out shipping and track in skippedPricePlans.
+      // Step still gets the PHYSICAL offerType + product link.
+      const canPriceForShipping = ctx.isOwner || ctx.permissions.includes("funnels:price_plans:write");
+      const wantedShipping = requiresOffer && args.offerType === "PHYSICAL"
+        ? Math.round((args.shippingFee ?? 0) * 100)
+        : 0;
+      const stepShippingFee = canPriceForShipping ? wantedShipping : 0;
+      if (wantedShipping > 0 && !canPriceForShipping) {
+        skippedPricePlans.push(`shipping fee $${args.shippingFee}`);
+      }
       const step = await tx.funnelStep.create({
         data: {
           funnelId: funnel.id,
@@ -847,8 +867,7 @@ const addFunnelStep = defineTool({
           pageJson: tpl?.pageJson ?? {},
           offerType: requiresOffer ? args.offerType : null,
           physicalProductId,
-          shippingFee: requiresOffer && args.offerType === "PHYSICAL"
-            ? Math.round((args.shippingFee ?? 0) * 100) : 0,
+          shippingFee: stepShippingFee,
         },
       });
 

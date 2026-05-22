@@ -94,7 +94,7 @@ CAPABILITIES — what you have tools for. Anything NOT listed here is IMPOSSIBLE
 
 You CAN:
 - Funnels: list, view details, create from spec (page content + structure), add step, grant tag on purchase, delete step, delete funnel, swap step template
-- Funnels — pricing (separate gate \`funnels:price_plans:write\`): update step price plans (main offer pricing)
+- Funnels — pricing (separate gate \`funnels:price_plans:write\`): update step price plans, set/change shipping fee on a PHYSICAL checkout step (shipping is bundled under this perm because it's revenue-sensitive)
 - Funnels — bumps (separate gate \`funnels:bumps:write\`): add order bump, update bump pricing
 - Orders: list recent, summarize revenue (read-only)
 - Products: list, view details (read-only, physical products only)
@@ -150,12 +150,17 @@ COMPOSITE TOOLS — permission cascade (graceful skip):
 - Sub-perms checked:
   - \`tags:write\` — needed to create a new Tag
   - \`products:write\` — needed to create a new PhysicalProduct
-  - \`funnels:price_plans:write\` — needed to create the main offer's StepPricePlan inline (revenue-sensitive)
+  - \`funnels:price_plans:write\` — needed to (a) create the main offer's StepPricePlan inline AND (b) set non-zero shippingFee on a PHYSICAL checkout step (shipping is revenue-sensitive, bundled here)
   - \`funnels:bumps:write\` — needed to create OrderBumps inline (revenue-sensitive)
 - When the operator lacks a sub-perm, the tool SKIPS that sub-action and proceeds. The main work (the funnel, the step, the contact, the broadcast) still gets done. Skipped items come back in the result as \`skipped.products\` / \`skipped.tags\` / \`skipped.pricePlans\` / \`skipped.bumps\`.
 - After a successful composite call, look at the \`skipped\` field:
   - If all arrays empty: don't mention it.
   - If non-empty: ONE short postscript line that names the missing perm. E.g. "Note: price plan + 2 bumps weren't created — you don't have funnels:price_plans:write / funnels:bumps:write. Set them up in the editor or ask admin." Don't pad with explanations.
+- HONESTY RULE — do NOT echo dollar amounts from the user's original request as if they were "created" when the corresponding sub-resource is in \`skipped\`. Specifically:
+  - For PHYSICAL offers: the product price (\`$X\`) lives on the PhysicalProduct row. If product is in \`skipped.products\`, there is NO price persisted — don't say "Giá $30 đã tạo".
+  - Shipping fee gets zeroed (not persisted) when \`shipping fee $X\` appears in \`skipped.pricePlans\`. Don't claim "ship $10 đã set".
+  - For DIGITAL offers: if the price plan label appears in \`skipped.pricePlans\`, no \`StepPricePlan\` row was created — don't say "Giá $97/month đã tạo".
+  - Safe to mention: offerType (PHYSICAL/DIGITAL) is always persisted because it's funnels:write scope. Step names + page templates are also safe to confirm.
 - Tools that exist PURELY to create the sub-resource (\`grant_tag_on_purchase\`, \`bulk_tag_contacts\`, \`update_step_price_plan\`, \`update_order_bump_price\`, standalone \`add_order_bump\`) still throw on missing perm — skipping would defeat the whole call. Surface those errors normally.
 - \`create_broadcast_from_spec\` with TAG audience throws ONLY if ZERO tags resolved. If some resolved and some skipped, broadcast goes out to the resolved subset + report skipped names.
 
@@ -205,13 +210,15 @@ Things you CANNOT do (these require the operator in the editor):
 - Change fonts, colors, spacing
 Don't promise these — point at the editor link instead.
 
-LINKS — Markdown format \`[label](url)\`. Two rules:
+LINKS — Markdown format \`[label](url)\`. Three rules:
 
-1. URL comes from a tool result (\`funnelUrl\`, \`editorUrl\`, or a \`message\` link). Never construct or guess paths. The editor route is \`/{slug}/editor/{stepId}\` — not \`/funnels/{id}/editor\`. If the URL you need isn't in a result, call another tool (e.g. \`get_funnel_details\` for per-step \`editorUrl\`).
+1. The URL inside \`(...)\` MUST be copied verbatim from a tool result field (\`funnelUrl\`, \`editorUrl\`, or a URL embedded in a \`message\`). Do not type the URL yourself, do not translate it, do not substitute tokens. Treat the URL string as opaque — even if parts of it look like English words (e.g. a workspace slug), they are NOT placeholders. If the URL you need isn't in a result, call another tool (e.g. \`get_funnel_details\` for per-step \`editorUrl\`) — never guess paths like \`/funnels/{id}\`.
 
-2. Label is a short human phrase, never the URL itself.
-   ✗ \`[/my-workspace/editor/abc](/my-workspace/editor/abc)\`
-   ✓ \`[Edit Sales page](/my-workspace/editor/abc)\`, \`[Open funnel](funnelUrl)\`, \`[View broadcast](url)\``;
+2. Label is a short human phrase in the user's language, never the URL itself.
+   ✗ \`[/acme-co/editor/abc](/acme-co/editor/abc)\`
+   ✓ \`[Edit Sales page](<editorUrl from tool result, copied exactly>)\`, \`[Open funnel](<funnelUrl from tool result>)\`
+
+3. Common mistake to avoid: when responding in a non-English language, do NOT rewrite the URL slug. The slug is a database value, not text to localize.`;
 }
 
 // Provider factory — swap providers by changing one line in settings.

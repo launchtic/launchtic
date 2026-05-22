@@ -529,9 +529,36 @@ function MessageBubble({ message }: { message: Message }) {
   return null;
 }
 
+// AI sometimes generates markdown links without the leading slash and/or
+// without the workspace slug, producing URLs that browsers resolve as
+// relative to the current page (bug: `[Open](my-workspace/funnels/abc)`
+// from `/my-workspace/funnels/x` → `/my-workspace/funnels/my-workspace/funnels/abc`).
+//
+// We can't fully control LLM output formatting, so the renderer normalizes
+// at display time. Rules:
+//   - Has scheme (http://, mailto:, etc) → leave external as-is
+//   - Starts with "/"                    → already absolute, internal
+//   - Starts with "#"                    → in-page anchor
+//   - First segment === current slug     → AI dropped only the slash. Add it.
+//   - Otherwise                          → AI also dropped the workspace prefix.
+//                                          Prepend `/{currentSlug}/` since chat
+//                                          links are essentially always internal
+//                                          to the current workspace.
+function normalizeAiHref(href: string | undefined, currentSlug: string): string | undefined {
+  if (!href) return href;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return href; // scheme present
+  if (href.startsWith("/")) return href;
+  if (href.startsWith("#")) return href;
+  const firstSegment = href.split("/")[0];
+  if (firstSegment === currentSlug) return `/${href}`;
+  return `/${currentSlug}/${href}`;
+}
+
 // Compact markdown renderer for chat bubbles. Tight spacing + small typography
 // to fit the 380px-wide widget. Keeps the chat feel — not a document.
 function MarkdownContent({ children }: { children: string }) {
+  const params = useParams();
+  const slug   = params.workspaceSlug as string;
   return (
     <ReactMarkdown
       // GFM = GitHub-flavored markdown: tables, strikethrough, autolinks, task lists.
@@ -545,18 +572,21 @@ function MarkdownContent({ children }: { children: string }) {
         strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
         em:     ({ children }) => <em className="italic">{children}</em>,
         a:      ({ href, children }) => {
-          // Internal app paths (start with "/") → Next.js Link, same tab,
-          // preserves SPA navigation. External URLs → new tab + noreferrer.
-          const isInternal = href?.startsWith("/") ?? false;
+          // Normalize AI-generated href first (LLM often drops leading slash
+          // or the whole workspace prefix). After normalization, internal
+          // app paths (start with "/") → Next.js Link, same tab, preserves
+          // SPA navigation. External URLs → new tab + noreferrer.
+          const normalized = normalizeAiHref(href, slug);
+          const isInternal = normalized?.startsWith("/") ?? false;
           if (isInternal) {
             return (
-              <Link href={href!} className="underline text-blue-600 hover:text-blue-700 font-medium">
+              <Link href={normalized!} className="underline text-blue-600 hover:text-blue-700 font-medium">
                 {children}
               </Link>
             );
           }
           return (
-            <a href={href} target="_blank" rel="noreferrer" className="underline text-blue-600 hover:text-blue-700">
+            <a href={normalized} target="_blank" rel="noreferrer" className="underline text-blue-600 hover:text-blue-700">
               {children}
             </a>
           );
