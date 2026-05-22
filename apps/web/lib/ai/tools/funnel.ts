@@ -427,9 +427,17 @@ const createFunnelFromSpec = defineTool({
       //    step lands with physicalProductId = null and the operator wires
       //    a real product in the editor afterward.
       //    Owner bypasses (ctx.isOwner).
-      const canCreateProduct = ctx.isOwner || ctx.permissions.includes("products:write");
+      const canCreateProduct    = ctx.isOwner || ctx.permissions.includes("products:write");
+      // Sub-funnel perms (revenue-sensitive — see permissions.ts). Same
+      // graceful-skip story as products/tags: skip inline creation, push to
+      // a `skipped` array, report in postscript. The funnel + steps still
+      // get created — operator wires pricing/bumps in the editor afterward.
+      const canCreatePricePlan  = ctx.isOwner || ctx.permissions.includes("funnels:price_plans:write");
+      const canCreateBump       = ctx.isOwner || ctx.permissions.includes("funnels:bumps:write");
       const productIdByName = new Map<string, string>();
-      const skippedProducts: string[] = [];
+      const skippedProducts:    string[] = [];
+      const skippedPricePlans:  string[] = []; // descriptors like "$97 one-time", "$29/month"
+      const skippedBumps:       string[] = []; // bump labels
       const collectPhysical = async (name: string, price: number, sku?: string) => {
         if (productIdByName.has(name)) return;
         const existing = await tx.physicalProduct.findFirst({
@@ -584,21 +592,29 @@ const createFunnelFromSpec = defineTool({
         });
         stepsCreated.push({ id: checkoutStep.id, name: checkoutStep.name, type: "CHECKOUT" });
 
-        // CHECKOUT pricing — DIGITAL only (PHYSICAL price comes from product)
+        // CHECKOUT pricing — DIGITAL only (PHYSICAL price comes from product).
+        // Skip the StepPricePlan if user lacks funnels:price_plans:write
+        // (revenue-sensitive). Tag grants are independent of pricing — they
+        // attach to the step regardless and survive the skip.
         if (args.product!.offerType === "DIGITAL") {
-          await tx.stepPricePlan.create({
-            data: {
-              funnelStepId: checkoutStep.id,
-              name: args.product!.pricingType === "SUBSCRIPTION"
-                ? `$${args.product!.price}/${args.product!.interval ?? "month"}`
-                : `$${args.product!.price} one-time`,
-              type: args.product!.pricingType,
-              amount: Math.round(args.product!.price * 100),
-              currency,
-              interval: args.product!.pricingType === "SUBSCRIPTION" ? (args.product!.interval ?? "month") : null,
-              trialDays: args.product!.pricingType === "SUBSCRIPTION" ? (args.product!.trialDays ?? null) : null,
-            },
-          });
+          const planLabel = args.product!.pricingType === "SUBSCRIPTION"
+            ? `$${args.product!.price}/${args.product!.interval ?? "month"}`
+            : `$${args.product!.price} one-time`;
+          if (canCreatePricePlan) {
+            await tx.stepPricePlan.create({
+              data: {
+                funnelStepId: checkoutStep.id,
+                name: planLabel,
+                type: args.product!.pricingType,
+                amount: Math.round(args.product!.price * 100),
+                currency,
+                interval: args.product!.pricingType === "SUBSCRIPTION" ? (args.product!.interval ?? "month") : null,
+                trialDays: args.product!.pricingType === "SUBSCRIPTION" ? (args.product!.trialDays ?? null) : null,
+              },
+            });
+          } else {
+            skippedPricePlans.push(planLabel);
+          }
           for (const tagName of args.product!.grantTagNames ?? []) {
             const tagId = tagIdByName.get(tagName.trim());
             if (tagId) {
@@ -609,47 +625,54 @@ const createFunnelFromSpec = defineTool({
           }
         }
 
-        // 7. Order bumps on CHECKOUT
-        for (const [idx, bump] of (args.bumps ?? []).entries()) {
-        const orderBump = await tx.orderBump.create({
-          data: {
-            funnelStepId: checkoutStep.id,
-            label: bump.name,
-            headline: bump.headline ?? null,
-            offerType: bump.offerType,
-            physicalProductId: bump.offerType === "PHYSICAL"
-              ? productIdByName.get(bump.name) ?? null
-              : null,
-            shippingFee: bump.offerType === "PHYSICAL"
-              ? Math.round((bump.shippingFee ?? 0) * 100)
-              : 0,
-            order: idx,
-          },
-        });
-
-        if (bump.offerType === "DIGITAL") {
-          await tx.orderBumpPricePlan.create({
+        // 7. Order bumps on CHECKOUT — skip entire bumps array if user lacks
+        //    funnels:bumps:write. We don't try to create the bump shell
+        //    without its price plan: a bump without pricing is half-broken,
+        //    cleaner to skip completely and let operator add later.
+        if (!canCreateBump && (args.bumps?.length ?? 0) > 0) {
+          for (const bump of args.bumps ?? []) skippedBumps.push(bump.name);
+        } else {
+          for (const [idx, bump] of (args.bumps ?? []).entries()) {
+          const orderBump = await tx.orderBump.create({
             data: {
-              orderBumpId: orderBump.id,
-              name: bump.pricingType === "SUBSCRIPTION"
-                ? `+$${bump.price}/${bump.interval ?? "month"}`
-                : `+$${bump.price} add-on`,
-              type: bump.pricingType,
-              amount: Math.round(bump.price * 100),
-              currency,
-              interval: bump.pricingType === "SUBSCRIPTION" ? (bump.interval ?? "month") : null,
+              funnelStepId: checkoutStep.id,
+              label: bump.name,
+              headline: bump.headline ?? null,
+              offerType: bump.offerType,
+              physicalProductId: bump.offerType === "PHYSICAL"
+                ? productIdByName.get(bump.name) ?? null
+                : null,
+              shippingFee: bump.offerType === "PHYSICAL"
+                ? Math.round((bump.shippingFee ?? 0) * 100)
+                : 0,
+              order: idx,
             },
           });
-          for (const tagName of bump.grantTagNames ?? []) {
-            const tagId = tagIdByName.get(tagName.trim());
-            if (tagId) {
-              await tx.orderBumpResource.create({
-                data: { orderBumpId: orderBump.id, type: "TAG", resourceId: tagId },
-              });
+
+          if (bump.offerType === "DIGITAL") {
+            await tx.orderBumpPricePlan.create({
+              data: {
+                orderBumpId: orderBump.id,
+                name: bump.pricingType === "SUBSCRIPTION"
+                  ? `+$${bump.price}/${bump.interval ?? "month"}`
+                  : `+$${bump.price} add-on`,
+                type: bump.pricingType,
+                amount: Math.round(bump.price * 100),
+                currency,
+                interval: bump.pricingType === "SUBSCRIPTION" ? (bump.interval ?? "month") : null,
+              },
+            });
+            for (const tagName of bump.grantTagNames ?? []) {
+              const tagId = tagIdByName.get(tagName.trim());
+              if (tagId) {
+                await tx.orderBumpResource.create({
+                  data: { orderBumpId: orderBump.id, type: "TAG", resourceId: tagId },
+                });
+              }
             }
           }
-        }
-        }   // ← end for-bumps
+          }   // ← end for-bumps
+        }     // ← end canCreateBump
       }     // ← end else (direct_sale branch)
 
       // 8. THANKYOU step (always last, both flavors)
@@ -679,8 +702,10 @@ const createFunnelFromSpec = defineTool({
         editorUrl: `/${ctx.workspaceSlug}/funnels/${funnel.id}`,
         tagsCreated: Array.from(tagIdByName.keys()),
         skipped: {
-          products: skippedProducts,
-          tags:     skippedTags,
+          products:   skippedProducts,
+          tags:       skippedTags,
+          pricePlans: skippedPricePlans, // step price plan descriptors skipped
+          bumps:      skippedBumps,      // bump names skipped
         },
         message: `Funnel created. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id}) to customize copy + design.`,
       };
@@ -757,8 +782,10 @@ const addFunnelStep = defineTool({
       // exist by name+currency, physicalProductId stays null and we track
       // the skip in `skippedProducts`. Step is still created — operator
       // wires a real product in the editor afterward.
-      const skippedProducts: string[] = [];
-      const skippedTags:     string[] = [];
+      // Same story for tags (grant on purchase) and the inline price plan.
+      const skippedProducts:   string[] = [];
+      const skippedTags:       string[] = [];
+      const skippedPricePlans: string[] = []; // descriptors like "$97 one-time"
       let physicalProductId: string | null = null;
       if (requiresOffer && args.offerType === "PHYSICAL") {
         const productName = args.productName ?? args.name;
@@ -825,20 +852,29 @@ const addFunnelStep = defineTool({
         },
       });
 
+      // Inline price plan for new CHECKOUT/UPSELL/DOWNSELL DIGITAL step.
+      // Skip if user lacks funnels:price_plans:write (revenue-sensitive).
+      // Step itself still gets created — operator wires price in editor.
       if (requiresOffer && args.offerType === "DIGITAL") {
-        await tx.stepPricePlan.create({
-          data: {
-            funnelStepId: step.id,
-            name: args.pricingType === "SUBSCRIPTION"
-              ? `$${args.price}/${args.interval ?? "month"}`
-              : `$${args.price} one-time`,
-            type: args.pricingType,
-            amount: Math.round((args.price ?? 0) * 100),
-            currency: funnel.currency,
-            interval: args.pricingType === "SUBSCRIPTION" ? (args.interval ?? "month") : null,
-            trialDays: args.pricingType === "SUBSCRIPTION" ? (args.trialDays ?? null) : null,
-          },
-        });
+        const canCreatePricePlan = ctx.isOwner || ctx.permissions.includes("funnels:price_plans:write");
+        const planLabel = args.pricingType === "SUBSCRIPTION"
+          ? `$${args.price}/${args.interval ?? "month"}`
+          : `$${args.price} one-time`;
+        if (canCreatePricePlan) {
+          await tx.stepPricePlan.create({
+            data: {
+              funnelStepId: step.id,
+              name: planLabel,
+              type: args.pricingType,
+              amount: Math.round((args.price ?? 0) * 100),
+              currency: funnel.currency,
+              interval: args.pricingType === "SUBSCRIPTION" ? (args.interval ?? "month") : null,
+              trialDays: args.pricingType === "SUBSCRIPTION" ? (args.trialDays ?? null) : null,
+            },
+          });
+        } else {
+          skippedPricePlans.push(planLabel);
+        }
       }
 
       if (args.grantTagNames?.length) {
@@ -858,7 +894,11 @@ const addFunnelStep = defineTool({
         stepId: step.id,
         stepName: step.name,
         stepType: step.type,
-        skipped: { products: skippedProducts, tags: skippedTags },
+        skipped: {
+          products:   skippedProducts,
+          tags:       skippedTags,
+          pricePlans: skippedPricePlans,
+        },
         message: `Step "${step.name}" added. [Open in editor](/${ctx.workspaceSlug}/funnels/${funnel.id})`,
       };
     });

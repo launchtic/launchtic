@@ -68,3 +68,7 @@ export function canCreateWorkspace(plan: string, currentCount: number): boolean 
   const features = getPlanFeatures(plan);
   return currentCount < features.maxWorkspaces;
 }
+
+export function canCloneWorkspace(plan: string): boolean {
+  return getPlanFeatures(plan).workspaceCloning;
+}
