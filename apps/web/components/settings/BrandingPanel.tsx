@@ -18,10 +18,7 @@ type BrandingConfig = {
   logoUrl?:      string;
   logoLightUrl?: string;
   faviconUrl?:   string;
-  primaryColor?: string;
 };
-
-const DEFAULT_COLOR = "#2563eb";
 
 // Shared input style — mirrors PaymentPanel for consistency across Settings.
 // Larger touch targets, rounded-xl, gray-200 border, gray-300 placeholder.
@@ -121,9 +118,13 @@ export default function BrandingPanel({
     <div className="max-w-2xl space-y-6">
       <Header />
 
-      <Field label="Brand name" hint="Shown in the top nav, browser title, and login page.">
+      <Field
+        label="Brand name"
+        hint="Shown in the top nav, browser title, and login page."
+      >
         <input
-          type="text" maxLength={60}
+          type="text"
+          maxLength={60}
           className={INPUT_CLS}
           placeholder="launchtic"
           value={form.brandName ?? ""}
@@ -131,60 +132,39 @@ export default function BrandingPanel({
         />
       </Field>
 
-      <Section
-        title="Logos"
-        description="Upload PNG / SVG (recommended). Light variant is used on dark backgrounds — leave blank to fall back to the primary logo."
+      <Field
+        label="Primary logo"
+        hint="Used on light backgrounds. Recommended 200×40 px."
       >
-        <Field label="Primary logo" hint="Used on light backgrounds. Recommended 200×40 px.">
-          <LogoUpload
-            value={form.logoUrl ?? ""}
-            onChange={(url) => set("logoUrl", url)}
-            hint="Click to upload (.png, .svg)"
-          />
-        </Field>
+        <LogoUpload
+          value={form.logoUrl ?? ""}
+          onChange={(url) => set("logoUrl", url)}
+          hint="Click to upload (.png, .svg)"
+        />
+      </Field>
 
-        <Field label="Logo (light)" hint="Used on dark backgrounds — typically a white/inverted version of your logo.">
-          <LogoUpload
-            value={form.logoLightUrl ?? ""}
-            onChange={(url) => set("logoLightUrl", url)}
-            hint="Click to upload (.png, .svg)"
-          />
-        </Field>
-
-        <Field label="Favicon" hint="Browser tab icon. Recommended 32×32 PNG or .ico.">
-          <LogoUpload
-            value={form.faviconUrl ?? ""}
-            onChange={(url) => set("faviconUrl", url)}
-            hint="Click to upload (.ico, .png, .svg)"
-            accept="image/*,.ico"
-          />
-        </Field>
-      </Section>
-
-      <Section
-        title="Theme color"
-        description="Replaces the default blue accent (buttons, links, focus rings)."
+      <Field
+        label="Logo (light)"
+        hint="Used on dark backgrounds — typically a white/inverted version of your logo."
       >
-        <Field label="Primary color">
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              className="w-12 h-10 border border-gray-200 rounded-xl cursor-pointer bg-white"
-              value={form.primaryColor ?? DEFAULT_COLOR}
-              onChange={(e) => set("primaryColor", e.target.value)}
-            />
-            <input
-              type="text"
-              className={`${INPUT_CLS} font-mono w-40`}
-              placeholder={DEFAULT_COLOR}
-              value={form.primaryColor ?? ""}
-              onChange={(e) => set("primaryColor", e.target.value)}
-            />
-            <span className="text-xs text-gray-400">Hex format (#rrggbb)</span>
-          </div>
-        </Field>
-      </Section>
+        <LogoUpload
+          value={form.logoLightUrl ?? ""}
+          onChange={(url) => set("logoLightUrl", url)}
+          hint="Click to upload (.png, .svg)"
+        />
+      </Field>
 
+      <Field
+        label="Favicon"
+        hint="Browser tab icon. Recommended 32×32 PNG or .ico."
+      >
+        <LogoUpload
+          value={form.faviconUrl ?? ""}
+          onChange={(url) => set("faviconUrl", url)}
+          hint="Click to upload (.ico, .png, .svg)"
+          accept="image/*,.ico"
+        />
+      </Field>
       {/* Action row */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200">
         <button
@@ -192,7 +172,11 @@ export default function BrandingPanel({
           disabled={resetting}
           className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
         >
-          {resetting ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+          {resetting ? (
+            <Loader2 size={13} className="animate-spin" />
+          ) : (
+            <RotateCcw size={13} />
+          )}
           Reset to defaults
         </button>
         <button
@@ -200,7 +184,11 @@ export default function BrandingPanel({
           disabled={saving}
           className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-60"
         >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+          {saving ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Check size={14} />
+          )}
           Save branding
         </button>
       </div>
@@ -302,11 +290,11 @@ function LogoUpload({
       <div className="flex-1 min-w-0">
         {value ? (
           <div className="flex items-center gap-2">
-            <p className="text-xs text-gray-500 truncate font-mono">{value}</p>
             <button
               type="button"
               onClick={() => onChange("")}
               className="shrink-0 p-1 text-gray-300 hover:text-red-500 transition-colors"
+              title="Remove"
             >
               <Trash2 size={13} />
             </button>

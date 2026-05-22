@@ -224,6 +224,8 @@ export default function TopNav({
   workspaceName,
   workspacePlan,
   workspaces,
+  brandName,
+  brandLogoUrl,
 }: {
   name: string;
   email: string;
@@ -232,6 +234,10 @@ export default function TopNav({
   workspaceName: string;
   workspaces: WorkspaceListItem[];
   workspacePlan: string;
+  /** Agency-configured brand name. Defaults to "launchtic" upstream. */
+  brandName: string;
+  /** Agency-configured logo URL (primary, used on light TopNav). Null → fallback to /logo.svg. */
+  brandLogoUrl: string | null;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -246,9 +252,17 @@ export default function TopNav({
   return (
     <>
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 gap-4 shrink-0 relative z-30">
-        {/* Logo */}
+        {/* Logo — agency override when configured + license valid (set in
+            dashboard layout via getActiveBranding). Falls back to the
+            built-in launchtic SVG wordmark. */}
         <Link href={`/${workspaceSlug}/dashboard`} className="shrink-0 flex items-center">
-          <img src="/logo.svg" alt="launchtic" className="h-7 w-auto" />
+          {brandLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brandLogoUrl} alt={brandName} className="h-7 w-auto max-w-[160px] object-contain" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/logo.svg" alt={brandName} className="h-7 w-auto" />
+          )}
         </Link>
 
         {/* Workspace switcher — Agency-tier only feature. Below Agency the

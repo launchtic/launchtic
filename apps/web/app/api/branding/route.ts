@@ -20,14 +20,12 @@ import { requireAccess } from "../../../lib/permissions";
 import { getBranding, saveBranding, resetBranding } from "../../../lib/branding";
 
 // Patch schema — every field optional, UI sends only what changed.
-// Color: hex form `#rgb` or `#rrggbb` (browser native input format).
 // URLs: returned from /api/media/upload OR pasted by the operator (CDN).
 const patchSchema = z.object({
   brandName:    z.string().trim().max(60).optional(),
   logoUrl:      z.string().trim().max(500).optional(),
   logoLightUrl: z.string().trim().max(500).optional(),
   faviconUrl:   z.string().trim().max(500).optional(),
-  primaryColor: z.string().trim().regex(/^#[0-9a-fA-F]{3,8}$/, "Expected hex color like #2563eb").optional(),
 });
 
 export async function GET() {

@@ -19,6 +19,15 @@ const EditorApp = dynamic(
   },
 );
 
-export default function EditorAppDynamic(props: { funnelStepId: string; rendererUrl: string; workspaceSlug: string }) {
-  return <EditorApp {...props} />;
+export default function EditorAppDynamic(props: {
+  funnelStepId:  string;
+  rendererUrl:   string;
+  workspaceSlug: string;
+  // White-label props forwarded from the editor page (server-resolved from
+  // Organization.brandingConfig). Editor's Header reads window.data.brandLogoUrl
+  // — see launchtic-elements/src/editor/app/Header.tsx.
+  brandLogoUrl?: string | null;
+  brandName?:    string | null;
+}) {
+  return <EditorApp {...(props as any)} />;
 }

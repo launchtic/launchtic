@@ -3,7 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 
-export default function ForgotForm() {
+export default function ForgotForm({
+  brandLogoUrl,
+  brandName,
+}: {
+  brandLogoUrl?: string | null;
+  brandName?:    string;
+} = {}) {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
@@ -35,7 +41,12 @@ export default function ForgotForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        <img src="/logo.svg" alt="launchtic" className="h-8 w-auto mb-6" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={brandLogoUrl ?? "/logo.svg"}
+          alt={brandName ?? "launchtic"}
+          className="h-8 w-auto max-w-[180px] object-contain mb-6"
+        />
 
         {submitted ? (
           <>

@@ -6,7 +6,13 @@ import Link from "next/link";
 
 type State = "checking" | "ready" | "invalid" | "submitting" | "done";
 
-export default function ResetForm() {
+export default function ResetForm({
+  brandLogoUrl,
+  brandName,
+}: {
+  brandLogoUrl?: string | null;
+  brandName?:    string;
+} = {}) {
   const router = useRouter();
   const params = useSearchParams();
   const token  = params.get("token") ?? "";
@@ -58,7 +64,12 @@ export default function ResetForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        <img src="/logo.svg" alt="launchtic" className="h-8 w-auto mb-6" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={brandLogoUrl ?? "/logo.svg"}
+          alt={brandName ?? "launchtic"}
+          className="h-8 w-auto max-w-[180px] object-contain mb-6"
+        />
 
         {state === "checking" && (
           <p className="text-sm text-gray-500">Verifying link…</p>

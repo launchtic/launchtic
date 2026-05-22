@@ -10,7 +10,17 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-export default function RegisterForm() {
+export default function RegisterForm({
+  brandLogoUrl,
+  brandName,
+}: {
+  // White-label overrides — null on first-time install (no Organization
+  // yet), so we always render launchtic chrome on that path. Once the org
+  // exists and configures branding, subsequent /register visits (e.g.
+  // invited-user signup if that flow is added later) will reflect agency.
+  brandLogoUrl?: string | null;
+  brandName?:    string;
+} = {}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +57,12 @@ export default function RegisterForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        <img src="/logo.svg" alt="launchtic" className="h-8 w-auto mb-6" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={brandLogoUrl ?? "/logo.svg"}
+          alt={brandName ?? "launchtic"}
+          className="h-8 w-auto max-w-[180px] object-contain mb-6"
+        />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Set up your install</h1>
         <p className="text-gray-500 text-sm mb-6">
           Create the admin account for this Launchtic install.

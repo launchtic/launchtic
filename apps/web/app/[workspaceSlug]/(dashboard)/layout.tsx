@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { reVerifyIfStale } from "../../../lib/license";
 import { getEffectivePlan } from "../../../lib/organization";
+import { getActiveBranding } from "../../../lib/branding";
 import { requireWorkspaceFromSlug } from "../../../lib/permissions";
 import TopNav from "../../../components/TopNav";
 import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
@@ -13,6 +14,11 @@ import OnboardingChecklist from "../../../components/dashboard/OnboardingCheckli
 import { WorkspaceRoleProvider } from "../../../components/WorkspaceRoleProvider";
 import { getOnboardingStatus } from "../../../lib/onboarding";
 import NextTopLoader from "nextjs-toploader";
+
+// Note: favicon + brand title come from the ROOT layout's generateMetadata
+// (apps/web/app/layout.tsx). Self-host has one Organization per install,
+// so a single resolve in root covers every page including this one. No
+// per-segment metadata override needed today.
 
 export default async function DashboardLayout({
   children,
@@ -41,11 +47,16 @@ export default async function DashboardLayout({
   // the host workspace's license fresh.
   await reVerifyIfStale(wsHead.organizationId);
 
-  const [organization, user, onboarding, workspaces] = await Promise.all([
+  const [organization, branding, user, onboarding, workspaces] = await Promise.all([
     db.organization.findUnique({
       where: { id: wsHead.organizationId },
       select: { plan: true, licenseExpiresAt: true },
     }),
+    // Active branding = saved overrides ONLY when plan + license still grant
+    // whiteLabel. Expired Agency / non-Agency → falls back to launchtic
+    // defaults automatically (saved JSON stays untouched, returns when
+    // license is renewed).
+    getActiveBranding(wsHead.organizationId),
     db.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     getOnboardingStatus(workspaceId),
     // Workspaces the user can switch to: workspaces they own via the
@@ -80,6 +91,8 @@ export default async function DashboardLayout({
     <ConfirmProvider>
       <ToastProvider>
         <UnsavedChangesProvider>
+          {/* Favicon + title come from generateMetadata above (server-side,
+              injected into <head> by Next). No client effect needed. */}
           <NextTopLoader color="#2563eb" height={3} showSpinner={false} />
           <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
             <TopNav
@@ -90,6 +103,8 @@ export default async function DashboardLayout({
               workspaceName={workspaceName}
               workspacePlan={workspacePlan}
               workspaces={workspaces}
+              brandName={branding.brandName}
+              brandLogoUrl={branding.logoUrl}
             />
             <main className="flex-1 overflow-y-auto">
               {children}

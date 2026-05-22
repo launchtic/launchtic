@@ -4,7 +4,15 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginForm() {
+export default function LoginForm({
+  brandLogoUrl,
+  brandName,
+}: {
+  // White-label overrides from the installation's Organization (resolved
+  // server-side in page.tsx). Falls back to launchtic chrome when null.
+  brandLogoUrl?: string | null;
+  brandName?:    string;
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
@@ -32,7 +40,12 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        <img src="/logo.svg" alt="launchtic" className="h-8 w-auto mb-6" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={brandLogoUrl ?? "/logo.svg"}
+          alt={brandName ?? "launchtic"}
+          className="h-8 w-auto max-w-[180px] object-contain mb-6"
+        />
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back</h1>
         <p className="text-gray-500 text-sm mb-6">Sign in to your account</p>
         {error && (
