@@ -40,3 +40,34 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   }
   return fetch(input, { ...init, headers });
 }
+
+/**
+ * Trigger a file download from an authenticated API endpoint. Plain `<a download>`
+ * doesn't carry our X-Workspace-Slug header (browsers don't run apiFetch on link
+ * clicks), which makes the server return 400 "Missing workspace context". This
+ * helper fetches via apiFetch, materializes the response as a Blob, and clicks
+ * a synthetic anchor to save it. Filename comes from Content-Disposition.
+ */
+export async function downloadFromApi(url: string, fallbackFilename: string): Promise<void> {
+  const res = await apiFetch(url);
+  if (!res.ok) {
+    let detail = "";
+    try { const j = await res.json(); detail = j.error ? `: ${j.error}` : ""; } catch {}
+    throw new Error(`Download failed (${res.status})${detail}`);
+  }
+  let filename = fallbackFilename;
+  const cd = res.headers.get("Content-Disposition");
+  if (cd) {
+    const m = cd.match(/filename="([^"]+)"/) ?? cd.match(/filename=([^;]+)/);
+    if (m) filename = m[1].trim();
+  }
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
