@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { db } from "@launchtic/database";
 import { ok, err } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
 import { getDriver } from "../../../lib/storage";
@@ -22,11 +23,28 @@ export async function GET(req: NextRequest) {
       folder ? Promise.resolve([]) : driver.listFolders(workspaceId),
     ]);
 
+    // Enrich each file with its Asset row (assetId) when one exists.
+    // Files uploaded via the older flow without an Asset row come back with
+    // assetId: null — caller can still display/use them via url.
+    const storagePaths = result.files.map((f) => f.key);
+    const assets = storagePaths.length > 0
+      ? await db.asset.findMany({
+          where:  { workspaceId, storagePath: { in: storagePaths } },
+          select: { id: true, storagePath: true },
+        })
+      : [];
+    const pathToId = new Map(assets.map((a) => [a.storagePath, a.id]));
+
+    const files = result.files.map((f) => ({
+      ...f,
+      assetId: pathToId.get(f.key) ?? null,
+    }));
+
     return ok({
-      files: result.files,
-      hasMore: result.hasMore,
+      files,
+      hasMore:   result.hasMore,
       nextToken: result.nextToken,
-      total: result.total,
+      total:     result.total,
       folders,
     });
   } catch (error) {

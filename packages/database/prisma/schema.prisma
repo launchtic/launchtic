@@ -116,8 +116,41 @@ model Workspace {
   savedBlocks         SavedBlock[]
   pageTemplates       PageTemplate[]
   roles               Role[]
+  assets              Asset[]
 
   @@index([organizationId])
+}
+
+// Per-workspace media library. Every uploaded file is tracked here so that
+// content can reference assets by id (portable across storage drivers, domain
+// changes, clone, and marketplace import) while still keeping `url` denormalized
+// for fast render. `sha256` enables dedup at upload time and during clone/import.
+model Asset {
+  id          String   @id @default(cuid())
+  workspaceId String
+  filename    String
+  mimeType    String
+  sha256      String
+  bytes       Int
+  width       Int?
+  height      Int?
+  // Internal storage key (driver-relative, no host). Used by migration tools
+  // that read the file via the driver that wrote it.
+  storagePath String
+  // Public URL resolved at upload time and persisted. Render reads this
+  // directly — no driver call needed at render. Storage migration is the
+  // only event that requires rewriting this field.
+  url         String
+  // Which driver wrote this file. Lets a mixed-storage workspace (some files
+  // on local, some on S3 after a switch) read each file with the right driver.
+  driver      String
+
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, sha256])
+  @@index([workspaceId, createdAt])
 }
 
 // One-time tokens for the "forgot password" flow. Token itself is never

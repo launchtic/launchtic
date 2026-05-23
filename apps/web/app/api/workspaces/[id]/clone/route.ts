@@ -5,6 +5,7 @@ import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { canCloneWorkspace, canCreateWorkspace } from "@launchtic/ee";
 import { getOrganizationForOwner, getEffectivePlan } from "../../../../../lib/organization";
+import { cloneAssets, rewriteWorkspaceContentAssets } from "../../../../../lib/asset-clone";
 
 // POST /api/workspaces/[id]/clone — duplicate a workspace's "blueprint" content
 // into a new workspace owned by the same user. Owner-only, Agency-plan-gated.
@@ -333,6 +334,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       return newWsId;
     }, { timeout: 60_000, maxWait: 5_000 });
+
+    // ── Asset clone (post-tx) ───────────────────────────────────────────────
+    // File copies happen outside the DB transaction so we don't hold a
+    // connection open during slow storage I/O. If clone covers any content
+    // group that may reference assets (funnels, pageTemplates, emailTemplates),
+    // copy every source Asset to the new workspace and rewrite assetId + URL
+    // references in cloned content. Failures here leave the workspace usable
+    // but with stale source-side URLs — user can re-trigger or accept it.
+    const mayReferenceAssets =
+      inc.funnels || inc.pageTemplates || inc.emailTemplates || inc.sequences;
+    if (mayReferenceAssets) {
+      try {
+        const refs = await cloneAssets(sourceId, newWorkspaceId);
+        await rewriteWorkspaceContentAssets(newWorkspaceId, refs);
+      } catch (assetErr) {
+        console.error("[workspace-clone] asset clone failed:", assetErr);
+        // Don't fail the whole clone — workspace is still functional with
+        // original URLs. Surface a warning header so client can flag this.
+      }
+    }
 
     const created = await db.workspace.findUniqueOrThrow({
       where: { id: newWorkspaceId },

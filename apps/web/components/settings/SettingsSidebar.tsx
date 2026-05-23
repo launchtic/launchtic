@@ -9,6 +9,7 @@ import { useState } from "react";
 import {
   Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key,
   Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users, Shield, Palette,
+  DownloadCloud,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { isAgencyPlan } from "../../lib/plan";
@@ -65,6 +66,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
       { segment: "email",          label: "Email Settings",   icon: Mail,                        requirePerm: "settings:email:read"          },
       { segment: "storage",        label: "Storage",          icon: HardDrive,                   requirePerm: "settings:storage:read"        },
       { segment: "page-templates", label: "Page Templates",   icon: LayoutTemplate,              requirePerm: "settings:page_templates:read" },
+      { segment: "gallery-import", label: "Template Gallery", icon: DownloadCloud,               ownerOnly: true                              },
       { segment: "ai-assistant",   label: "AI Assistant",     icon: Bot,                         requirePerm: "settings:ai:read"             },
     ],
   },
@@ -114,6 +116,7 @@ export default function SettingsSidebar({
   return (
     <aside className={`
       w-full md:w-56 md:shrink-0 border-r border-gray-200 bg-white flex flex-col py-4 gap-4
+      min-h-0 overflow-y-auto
       ${mobileView === "nav" ? "flex" : "hidden md:flex"}
     `}>
       {visibleSections.map((section) => (

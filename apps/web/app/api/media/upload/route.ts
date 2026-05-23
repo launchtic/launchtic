@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { createHash } from "crypto";
+import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { getDriver, buildKey } from "../../../../lib/storage";
@@ -26,16 +28,63 @@ export async function POST(req: NextRequest) {
     // Resize, strip EXIF, recompress. SVG / GIF pass through unchanged.
     const processed = await processUploadedImage(rawBuffer, file.type);
 
+    // Dedup: if an Asset with the same content hash already exists in this
+    // workspace, reuse it. Saves storage + bandwidth + lets the editor
+    // converge two "different uploads of the same file" onto one asset id.
+    const sha256 = createHash("sha256").update(processed.buffer).digest("hex");
+    const existing = await db.asset.findFirst({
+      where: { workspaceId, sha256 },
+      select: { id: true, storagePath: true, url: true, bytes: true, width: true, height: true },
+    });
+    if (existing) {
+      return ok({
+        url:       existing.url,
+        key:       existing.storagePath,
+        assetId:   existing.id,
+        width:     existing.width,
+        height:    existing.height,
+        bytesIn:   processed.bytesIn,
+        bytesOut:  existing.bytes,
+        deduped:   true,
+      });
+    }
+
+    // Resolve driver name from settings so we can persist which driver wrote
+    // the file. Needed for mixed-storage workspaces (some assets on local,
+    // some on s3) — migration tools must read with the right driver.
+    const settings = await db.workspaceSettings.findUnique({
+      where: { workspaceId },
+      select: { storage: true },
+    });
+    const driverName = ((settings?.storage as any)?.driver as string) ?? "local";
+
     const key = buildKey(workspaceId, file.name, folder ?? undefined);
     const driver = await getDriver(workspaceId);
     const url = await driver.upload(key, processed.buffer, processed.mimeType);
 
+    const asset = await db.asset.create({
+      data: {
+        workspaceId,
+        filename:    file.name,
+        mimeType:    processed.mimeType,
+        sha256,
+        bytes:       processed.bytesOut,
+        width:       processed.width,
+        height:      processed.height,
+        storagePath: key,
+        url,
+        driver:      driverName,
+      },
+      select: { id: true },
+    });
+
     return ok({
       url,
       key,
-      width: processed.width,
-      height: processed.height,
-      bytesIn: processed.bytesIn,
+      assetId:  asset.id,
+      width:    processed.width,
+      height:   processed.height,
+      bytesIn:  processed.bytesIn,
       bytesOut: processed.bytesOut,
     });
   } catch (error) {
