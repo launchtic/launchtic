@@ -1,7 +1,7 @@
 import { mkdir, writeFile, unlink, readdir, stat } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
-import { v4 as uuidv4 } from "uuid";
+import { randomBytes } from "crypto";
 import { db } from "@launchtic/database";
 import { decrypt, encrypt } from "./crypto";
 
@@ -31,16 +31,42 @@ export interface StorageDriver {
 
 // ─── Filename helpers ────────────────────────────────────────────────────────
 
+const LEADING_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i;
+const LEADING_SHORT_ID_RE = /^[0-9a-f]{8}-/i;     // matches our own short-id prefix
+const MAX_BASE_LEN = 40;
+
 function sanitizeName(filename: string): string {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase();
 }
 
+/**
+ * Build a short, predictable storage key. Output filename format:
+ *   {8-hex-id}-{sanitized-base-up-to-40-chars}.{ext}
+ *
+ * Strips any leading UUID (or our own short-id prefix) recursively so a file
+ * making multiple round trips (download → re-upload → export → import) does
+ * not accumulate IDs in its name.
+ */
 export function buildKey(workspaceId: string, filename: string, folder?: string): string {
-  const sanitized = sanitizeName(filename);
-  if (folder && folder.trim()) {
-    return `${workspaceId}/${sanitizeName(folder.trim())}/${uuidv4()}-${sanitized}`;
+  let name = filename;
+  // Strip ANY leading ID prefix(es) from previous hops — UUID v4 or short hex id.
+  while (LEADING_UUID_RE.test(name) || LEADING_SHORT_ID_RE.test(name)) {
+    name = name.replace(LEADING_UUID_RE, "").replace(LEADING_SHORT_ID_RE, "");
   }
-  return `${workspaceId}/${uuidv4()}-${sanitized}`;
+
+  const lastDot = name.lastIndexOf(".");
+  const base = lastDot > 0 ? name.slice(0, lastDot) : name;
+  const ext  = lastDot > 0 ? name.slice(lastDot)    : "";
+
+  const safeBase = sanitizeName(base).slice(0, MAX_BASE_LEN) || "asset";
+  const safeExt  = sanitizeName(ext);   // keeps ".jpg", ".png"…
+  const shortId  = randomBytes(4).toString("hex");
+  const file     = `${shortId}-${safeBase}${safeExt}`;
+
+  if (folder && folder.trim()) {
+    return `${workspaceId}/${sanitizeName(folder.trim())}/${file}`;
+  }
+  return `${workspaceId}/${file}`;
 }
 
 // ─── Local driver ────────────────────────────────────────────────────────────

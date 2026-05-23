@@ -49,7 +49,8 @@ export function resolveAssetPlaceholders<T>(value: T, assetPrefix: string): T {
   return JSON.parse(json.replaceAll("{{ASSET}}", assetPrefix)) as T;
 }
 
-// Copy seed-data/assets/* → public/uploads/{workspaceId}/seed/
+// Copy seed-data/assets/* → public/uploads/{workspaceId}/
+// Flat layout — all assets share the workspace root, no "seed" subfolder.
 // Matches the LocalDriver layout in lib/storage.ts so files render via
 // the existing /uploads/* static handler. S3 driver isn't configured at
 // register time, so we only support local — user who switches to S3 later
@@ -60,9 +61,9 @@ export function copySeedAssetsToWorkspace(workspaceId: string): void {
     console.warn("[seed-data] assets folder missing, skipping copy:", src);
     return;
   }
-  const dest = resolve(process.cwd(), "apps/web/public/uploads", workspaceId, "seed");
+  const dest = resolve(process.cwd(), "apps/web/public/uploads", workspaceId);
   // Try alternate cwd if Docker layout (where public lives under apps/web)
-  const destAlt = resolve(process.cwd(), "public/uploads", workspaceId, "seed");
+  const destAlt = resolve(process.cwd(), "public/uploads", workspaceId);
   const target = existsSync(resolve(process.cwd(), "apps/web/public")) ? dest : destAlt;
 
   mkdirSync(target, { recursive: true });

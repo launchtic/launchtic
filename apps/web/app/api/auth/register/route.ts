@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
 
       // Seed default page templates into the new workspace. Asset URLs in the
       // JSON use {{ASSET}} placeholder; we resolve them to a path scoped under
-      // the new workspace's uploads folder. The matching files are copied to
-      // disk after the transaction commits (file I/O is non-transactional).
-      const assetPrefix = `/uploads/${newWorkspace.id}/seed`;
+      // the new workspace's uploads folder (flat — no subfolder). The matching
+      // files are copied to disk after the transaction commits (file I/O is
+      // non-transactional).
+      const assetPrefix = `/uploads/${newWorkspace.id}`;
       const seedTemplates = loadPageTemplatesSeed();
       const seedData = seedTemplates.map((t) => {
         const resolved = resolveAssetPlaceholders(t, assetPrefix);
