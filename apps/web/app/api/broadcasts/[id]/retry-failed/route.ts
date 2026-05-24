@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
-import { render, renderEmailContent, buildUnsubscribeUrl, shouldShowLaunchticBadge } from "@launchtic/email/server";
+import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { emailQueue, type EmailJobData } from "../../../../../lib/queue";
@@ -30,13 +30,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     const workspace = await db.workspace.findUnique({
       where: { id: workspaceId },
-      select: { name: true, organization: { select: { plan: true, licenseExpiresAt: true } } },
+      select: { name: true },
     });
     const workspaceName = workspace?.name ?? "Your Workspace";
-    const appendPoweredByBadge = shouldShowLaunchticBadge(
-      workspace?.organization?.plan,
-      workspace?.organization?.licenseExpiresAt,
-    );
 
     const queue = emailQueue();
 
@@ -85,7 +81,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
           unsubscribeUrl: buildUnsubscribeUrl(contact.id),
         };
         const subject = render(broadcast.subject, vars);
-        const html = await renderEmailContent(broadcast.htmlBody, vars, { appendPoweredByBadge });
+        const html = await renderEmailContent(broadcast.htmlBody, vars);
 
         sendIdsToRequeue.push(send.id);
         sendUpdates.push(

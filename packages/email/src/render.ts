@@ -145,33 +145,9 @@ export type RenderOptions = {
   // Workspace physical mailing address (CAN-SPAM §5(a)(5)). Rendered as a
   // small centered footer block above the unsubscribe line.
   physicalAddress?: string | null;
-  // Append the "Powered by Launchtic" badge after the rendered HTML body.
-  // Mirrors the published-page badge — shown for FREE/expired licenses,
-  // hidden for PRO/Enterprise (white-label). Callers compute the flag via
-  // `shouldShowLaunchticBadge(plan, licenseExpiresAt)` from ./badge-gate.
-  appendPoweredByBadge?: boolean;
 };
 
 const DEFAULT_UNSUB_TEXT = "Don't want these emails? You can {unsubscribe} anytime.";
-
-// Email-safe "Powered by Launchtic" badge — subtle gray text with the brand
-// name as an underlined link. Industry-standard footer pattern (Mailchimp,
-// Substack, ConvertKit) — looks like a signature line, not a banner ad.
-// Table layout + inline styles for Outlook desktop compatibility.
-const LAUNCHTIC_BADGE_HTML =
-  '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0 0 0;border-collapse:collapse;">' +
-    '<tr><td align="center" style="padding:8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#9ca3af;line-height:1.4;">' +
-      'Powered by ' +
-      '<a href="https://launchtic.com" target="_blank" rel="noopener noreferrer" ' +
-         'style="color:#6b7280;text-decoration:underline;">Launchtic</a>' +
-    '</td></tr>' +
-  '</table>';
-
-function injectLaunchticBadge(html: string): string {
-  const idx = html.lastIndexOf("</body>");
-  if (idx === -1) return html + LAUNCHTIC_BADGE_HTML;
-  return html.slice(0, idx) + LAUNCHTIC_BADGE_HTML + html.slice(idx);
-}
 
 // Match the FIRST single-brace token in the template — captures its inner
 // text (used as the visible link label). Single brace `{...}` distinguishes
@@ -269,6 +245,5 @@ export async function renderEmailContent(
   // for callers that never use it.
   const { render: mailyRender } = await import("@maily-to/render");
   const html = await mailyRender(json, { theme: EMAIL_THEME });
-  const substituted = render(html, vars);
-  return opts.appendPoweredByBadge ? injectLaunchticBadge(substituted) : substituted;
+  return render(html, vars);
 }

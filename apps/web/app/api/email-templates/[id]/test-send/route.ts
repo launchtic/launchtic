@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { z } from "zod";
-import { sendEmail, render, sampleVars, renderEmailContent, shouldShowLaunchticBadge, type SmtpConfig } from "@launchtic/email/server";
+import { sendEmail, render, sampleVars, renderEmailContent, type SmtpConfig } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       db.workspaceSettings.findUnique({ where: { workspaceId } }),
       db.workspace.findUnique({
         where: { id: workspaceId },
-        select: { name: true, organization: { select: { plan: true, licenseExpiresAt: true } } },
+        select: { name: true },
       }),
       db.senderIdentity.findFirst({
         where: { workspaceId },
@@ -48,12 +48,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const workspaceName = workspace?.name ?? "Your Workspace";
     const vars = { ...sampleVars(), workspace: { name: workspaceName } };
     const subject = render(template.subject, vars);
-    const html = await renderEmailContent(template.htmlBody, vars, {
-      appendPoweredByBadge: shouldShowLaunchticBadge(
-        workspace?.organization?.plan,
-        workspace?.organization?.licenseExpiresAt,
-      ),
-    });
+    const html = await renderEmailContent(template.htmlBody, vars);
 
     await sendEmail(smtp, {
       to: sendTo,

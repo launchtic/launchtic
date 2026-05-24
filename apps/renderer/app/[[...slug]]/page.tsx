@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { loadPage } from "../../lib/page-loader";
 import PageRenderClient from "../../components/PageRenderClient";
-import PoweredByBadge from "../../components/PoweredByBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -39,17 +38,14 @@ export default async function PublishedPage({ params }: Props) {
   if (!pageData) return notFound();
 
   return (
-    <>
-      <PageRenderClient
-        pageData={{
-          funnelStepId: pageData.funnelStepId,
-          nextStepUrl: pageData.nextStepUrl,
-          pageJson: pageData.pageJson as Record<string, unknown>,
-          payment: pageData.payment,
-          meta: pageData.meta ?? null,
-        }}
-      />
-      {pageData.showBadge && <PoweredByBadge />}
-    </>
+    <PageRenderClient
+      pageData={{
+        funnelStepId: pageData.funnelStepId,
+        nextStepUrl: pageData.nextStepUrl,
+        pageJson: pageData.pageJson as Record<string, unknown>,
+        payment: pageData.payment,
+        meta: pageData.meta ?? null,
+      }}
+    />
   );
 }
