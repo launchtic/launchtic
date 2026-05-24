@@ -17,6 +17,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { db, Prisma } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { getAppUrl } from "../lib/system-config";
 import { createRedisConnection } from "../lib/redis";
 import { marketingRenderOptions } from "../lib/email-footer";
 import { EMAIL_QUEUE_NAME, type EmailJobData } from "./email";
@@ -252,11 +253,12 @@ async function sendStepEmail(
   const firstName = c.firstName ?? "";
   const lastName = c.lastName ?? "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ").trim() || c.email;
+  const appUrl = await getAppUrl();
   const vars = {
     contact: { firstName, lastName, email: c.email, fullName },
     workspace: { name: workspaceName },
     order: {},
-    unsubscribeUrl: buildUnsubscribeUrl(c.id),
+    unsubscribeUrl: buildUnsubscribeUrl(c.id, appUrl),
   };
 
   const subject = render(step.emailSubject, vars);

@@ -18,13 +18,13 @@
 
 // First path segment from /{slug}/dashboard, /{slug}/funnels/abc, etc.
 // Returns null when called outside a workspace-scoped page (e.g. /login,
-// /register, /not-found) — those API calls don't need a workspace slug.
+// /setup, /not-found) — those API calls don't need a workspace slug.
 function currentWorkspaceSlug(): string | null {
   if (typeof window === "undefined") return null; // SSR — apiFetch is browser-only
   const first = window.location.pathname.split("/").filter(Boolean)[0];
   // Reserved paths that aren't workspace slugs. Keep this list minimal —
   // anything else with a leading segment is assumed to be a workspace.
-  if (!first || first === "api" || first === "login" || first === "register" || first === "_next") {
+  if (!first || first === "api" || first === "login" || first === "setup" || first === "_next") {
     return null;
   }
   return first;

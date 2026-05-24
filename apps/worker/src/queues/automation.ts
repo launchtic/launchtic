@@ -12,6 +12,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { db } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { getAppUrl } from "../lib/system-config";
 import { marketingRenderOptions } from "../lib/email-footer";
 import { createRedisConnection } from "../lib/redis";
 import { EMAIL_QUEUE_NAME, type EmailJobData } from "./email";
@@ -147,11 +148,12 @@ async function execSendEmail(action: ActionRow, ctx: Ctx): Promise<void> {
   const firstName = c.firstName ?? "";
   const lastName = c.lastName ?? "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ").trim() || c.email;
+  const appUrl = await getAppUrl();
   const vars = {
     contact: { firstName, lastName, email: c.email, fullName },
     workspace: { name: ctx.workspaceName },
     order: ctx.triggerData.order ?? {},
-    unsubscribeUrl: buildUnsubscribeUrl(c.id),
+    unsubscribeUrl: buildUnsubscribeUrl(c.id, appUrl),
     ...ctx.triggerData,
   };
 

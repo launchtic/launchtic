@@ -13,6 +13,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { db } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { getAppUrl } from "../lib/system-config";
 import { createRedisConnection } from "../lib/redis";
 import { marketingRenderOptions } from "../lib/email-footer";
 import { EMAIL_QUEUE_NAME, type EmailJobData } from "./email";
@@ -90,6 +91,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
     // Render every email up-front so the EmailSend row carries the rendered
     // subject + bodyHtml snapshot (audit / support visibility). Rendering
     // happens in parallel; cheap because maily render is in-process.
+    const appUrl = await getAppUrl();
     const rendered = await Promise.all(batch.map(async (c) => {
       const firstName = c.firstName ?? "";
       const lastName = c.lastName ?? "";
@@ -98,7 +100,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
         contact: { firstName, lastName, email: c.email, fullName },
         workspace: { name: workspaceName },
         order: {},
-        unsubscribeUrl: buildUnsubscribeUrl(c.id),
+        unsubscribeUrl: buildUnsubscribeUrl(c.id, appUrl),
       };
       return {
         contact: c,

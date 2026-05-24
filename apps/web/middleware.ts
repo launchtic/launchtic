@@ -9,16 +9,37 @@ import { NextResponse } from "next/server";
 const { auth } = NextAuth(authConfig);
 
 // Pages that don't require an authenticated session — login + the
-// pre-auth password reset flow. Authed users on /login or /register get
-// punted to /dashboard; on /forgot-password or /reset they're left alone
-// (a logged-in user can still reset their password via the email link).
-const PRE_AUTH_PAGES = new Set(["/login", "/register", "/forgot-password", "/reset"]);
-const LOGIN_REDIRECT_PAGES = new Set(["/login", "/register"]);
+// pre-auth password reset flow. Authed users on /login get punted to
+// /dashboard; on /forgot-password or /reset they're left alone (a
+// logged-in user can still reset their password via the email link).
+// /register is gone — first-run admin creation now lives in /setup.
+const PRE_AUTH_PAGES = new Set(["/login", "/forgot-password", "/reset"]);
+const LOGIN_REDIRECT_PAGES = new Set(["/login"]);
+
+// Setup wizard cookie. Set by /api/setup/configure on completion. Middleware
+// uses it as a fast-path to skip the first-run redirect; the wizard pages
+// themselves double-check the SystemConfig table (anti-replay) so a cleared
+// cookie just causes a /setup → /login redirect, not an infinite loop.
+const SETUP_COOKIE = "lt_setup_done";
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+
+  // ── First-run guard ────────────────────────────────────────────────────
+  // Before everything else: if the setup cookie isn't set, force the user
+  // through the wizard. Whitelist /setup/* + /api/setup/* + static assets so
+  // the wizard itself can load. We can't hit the DB here (Edge runtime), so
+  // the wizard's server components do the authoritative check.
+  const isSetupRoute =
+    pathname.startsWith("/setup") ||
+    pathname.startsWith("/api/setup") ||
+    pathname === "/api/health";
+  if (!req.cookies.get(SETUP_COOKIE) && !isSetupRoute) {
+    return NextResponse.redirect(new URL("/setup", req.nextUrl));
+  }
+
   const isPreAuthPage = PRE_AUTH_PAGES.has(pathname);
-  const isPublic = isPreAuthPage || pathname.startsWith("/api/") || pathname === "/";
+  const isPublic = isPreAuthPage || pathname.startsWith("/api/") || pathname === "/" || pathname.startsWith("/setup");
 
   if (!req.auth && !isPublic) {
     const loginUrl = new URL("/login", req.nextUrl);
@@ -27,9 +48,9 @@ export default auth((req) => {
   }
 
   if (req.auth && LOGIN_REDIRECT_PAGES.has(pathname)) {
-    // Authed user on /login or /register — punt to /dashboard, which is a
-    // server component that resolves the user's default workspace from DB
-    // and 302s to /{slug}/dashboard. Middleware is edge-runtime and can't
+    // Authed user on /login — punt to /dashboard, which is a server
+    // component that resolves the user's default workspace from DB and
+    // 302s to /{slug}/dashboard. Middleware is edge-runtime and can't
     // hit Prisma directly, so this 2-hop pattern keeps things simple.
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }

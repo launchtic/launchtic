@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { getAppUrl } from "../../../../../lib/system-config";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { emailQueue, type EmailJobData } from "../../../../../lib/queue";
@@ -32,6 +33,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       where: { id: workspaceId },
       select: { name: true },
     });
+    const appUrl = await getAppUrl();
     const workspaceName = workspace?.name ?? "Your Workspace";
 
     const queue = emailQueue();
@@ -78,7 +80,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
           contact: { firstName, lastName, email: contact.email, fullName },
           workspace: { name: workspaceName },
           order: {},
-          unsubscribeUrl: buildUnsubscribeUrl(contact.id),
+          unsubscribeUrl: buildUnsubscribeUrl(contact.id, appUrl),
         };
         const subject = render(broadcast.subject, vars);
         const html = await renderEmailContent(broadcast.htmlBody, vars);

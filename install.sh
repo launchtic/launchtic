@@ -11,6 +11,69 @@ echo "  Launchtic Installer"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# ─── Pre-flight runtime checks ───────────────────────────────────────────────
+# Fail fast & loud BEFORE pulling 2GB of Docker images. Every failure here is
+# a config-only issue the operator can fix without re-running half the install.
+preflight_fail() {
+  echo ""
+  echo "✗ Pre-flight failed: $1"
+  echo "  Fix the issue above and re-run: bash install.sh"
+  echo ""
+  exit 1
+}
+
+echo "  Running pre-flight checks..."
+
+# Need root or sudo — we install packages, bind ports 80/443, mount volumes.
+if [ "$(id -u)" != "0" ] && ! command -v sudo &>/dev/null; then
+  preflight_fail "Need root (or sudo). Run as root or install sudo first."
+fi
+
+# Ports 80 + 443 free. Conflicts: existing nginx/apache, Plesk/cPanel, etc.
+# Prefer 'ss' (iproute2, available on every modern Linux); fall back to lsof.
+check_port_free() {
+  local port="$1"
+  local owner=""
+  if command -v ss &>/dev/null; then
+    owner=$(ss -tlnH "sport = :$port" 2>/dev/null | head -1)
+  elif command -v lsof &>/dev/null; then
+    owner=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -n +2 | head -1)
+  else
+    echo "  ⚠ Skipping port $port check ('ss' and 'lsof' both missing)"
+    return 0
+  fi
+  if [ -n "$owner" ]; then
+    echo ""
+    echo "  Port $port is in use by:"
+    echo "    $owner"
+    preflight_fail "Free port $port (stop the listening process) then re-run."
+  fi
+}
+check_port_free 80
+check_port_free 443
+echo "  ✓ Ports 80, 443 free"
+
+# Disk space ≥ 5GB on partition holding the install dir.
+# Need ~2GB for Docker images + headroom for Postgres + uploads.
+INSTALL_PARENT=$(dirname "$(realpath -m "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")")
+[ ! -d "$INSTALL_PARENT" ] && INSTALL_PARENT=$(pwd)
+DISK_AVAIL_KB=$(df -Pk "$INSTALL_PARENT" 2>/dev/null | awk 'NR==2 {print $4}')
+DISK_AVAIL_GB=$((${DISK_AVAIL_KB:-0} / 1024 / 1024))
+if [ "$DISK_AVAIL_GB" -lt 5 ]; then
+  preflight_fail "Need ≥5GB free on $INSTALL_PARENT (have ${DISK_AVAIL_GB}GB)."
+fi
+echo "  ✓ Disk: ${DISK_AVAIL_GB}GB free"
+
+# RAM total ≥ 2GB. Next.js build OOMs below this on a stock VPS.
+RAM_TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+RAM_TOTAL_MB=$((${RAM_TOTAL_KB:-0} / 1024))
+if [ "$RAM_TOTAL_MB" -lt 1900 ]; then  # 2GB = 2048MB, allow some metadata slack
+  preflight_fail "Need ≥2GB RAM (have ${RAM_TOTAL_MB}MB). Add swap or upgrade VM."
+fi
+echo "  ✓ RAM: ${RAM_TOTAL_MB}MB"
+
+echo ""
+
 # ─── Check + auto-install dependencies ───────────────────────────────────────
 need_root_for_install() {
   if [ "$(id -u)" != "0" ] && ! command -v sudo &>/dev/null; then
@@ -79,61 +142,14 @@ SERVER_IP=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null || curl -4 -s --max-
 echo "  Server IP: ${SERVER_IP}"
 echo ""
 
-# ─── Collect domain inputs ────────────────────────────────────────────────────
-read -p "  Enter your app domain  (e.g. app.yourdomain.com): " APP_DOMAIN
-read -p "  Enter your pages domain (e.g. pages.yourdomain.com): " PAGES_DOMAIN
-echo ""
-
-# ─── Validate domain format ──────────────────────────────────────────────────
-validate_domain() {
-  if [[ ! "$1" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)+$ ]]; then
-    echo "✗ Invalid domain format: $1"
-    exit 1
-  fi
-}
-validate_domain "$APP_DOMAIN"
-validate_domain "$PAGES_DOMAIN"
-
-# ─── DNS check (warn, don't block) ───────────────────────────────────────────
-check_dns() {
-  local domain="$1"
-  local resolved
-  resolved=$(dig +short "$domain" 2>/dev/null | tail -1)
-  if [ -z "$resolved" ]; then
-    echo "  ⚠ $domain: DNS not resolved yet — SSL cert will issue once DNS propagates"
-  elif [ "$resolved" = "$SERVER_IP" ]; then
-    echo "  ✓ $domain → $resolved"
-  else
-    echo "  ⚠ $domain → $resolved (expected $SERVER_IP) — check your DNS A record"
-  fi
-}
-
-if command -v dig &>/dev/null; then
-  check_dns "$APP_DOMAIN"
-  check_dns "$PAGES_DOMAIN"
-fi
-echo ""
-
-# ─── ACME email (Let's Encrypt cert renewal warnings) ────────────────────────
-DEFAULT_ACME_EMAIL="admin@$(echo "$APP_DOMAIN" | awk -F'.' '{print $(NF-1)"."$NF}')"
-read -p "  Enter SSL contact email [${DEFAULT_ACME_EMAIL}]: " ACME_EMAIL_INPUT
-ACME_EMAIL="${ACME_EMAIL_INPUT:-$DEFAULT_ACME_EMAIL}"
-echo ""
+# Domain config is no longer collected here. The first-run wizard at
+# http://${SERVER_IP} walks the operator through admin + domain setup with
+# inline DNS verification + Let's Encrypt cert issuance via Caddy admin API.
 
 # ─── Auto-generate secrets ───────────────────────────────────────────────────
 NEXTAUTH_SECRET=$(openssl rand -base64 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
-
-# ─── Derive URL vars from domain inputs ──────────────────────────────────────
-# Apps read APP_URL / NEXTAUTH_URL / RENDERER_URL directly at runtime, so we
-# resolve them once here and write the result into .env. localhost / 127.x get
-# http://, everything else gets https:// (Caddy provisions the cert).
-case "$APP_DOMAIN"   in localhost*|127.*) APP_PROTO=http   ;; *) APP_PROTO=https   ;; esac
-case "$PAGES_DOMAIN" in localhost*|127.*) PAGES_PROTO=http ;; *) PAGES_PROTO=https ;; esac
-APP_URL="${APP_PROTO}://${APP_DOMAIN}"
-RENDERER_URL="${PAGES_PROTO}://${PAGES_DOMAIN}"
-NEXTAUTH_URL="${APP_URL}"
 
 # ─── Clone repo (or update if already present) ───────────────────────────────
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -154,25 +170,10 @@ if [ -f "$ENV_FILE" ]; then
 else
   cat > "$ENV_FILE" <<EOF
 # ─── Launchtic Configuration ─────────────────────────────────────────────────
-# Generated by install.sh
+# Generated by install.sh — domains are configured in the browser wizard
+# after first boot (http://<server-ip>) and stored in the SystemConfig DB row.
 
 LAUNCHTIC_VERSION=latest
-
-# ─── Domains ─────────────────────────────────────────────────────────────────
-APP_DOMAIN=${APP_DOMAIN}
-PAGES_DOMAIN=${PAGES_DOMAIN}
-ACME_EMAIL=${ACME_EMAIL}
-
-# ─── Public URLs ─────────────────────────────────────────────────────────────
-# Read directly by the apps at runtime. If you change APP_DOMAIN/PAGES_DOMAIN
-# above (e.g. migrating to a new domain), update these too — or delete this
-# file and re-run install.sh to regenerate.
-APP_URL=${APP_URL}
-NEXTAUTH_URL=${NEXTAUTH_URL}
-RENDERER_URL=${RENDERER_URL}
-
-# ─── Internal service URLs (Docker network) ──────────────────────────────────
-WEB_API_URL=http://web:3000
 
 # ─── Database ────────────────────────────────────────────────────────────────
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -227,7 +228,7 @@ echo ""
 if [ "$HEALTHY" != "1" ]; then
   echo "  ⚠ Health check didn't pass yet — the app is probably still warming up."
   echo "    Check progress:  cd ${INSTALL_DIR} && docker compose logs -f web"
-  echo "    Open https://${APP_DOMAIN} as soon as the web log shows 'Ready'."
+  echo "    Then open the URL below as soon as the web log shows 'Ready'."
   echo ""
 fi
 
@@ -236,10 +237,12 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "  ✓ Launchtic is running!"
 echo ""
-echo "  Dashboard:  https://${APP_DOMAIN}"
-echo "  Pages:      https://${PAGES_DOMAIN}"
+echo "  → Open  http://${SERVER_IP}  to finish setup."
 echo ""
-echo "  Open the dashboard to create your admin account."
+echo "  The browser wizard will walk you through:"
+echo "    1. Create your admin account"
+echo "    2. Configure your dashboard + pages domains (with DNS guide)"
+echo ""
 echo ""
 echo "  To update later:"
 echo "    cd ${INSTALL_DIR} && git pull && docker compose up -d --build"

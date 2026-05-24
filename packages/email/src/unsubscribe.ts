@@ -43,9 +43,11 @@ export function verifyUnsubscribeToken(token: string): string | null {
   return timingSafeEqual(a, b) ? contactId : null;
 }
 
-// Build the full URL embedded in outgoing emails. Reads APP_URL at call time
-// so workers and API routes share the same source of truth.
-export function buildUnsubscribeUrl(contactId: string): string {
-  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+// Build the full URL embedded in outgoing emails. Prefer passing baseUrl
+// (fetched from SystemConfig by the caller) so the wizard can update the
+// dashboard domain at runtime without restart. Falls back to APP_URL env
+// var for legacy callers that haven't migrated yet.
+export function buildUnsubscribeUrl(contactId: string, baseUrl?: string): string {
+  const base = (baseUrl || process.env.APP_URL || "http://localhost:3000").replace(/\/+$/, "");
   return `${base}/api/unsubscribe?token=${buildUnsubscribeToken(contactId)}`;
 }

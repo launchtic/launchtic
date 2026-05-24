@@ -1,35 +1,36 @@
-{
-	email {$ACME_EMAIL}
+# ─── Initial / first-run Caddyfile ───────────────────────────────────────────
+# Boots in HTTP-only "wizard mode" — listens on port 80 and proxies every
+# request to the web app. Operator finishes setup at http://<server-ip>, which
+# walks them through admin account + domain config. The wizard then PATCHes
+# the full HTTPS config (this file's twin, dynamically generated) via Caddy's
+# admin API on localhost:2019.
+#
+# After setup:
+#   - Both APP_DOMAIN + PAGES_DOMAIN get auto-issued Let's Encrypt certs
+#   - Custom funnel domains use on-demand TLS (Caddy calls web's /api/domains/check)
+#   - Port 80 redirects to HTTPS
+#
+# DO NOT add domain blocks here — they're injected at runtime by the wizard.
+# Editing this file by hand only affects the initial boot before setup.
 
-	# On-demand TLS: Caddy asks the web app whether a custom domain is allowed
-	# before issuing a cert. The app validates against the workspace Domain table.
-	# The `ask` endpoint must respond fast and rate-limit itself if needed —
-	# `interval`/`burst` were removed in newer Caddy versions.
-	on_demand_tls {
-		ask http://web:3000/api/domains/check
-	}
+{
+	# Admin API on internal docker network port. NOT exposed to host.
+	# Wizard's /api/setup/configure POSTs Caddy JSON config here to switch
+	# from wizard-mode to production HTTPS.
+	admin :2019
 }
 
 # Reusable proxy block. Args:
 #   {args[0]} — upstream (e.g. web:3000)
-# Forwards Host/X-Forwarded-Host so the upstream sees the public hostname,
-# and strips the internal listen port from any Location header the upstream
-# emits. Without the strip, Next.js redirects leak the internal port to the
-# client, e.g. https://app.example.com:3000/en.
 (proxy) {
 	reverse_proxy {args[0]} {
 		header_up Host {host}
 		header_up X-Forwarded-Host {host}
-		# Strip any ":<digits>" sequence from Location. Safe: scheme uses "://"
-		# (no digits after the colon), so only host:port matches.
 		header_down Location ":[0-9]+" ""
 	}
 }
 
-# Serve user uploads directly from disk. Used by every domain that may render
-# uploaded images (dashboard editor previews + funnel pages, including custom
-# domains). Bypasses Next.js because standalone mode doesn't reliably pick up
-# runtime-added public files. The upload folder is bind-mounted read-only.
+# Serve user uploads directly from disk (post-setup config will import this).
 (uploads) {
 	handle_path /uploads/* {
 		root * /srv/uploads
@@ -37,28 +38,10 @@
 	}
 }
 
-# Dashboard + editor — fixed domain, cert issued at startup.
-{$APP_DOMAIN} {
+# Wizard mode — every HTTP request goes to the web app. No HTTPS yet (no
+# domain to request a cert for). Caddy switches to the post-setup config
+# via admin API once the wizard finishes; this catch-all stops being used.
+:80 {
 	import uploads
 	import proxy web:3000
-}
-
-# Default funnel-pages domain — cert issued at startup.
-{$PAGES_DOMAIN} {
-	import uploads
-	import proxy renderer:3001
-}
-
-# Custom funnel domains — on-demand TLS (Caddy requests cert on first hit).
-:443 {
-	tls {
-		on_demand
-	}
-	import uploads
-	import proxy renderer:3001
-}
-
-# HTTP → HTTPS redirect
-:80 {
-	redir https://{host}{uri} permanent
 }

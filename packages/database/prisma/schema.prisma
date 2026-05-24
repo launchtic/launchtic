@@ -1306,3 +1306,28 @@ enum EnrollmentStatus {
   EXITED
   FAILED
 }
+
+// ─────────────────────────────────────────
+// SYSTEM CONFIG  — singleton row, instance-wide settings
+// ─────────────────────────────────────────
+//
+// First-run wizard writes here after the operator picks dashboard + pages
+// domains in the browser (no env vars required pre-install). Apps + Caddy
+// read from here at runtime: apps via SystemConfigService helper, Caddy via
+// admin API call from the wizard.
+//
+// Id is hardcoded to "system" — there is exactly one row per instance.
+// Pre-setup state = no row exists OR setupCompletedAt is null → middleware
+// redirects every request to /setup.
+model SystemConfig {
+  id               String   @id @default("system")
+  appDomain        String?
+  pagesDomain      String?
+  acmeEmail        String?
+  // Marks the wizard as finished. Apps gate first-run redirects on this —
+  // a row with this null means setup was started but never completed (e.g.
+  // browser tab closed mid-flow) and the wizard should resume from Step 2.
+  setupCompletedAt DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

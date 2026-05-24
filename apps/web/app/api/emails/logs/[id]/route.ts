@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { getAppUrl } from "../../../../../lib/system-config";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 
@@ -70,7 +71,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           contact: { firstName, lastName, email, fullName },
           workspace: { name: workspaceName },
           order: {},
-          unsubscribeUrl: c ? buildUnsubscribeUrl(c.id) : "#unsubscribe",
+          unsubscribeUrl: c ? buildUnsubscribeUrl(c.id, await getAppUrl()) : "#unsubscribe",
         };
         previewSubject = render(sourceSubject, vars);
         previewHtml = await renderEmailContent(sourceHtml, vars);

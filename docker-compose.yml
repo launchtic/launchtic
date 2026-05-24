@@ -7,19 +7,18 @@ services:
       dockerfile: apps/web/Dockerfile
     volumes:
       # Persist user uploads outside the container so they survive rebuilds.
-      # Local storage driver writes to process.cwd()/public/uploads inside
-      # the container; the host folder is created automatically if missing.
       - ./uploads:/app/apps/web/public/uploads
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      APP_DOMAIN: ${APP_DOMAIN}
-      PAGES_DOMAIN: ${PAGES_DOMAIN}
-      APP_URL: ${APP_URL:?APP_URL must be set in .env}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL must be set in .env}
-      RENDERER_URL: ${RENDERER_URL:?RENDERER_URL must be set in .env}
+      # APP_DOMAIN, PAGES_DOMAIN, APP_URL, RENDERER_URL are no longer required
+      # at boot — the first-run wizard writes them to the SystemConfig table
+      # and apps read from DB via lib/system-config.ts. NextAuth uses
+      # trustHost:true so it derives its URL from the X-Forwarded-Host header.
+      # The Caddy admin API hostname is reachable from web for wizard reload.
+      CADDY_ADMIN_URL: http://caddy:2019
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,8 +31,6 @@ services:
     build:
       context: .
       dockerfile: apps/renderer/Dockerfile
-    # WEB_API_URL points at the web service for the /uploads/* rewrite. Stripe
-    # / PayPal / SMTP credentials are read from the database, not env.
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
@@ -50,14 +47,12 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
-    # APP_URL is read by packages/email/src/unsubscribe.ts to embed the
-    # correct host in outgoing email unsubscribe links.
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      APP_URL: ${APP_URL:?APP_URL must be set in .env}
-      RENDERER_URL: ${RENDERER_URL:?RENDERER_URL must be set in .env}
+      # Worker reads APP_URL / RENDERER_URL from SystemConfig at runtime via
+      # lib/system-config.ts (60s cache). Env vars no longer required.
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,15 +69,14 @@ services:
       - "443:443/udp"    # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data       # SSL certs — persist qua restart
-      - caddy_config:/config
-      # User uploads — Caddy serves /uploads/* directly. Next.js standalone
-      # doesn't pick up runtime-added public files reliably, so we bypass it.
+      - caddy_data:/data       # SSL certs persisted across restarts
+      - caddy_config:/config   # admin-API-written runtime config persists here
       - ./uploads:/srv/uploads:ro
-    environment:
-      APP_DOMAIN: ${APP_DOMAIN}
-      PAGES_DOMAIN: ${PAGES_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
+    # No ACME_EMAIL / APP_DOMAIN env — initial Caddyfile is HTTP-only and the
+    # wizard injects the post-setup config (with email + domains) via the
+    # admin API. Port 2019 is exposed only on the internal docker network.
+    expose:
+      - "2019"
     depends_on:
       - web
       - renderer
@@ -120,4 +114,4 @@ volumes:
   postgres_data:
   redis_data:
   caddy_data:      # SSL certs
-  caddy_config:
+  caddy_config:    # runtime config from admin API
