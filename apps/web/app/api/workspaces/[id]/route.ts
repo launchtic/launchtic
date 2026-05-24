@@ -14,7 +14,7 @@ const updateSchema = z.object({
 // PATCH /api/workspaces/[id] — update name and/or slug (owner only)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("workspace:manage");
+    const r = await requireAccess();
     if (!r.ok) return r.response;
     const { userId } = r;
 
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // DELETE /api/workspaces/[id] — delete workspace (owner only, not last workspace)
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("workspace:manage");
+    const r = await requireAccess();
     if (!r.ok) return r.response;
     const { userId } = r;
 

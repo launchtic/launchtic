@@ -67,7 +67,7 @@ function slugify(name: string) {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("workspace:manage");
+    const r = await requireAccess();
     if (!r.ok) return r.response;
     const { userId } = r;
 

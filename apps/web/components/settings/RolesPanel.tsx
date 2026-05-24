@@ -16,10 +16,10 @@ type Role = {
   createdAt?:  string;
 };
 
-// Permission catalog with category grouping + human labels. Excluded from
-// user-assignable list: `billing:manage` and `workspace:manage` — both
-// OWNER-only (granted via Organization.ownerId bypass). Granting them via a
-// custom role would contradict that.
+// Permission catalog with category grouping + human labels. Owner-only
+// concerns (billing, workspace CRUD, storage, white-label) are gated by the
+// `isOwner` flag — they don't appear here because they cannot be granted via
+// a custom role.
 const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: string }[] }[] = [
   {
     label: "Funnels & Pages",

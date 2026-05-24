@@ -10,13 +10,12 @@ const activateSchema = z.object({
 });
 
 // POST /api/license — activate a license key on the workspace's Organization.
-// Gated by `billing:manage` — only the Organization owner has this permission
-// (granted via the OWNER bypass in requireAccess). No regular role grants
-// billing:manage, so invited team members get 403 here.
+// Owner-only — invited team members get 403 here.
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("billing:manage");
+    const r = await requireAccess();
     if (!r.ok) return r.response;
+    if (!r.isOwner) return err("Owner-only", 403);
     const { organizationId } = r;
 
     const body = await req.json();
@@ -53,11 +52,12 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/license — current license status for the workspace's Organization.
-// Same `billing:manage` gate as POST so the license tab is OWNER-only end-to-end.
+// Owner-only — same gate as POST.
 export async function GET() {
   try {
-    const r = await requireAccess("billing:manage");
+    const r = await requireAccess();
     if (!r.ok) return r.response;
+    if (!r.isOwner) return err("Owner-only", 403);
     const { organizationId } = r;
 
     const organization = await db.organization.findUnique({

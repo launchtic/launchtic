@@ -114,10 +114,6 @@ export function useRole() {
     canReadRoles:          hasPermission("roles:read"),
     canManageRoles:        hasPermission("roles:manage"),
 
-    // OWNER-only
-    canManageBilling:      hasPermission("billing:manage"),
-    canManageWorkspace:    hasPermission("workspace:manage"),
-
     // ─── Legacy / aggregate helpers (backward compat) ───────────────────
     isAdmin: isOwner || role === "Admin",
     /** Any content write — kept for existing components, prefer specific. */

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getEffectivePlan } from "../../../../../lib/organization";
@@ -16,9 +16,10 @@ export default async function Page({
   // Workspaces tab is OWNER-only — it surfaces create/rename/delete actions
   // on the workspaces under this Organization. Regular members switch
   // between their workspaces via the TopNav WorkspaceSwitcher chip; they
-  // don't need this management view. `workspace:manage` is granted only to
-  // the Organization owner via the requireAccess bypass.
-  const { workspaceId, userId } = await requireWorkspaceFromSlug(workspaceSlug, "workspace:manage");
+  // don't need this management view.
+  const r = await requireWorkspaceFromSlug(workspaceSlug);
+  if (!r.isOwner) notFound();
+  const { workspaceId, userId } = r;
 
   // Plan gate (URL-hop defense). Sidebar already hides this tab for non-
   // Agency plans; an owner who pastes the URL on COMMUNITY/STARTER gets

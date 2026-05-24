@@ -79,8 +79,6 @@ const PERMISSION_LABELS: Record<string, string> = {
   "members:manage":                   "invite or remove team members",
   "roles:read":                       "view roles",
   "roles:manage":                     "manage roles",
-  "billing:manage":                   "manage billing and license",
-  "workspace:manage":                 "rename or delete the workspace",
 };
 
 export const metadata = { title: "Access denied" };

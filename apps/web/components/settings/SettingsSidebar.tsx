@@ -43,18 +43,15 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
     ],
   },
   // ORGANIZATION section = org-wide concerns (affect every workspace under
-  // this Organization). White Label is identity-bound (Owner-only). Workspaces
-  // is the list/CRUD of workspaces themselves — also org-scoped (Agency tier
-  // can have many under one org). License is billing — owned by the
-  // Organization, not the workspace; the `billing:manage` perm is in practice
-  // OWNER-only anyway, so it fits here naturally.
+  // this Organization). All entries are OWNER-only — invited team members
+  // don't see them. White Label and Workspaces are also Agency-tier gated.
   {
     label: "ORGANIZATION",
     items: [
       { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true, proOnly: true },
       { segment: "storage",     label: "Storage",     icon: HardDrive, ownerOnly: true                },
-      { segment: "workspaces",  label: "Workspaces",  icon: Building2, proOnly: true, requirePerm: "workspace:manage" },
-      { segment: "license",     label: "License",     icon: Key,                      requirePerm: "billing:manage"   },
+      { segment: "workspaces",  label: "Workspaces",  icon: Building2, ownerOnly: true, proOnly: true },
+      { segment: "license",     label: "License",     icon: Key,       ownerOnly: true                },
     ],
   },
   {

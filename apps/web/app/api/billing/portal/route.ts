@@ -1,5 +1,5 @@
 // POST /api/billing/portal — open Stripe Customer Portal for the install's
-// Organization. Owner-only (`billing:manage`).
+// Organization. Owner-only.
 //
 // Flow:
 //   1. Read Organization.licenseKey
@@ -19,8 +19,9 @@ import { requireAccess } from "../../../../lib/permissions";
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("billing:manage");
+    const r = await requireAccess();
     if (!r.ok) return r.response;
+    if (!r.isOwner) return err("Owner-only", 403);
 
     const org = await db.organization.findUnique({
       where:  { id: r.organizationId },

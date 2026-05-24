@@ -161,11 +161,7 @@ export type Permission =
   | "members:read"
   | "members:manage"         // invite, remove, change role
   | "roles:read"
-  | "roles:manage"           // CRUD custom roles
-
-  // ── OWNER-only (granted only via Organization.ownerId bypass) 👑 ──
-  | "billing:manage"         // activate license, view billing
-  | "workspace:manage";      // rename, delete workspace
+  | "roles:manage";          // CRUD custom roles
 
 /** All permissions — used to fill in the bypass return for organization owner. */
 export const ALL_PERMISSIONS: Permission[] = [
@@ -194,7 +190,6 @@ export const ALL_PERMISSIONS: Permission[] = [
   "settings:ai:read", "settings:ai:write",
   "members:read", "members:manage",
   "roles:read", "roles:manage",
-  "billing:manage", "workspace:manage",
 ];
 
 /** Check whether a permission list grants the given permission. */

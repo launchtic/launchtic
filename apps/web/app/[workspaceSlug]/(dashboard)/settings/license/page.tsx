@@ -1,5 +1,6 @@
 // LicensePanel fetches its own data via /api/license.
 
+import { notFound } from "next/navigation";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import LicensePanel from "../../../../../components/settings/LicensePanel";
 
@@ -11,7 +12,8 @@ export default async function Page({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  await requireWorkspaceFromSlug(workspaceSlug, "billing:manage");
+  const r = await requireWorkspaceFromSlug(workspaceSlug);
+  if (!r.isOwner) notFound();
 
   return (
     <div className="p-6 sm:p-8">

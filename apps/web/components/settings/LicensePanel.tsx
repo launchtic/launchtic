@@ -18,7 +18,7 @@ type LicenseStatus = {
 export default function LicensePanel() {
   const { update } = useSession();
   const router = useRouter();
-  const { canManageBilling } = useRole();
+  const { isOwner } = useRole();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [keyInput, setKeyInput] = useState("");
@@ -124,7 +124,7 @@ export default function LicensePanel() {
                            list so the operator understands what broke
           Auto-renew billing means we don't surface a yellow "expiring soon"
           state — Stripe charges before expiry, so a healthy sub never sees it. */}
-      <StatusHero status={status} onOpenPortal={openBillingPortal} openingPortal={openingPortal} canManageBilling={canManageBilling} />
+      <StatusHero status={status} onOpenPortal={openBillingPortal} openingPortal={openingPortal} isOwner={isOwner} />
 
       {/* Portal-open error — inline alert, only renders on failure. Lives
           here (not inside the hero) so the hero stays stable in size.
@@ -147,7 +147,7 @@ export default function LicensePanel() {
       {/* First-time activation form — Community only. After the install is
           bound to a paid license, this disappears and tier changes go via
           support (avoids "I pasted the wrong key" support threads). */}
-      {isCommunity && canManageBilling && (
+      {isCommunity && isOwner && (
         <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
           <p className="text-sm font-medium text-gray-700">Activate License Key</p>
           <div className="flex gap-2">
@@ -198,12 +198,12 @@ function StatusHero({
   status,
   onOpenPortal,
   openingPortal,
-  canManageBilling,
+  isOwner,
 }: {
   status:           LicenseStatus | null;
   onOpenPortal:    () => void;
   openingPortal:   boolean;
-  canManageBilling: boolean;
+  isOwner: boolean;
 }) {
   if (!status) return null;
 
@@ -288,7 +288,7 @@ function StatusHero({
             <span>View pricing</span>
             <ExternalLink size={11} />
           </a>
-        ) : canManageBilling && (
+        ) : isOwner && (
           <button
             onClick={onOpenPortal}
             disabled={openingPortal}
