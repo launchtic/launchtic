@@ -1,4 +1,4 @@
-import { mkdir, writeFile, unlink, readdir, stat, copyFile } from "fs/promises";
+import { mkdir, writeFile, unlink, readdir, stat, copyFile, rm } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
@@ -28,6 +28,9 @@ export interface StorageDriver {
   listFolders(workspaceId: string): Promise<string[]>;
   /** Native server-side copy (no buffer through this app). Returns new public URL. */
   copy(srcKey: string, destKey: string): Promise<string>;
+  /** Recursively delete every file under this workspace's prefix. Used when
+   *  a workspace is hard-deleted so storage doesn't accumulate orphan files. */
+  purge(workspaceId: string): Promise<void>;
 }
 
 // ─── Filename helpers ────────────────────────────────────────────────────────
@@ -160,6 +163,12 @@ export class LocalDriver implements StorageDriver {
     const entries = await readdir(dir, { withFileTypes: true });
     return entries.filter(e => e.isDirectory()).map(e => e.name).sort();
   }
+
+  /** Wipe the entire workspace folder. force:true → no error if missing. */
+  async purge(workspaceId: string): Promise<void> {
+    const dir = join(this.root, workspaceId);
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 // ─── S3 driver ───────────────────────────────────────────────────────────────
@@ -268,6 +277,32 @@ class S3Driver implements StorageDriver {
       .map(p => (p.Prefix ?? "").replace(`${workspaceId}/`, "").replace(/\/$/, ""))
       .filter(Boolean)
       .sort();
+  }
+
+  /**
+   * Wipe every object under the workspace prefix. List+delete in 1000-key
+   * batches (S3 DeleteObjects API limit). Handles paginated listings for
+   * workspaces with >1000 assets.
+   */
+  async purge(workspaceId: string): Promise<void> {
+    const { ListObjectsV2Command, DeleteObjectsCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.client();
+    let token: string | undefined;
+    do {
+      const list = await client.send(new ListObjectsV2Command({
+        Bucket: this.cfg.bucket,
+        Prefix: `${workspaceId}/`,
+        ContinuationToken: token,
+      }));
+      const keys = (list.Contents ?? []).map((o) => ({ Key: o.Key! }));
+      if (keys.length > 0) {
+        await client.send(new DeleteObjectsCommand({
+          Bucket: this.cfg.bucket,
+          Delete: { Objects: keys, Quiet: true },
+        }));
+      }
+      token = list.IsTruncated ? list.NextContinuationToken ?? undefined : undefined;
+    } while (token);
   }
 }
 
