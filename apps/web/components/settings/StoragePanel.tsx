@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { HardDrive, Cloud, Check, Loader2, Eye, EyeOff, Zap, XCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { HardDrive, Cloud, Check, Loader2, Eye, EyeOff, Zap, XCircle, AlertTriangle } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
@@ -13,7 +13,7 @@ interface StorageData {
   region: string;
   bucket: string;
   accessKey: string;
-  secretKey: string;
+  secretKey: string;   // plaintext — hidden behind password input + eye toggle
   publicUrl: string;
 }
 
@@ -49,6 +49,11 @@ function SecretField({ value, onChange, placeholder, disabled }: { value: string
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "••••••••"}
         disabled={disabled}
+        // Anti-autofill: "new-password" tells Chrome this is NOT a login form
+        // so it won't stuff the saved-account password into the field.
+        autoComplete="new-password"
+        name="storage-secret-key"
+        data-form-type="other"
         className={inputCls + " pr-9" + (disabled ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
       />
       <button
@@ -62,7 +67,18 @@ function SecretField({ value, onChange, placeholder, disabled }: { value: string
   );
 }
 
-export default function StoragePanel({ initial }: { initial: StorageData | null }) {
+interface AssetCounts {
+  local: number;
+  s3: number;
+}
+
+export default function StoragePanel({
+  initial,
+  assetCounts,
+}: {
+  initial: StorageData | null;
+  assetCounts?: AssetCounts;
+}) {
   const { isOwner } = useRole();
   // Storage is org-wide infra — owner-only. Non-owners see the page in read-
   // only mode (server already gates the route, this is a defense-in-depth).
@@ -81,8 +97,36 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
   const [error, setError]   = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleSave = async () => {
+  // ── Destructive-change detection ─────────────────────────────────────────
+  // A change is "destructive" if it would prevent existing assets from being
+  // served via the same URL. Rotating secretKey on the same bucket is fine
+  // (URLs unchanged). Changing publicUrl alone is fine too (CDN swap). But
+  // changing driver / bucket / endpoint / region / accessKey means existing
+  // asset URLs may 404 because they point at the old infra.
+  const destructive = useMemo(() => {
+    if (!initial) return false; // first-time setup, nothing to break
+    return (
+      driver    !== initial.driver    ||
+      endpoint  !== initial.endpoint  ||
+      region    !== initial.region    ||
+      bucket    !== initial.bucket    ||
+      accessKey !== initial.accessKey
+    );
+  }, [initial, driver, endpoint, region, bucket, accessKey]);
+
+  const totalAssets    = (assetCounts?.local ?? 0) + (assetCounts?.s3 ?? 0);
+  const showWarning    = destructive && totalAssets > 0;
+
+  // Open modal first if destructive + assets exist; otherwise save directly.
+  const handleSave = () => {
+    if (showWarning) { setConfirmOpen(true); return; }
+    doSave();
+  };
+
+  const doSave = async () => {
+    setConfirmOpen(false);
     setSaving(true);
     setError("");
     try {
@@ -157,6 +201,9 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
       </div>
 
       {driver === "s3" && (
+        // autoComplete="off" on every input below — Chrome's username/password
+        // heuristic was matching "Access Key ID" as login email and stuffing
+        // saved credentials in.
         <div className="space-y-0">
           <Field label="Endpoint URL" hint="Leave empty for AWS S3">
             <input
@@ -164,6 +211,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               onChange={(e) => setEndpoint(e.target.value)}
               placeholder="https://{accountId}.r2.cloudflarestorage.com"
               disabled={!isOwner}
+              autoComplete="off"
+              name="storage-endpoint"
               className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
@@ -175,6 +224,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="us-east-1"
                 disabled={!isOwner}
+                autoComplete="off"
+                name="storage-region"
                 className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
@@ -184,6 +235,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 onChange={(e) => setBucket(e.target.value)}
                 placeholder="my-bucket"
                 disabled={!isOwner}
+                autoComplete="off"
+                name="storage-bucket"
                 className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
@@ -195,6 +248,9 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               onChange={(e) => setAccessKey(e.target.value)}
               placeholder="AKIAIOSFODNN7EXAMPLE"
               disabled={!isOwner}
+              autoComplete="off"
+              name="storage-access-key"
+              data-form-type="other"
               className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
@@ -203,7 +259,7 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
             <SecretField
               value={secretKey}
               onChange={setSecretKey}
-              placeholder={initial?.secretKey ? "••••••••  (unchanged)" : "wJalrXUtnFEMI/..."}
+              placeholder="wJalrXUtnFEMI/..."
               disabled={!isOwner}
             />
           </Field>
@@ -214,6 +270,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               onChange={(e) => setPublicUrl(e.target.value)}
               placeholder="https://cdn.example.com"
               disabled={!isOwner}
+              autoComplete="off"
+              name="storage-public-url"
               className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
@@ -237,6 +295,26 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
         </div>
       )}
 
+      {showWarning && (
+        <div className="mt-4 flex items-start gap-2.5 px-3.5 py-3 rounded-lg bg-amber-50 border border-amber-200">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="text-xs leading-relaxed text-amber-900">
+            <p className="font-semibold mb-1">
+              You have {totalAssets} existing asset{totalAssets === 1 ? "" : "s"} on the current storage.
+            </p>
+            <p className="text-amber-800">
+              {assetCounts?.local ? `${assetCounts.local} on local disk` : ""}
+              {assetCounts?.local && assetCounts?.s3 ? " · " : ""}
+              {assetCounts?.s3 ? `${assetCounts.s3} on S3` : ""}
+              {". "}
+              These files <span className="font-medium">won&apos;t be migrated</span> when you save —
+              keep the previous bucket / disk accessible or those asset URLs will 404.
+              Migrate manually if you need everything on the new storage.
+            </p>
+          </div>
+        </div>
+      )}
+
       {isOwner && (
         <div className="mt-5 flex items-center gap-2">
           <button
@@ -256,6 +334,72 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
             {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}
             {saved ? "Saved!" : saving ? "Saving…" : "Save"}
           </button>
+        </div>
+      )}
+
+      {/* Destructive-change confirmation modal */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                <AlertTriangle size={16} className="text-amber-600" />
+              </div>
+              <h2 className="text-sm font-semibold text-gray-900">Change storage configuration?</h2>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-2">
+              This will leave{" "}
+              <span className="font-semibold text-gray-900">
+                {totalAssets} existing asset{totalAssets === 1 ? "" : "s"}
+              </span>{" "}
+              on the old storage.
+            </p>
+
+            <div className="mb-3 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-600 space-y-0.5">
+              {assetCounts?.local ? (
+                <div className="flex items-center gap-2">
+                  <HardDrive size={12} className="text-gray-400" />
+                  <span><span className="font-medium text-gray-800">{assetCounts.local}</span> on local disk</span>
+                </div>
+              ) : null}
+              {assetCounts?.s3 ? (
+                <div className="flex items-center gap-2">
+                  <Cloud size={12} className="text-gray-400" />
+                  <span><span className="font-medium text-gray-800">{assetCounts.s3}</span> on S3</span>
+                </div>
+              ) : null}
+            </div>
+
+            <p className="text-xs text-gray-500 leading-relaxed mb-5">
+              They <span className="font-medium text-gray-700">won&apos;t be migrated</span> automatically.
+              Keep the previous bucket / disk accessible or those asset URLs will return 404.
+              Migrate manually if you need everything on the new storage.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 px-4 py-2 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={doSave}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-colors"
+              >
+                Continue &amp; save
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

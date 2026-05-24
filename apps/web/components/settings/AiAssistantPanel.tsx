@@ -228,6 +228,10 @@ export default function AiAssistantPanel() {
                   : currentProvider.keyHint
               }
               disabled={!canManageAi}
+              // Block Chrome saved-password autofill on credential settings.
+              autoComplete="new-password"
+              name="ai-api-key"
+              data-form-type="other"
               className={inputCls + " pr-9" + (!canManageAi ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
             <button

@@ -580,7 +580,7 @@ export default function WorkspacePanel({
                               <span className="text-sm text-gray-900">Settings &amp; credentials</span>
                               <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">sensitive</span>
                             </div>
-                            <p className="text-xs text-gray-500">SMTP, AI key, S3, Stripe, PayPal, email footer — copies all credentials to the new workspace</p>
+                            <p className="text-xs text-gray-500">SMTP, AI key, Stripe, PayPal, email footer — copies all credentials to the new workspace</p>
                           </div>
                         </label>
                       </div>
@@ -588,7 +588,7 @@ export default function WorkspacePanel({
                   </div>
 
                   <p className="text-[11px] text-gray-400 mt-2 leading-snug">
-                    Products, tags, contacts, orders and send history are never cloned. Cloned automations come over as drafts — review and rewire them before activating. Uploaded images stay hosted by the source workspace, so deleting it will break them in the clone.
+                    Products, tags, contacts, orders and send history are never cloned. Cloned automations come over as drafts — review and rewire them before activating. Uploaded images are copied to the new workspace's storage and references are rewritten — the clone is self-contained.
                   </p>
                 </div>
               </form>

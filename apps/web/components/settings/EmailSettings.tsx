@@ -65,6 +65,10 @@ function SecretField({ label, value, onChange, placeholder, hint, required, disa
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
+          // Block Chrome saved-password autofill.
+          autoComplete="new-password"
+          name="smtp-secret"
+          data-form-type="other"
           className={`${inputCls} pr-10 ${disabled ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <button
@@ -172,6 +176,8 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
                 onChange={(e) => setHost(e.target.value)}
                 placeholder="smtp.example.com"
                 disabled={!canManageEmailSettings}
+                autoComplete="off"
+                name="smtp-host"
                 className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
@@ -197,8 +203,12 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="username"
+              placeholder="Username"
               disabled={!canManageEmailSettings}
+              // Block Chrome from autofilling saved email/login into SMTP user.
+              autoComplete="off"
+              name="smtp-username"
+              data-form-type="other"
               className={inputCls + (!canManageEmailSettings ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
@@ -206,7 +216,7 @@ function SmtpSection({ initial }: { initial: SmtpData }) {
             label="Password"
             value={password}
             onChange={(v) => { setPassword(v); setPwTouched(true); }}
-            placeholder="Password or API key"
+            placeholder="Password"
             required={!initial}
             disabled={!canManageEmailSettings}
           />

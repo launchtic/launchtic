@@ -51,7 +51,9 @@ export async function GET() {
       region:    s?.region    ?? "",
       bucket:    s?.bucket    ?? "",
       accessKey: s?.accessKey ?? "",
-      secretKey: s?.secretKey ? maskKey(s.secretKey) : "",
+      // Plaintext — owner-only endpoint. UI hides via password input + eye
+      // toggle. Same pattern as Stripe/AI key settings.
+      secretKey: s?.secretKey ?? "",
       publicUrl: s?.publicUrl ?? "",
     });
   } catch (error) {
@@ -105,9 +107,4 @@ export async function POST(req: NextRequest) {
     console.error(error);
     return err("Failed to save storage config", 500);
   }
-}
-
-function maskKey(key: string): string {
-  if (key.length <= 8) return "••••••••";
-  return key.slice(0, 8) + "••••••••" + key.slice(-4);
 }

@@ -1,4 +1,4 @@
-import { mkdir, writeFile, unlink, readdir, stat } from "fs/promises";
+import { mkdir, writeFile, unlink, readdir, stat, copyFile } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
@@ -26,6 +26,8 @@ export interface StorageDriver {
   delete(key: string): Promise<void>;
   list(prefix: string, limit?: number, continuationToken?: string): Promise<ListResult>;
   listFolders(workspaceId: string): Promise<string[]>;
+  /** Native server-side copy (no buffer through this app). Returns new public URL. */
+  copy(srcKey: string, destKey: string): Promise<string>;
 }
 
 // ─── Filename helpers ────────────────────────────────────────────────────────
@@ -70,7 +72,7 @@ export function buildKey(workspaceId: string, filename: string, folder?: string)
 
 // ─── Local driver ────────────────────────────────────────────────────────────
 
-class LocalDriver implements StorageDriver {
+export class LocalDriver implements StorageDriver {
   private root = join(process.cwd(), "public", "uploads");
 
   async upload(key: string, buffer: Buffer, mimeType: string): Promise<string> {
@@ -84,6 +86,23 @@ class LocalDriver implements StorageDriver {
   async delete(key: string): Promise<void> {
     const filePath = join(this.root, ...key.split("/"));
     await unlink(filePath);
+  }
+
+  /**
+   * Native copy via fs.copyFile. On btrfs / APFS / XFS-reflink filesystems
+   * this is a zero-byte metadata copy (copy-on-write) — instant even for
+   * gigabyte files. Falls back to actual byte copy on ext4 etc., still
+   * faster than read-into-buffer + write because Node's buffer is bypassed.
+   */
+  async copy(srcKey: string, destKey: string): Promise<string> {
+    const srcParts  = srcKey.split("/");
+    const destParts = destKey.split("/");
+    const srcPath   = join(this.root, ...srcParts);
+    const destDir   = join(this.root, ...destParts.slice(0, -1));
+    const destPath  = join(this.root, ...destParts);
+    await mkdir(destDir, { recursive: true });
+    await copyFile(srcPath, destPath);
+    return `/uploads/${destKey}`;
   }
 
   // Recursively collect all files under a directory
@@ -182,6 +201,26 @@ class S3Driver implements StorageDriver {
       ContentType: mimeType,
     }));
     return this.publicUrl(key);
+  }
+
+  /** Get the bucket name — used by clone to detect same-bucket case. */
+  get bucket(): string { return this.cfg.bucket; }
+
+  /**
+   * Native S3 server-side copy (CopyObjectCommand). Bytes never transit
+   * through this app — S3 streams them internally between source and dest
+   * keys. ~50ms per object, $0.0004 per 1000 requests, zero egress.
+   * Same-bucket only (CopySource is bucket/key).
+   */
+  async copy(srcKey: string, destKey: string): Promise<string> {
+    const { CopyObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.client();
+    await client.send(new CopyObjectCommand({
+      CopySource: `${this.cfg.bucket}/${srcKey}`,
+      Bucket:     this.cfg.bucket,
+      Key:        destKey,
+    }));
+    return this.publicUrl(destKey);
   }
 
   async delete(key: string): Promise<void> {

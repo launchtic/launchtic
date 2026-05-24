@@ -108,6 +108,10 @@ function SecretInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
+          // Block Chrome saved-password autofill on credential settings.
+          autoComplete="new-password"
+          name="payment-secret"
+          data-form-type="other"
           className={`w-full border rounded-xl px-3 py-2.5 pr-16 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 placeholder:text-gray-300 transition-colors ${borderCls} ${disabled ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <div className="absolute right-3 flex items-center gap-1.5">
@@ -151,6 +155,10 @@ function TextInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
+          // Block Chrome from treating "Publishable key" as a username field.
+          autoComplete="off"
+          name="payment-public-key"
+          data-form-type="other"
           className={`w-full border rounded-xl px-3 py-2.5 pr-8 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 placeholder:text-gray-300 transition-colors ${borderCls} ${disabled ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
         />
         <div className="absolute right-3">
