@@ -66,6 +66,18 @@ model Organization {
   // snapping back to launchtic mid-session; the next save will be blocked).
   brandingConfig    Json?
 
+  // Storage config shared by every Workspace under this Organization.
+  // Shape: { driver, endpoint, region, bucket, accessKey, secretKey, publicUrl }
+  // Owner-managed via Settings UI. secretKey is stored plaintext (same
+  // pattern as stripe.secretKey / ai.apiKey on WorkspaceSettings).
+  // Files are isolated per-workspace via the {workspaceId}/... path prefix,
+  // so a single bucket safely hosts all workspaces. Resolution priority at
+  // runtime (see lib/storage.ts):
+  //   1. Organization.storage — owner-managed via Settings UI (this column)
+  //   2. WorkspaceSettings.storage — legacy per-workspace fallback
+  //   3. Local driver — default
+  storage           Json?
+
   // Founder — primary admin and (for now) the only user who can manage this
   // Organization's billing. Unique today because B-minimal is single-owner;
   // drop the unique constraint + add OrganizationMember when multi-owner is
@@ -702,7 +714,9 @@ model WorkspaceSettings {
   stripe      Json? // { publishableKey, secretKey, webhookSecret, mode }
   paypal      Json? // { clientId, clientSecret, webhookId, mode }
   smtp        Json? // { provider, host, port, username, passwordEnc, maxPerDay }
-  storage     Json? // { driver, endpoint, region, bucket, accessKey, secretKeyEnc, publicUrl }
+  // NOTE: storage moved to Organization.storage (org-wide, single bucket
+  // shared by every workspace under the org). Column dropped in migration
+  // 20260524_drop_workspace_storage.
   ai          Json? // { provider, model, apiKey, enabled } — apiKey plaintext (same as stripe.secretKey pattern)
   emailFooter Json? // { customText?, physicalAddress? } — appended to every marketing email above the unsubscribe link
 

@@ -323,7 +323,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               stripe:              settings.stripe      ?? undefined,
               paypal:              settings.paypal      ?? undefined,
               smtp:                settings.smtp        ?? undefined,
-              storage:             settings.storage     ?? undefined,
+              // storage moved to Organization.storage — cloned workspaces
+              // under the same org automatically inherit; nothing to copy here.
               ai:                  settings.ai          ?? undefined,
               emailFooter:         settings.emailFooter ?? undefined,
               // onboardingDismissed is UX state, not config — reset.

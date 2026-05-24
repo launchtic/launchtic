@@ -52,6 +52,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
     label: "ORGANIZATION",
     items: [
       { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true, proOnly: true },
+      { segment: "storage",     label: "Storage",     icon: HardDrive, ownerOnly: true                },
       { segment: "workspaces",  label: "Workspaces",  icon: Building2, proOnly: true, requirePerm: "workspace:manage" },
       { segment: "license",     label: "License",     icon: Key,                      requirePerm: "billing:manage"   },
     ],
@@ -64,7 +65,6 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
       { segment: "domains",        label: "Custom Domains",   icon: Globe,                       requirePerm: "settings:domains:read"        },
       { segment: "payment",        label: "Payment Settings", icon: CreditCard,                  requirePerm: "settings:payment:read"        },
       { segment: "email",          label: "Email Settings",   icon: Mail,                        requirePerm: "settings:email:read"          },
-      { segment: "storage",        label: "Storage",          icon: HardDrive,                   requirePerm: "settings:storage:read"        },
       { segment: "media",          label: "Media Library",    icon: ImageIcon,                   requirePerm: "media:read"                    },
       { segment: "page-templates", label: "Page Templates",   icon: LayoutTemplate,              requirePerm: "settings:page_templates:read" },
       { segment: "gallery-import", label: "Template Gallery", icon: DownloadCloud,               ownerOnly: true                              },

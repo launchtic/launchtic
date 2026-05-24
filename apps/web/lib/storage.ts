@@ -3,7 +3,6 @@ import { existsSync } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
 import { db } from "@launchtic/database";
-import { decrypt, encrypt } from "./crypto";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -235,28 +234,54 @@ class S3Driver implements StorageDriver {
 
 // ─── Factory ─────────────────────────────────────────────────────────────────
 
+/** Resolve the driver for a workspace via its organization's storage config. */
 export async function getDriver(workspaceId: string): Promise<StorageDriver> {
-  const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
-  const s = settings?.storage as any;
-
-  if (!s || s.driver === "local") return new LocalDriver();
-
-  if (s.driver === "s3") {
-    if (!s.bucket || !s.accessKey || !s.secretKeyEnc) {
-      throw new Error("S3 storage is not fully configured");
-    }
-    return new S3Driver({
-      endpoint:  s.endpoint  ?? undefined,
-      region:    s.region    ?? "us-east-1",
-      bucket:    s.bucket,
-      accessKey: s.accessKey,
-      secretKey: decrypt(s.secretKeyEnc),
-      publicUrl: s.publicUrl ?? undefined,
-    });
-  }
-
+  const ws = await db.workspace.findUnique({
+    where:  { id: workspaceId },
+    select: { organization: { select: { storage: true } } },
+  });
+  const cfg = ws?.organization?.storage as any;
+  if (!cfg || cfg.driver === "local") return new LocalDriver();
+  if (cfg.driver === "s3")            return driverFromConfig(cfg);
   return new LocalDriver();
 }
 
-// ─── Re-export encrypt so settings route can use it ──────────────────────────
-export { encrypt };
+/** Resolve just the driver NAME ("local" | "s3") for a workspace — used by
+ *  Asset row creation to persist which driver wrote each file. */
+export async function getDriverName(workspaceId: string): Promise<string> {
+  const ws = await db.workspace.findUnique({
+    where:  { id: workspaceId },
+    select: { organization: { select: { storage: true } } },
+  });
+  return ((ws?.organization?.storage as any)?.driver as string) ?? "local";
+}
+
+/** Build a driver from a raw config object (used by the connection-test
+ *  endpoint to probe credentials without persisting them). */
+export function buildDriver(cfg: {
+  driver?: string;
+  bucket?: string; accessKey?: string; secretKey?: string;
+  endpoint?: string; region?: string; publicUrl?: string;
+}): StorageDriver {
+  if (!cfg || cfg.driver === "local" || !cfg.driver) return new LocalDriver();
+  if (cfg.driver === "s3")                          return driverFromConfig(cfg);
+  return new LocalDriver();
+}
+
+function driverFromConfig(cfg: {
+  bucket?: string; accessKey?: string; secretKey?: string;
+  endpoint?: string; region?: string; publicUrl?: string;
+}): StorageDriver {
+  if (!cfg.bucket || !cfg.accessKey || !cfg.secretKey) {
+    throw new Error("S3 storage is not fully configured");
+  }
+  return new S3Driver({
+    endpoint:  cfg.endpoint  ?? undefined,
+    region:    cfg.region    ?? "us-east-1",
+    bucket:    cfg.bucket,
+    accessKey: cfg.accessKey,
+    secretKey: cfg.secretKey,
+    publicUrl: cfg.publicUrl ?? undefined,
+  });
+}
+

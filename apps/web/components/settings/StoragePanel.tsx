@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { HardDrive, Cloud, Check, Loader2, Eye, EyeOff } from "lucide-react";
+import { HardDrive, Cloud, Check, Loader2, Eye, EyeOff, Zap, XCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
@@ -16,34 +16,6 @@ interface StorageData {
   secretKey: string;
   publicUrl: string;
 }
-
-interface Preset {
-  label: string;
-  endpoint: string;
-  region: string;
-  publicUrlHint: string;
-}
-
-const S3_PRESETS: Record<string, Preset> = {
-  aws: {
-    label: "Amazon S3",
-    endpoint: "",
-    region: "us-east-1",
-    publicUrlHint: "https://{bucket}.s3.{region}.amazonaws.com",
-  },
-  r2: {
-    label: "Cloudflare R2",
-    endpoint: "https://{accountId}.r2.cloudflarestorage.com",
-    region: "auto",
-    publicUrlHint: "https://pub-xxx.r2.dev",
-  },
-  minio: {
-    label: "MinIO (self-hosted)",
-    endpoint: "http://localhost:9000",
-    region: "us-east-1",
-    publicUrlHint: "http://localhost:9000/{bucket}",
-  },
-};
 
 const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white " +
@@ -91,7 +63,9 @@ function SecretField({ value, onChange, placeholder, disabled }: { value: string
 }
 
 export default function StoragePanel({ initial }: { initial: StorageData | null }) {
-  const { canManageStorage } = useRole();
+  const { isOwner } = useRole();
+  // Storage is org-wide infra — owner-only. Non-owners see the page in read-
+  // only mode (server already gates the route, this is a defense-in-depth).
   const def = initial ?? { driver: "local", endpoint: "", region: "", bucket: "", accessKey: "", secretKey: "", publicUrl: "" };
 
   const [driver, setDriver] = useState<Driver>(def.driver);
@@ -105,13 +79,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
   const [error, setError]   = useState("");
-
-  const applyPreset = (key: string) => {
-    const p = S3_PRESETS[key];
-    if (!p) return;
-    setEndpoint(p.endpoint);
-    setRegion(p.region);
-  };
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -133,11 +102,35 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
     }
   };
 
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    setError("");
+    try {
+      const res = await apiFetch("/api/settings/storage/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver, endpoint, region, bucket, accessKey, secretKey: secretKey || "__KEEP__", publicUrl }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setTestResult({ success: false, message: json.error ?? "Test failed" });
+        return;
+      }
+      const d = json.data;
+      setTestResult({ success: d.success, message: d.message });
+    } catch (e: any) {
+      setTestResult({ success: false, message: e?.message ?? "Test failed" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-sm font-semibold text-gray-900 mb-1">Storage</h2>
       <p className="text-xs text-gray-400 mb-5">
-        Choose where uploaded images and media files are stored.
+        Where uploaded media is stored. Applies to <span className="font-medium text-gray-600">every workspace in this organization</span> — files isolated per-workspace via path prefix. Owner-only.
       </p>
 
       {/* Driver toggle */}
@@ -149,10 +142,10 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
           <button
             key={id}
             onClick={() => setDriver(id)}
-            disabled={!canManageStorage}
+            disabled={!isOwner}
             className={`flex-1 flex flex-col items-start gap-1 p-3.5 rounded-xl border-2 text-left transition-colors ${
               driver === id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"
-            } ${!canManageStorage ? "opacity-60 cursor-not-allowed" : ""}`}
+            } ${!isOwner ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             <div className="flex items-center gap-2">
               <Icon size={15} className={driver === id ? "text-blue-600" : "text-gray-500"} />
@@ -165,30 +158,13 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
 
       {driver === "s3" && (
         <div className="space-y-0">
-          {/* Presets */}
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-600 mb-2">Quick-fill preset</p>
-            <div className="flex gap-2">
-              {Object.entries(S3_PRESETS).map(([key, p]) => (
-                <button
-                  key={key}
-                  onClick={() => applyPreset(key)}
-                  disabled={!canManageStorage}
-                  className={`px-3 py-1.5 text-xs rounded-lg border border-gray-200 hover:border-blue-400 hover:text-blue-600 transition-colors ${!canManageStorage ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <Field label="Endpoint URL" hint="Leave empty for AWS S3">
             <input
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
               placeholder="https://{accountId}.r2.cloudflarestorage.com"
-              disabled={!canManageStorage}
-              className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
+              disabled={!isOwner}
+              className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
 
@@ -198,8 +174,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="us-east-1"
-                disabled={!canManageStorage}
-                className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
+                disabled={!isOwner}
+                className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
             <Field label="Bucket name">
@@ -207,8 +183,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
                 value={bucket}
                 onChange={(e) => setBucket(e.target.value)}
                 placeholder="my-bucket"
-                disabled={!canManageStorage}
-                className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
+                disabled={!isOwner}
+                className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
               />
             </Field>
           </div>
@@ -218,8 +194,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={accessKey}
               onChange={(e) => setAccessKey(e.target.value)}
               placeholder="AKIAIOSFODNN7EXAMPLE"
-              disabled={!canManageStorage}
-              className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
+              disabled={!isOwner}
+              className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
 
@@ -228,7 +204,7 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={secretKey}
               onChange={setSecretKey}
               placeholder={initial?.secretKey ? "••••••••  (unchanged)" : "wJalrXUtnFEMI/..."}
-              disabled={!canManageStorage}
+              disabled={!isOwner}
             />
           </Field>
 
@@ -237,8 +213,8 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
               value={publicUrl}
               onChange={(e) => setPublicUrl(e.target.value)}
               placeholder="https://cdn.example.com"
-              disabled={!canManageStorage}
-              className={inputCls + (!canManageStorage ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
+              disabled={!isOwner}
+              className={inputCls + (!isOwner ? " bg-gray-50 cursor-not-allowed text-gray-500" : "")}
             />
           </Field>
         </div>
@@ -248,16 +224,39 @@ export default function StoragePanel({ initial }: { initial: StorageData | null 
         <p className="mt-3 text-xs text-red-500">{error}</p>
       )}
 
-      {canManageStorage && (
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="mt-5 flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
-          style={{ background: saved ? "#16a34a" : "#2563eb" }}
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}
-          {saved ? "Saved!" : saving ? "Saving…" : "Save storage settings"}
-        </button>
+      {testResult && (
+        <div className={`mt-3 flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs ${
+          testResult.success
+            ? "bg-green-50 text-green-700 border border-green-100"
+            : "bg-red-50 text-red-600 border border-red-100"
+        }`}>
+          {testResult.success
+            ? <Check size={14} className="mt-0.5 shrink-0 text-green-600" />
+            : <XCircle size={14} className="mt-0.5 shrink-0 text-red-500" />}
+          <span className="break-all">{testResult.message}</span>
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="mt-5 flex items-center gap-2">
+          <button
+            onClick={handleTest}
+            disabled={testing || saving}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+          >
+            {testing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+            {testing ? "Testing…" : "Test connection"}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || testing}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
+            style={{ background: saved ? "#16a34a" : "#2563eb" }}
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : saved ? <Check size={14} /> : null}
+            {saved ? "Saved!" : saving ? "Saving…" : "Save"}
+          </button>
+        </div>
       )}
     </div>
   );

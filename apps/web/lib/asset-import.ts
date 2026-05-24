@@ -5,7 +5,7 @@
 
 import { createHash } from "crypto";
 import { db } from "@launchtic/database";
-import { getDriver, buildKey } from "./storage";
+import { getDriver, getDriverName, buildKey } from "./storage";
 
 export interface AssetManifestEntry {
   /** Source-side asset id (gallery's PublicTemplateAsset.id, or another
@@ -49,13 +49,9 @@ export async function importAssets(
   const urlMap: Record<string, string> = {};
   if (!manifest.length) return { idMap, urlMap };
 
-  // Resolve target driver once (current workspace storage config).
-  const settings = await db.workspaceSettings.findUnique({
-    where: { workspaceId },
-    select: { storage: true },
-  });
-  const driverName = ((settings?.storage as any)?.driver as string) ?? "local";
-  const driver = await getDriver(workspaceId);
+  // Resolve target driver once (org-wide storage config).
+  const driverName = await getDriverName(workspaceId);
+  const driver     = await getDriver(workspaceId);
 
   for (const entry of manifest) {
     // Dedup: same sha256 already in this workspace → reuse.

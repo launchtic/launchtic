@@ -1,6 +1,6 @@
+import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
-import { decrypt } from "../../../../../lib/crypto";
 import StoragePanel from "../../../../../components/settings/StoragePanel";
 
 export const metadata = { title: "Storage" };
@@ -10,21 +10,23 @@ function maskKey(key: string): string {
   return key.slice(0, 8) + "••••••••" + key.slice(-4);
 }
 
-function safeDecrypt(enc: string): string {
-  if (!enc) return "";
-  try { return decrypt(enc); } catch { return ""; }
-}
-
 export default async function Page({
   params,
 }: {
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "settings:storage:read");
+  // Storage is org-wide (shared by every workspace under this org) so we
+  // gate the page to the org owner only. Admins-with-perm can still see
+  // their workspace's content but not change infra config.
+  const r = await requireWorkspaceFromSlug(workspaceSlug);
+  if (!r.isOwner) notFound();
 
-  const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
-  const storage = settings?.storage as any;
+  const org = await db.organization.findUnique({
+    where:  { id: r.organizationId },
+    select: { storage: true },
+  });
+  const storage = org?.storage as any;
 
   return (
     <div className="p-6 sm:p-8">
@@ -35,7 +37,7 @@ export default async function Page({
           region:    storage.region    ?? "",
           bucket:    storage.bucket    ?? "",
           accessKey: storage.accessKey ?? "",
-          secretKey: storage.secretKeyEnc ? maskKey(safeDecrypt(storage.secretKeyEnc)) : "",
+          secretKey: storage.secretKey ? maskKey(storage.secretKey) : "",
           publicUrl: storage.publicUrl  ?? "",
         } : null}
       />

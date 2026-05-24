@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { getDriver, buildKey } from "../../../../lib/storage";
+import { getDriver, getDriverName, buildKey } from "../../../../lib/storage";
 import { processUploadedImage } from "../../../../lib/media/process-image";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -49,14 +49,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Resolve driver name from settings so we can persist which driver wrote
-    // the file. Needed for mixed-storage workspaces (some assets on local,
-    // some on s3) — migration tools must read with the right driver.
-    const settings = await db.workspaceSettings.findUnique({
-      where: { workspaceId },
-      select: { storage: true },
-    });
-    const driverName = ((settings?.storage as any)?.driver as string) ?? "local";
+    // Resolve driver name from the org-level storage config so we can persist
+    // which driver wrote the file. Needed for mixed-storage workspaces
+    // (some assets on local, some on s3) — migration tools must read with
+    // the right driver.
+    const driverName = await getDriverName(workspaceId);
 
     const key = buildKey(workspaceId, file.name, folder ?? undefined);
     const driver = await getDriver(workspaceId);

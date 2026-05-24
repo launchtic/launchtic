@@ -3,7 +3,7 @@
 // transaction so file copies don't hold a connection open.
 
 import { db } from "@launchtic/database";
-import { getDriver, buildKey } from "./storage";
+import { getDriver, getDriverName, buildKey } from "./storage";
 import {
   rewriteAssetRefs,
   rewriteHtmlAssetUrls,
@@ -30,12 +30,8 @@ export async function cloneAssets(
   });
   if (sourceAssets.length === 0) return { idMap, urlMap };
 
-  const destSettings = await db.workspaceSettings.findUnique({
-    where: { workspaceId: destWorkspaceId },
-    select: { storage: true },
-  });
-  const destDriverName = ((destSettings?.storage as any)?.driver as string) ?? "local";
-  const destDriver = await getDriver(destWorkspaceId);
+  const destDriverName = await getDriverName(destWorkspaceId);
+  const destDriver     = await getDriver(destWorkspaceId);
 
   for (const src of sourceAssets) {
     // Dedup against dest (in case dest already had a previous clone or import
