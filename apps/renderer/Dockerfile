@@ -6,7 +6,6 @@ FROM base AS deps
 WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/database/package.json packages/database/
-COPY packages/elements/package.json packages/elements/
 COPY packages/types/package.json packages/types/
 COPY apps/renderer/package.json apps/renderer/
 RUN pnpm install --frozen-lockfile --filter=@launchtic/renderer...

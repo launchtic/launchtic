@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
-import { getPlanFeatures } from "@launchtic/ee";
+import { getPlanFeatures } from "../../../../../lib/plan";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getBranding } from "../../../../../lib/branding";
 import BrandingPanel from "../../../../../components/settings/BrandingPanel";

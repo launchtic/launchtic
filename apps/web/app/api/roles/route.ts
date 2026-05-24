@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess, ALL_PERMISSIONS } from "../../../lib/permissions";
+import { getEffectivePlan } from "../../../lib/organization";
+import { isPaidPlan } from "../../../lib/plan";
 
 // GET /api/roles — list all roles in the current workspace + member count.
 // Available to any workspace member (`members:read`) so the TeamPanel
@@ -46,6 +48,15 @@ export async function POST(req: NextRequest) {
     const r = await requireAccess("roles:manage");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
+
+    // Plan gate. Custom roles are a paid-tier feature.
+    const planRow = await db.workspace.findUnique({
+      where:  { id: workspaceId },
+      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
+    });
+    if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+      return err("Custom roles require a paid plan.", 402);
+    }
 
     const body = createSchema.parse(await req.json());
 

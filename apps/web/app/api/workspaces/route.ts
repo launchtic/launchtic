@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
-import { canCreateWorkspace } from "@launchtic/ee";
+import { canCreateWorkspace } from "../../../lib/plan";
 import { getOrganizationForOwner, getEffectivePlan } from "../../../lib/organization";
 
 const createSchema = z.object({

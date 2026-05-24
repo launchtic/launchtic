@@ -14,7 +14,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@launchtic/database";
-import { getPlanFeatures } from "@launchtic/ee";
+import { getPlanFeatures } from "../../../lib/plan";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
 import { getBranding, saveBranding, resetBranding } from "../../../lib/branding";

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
-import { canCloneWorkspace, canCreateWorkspace } from "@launchtic/ee";
+import { canCloneWorkspace, canCreateWorkspace } from "../../../../../lib/plan";
 import { getOrganizationForOwner, getEffectivePlan } from "../../../../../lib/organization";
 import { cloneAssets, rewriteWorkspaceContentAssets } from "../../../../../lib/asset-clone";
 

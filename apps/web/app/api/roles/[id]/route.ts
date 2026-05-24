@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess, ALL_PERMISSIONS } from "../../../../lib/permissions";
+import { getEffectivePlan } from "../../../../lib/organization";
+import { isPaidPlan } from "../../../../lib/plan";
 
 const patchSchema = z.object({
   name:        z.string().min(1).max(50).optional(),
@@ -21,6 +23,16 @@ export async function PATCH(
     const r = await requireAccess("roles:manage");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
+
+    // Plan gate. Editing custom roles requires a paid tier (Community has
+    // only seed roles which aren't editable anyway, but defense-in-depth).
+    const planRow = await db.workspace.findUnique({
+      where:  { id: workspaceId },
+      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
+    });
+    if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+      return err("Custom roles require a paid plan.", 402);
+    }
 
     const { id } = await params;
     const body = patchSchema.parse(await req.json());

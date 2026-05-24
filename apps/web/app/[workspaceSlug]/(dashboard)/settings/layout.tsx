@@ -22,8 +22,9 @@ export default async function SettingsLayout({
   // because Profile sub-page is always accessible.
   const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug);
 
-  // Plan drives proOnly/freeOnly filtering in the sidebar (Agency-tier
-  // workspaces hide General; non-Agency hide Workspaces/Team/Roles).
+  // Plan drives starterPlus/agencyPlus/freeOnly filtering in the sidebar:
+  // Community hides Team/Roles + Workspaces/White-Label; Starter shows
+  // Team/Roles but still hides Workspaces/White-Label; Agency+ hides General.
   const ws = await db.workspace.findUnique({
     where: { id: workspaceId },
     select: { organization: { select: { plan: true, licenseExpiresAt: true } } },

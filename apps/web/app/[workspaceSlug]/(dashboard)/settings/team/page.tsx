@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
+import { getEffectivePlan } from "../../../../../lib/organization";
+import { isPaidPlan } from "../../../../../lib/plan";
 import TeamPanel from "../../../../../components/settings/TeamPanel";
 
 export const metadata = { title: "Team" };
@@ -14,6 +17,17 @@ export default async function Page({
     workspaceSlug,
     "members:read",
   );
+
+  // Plan gate (URL-hop defense). Sidebar hides this tab on Community; an
+  // owner who pastes the URL gets bounced to /license instead of a panel
+  // whose Invite action is a 402.
+  const planRow = await db.workspace.findUnique({
+    where:  { id: workspaceId },
+    select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
+  });
+  if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+    redirect(`/${workspaceSlug}/settings/license`);
+  }
 
   // Owner doesn't have a WorkspaceMember row (they bypass via Organization.ownerId).
   // Fetch their User profile separately so TeamPanel can render the "Owner"

@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { getEffectivePlan } from "../../../lib/organization";
+import { isPaidPlan, canInviteTeamMember } from "../../../lib/plan";
 
 // GET /api/team — list workspace members + their role info. Includes a
 // computed `isOwner` flag (true for the Organization owner — who isn't a
@@ -60,6 +62,24 @@ export async function POST(req: NextRequest) {
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
     const { workspaceId, userId: callerId } = r;
+
+    // Plan gate. Belt-and-suspenders against the sidebar hide: an attacker
+    // hitting this endpoint directly on COMMUNITY would otherwise create a
+    // WorkspaceMember row that violates the 1-seat limit.
+    // Also enforces the per-tier seat cap (Starter = 3 total incl. owner).
+    const planRow = await db.workspace.findUnique({
+      where:  { id: workspaceId },
+      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
+    });
+    const plan = getEffectivePlan(planRow?.organization);
+    if (!isPaidPlan(plan)) {
+      return err("Team management requires a paid plan. Upgrade to invite members.", 402);
+    }
+    const existingMembers = await db.workspaceMember.count({ where: { workspaceId } });
+    // +1 for the Org owner (who has no WorkspaceMember row but counts as a seat).
+    if (!canInviteTeamMember(plan, existingMembers + 1)) {
+      return err("Team member limit reached for your plan. Upgrade to invite more.", 402);
+    }
 
     const body = await req.json();
     const { email, roleId } = inviteSchema.parse(body);

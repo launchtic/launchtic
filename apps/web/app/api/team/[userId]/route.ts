@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { getEffectivePlan } from "../../../../lib/organization";
+import { isPaidPlan } from "../../../../lib/plan";
 
 const patchSchema = z.object({
   roleId: z.string().min(1),
@@ -22,6 +24,16 @@ export async function PATCH(
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
     const { workspaceId, organizationId } = r;
+
+    // Plan gate. Role-changing is a paid-tier feature; on Community there's
+    // no one to re-role (owner is the only seat).
+    const planRow = await db.workspace.findUnique({
+      where:  { id: workspaceId },
+      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
+    });
+    if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+      return err("Team role management requires a paid plan.", 402);
+    }
 
     const { userId: targetUserId } = await params;
     const { roleId } = patchSchema.parse(await req.json());

@@ -12,7 +12,7 @@ import {
   DownloadCloud, Image as ImageIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { isAgencyPlan } from "../../lib/plan";
+import { isAgencyPlan, isPaidPlan } from "../../lib/plan";
 import { useRole } from "../../lib/role";
 
 type NavItemDef = {
@@ -20,8 +20,12 @@ type NavItemDef = {
   segment:      string;
   label:        string;
   icon:         LucideIcon;
-  /** Hidden when current plan is below Agency. */
-  proOnly?:     boolean;
+  /** Hidden when current plan is below Starter (i.e. Community). Used for
+   *  tabs whose features unlock on any paid tier — Team, Roles, etc. */
+  starterPlus?: boolean;
+  /** Hidden when current plan is below Agency. Used for Agency-exclusive
+   *  features — White Label, multi-Workspace, etc. */
+  agencyPlus?:  boolean;
   /** Hidden when current plan is Agency or above. */
   freeOnly?:    boolean;
   /** Permission key required to see this tab. Owner bypasses. */
@@ -48,24 +52,24 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
   {
     label: "ORGANIZATION",
     items: [
-      { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true, proOnly: true },
-      { segment: "storage",     label: "Storage",     icon: HardDrive, ownerOnly: true                },
-      { segment: "workspaces",  label: "Workspaces",  icon: Building2, ownerOnly: true, proOnly: true },
-      { segment: "license",     label: "License",     icon: Key,       ownerOnly: true                },
+      { segment: "white-label", label: "White Label", icon: Palette,   ownerOnly: true, agencyPlus: true },
+      { segment: "storage",     label: "Storage",     icon: HardDrive, ownerOnly: true                   },
+      { segment: "workspaces",  label: "Workspaces",  icon: Building2, ownerOnly: true, agencyPlus: true },
+      { segment: "license",     label: "License",     icon: Key,       ownerOnly: true                   },
     ],
   },
   {
     label: "WORKSPACE",
     items: [
-      { segment: "team",           label: "Team",             icon: Users,        proOnly: true, requirePerm: "members:read"                },
-      { segment: "roles",          label: "Roles",            icon: Shield,       proOnly: true, requirePerm: "roles:read"                  },
-      { segment: "domains",        label: "Custom Domains",   icon: Globe,                       requirePerm: "settings:domains:read"        },
-      { segment: "payment",        label: "Payment Settings", icon: CreditCard,                  requirePerm: "settings:payment:read"        },
-      { segment: "email",          label: "Email Settings",   icon: Mail,                        requirePerm: "settings:email:read"          },
-      { segment: "media",          label: "Media Library",    icon: ImageIcon,                   requirePerm: "media:read"                    },
-      { segment: "page-templates", label: "Page Templates",   icon: LayoutTemplate,              requirePerm: "settings:page_templates:read" },
-      { segment: "gallery-import", label: "Template Gallery", icon: DownloadCloud,               ownerOnly: true                              },
-      { segment: "ai-assistant",   label: "AI Assistant",     icon: Bot,                         requirePerm: "settings:ai:read"             },
+      { segment: "team",           label: "Team",             icon: Users,        starterPlus: true, requirePerm: "members:read"                 },
+      { segment: "roles",          label: "Roles",            icon: Shield,       starterPlus: true, requirePerm: "roles:read"                   },
+      { segment: "domains",        label: "Custom Domains",   icon: Globe,                          requirePerm: "settings:domains:read"          },
+      { segment: "payment",        label: "Payment Settings", icon: CreditCard,                     requirePerm: "settings:payment:read"          },
+      { segment: "email",          label: "Email Settings",   icon: Mail,                           requirePerm: "settings:email:read"            },
+      { segment: "media",          label: "Media Library",    icon: ImageIcon,                      requirePerm: "media:read"                     },
+      { segment: "page-templates", label: "Page Templates",   icon: LayoutTemplate,                 requirePerm: "settings:page_templates:read"   },
+      { segment: "gallery-import", label: "Template Gallery", icon: DownloadCloud,                  ownerOnly: true                               },
+      { segment: "ai-assistant",   label: "AI Assistant",     icon: Bot,                            requirePerm: "settings:ai:read"               },
     ],
   },
 ];
@@ -85,7 +89,8 @@ export default function SettingsSidebar({
   const pathname = usePathname();
   const router   = useRouter();
   const { hasPermission, isOwner } = useRole();
-  const isPro = isAgencyPlan(workspacePlan);
+  const isPaid   = isPaidPlan(workspacePlan);    // STARTER | AGENCY | CUSTOM
+  const isAgency = isAgencyPlan(workspacePlan);  // AGENCY  | CUSTOM
 
   // Filter items by plan tier + permission + owner-only flag. Owner bypasses
   // every perm check via WorkspaceRoleProvider, but ownerOnly is the inverse
@@ -93,9 +98,10 @@ export default function SettingsSidebar({
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
-      if (item.ownerOnly  && !isOwner) return false;
-      if (item.proOnly    && !isPro) return false;
-      if (item.freeOnly   &&  isPro) return false;
+      if (item.ownerOnly   && !isOwner)  return false;
+      if (item.starterPlus && !isPaid)   return false;
+      if (item.agencyPlus  && !isAgency) return false;
+      if (item.freeOnly    &&  isAgency) return false;
       if (item.requirePerm && !hasPermission(item.requirePerm)) return false;
       return true;
     }),

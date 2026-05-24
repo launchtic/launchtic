@@ -14,7 +14,7 @@
 
 import { cache } from "react";
 import { db } from "@launchtic/database";
-import { getPlanFeatures } from "@launchtic/ee";
+import { getPlanFeatures } from "./plan";
 import { getEffectivePlan } from "./organization";
 
 // Shape persisted in Organization.brandingConfig JSON. All fields optional;
