@@ -22,6 +22,21 @@ name: Build & Push
 on:
   push:
     branches: [main]
+    # Skip rebuild when changes are docs/config-only — saves ~6 min of CI
+    # wall-clock per cosmetic commit. Anything NOT listed here triggers a
+    # build; the include-by-default behaviour is intentional so that adding
+    # new code dirs (apps/X, packages/Y) doesn't silently skip them.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE*'
+      - '.gitignore'
+      - '.dockerignore'
+      - '.editorconfig'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+      - '.github/dependabot.yml'
+      - 'docs/**'
+      - 'scripts_test/**'
   workflow_dispatch:
 
 jobs:
