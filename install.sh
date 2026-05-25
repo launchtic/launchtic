@@ -5,10 +5,18 @@ REPO_URL="https://github.com/TechFago/launchtic.git"
 INSTALL_DIR="${INSTALL_DIR:-launchtic}"
 ENV_FILE=".env"
 
+# ANSI color codes — fall back to no-op on dumb terminals.
+if [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
+  BOLD=$'\033[1m';  DIM=$'\033[2m';   RESET=$'\033[0m'
+  CYAN=$'\033[36m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BLUE=$'\033[34m'; MAGENTA=$'\033[35m'
+else
+  BOLD=""; DIM=""; RESET=""; CYAN=""; GREEN=""; YELLOW=""; BLUE=""; MAGENTA=""
+fi
+
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Launchtic Installer"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "${BOLD}${CYAN}  ╭──────────────────────────────────────────────╮${RESET}"
+echo "${BOLD}${CYAN}  │${RESET}  ${BOLD}launch${BLUE}tic${RESET}${BOLD}  ${DIM}— self-host installer${RESET}            ${BOLD}${CYAN}│${RESET}"
+echo "${BOLD}${CYAN}  ╰──────────────────────────────────────────────╯${RESET}"
 echo ""
 
 # ─── Pre-flight runtime checks ───────────────────────────────────────────────
@@ -16,8 +24,8 @@ echo ""
 # a config-only issue the operator can fix without re-running half the install.
 preflight_fail() {
   echo ""
-  echo "✗ Pre-flight failed: $1"
-  echo "  Fix the issue above and re-run: bash install.sh"
+  echo "${BOLD}${YELLOW}  ✗ Pre-flight failed:${RESET} $1"
+  echo "  ${DIM}Fix the issue above and re-run: ${RESET}${BOLD}bash install.sh${RESET}"
   echo ""
   exit 1
 }
@@ -227,28 +235,19 @@ for i in $(seq 1 80); do
 done
 echo ""
 if [ "$HEALTHY" != "1" ]; then
-  echo "  ⚠ Health check didn't pass yet — the app is probably still warming up."
-  echo "    Check progress:  cd ${INSTALL_DIR} && docker compose logs -f web"
-  echo "    Then open the URL below as soon as the web log shows 'Ready'."
+  echo ""
+  echo "  ${YELLOW}⚠  Health check didn't pass yet — the app is probably still warming up.${RESET}"
+  echo "  ${DIM}Check progress: ${RESET}${BOLD}cd ${INSTALL_DIR} && docker compose logs -f web${RESET}"
+  echo "  ${DIM}Then open the URL below as soon as the web log shows 'Ready'.${RESET}"
   echo ""
 fi
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "${GREEN}  ╭──────────────────────────────────────────────╮${RESET}"
+echo "${GREEN}  │${RESET}  ${BOLD}${GREEN}✓ Launchtic is running${RESET}                       ${GREEN}│${RESET}"
+echo "${GREEN}  ╰──────────────────────────────────────────────╯${RESET}"
 echo ""
-echo "  ✓ Launchtic is running!"
+echo "  Finish setup in your browser:"
 echo ""
-echo "  → Open  http://${SERVER_IP}  to finish setup."
+echo "    ${BOLD}${CYAN}→  http://${SERVER_IP}${RESET}"
 echo ""
-echo "  The browser wizard will walk you through:"
-echo "    1. Create your admin account"
-echo "    2. Configure your dashboard + pages domains (with DNS guide)"
-echo ""
-echo ""
-echo "  To update later:"
-echo "    cd ${INSTALL_DIR} && git pull && docker compose up -d --build"
-echo ""
-echo "  Logs:    cd ${INSTALL_DIR} && docker compose logs -f"
-echo "  Stop:    cd ${INSTALL_DIR} && docker compose down"
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

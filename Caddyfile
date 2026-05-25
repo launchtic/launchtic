@@ -17,7 +17,14 @@
 	# Admin API on internal docker network port. NOT exposed to host.
 	# Wizard's /api/setup/configure POSTs Caddy JSON config here to switch
 	# from wizard-mode to production HTTPS.
-	admin :2019
+	#
+	# `origins` must include the docker service name `caddy` because that's
+	# the Host header the web container sends (fetch `http://caddy:2019/...`).
+	# Caddy's default origins list is loopback-only, so cross-container
+	# requests are rejected with "client is not allowed to access from origin".
+	admin :2019 {
+		origins caddy caddy:2019 localhost 127.0.0.1
+	}
 }
 
 # Reusable proxy block. Args:
