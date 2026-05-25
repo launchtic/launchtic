@@ -35,8 +35,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
       '@launchtic/elements':
-        specifier: ^0.1.3
-        version: 0.1.4(6b6fd934475d7fabdd28a49e8b3357f3)
+        specifier: ^0.1.6
+        version: 0.1.6(6b6fd934475d7fabdd28a49e8b3357f3)
       '@launchtic/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -165,8 +165,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/database
       '@launchtic/elements':
-        specifier: ^0.1.3
-        version: 0.1.4(6b6fd934475d7fabdd28a49e8b3357f3)
+        specifier: ^0.1.6
+        version: 0.1.6(6b6fd934475d7fabdd28a49e8b3357f3)
       '@launchtic/email':
         specifier: workspace:*
         version: link:../../packages/email
@@ -1091,8 +1091,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@launchtic/elements@0.1.4':
-    resolution: {integrity: sha512-PIwIf7fP+aJnn6M4SnKllmTzHI+j/BCH9wWVWcIrW0jd5rQf0ghWxfzpoGVZdmwy8xokR/O75sqv59mO37rj2w==}
+  '@launchtic/elements@0.1.6':
+    resolution: {integrity: sha512-/Bb628QQSEXx1ePv9L1a0b7TjM+yC/zB89Sxt0PIjNFQ8C2HWf3PZmRE3OTgNzuUQoVWnJ7o8F83eQ/ECOJYpg==}
     peerDependencies:
       '@craftjs/core': ^0.2.11
       '@craftjs/utils': '*'
@@ -4682,7 +4682,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@launchtic/elements@0.1.4(6b6fd934475d7fabdd28a49e8b3357f3)':
+  '@launchtic/elements@0.1.6(6b6fd934475d7fabdd28a49e8b3357f3)':
     dependencies:
       '@craftjs/core': 0.2.12(react@19.2.5)
       '@craftjs/utils': 0.2.5(react@19.2.5)

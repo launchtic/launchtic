@@ -5,6 +5,10 @@ import { getInstallationBranding } from "../../../lib/branding";
 // Favicon + brand title come from root layout (single-tenant install).
 export const metadata = { title: "Forgot password" };
 
+// Skip static prerender — getInstallationBranding hits Prisma which has no
+// DB connection at build time.
+export const dynamic = "force-dynamic";
+
 export default async function ForgotPasswordPage() {
   // In-page logo override — root metadata handles favicon, but the visible
   // logo inside the form needs branding passed explicitly. Same React.cache

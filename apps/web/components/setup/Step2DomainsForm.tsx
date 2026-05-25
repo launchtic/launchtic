@@ -58,13 +58,17 @@ export default function Step2DomainsForm({
     }
   };
 
-  const commit = async (skipDns = false) => {
+  const commit = async (skipDns = false, overrideApp?: string, overridePages?: string) => {
     setPhase("configuring");
     try {
       const res = await fetch("/api/setup/configure", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ appDomain, pagesDomain, skipDns }),
+        body:    JSON.stringify({
+          appDomain:   overrideApp   ?? appDomain,
+          pagesDomain: overridePages ?? pagesDomain,
+          skipDns,
+        }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Configuration failed");
@@ -78,10 +82,13 @@ export default function Step2DomainsForm({
   };
 
   // Localhost / dev bypass — skips DNS verify + tolerates an unreachable
-  // Caddy. Only enabled when the server is running outside production.
+  // Caddy. Domains default to .localhost subdomains so the operator doesn't
+  // have to fill anything in just to dismiss the wizard.
   const skipAndConfigure = async () => {
     setError(null);
-    await commit(true);
+    const a = appDomain   || "app.localhost";
+    const p = pagesDomain || "pages.localhost";
+    await commit(true, a, p);
   };
 
   const pollHealth = async (appUrl: string) => {
@@ -175,10 +182,9 @@ export default function Step2DomainsForm({
           {allowSkip && (
             <button
               type="button"
-              disabled={!canSubmit}
               onClick={skipAndConfigure}
-              className="w-full text-xs text-gray-500 hover:text-gray-800 py-1 -mt-1 underline disabled:opacity-50"
-              title="Skip DNS verification + tolerate unreachable Caddy. Use for local dev only."
+              className="w-full text-xs text-gray-500 hover:text-gray-800 py-1 -mt-1 underline"
+              title="Skip DNS verification + tolerate unreachable Caddy. Domains default to *.localhost if empty. Local dev only."
             >
               Skip DNS &amp; SSL (local dev)
             </button>

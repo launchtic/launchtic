@@ -13,6 +13,9 @@ import { db } from "@launchtic/database";
 import { isSetupComplete } from "../../../lib/system-config";
 import Step2DomainsForm from "../../../components/setup/Step2DomainsForm";
 
+// Hits Prisma — skip static prerender (no DB at build time).
+export const dynamic = "force-dynamic";
+
 async function detectServerIp(): Promise<string> {
   try {
     const res = await fetch("https://api.ipify.org", { cache: "no-store", signal: AbortSignal.timeout(4000) });

@@ -10,6 +10,9 @@ import { db } from "@launchtic/database";
 import { isSetupComplete } from "../../lib/system-config";
 import Step1AdminForm from "../../components/setup/Step1AdminForm";
 
+// Hits Prisma — skip static prerender (no DB at build time).
+export const dynamic = "force-dynamic";
+
 export default async function SetupStep1() {
   if (await isSetupComplete()) redirect("/login");
 
