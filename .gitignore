@@ -43,6 +43,7 @@ Thumbs.db
 .cursor
 .continue
 .claude/
+CLAUDE.md
 
 # Docker volumes (nếu mount local)
 postgres_data
