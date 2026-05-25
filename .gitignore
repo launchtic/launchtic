@@ -55,3 +55,4 @@ apps/web/public/uploads/*
 # Personal Claude Code config + dev test fixtures
 
 scripts_test/
+package-lock.json
