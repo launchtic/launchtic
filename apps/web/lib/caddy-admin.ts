@@ -70,13 +70,21 @@ ${cfg.pagesDomain} {
 }
 
 /** Convert Caddyfile → JSON via Caddy's /adapt endpoint, then apply via
- *  /load. Caddy reloads in-place — no restart, no dropped connections. */
+ *  /load. Caddy reloads in-place — no restart, no dropped connections.
+ *
+ *  Origin header is required: Node fetch (undici) automatically tags
+ *  cross-origin requests with `Sec-Fetch-Mode: cors`, which makes Caddy's
+ *  admin endpoint enforce the Origin header. Without us setting it, the
+ *  header is empty and Caddy rejects with "origin '' not allowed". By
+ *  passing `ADMIN` as the Origin (e.g. http://caddy:2019), it normalizes
+ *  to //caddy:2019 which matches Caddy's auto-computed allowed origins. */
 export async function reloadCaddy(cfg: CaddyDomainConfig): Promise<void> {
   const caddyfile = buildCaddyfile(cfg);
+  const headers   = { "Origin": ADMIN };
 
   const adaptRes = await fetch(`${ADMIN}/adapt`, {
     method:  "POST",
-    headers: { "Content-Type": "text/caddyfile" },
+    headers: { ...headers, "Content-Type": "text/caddyfile" },
     body:    caddyfile,
   });
   if (!adaptRes.ok) {
@@ -88,7 +96,7 @@ export async function reloadCaddy(cfg: CaddyDomainConfig): Promise<void> {
 
   const loadRes = await fetch(`${ADMIN}/load`, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
     body:    JSON.stringify(adapted.result),
   });
   if (!loadRes.ok) {

@@ -18,12 +18,13 @@
 	# Wizard's /api/setup/configure POSTs Caddy JSON config here to switch
 	# from wizard-mode to production HTTPS.
 	#
-	# `origins` must include the docker service name `caddy` because that's
-	# the Host header the web container sends (fetch `http://caddy:2019/...`).
-	# Caddy's default origins list is loopback-only, so cross-container
-	# requests are rejected with "client is not allowed to access from origin".
+	# `origins` lists allowed values for the request's Origin header. The web
+	# container's caddy-admin.ts explicitly sets `Origin: http://caddy:2019`
+	# (without this, Node fetch sends `Sec-Fetch-Mode: cors` + empty Origin →
+	# Caddy rejects with "origin '' not allowed"). Caddy normalizes scheme,
+	# so listing `caddy:2019` matches both http:// and https:// origins.
 	admin :2019 {
-		origins caddy caddy:2019 localhost 127.0.0.1
+		origins localhost 127.0.0.1 caddy caddy:2019
 	}
 }
 
