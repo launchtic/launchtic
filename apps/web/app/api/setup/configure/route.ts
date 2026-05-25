@@ -24,7 +24,9 @@ const DOMAIN_RE = /^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-
 const schema = z.object({
   appDomain:   z.string().regex(DOMAIN_RE, "Invalid domain format"),
   pagesDomain: z.string().regex(DOMAIN_RE, "Invalid domain format"),
-  acmeEmail:   z.string().email(),
+  // Localhost / dev bypass — accepted only when NODE_ENV !== "production".
+  // Skips DNS-quorum check + tolerates an unreachable Caddy admin API.
+  skipDns:     z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -35,18 +37,38 @@ export async function POST(req: NextRequest) {
       return err("Setup already completed. Use Settings → Domains to change later.", 409);
     }
 
-    const { appDomain, pagesDomain, acmeEmail } = schema.parse(await req.json());
+    const { appDomain, pagesDomain, skipDns } = schema.parse(await req.json());
     if (appDomain === pagesDomain) {
       return err("appDomain and pagesDomain must differ.", 400);
     }
 
-    // Reload Caddy FIRST. If the admin API isn't reachable we want to fail
-    // loud BEFORE we mark setup complete, so the user can retry without
-    // ending up in a wizard-completed-but-no-HTTPS state.
+    // ACME contact email = founder's account email. We require a User to
+    // exist (Step 1 created the founder); if missing, the wizard is being
+    // called out of order. Operator can override later in Settings if a
+    // separate ops mailbox is preferred for cert-expiry notifications.
+    const founder = await db.user.findFirst({
+      orderBy: { createdAt: "asc" },
+      select:  { email: true },
+    });
+    if (!founder) return err("Founder account not found. Complete Step 1 first.", 400);
+    const acmeEmail = founder.email;
+
+    // skipDns flag is dev-only — refuse in production so a misconfigured
+    // operator can't accidentally bypass the safety check.
+    const devBypass = !!skipDns && process.env.NODE_ENV !== "production";
+
+    // Reload Caddy. In dev bypass mode we treat an unreachable admin API
+    // (e.g. running `pnpm dev` without docker compose) as non-fatal —
+    // SystemConfig still gets persisted so dashboard navigation works.
+    // In production, an unreachable Caddy IS fatal so the operator doesn't
+    // end up in a wizard-completed-but-no-HTTPS state.
     try {
       await reloadCaddy({ appDomain, pagesDomain, acmeEmail });
     } catch (e: any) {
-      return err(`Caddy reload failed: ${e?.message ?? "unknown"}`, 502);
+      if (!devBypass) {
+        return err(`Caddy reload failed: ${e?.message ?? "unknown"}`, 502);
+      }
+      console.warn("[setup] Caddy unreachable, continuing (dev bypass):", e?.message);
     }
 
     // Persist config + mark complete. upsert so a partial earlier attempt
@@ -60,14 +82,33 @@ export async function POST(req: NextRequest) {
 
     // Set the wizard cookie used by middleware to skip the /setup redirect
     // on subsequent requests. httpOnly so client JS can't tamper. 1y maxAge.
-    const res = NextResponse.json({ success: true, data: { appUrl: `https://${appDomain}` } });
+    // In dev bypass mode we redirect back to the same origin (e.g.
+    // http://localhost:3000) instead of the configured domain, because the
+    // dev server doesn't actually serve traffic on that domain.
+    const appUrl = devBypass
+      ? new URL(req.url).origin
+      : `https://${appDomain}`;
+    const res = NextResponse.json({ success: true, data: { appUrl } });
     res.cookies.set("lt_setup_done", "1", {
       httpOnly: true,
       sameSite: "lax",
-      secure:   true,
+      secure:   !devBypass,  // dev runs on plain HTTP — secure cookies would be dropped
       path:     "/",
       maxAge:   60 * 60 * 24 * 365,
     });
+    // Clear any stale NextAuth session left over from prior test runs.
+    // Without this, a dev who re-ran the wizard against a fresh DB would
+    // log in via cookie → land on /dashboard → 404 because the old user.id
+    // no longer matches any workspace. Force a fresh login on the founder
+    // account the wizard just created.
+    for (const name of [
+      "next-auth.session-token",
+      "__Secure-next-auth.session-token",
+      "authjs.session-token",
+      "__Secure-authjs.session-token",
+    ]) {
+      res.cookies.set(name, "", { path: "/", maxAge: 0 });
+    }
     return res;
   } catch (error) {
     return handleError(error);

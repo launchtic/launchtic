@@ -28,9 +28,16 @@ async function detectServerIp(): Promise<string> {
 export default async function SetupStep2() {
   if (await isSetupComplete()) redirect("/login");
 
+  // Founder must exist before this step. ACME contact email is derived from
+  // their account server-side (no UI field) — operator can change later in
+  // settings if they want a separate ops mailbox for cert renewals.
   const userCount = await db.user.count();
   if (userCount === 0) redirect("/setup");
 
   const serverIp = await detectServerIp();
-  return <Step2DomainsForm serverIp={serverIp} />;
+  // Localhost dev mode: when running outside production (e.g. `pnpm dev`),
+  // there's no Caddy + no real DNS — let the wizard skip both via a UI button.
+  const allowSkip = process.env.NODE_ENV !== "production";
+
+  return <Step2DomainsForm serverIp={serverIp} allowSkip={allowSkip} />;
 }

@@ -21,10 +21,15 @@ type DnsReport = {
 
 type Phase = "input" | "verifying" | "configuring" | "issuing" | "done";
 
-export default function Step2DomainsForm({ serverIp }: { serverIp: string }) {
+export default function Step2DomainsForm({
+  serverIp,
+  allowSkip,
+}: {
+  serverIp:   string;
+  allowSkip?: boolean;
+}) {
   const [appDomain, setAppDomain]     = useState("");
   const [pagesDomain, setPagesDomain] = useState("");
-  const [acmeEmail, setAcmeEmail]     = useState("");
   const [phase, setPhase]             = useState<Phase>("input");
   const [dnsReport, setDnsReport]     = useState<DnsReport | null>(null);
   const [error, setError]             = useState<string | null>(null);
@@ -53,13 +58,13 @@ export default function Step2DomainsForm({ serverIp }: { serverIp: string }) {
     }
   };
 
-  const commit = async () => {
+  const commit = async (skipDns = false) => {
     setPhase("configuring");
     try {
       const res = await fetch("/api/setup/configure", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ appDomain, pagesDomain, acmeEmail }),
+        body:    JSON.stringify({ appDomain, pagesDomain, skipDns }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Configuration failed");
@@ -70,6 +75,13 @@ export default function Step2DomainsForm({ serverIp }: { serverIp: string }) {
       setPhase("input");
       setError(e?.message ?? "Configuration failed");
     }
+  };
+
+  // Localhost / dev bypass — skips DNS verify + tolerates an unreachable
+  // Caddy. Only enabled when the server is running outside production.
+  const skipAndConfigure = async () => {
+    setError(null);
+    await commit(true);
   };
 
   const pollHealth = async (appUrl: string) => {
@@ -89,7 +101,7 @@ export default function Step2DomainsForm({ serverIp }: { serverIp: string }) {
   };
 
   const dnsReady = dnsReport?.app.ready && dnsReport?.pages.ready;
-  const canSubmit = appDomain && pagesDomain && acmeEmail && appDomain !== pagesDomain;
+  const canSubmit = appDomain && pagesDomain && appDomain !== pagesDomain;
 
   return (
     <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
@@ -139,17 +151,6 @@ export default function Step2DomainsForm({ serverIp }: { serverIp: string }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SSL contact email</label>
-            <input
-              type="email"
-              value={acmeEmail}
-              onChange={(e) => setAcmeEmail(e.target.value.trim())}
-              placeholder="admin@yourdomain.com"
-              className={input}
-            />
-          </div>
-
           {serverIp && appDomain && pagesDomain && (
             <DnsGuide serverIp={serverIp} appDomain={appDomain} pagesDomain={pagesDomain} />
           )}
@@ -170,6 +171,18 @@ export default function Step2DomainsForm({ serverIp }: { serverIp: string }) {
           >
             {dnsReport ? "Re-check DNS" : "I've added the DNS records"}
           </button>
+
+          {allowSkip && (
+            <button
+              type="button"
+              disabled={!canSubmit}
+              onClick={skipAndConfigure}
+              className="w-full text-xs text-gray-500 hover:text-gray-800 py-1 -mt-1 underline disabled:opacity-50"
+              title="Skip DNS verification + tolerate unreachable Caddy. Use for local dev only."
+            >
+              Skip DNS &amp; SSL (local dev)
+            </button>
+          )}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { auth } from "../../lib/auth";
-import { redirect, notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 
 // Post-login resolver — picks the user's default workspace and redirects.
@@ -30,7 +30,10 @@ export default async function DashboardResolver() {
     orderBy: { createdAt: "asc" },
     select: { slug: true },
   });
-  if (!workspace) notFound();
+  // No workspace = stale session referencing a User that was wiped (common
+  // in dev when the DB gets reset). Send them back to login instead of a
+  // dead-end 404 — login server-renders a fresh form against the current DB.
+  if (!workspace) redirect("/login");
 
   redirect(`/${workspace.slug}/dashboard`);
 }
