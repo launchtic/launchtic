@@ -196,12 +196,13 @@ EOF
 fi
 echo ""
 
-# ─── Build images locally ────────────────────────────────────────────────────
-# Builds locally for now; nothing is baked-in at build time anymore (all URLs
-# are read from env at runtime), so switching to `docker compose pull` against
-# a published registry image is also a valid choice for users that prefer it.
-echo "  Building Docker images (5-10 minutes on first run)..."
-docker compose build
+# ─── Pull pre-built images from GitHub Container Registry ────────────────────
+# Images are built + published by the project's CI (.github/workflows/build.yml)
+# on every push to main. Pulling avoids the 5-10 min local build + drops the
+# host RAM requirement (no Next.js build = no 4GB peak). Operator that wants
+# to build from source can swap `pull` → `build` here.
+echo "  Pulling Docker images (1-2 minutes on first run)..."
+docker compose pull
 echo ""
 
 # ─── Start services ──────────────────────────────────────────────────────────

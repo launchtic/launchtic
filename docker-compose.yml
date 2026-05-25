@@ -63,6 +63,13 @@ services:
   # ─── Reverse Proxy + SSL ────────────────────────────────
   caddy:
     image: caddy:2-alpine
+    # --resume restores the last config persisted by Caddy's autosave
+    # (written to /config/caddy/autosave.json after every admin API reload).
+    # First boot: no autosave exists → falls back to Caddyfile (wizard mode).
+    # Post-wizard restart: loads autosave → instant HTTPS without re-running
+    # the wizard. Without --resume the container would revert to wizard mode
+    # on every restart and trap the user in an infinite redirect.
+    command: caddy run --resume --config /etc/caddy/Caddyfile --adapter caddyfile
     ports:
       - "80:80"
       - "443:443"
