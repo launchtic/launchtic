@@ -92,8 +92,14 @@ export default function Step2DomainsForm({
   };
 
   const pollHealth = async (appUrl: string) => {
-    // Poll until Caddy finishes the ACME handshake — opaque no-cors response
-    // means the TLS handshake + tcp connection succeeded.
+    // Poll until two things complete:
+    //   1. Web container restarts (configure endpoint exits process 0 after
+    //      response — Docker restart_policy brings it back in ~5s). The
+    //      restart is needed so entrypoint.sh re-reads SystemConfig and
+    //      exports AUTH_URL, fixing the NextAuth signOut Docker bug.
+    //   2. Caddy finishes the ACME handshake for the new domain.
+    // Opaque no-cors response = TLS handshake + tcp connection succeeded =
+    // both are ready. 60 attempts × 3s = 3 min budget (covers worst case).
     for (let i = 0; i < 60; i++) {
       try {
         await fetch(`${appUrl}/api/health`, { mode: "no-cors", cache: "no-store" });

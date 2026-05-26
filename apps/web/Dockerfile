@@ -38,6 +38,11 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# postgresql-client (~14MB) — entrypoint.sh runs a single psql query to read
+# SystemConfig.appDomain and export AUTH_URL before starting Next. See
+# entrypoint.sh for the NextAuth Docker bug rationale.
+RUN apk add --no-cache postgresql-client
+
 # Prisma CLI + engines for running migrations at startup
 COPY --from=prisma-cli /prisma/node_modules/prisma ./node_modules/prisma
 COPY --from=prisma-cli /prisma/node_modules/@prisma ./node_modules/@prisma

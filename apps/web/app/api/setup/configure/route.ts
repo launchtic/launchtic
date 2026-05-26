@@ -109,6 +109,27 @@ export async function POST(req: NextRequest) {
     ]) {
       res.cookies.set(name, "", { path: "/", maxAge: 0 });
     }
+
+    // Trigger container restart so entrypoint.sh re-reads SystemConfig and
+    // exports the now-set AUTH_URL — fixes the NextAuth Docker signOut bug
+    // (https://github.com/nextauthjs/next-auth/discussions/8449). Without
+    // this, the new domain works for browsing but logout redirects to
+    // https://0.0.0.0:3000/login until the operator manually restarts web.
+    //
+    // 1.5s delay gives this response time to reach the client before the
+    // process dies. Docker's restart_policy: unless-stopped brings the
+    // container back in ~5s; the wizard frontend polls the new domain's
+    // /api/health and reloads when healthy.
+    //
+    // Skipped in dev (devBypass = pnpm dev): killing the dev server isn't
+    // desirable and there's no Docker to restart it.
+    if (!devBypass) {
+      setTimeout(() => {
+        console.log("[setup] Wizard complete — exiting to restart with AUTH_URL set");
+        process.exit(0);
+      }, 1500);
+    }
+
     return res;
   } catch (error) {
     return handleError(error);
