@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { requireAccess } from "../../../../lib/permissions";
+import { getPagesDomain } from "../../../../lib/system-config";
 import dns from "dns/promises";
 
 type Params = { params: Promise<{ id: string }> };
-
-const PAGES_DOMAIN = process.env.PAGES_DOMAIN ?? "";
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const r = await requireAccess("settings:domains:write");
@@ -40,17 +39,19 @@ export async function PATCH(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Local/dev: skip real DNS check
-  const isDev = process.env.NODE_ENV === "development" || !PAGES_DOMAIN;
+  // Local/dev: skip real DNS check. Also skipped when wizard hasn't run yet
+  // (pagesDomain empty = no canonical target to compare CNAME against).
+  const pagesDomain = await getPagesDomain();
+  const isDev = process.env.NODE_ENV === "development" || !pagesDomain;
   if (!isDev) {
     try {
       const cnames = await dns.resolveCname(record.domain);
       const pointsCorrectly = cnames.some(
-        (c) => c === PAGES_DOMAIN || c === `${PAGES_DOMAIN}.`
+        (c) => c === pagesDomain || c === `${pagesDomain}.`
       );
       if (!pointsCorrectly) {
         return NextResponse.json(
-          { error: `CNAME not pointing to ${PAGES_DOMAIN}. Found: ${cnames.join(", ")}` },
+          { error: `CNAME not pointing to ${pagesDomain}. Found: ${cnames.join(", ")}` },
           { status: 400 }
         );
       }
