@@ -34,7 +34,6 @@ You'll be asked for two domains (e.g. `app.example.com` for the dashboard, `page
 - **Workers**: BullMQ (email + automations + sequences)
 - **Infrastructure**: Docker Compose, Caddy reverse proxy
 - **AI**: OpenAI / Anthropic / Gemini (per-workspace configurable)
-- **Languages**: English / Vietnamese / German / Japanese UI
 
 ## Local development
 

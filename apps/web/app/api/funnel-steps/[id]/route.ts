@@ -48,12 +48,32 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const step = await db.funnelStep.findUnique({
       where: { id },
       include: {
-        funnel: { select: { id: true, name: true, currency: true, workspaceId: true } },
+        funnel: {
+          select: {
+            id: true,
+            name: true,
+            currency: true,
+            workspaceId: true,
+            // Load the funnel's assigned custom domain so the editor's
+            // preview button + URL prefix point at the right host. Without
+            // this the frontend falls back to the default pages domain.
+            domains: {
+              include: { domain: { select: { domain: true, verified: true } } },
+              take: 1,
+            },
+          },
+        },
         resources: true,
       },
     });
 
     if (!step) return err("Funnel step not found", 404);
+
+    // Only treat a verified domain as the funnel's primary — unverified
+    // assignments would generate links that 404/error in the browser.
+    const primaryDomain = step.funnel.domains[0]?.domain.verified
+      ? step.funnel.domains[0].domain.domain
+      : null;
 
     return ok({
       id:   step.id,
@@ -68,7 +88,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
       couponIds: step.couponIds ?? [],
       shippingFee: step.shippingFee ?? 0,
       pageJson: step.pageJson,
-      funnel: step.funnel,
+      funnel: {
+        id:           step.funnel.id,
+        name:         step.funnel.name,
+        currency:     step.funnel.currency,
+        workspaceId:  step.funnel.workspaceId,
+        primaryDomain,
+      },
     });
   } catch (error) {
     return handleError(error);

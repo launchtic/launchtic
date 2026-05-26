@@ -62,12 +62,21 @@ type Funnel = {
 };
 
 function stepViewUrl(rendererUrl: string, primaryDomain: string | null, slug: string) {
+  return `${stepUrlPrefix(rendererUrl, primaryDomain)}/${slug}`;
+}
+
+/** Just the origin (no trailing slash) used in URL preview. When the funnel
+ *  has a custom domain assigned, use it; otherwise fall back to the workspace's
+ *  default pages renderer. Both the clickable "View" link and the configure-tab
+ *  prefix must agree — otherwise the operator sees `default/slug` in the form
+ *  but the View button opens `custom/slug` (or vice-versa). */
+function stepUrlPrefix(rendererUrl: string, primaryDomain: string | null) {
   if (primaryDomain) {
     const { port, protocol } = new URL(rendererUrl);
     const portSuffix = port ? `:${port}` : "";
-    return `${protocol}//${primaryDomain}${portSuffix}/${slug}`;
+    return `${protocol}//${primaryDomain}${portSuffix}`;
   }
-  return `${rendererUrl}/${slug}`;
+  return rendererUrl;
 }
 
 const TYPE_ICON_MAP: Record<string, React.ReactNode> = {
@@ -193,7 +202,8 @@ function SortableStepItem({
 }
 
 /* ─── Configuration tab ─── */
-function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelId: string; rendererUrl: string; onUpdate: (updated: Step) => void }) {
+function ConfigurationTab({ step, rendererUrl, primaryDomain, onUpdate }: { step: Step; funnelId: string; rendererUrl: string; primaryDomain: string | null; onUpdate: (updated: Step) => void }) {
+  const urlPrefix = stepUrlPrefix(rendererUrl, primaryDomain);
   const { canManageFunnels } = useRole();
   const [name, setName] = useState(step.name);
   const [slug, setSlug] = useState(step.slug);
@@ -260,7 +270,7 @@ function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelI
           {/* Mobile: stacked prefix + input */}
           <div className="hidden sm:flex">
             <span className="flex items-center px-3 py-2 text-sm bg-gray-50 border border-r-0 border-gray-300 rounded-l-lg text-gray-500 whitespace-nowrap">
-              {rendererUrl}/
+              {urlPrefix}/
             </span>
             <input
               type="text"
@@ -272,7 +282,7 @@ function ConfigurationTab({ step, rendererUrl, onUpdate }: { step: Step; funnelI
             />
           </div>
           <div className="sm:hidden">
-            <p className="text-xs text-gray-400 mb-1 font-mono truncate">{rendererUrl}/</p>
+            <p className="text-xs text-gray-400 mb-1 font-mono truncate">{urlPrefix}/</p>
             <input
               type="text"
               value={slug}
@@ -563,7 +573,7 @@ export default function FunnelStepManager({
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {activeTab === "configuration" && (
-              <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} rendererUrl={rendererUrl} onUpdate={handleStepUpdate} />
+              <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} onUpdate={handleStepUpdate} />
             )}
             {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} />}
           </div>
