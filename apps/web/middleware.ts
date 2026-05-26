@@ -26,26 +26,23 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   // ── First-run guard ────────────────────────────────────────────────────
-  // Force users through the wizard when the setup cookie isn't set. Two
-  // escape hatches so we don't trap users in a redirect loop when the cookie
-  // is missing for non-first-run reasons (cleared cache, 1y expiry, new
-  // browser, incognito):
+  // Force users through the wizard when the setup cookie isn't set. The
+  // redirect only applies to BROWSER PAGE requests — never to API endpoints,
+  // which are called server-to-server (Caddy on-demand TLS hits
+  // /api/domains/check, worker hits /api/*) and would break if redirected.
   //
-  //   1. Whitelist /login + /api/auth/* — /login's server component does
-  //      its own DB check (`userCount === 0 ? redirect("/setup")`) and is
-  //      the authoritative "do I need to set up?" gate. Letting it through
-  //      breaks the loop when /setup sees isSetupComplete=true and bounces
-  //      back to /login.
-  //
-   //  2. req.auth bypass — if the user already has a valid session, setup
-  //      MUST have been done (the founder account exists). Skip the cookie
-  //      check entirely so a cleared-cookie user can keep working.
+  // Whitelist breakdown:
+  //   • /setup, /login            — wizard + login pages themselves
+  //   • /api/*                    — ALL API routes (each has its own auth);
+  //                                 redirecting them returns HTML to a JSON
+  //                                 client + breaks server-to-server callers
+  //                                 like Caddy's on-demand TLS probe
+  //   • req.auth bypass           — already-authed users can't be in pre-setup
+  //                                 state, skip the cookie check entirely
   const isSetupRoute =
-    pathname.startsWith("/setup")    ||
-    pathname.startsWith("/api/setup") ||
-    pathname.startsWith("/api/auth")  ||
-    pathname === "/login"             ||
-    pathname === "/api/health";
+    pathname.startsWith("/setup") ||
+    pathname.startsWith("/api/")  ||
+    pathname === "/login";
   if (!req.cookies.get(SETUP_COOKIE) && !req.auth && !isSetupRoute) {
     return NextResponse.redirect(new URL("/setup", req.nextUrl));
   }
