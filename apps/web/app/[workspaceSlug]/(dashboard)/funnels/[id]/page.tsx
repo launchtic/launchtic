@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
+import { getRendererUrl } from "../../../../../lib/system-config";
 import FunnelStepManager from "../../../../../components/funnels/FunnelStepManager";
 
 type Params = { params: Promise<{ id: string; workspaceSlug: string }> };
@@ -43,11 +44,13 @@ export default async function FunnelDetailPage({ params }: Params) {
     ? funnel.domains[0].domain.domain
     : null;
 
+  const rendererUrl = await getRendererUrl();
+
   return (
     <FunnelStepManager
       funnel={{ id: funnel.id, name: funnel.name, primaryDomain }}
       initialSteps={steps}
-      rendererUrl={process.env.RENDERER_URL!}
+      rendererUrl={rendererUrl}
     />
   );
 }

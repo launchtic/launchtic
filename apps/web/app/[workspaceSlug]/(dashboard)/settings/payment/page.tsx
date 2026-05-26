@@ -1,5 +1,6 @@
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
+import { getRendererUrl } from "../../../../../lib/system-config";
 import PaymentPanel from "../../../../../components/settings/PaymentPanel";
 
 export const metadata = { title: "Payment Settings" };
@@ -17,7 +18,7 @@ export default async function Page({
   const stripe = settings?.stripe as any;
   const paypal = settings?.paypal as any;
 
-  const rendererUrl = process.env.RENDERER_URL!;
+  const rendererUrl = await getRendererUrl();
 
   return (
     <div className="p-6 sm:p-8">

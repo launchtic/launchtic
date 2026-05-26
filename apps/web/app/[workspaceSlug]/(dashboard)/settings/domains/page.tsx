@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { ensureDefaultDomain } from "../../../../../lib/domains/default-domain";
+import { getRendererUrl } from "../../../../../lib/system-config";
 import DomainsPanel from "../../../../../components/settings/DomainsPanel";
 
 export const metadata = { title: "Custom Domains" };
@@ -21,7 +22,7 @@ export default async function Page({
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
   });
 
-  const rendererUrl  = process.env.RENDERER_URL!;
+  const rendererUrl  = await getRendererUrl();
   const rendererHost = new URL(rendererUrl).host;
 
   return (

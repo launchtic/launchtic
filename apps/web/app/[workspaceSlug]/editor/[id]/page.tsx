@@ -1,5 +1,6 @@
 import { db } from "@launchtic/database";
 import { getActiveBranding } from "../../../../lib/branding";
+import { getRendererUrl } from "../../../../lib/system-config";
 import EditorAppDynamic from "../../../../components/editor/EditorAppDynamic";
 
 export default async function EditorPage({ params }: { params: Promise<{ id: string; workspaceSlug: string }> }) {
@@ -16,11 +17,12 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
   const branding = ws ? await getActiveBranding(ws.organizationId) : null;
   const editorLogo = branding?.logoLightUrl ?? branding?.logoUrl ?? null;
   const brandName  = branding?.brandName ?? "launchtic";
+  const rendererUrl = await getRendererUrl();
 
   return (
     <EditorAppDynamic
       funnelStepId={id}
-      rendererUrl={process.env.RENDERER_URL!}
+      rendererUrl={rendererUrl}
       workspaceSlug={workspaceSlug}
       brandLogoUrl={editorLogo}
       brandName={brandName}

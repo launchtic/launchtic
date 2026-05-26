@@ -122,7 +122,9 @@ async function invalidateCache(workspaceId: string, slug: string) {
       where: { workspaceId },
       select: { domain: true },
     });
-    const rendererUrl = process.env.RENDERER_URL ?? "http://localhost:3001";
+    // Internal docker DNS hostname — direct hop to renderer container, avoids
+    // bouncing through Caddy. Falls back to localhost for dev outside Docker.
+    const rendererUrl = process.env.RENDERER_INTERNAL_URL ?? "http://renderer:3001";
     const targets = domains.length > 0 ? domains : [{ domain: "localhost:3001" }];
     for (const { domain } of targets) {
       fetch(`${rendererUrl}/api/cache/invalidate`, {
