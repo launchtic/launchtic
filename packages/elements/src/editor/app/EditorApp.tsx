@@ -58,6 +58,10 @@ type Props = {
   // launchtic mark + alt text.
   brandLogoUrl?: string | null;
   brandName?:    string | null;
+  // A/B testing: when set, the editor loads & saves THIS variant's page
+  // instead of the step's main page. Step-level data (type, meta, products,
+  // slug) is still read from the step — variants only differ in pageJson.
+  variantId?:    string | null;
 };
 
 function stepViewUrl(rendererUrl: string, primaryDomain: string | null, slug: string) {
@@ -81,6 +85,9 @@ function injectWindowData(
   backUrl?: string,
   brandLogoUrl?: string | null,
   brandName?:    string | null,
+  // Where pageJson saves go. Defaults to the step; A/B variant editing
+  // points it at the variant endpoint.
+  saveUrl?: string,
 ) {
   (window as any).data = {
     pageRender: false,
@@ -91,7 +98,7 @@ function injectWindowData(
       stepType,
       meta,
     },
-    saveUrl:        `/api/funnel-steps/${funnelStepId}`,
+    saveUrl:        saveUrl ?? `/api/funnel-steps/${funnelStepId}`,
     uploadImageUrl: `/api/media/upload`,
     deleteImageUrl: `/api/media/delete`,
     getImagesUrl:   `/api/media`,
@@ -199,7 +206,7 @@ const EditorInner: React.FC = () => {
 };
 
 // Outer component — fetches page JSON from API then injects window.data
-export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, brandLogoUrl, brandName }: Props) {
+export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, brandLogoUrl, brandName, variantId }: Props) {
   const [ready, setReady] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -209,9 +216,25 @@ export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, br
       .then(async (res) => {
         if (res.success) {
           const step = res.data;
-          const pageJson = typeof step.pageJson === "string"
+          let pageJson = typeof step.pageJson === "string"
             ? step.pageJson
             : JSON.stringify(step.pageJson ?? {});
+
+          // A/B variant editing: load THIS variant's page and redirect saves
+          // to the variant endpoint. Step type/meta/products (below) stay
+          // step-scoped. Falls back to the step page if the variant fails.
+          let saveUrl: string | undefined;
+          if (variantId) {
+            try {
+              const vres = await fetch(`/api/step-variants/${variantId}`).then((r) => r.json());
+              if (vres.success && vres.data) {
+                pageJson = typeof vres.data.pageJson === "string"
+                  ? vres.data.pageJson
+                  : JSON.stringify(vres.data.pageJson ?? {});
+                saveUrl = `/api/step-variants/${variantId}`;
+              }
+            } catch { /* keep step page + default saveUrl */ }
+          }
 
           let paymentData: any = undefined;
           if (step.type === "CHECKOUT") {
@@ -299,7 +322,7 @@ export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, br
 
           const previewUrl = step.slug ? stepViewUrl(rendererUrl, step.funnel?.primaryDomain ?? null, step.slug) : "";
           const backUrl = step.funnel?.id ? `/${workspaceSlug}/funnels/${step.funnel.id}` : `/${workspaceSlug}/funnels`;
-          injectWindowData(funnelStepId, pageJson, step.type, step.meta, paymentData, previewUrl, backUrl, brandLogoUrl, brandName);
+          injectWindowData(funnelStepId, pageJson, step.type, step.meta, paymentData, previewUrl, backUrl, brandLogoUrl, brandName, saveUrl);
           setReady(true);
         } else {
           injectWindowData(funnelStepId, "", "OPTIN", null, undefined, undefined, undefined, brandLogoUrl, brandName);
@@ -312,7 +335,7 @@ export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, br
       });
     // brandLogoUrl + brandName are stable per render (server-side resolved
     // before mount), so re-including them in deps is purely defensive.
-  }, [funnelStepId, rendererUrl, brandLogoUrl, brandName]);
+  }, [funnelStepId, rendererUrl, brandLogoUrl, brandName, variantId]);
 
   if (error) {
     return <div style={{ padding: 24, color: "red" }}>Error: {error}</div>;

@@ -216,8 +216,10 @@ export default function AbTestPanel({
       </div>
 
       <p className="text-xs text-gray-400">
-        Confidence is a two-proportion z-test vs the control. A 🏆 winner is flagged when a variant beats
-        the control at ≥95% confidence. Edit each variant&apos;s page, then promote the winner to make it live.
+        Confidence is a two-proportion z-test vs the control. A{" "}
+        <Trophy size={11} className="inline align-text-bottom text-amber-500" /> winner is flagged when a
+        variant beats the control at ≥95% confidence. Edit each variant&apos;s page, then promote the winner
+        to make it live.
       </p>
     </div>
   );

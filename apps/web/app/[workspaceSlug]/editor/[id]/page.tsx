@@ -3,8 +3,15 @@ import { getActiveBranding } from "../../../../lib/branding";
 import { getRendererUrl } from "../../../../lib/system-config";
 import EditorAppDynamic from "../../../../components/editor/EditorAppDynamic";
 
-export default async function EditorPage({ params }: { params: Promise<{ id: string; workspaceSlug: string }> }) {
+export default async function EditorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string; workspaceSlug: string }>;
+  searchParams: Promise<{ variant?: string }>;
+}) {
   const { id, workspaceSlug } = await params;
+  const { variant } = await searchParams;
 
   // Resolve branding for the editor's in-app logo (dark canvas → prefer the
   // light variant). Fall back chain:
@@ -26,6 +33,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
       workspaceSlug={workspaceSlug}
       brandLogoUrl={editorLogo}
       brandName={brandName}
+      variantId={variant ?? null}
     />
   );
 }

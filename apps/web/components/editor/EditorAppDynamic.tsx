@@ -25,9 +25,11 @@ export default function EditorAppDynamic(props: {
   workspaceSlug: string;
   // White-label props forwarded from the editor page (server-resolved from
   // Organization.brandingConfig). Editor's Header reads window.data.brandLogoUrl
-  // — see launchtic-elements/src/editor/app/Header.tsx.
+  // — see @launchtic/elements editor/app/Header.tsx.
   brandLogoUrl?: string | null;
   brandName?:    string | null;
+  // A/B testing: edit a specific variant's page instead of the step's main page.
+  variantId?:    string | null;
 }) {
   return <EditorApp {...(props as any)} />;
 }
