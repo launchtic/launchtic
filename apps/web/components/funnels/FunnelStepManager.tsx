@@ -38,7 +38,6 @@ import {
   Save,
   AlertCircle,
   Plus,
-  Lock,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import AddStepDialog from "./AddStepDialog";
@@ -565,6 +564,9 @@ export default function FunnelStepManager({
             <div className="flex items-center gap-0 overflow-x-auto">
               {ALL_TABS
                 .filter((tab) => !tab.types || tab.types.includes(selectedStep.type as any))
+                // Hide plan-gated tabs entirely when the license lacks the feature.
+                .filter((tab) => (tab.id === "analytics" ? canViewAnalytics : true))
+                .filter((tab) => (tab.id === "ab" ? canAbTest : true))
                 .map((tab) => (
                   <button
                     key={tab.id}
@@ -576,12 +578,6 @@ export default function FunnelStepManager({
                     }`}
                   >
                     {tab.label}
-                    {tab.id === "analytics" && !canViewAnalytics && (
-                      <Lock size={11} className="text-gray-400" />
-                    )}
-                    {tab.id === "ab" && !canAbTest && (
-                      <Lock size={11} className="text-gray-400" />
-                    )}
                   </button>
                 ))}
             </div>
