@@ -24,8 +24,6 @@
     "infra:up": "docker compose -f docker-compose.dev.yml up -d",
     "infra:down": "docker compose -f docker-compose.dev.yml down",
     "infra:logs": "docker compose -f docker-compose.dev.yml logs -f",
-    "elements:link": "node scripts/elements-link.mjs link",
-    "elements:unlink": "node scripts/elements-link.mjs unlink",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
