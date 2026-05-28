@@ -4,6 +4,7 @@ import { fireTrigger } from "../../../../lib/automations";
 import { grantOrderResources } from "../../../../lib/resources";
 import { recordCouponUsage } from "../../../../lib/coupons";
 import { recordFunnelEvent, SID_HEADER } from "../../../../lib/funnel-events";
+import { getAssignedVariantId } from "../../../../lib/ab-testing";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
 
         // PURCHASE analytics event — only for funnel-attributed orders.
         if (order.funnelStepId && funnelStep) {
+          const sid = req.headers.get(SID_HEADER);
           await recordFunnelEvent({
             type:         "PURCHASE",
             funnelId:     funnelStep.funnelId,
@@ -127,7 +129,8 @@ export async function POST(req: NextRequest) {
             contactId:    order.contactId,
             orderId:      order.id,
             amountCents:  order.total,
-            sessionId:    req.headers.get(SID_HEADER),
+            sessionId:    sid,
+            variantId:    await getAssignedVariantId(order.funnelStepId, sid),
           });
         }
       }

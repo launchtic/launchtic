@@ -214,6 +214,17 @@ async function buildPageData(
 
   const nextStepUrl = await getNextStepUrl(funnelStep, host);
 
+  // A/B variants. When a test is active we cache the full candidate set;
+  // PublishedPage picks one per visitor (so caching the set is safe — the
+  // split is computed per-request, not baked into the cached page).
+  const variants = funnelStep.abTestActive
+    ? (await db.stepVariant.findMany({
+        where: { stepId: funnelStep.id },
+        select: { id: true, pageJson: true, weight: true },
+        orderBy: { createdAt: "asc" },
+      })).map((v: any) => ({ id: v.id, pageJson: v.pageJson, weight: v.weight }))
+    : [];
+
   const pageData: RendererPageData = {
     workspaceId: funnelStep.funnel.workspaceId,
     funnelId: funnelStep.funnelId,
@@ -223,6 +234,8 @@ async function buildPageData(
     payment: paymentData,
     meta: (funnelStep.meta ?? null) as any,
     favicon: funnelStep.funnel.favicon ?? null,
+    abTestActive: funnelStep.abTestActive,
+    variants,
   };
 
   if (process.env.NODE_ENV !== "development") {

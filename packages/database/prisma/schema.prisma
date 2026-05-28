@@ -308,6 +308,12 @@ model FunnelStep {
   // SEO + Tracking metadata
   meta Json?
 
+  // A/B testing. When true, the renderer serves a StepVariant (chosen per
+  // visitor by weight) instead of `pageJson`. Starting a test snapshots the
+  // current pageJson into a control StepVariant; promoting a winner copies it
+  // back into pageJson and clears variants + this flag.
+  abTestActive Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -318,9 +324,30 @@ model FunnelStep {
   subscriptions   Subscription[]
   resources       FunnelStepResource[]
   orderBumps      OrderBump[]
+  variants        StepVariant[]
 
   @@unique([funnelId, slug])
   @@index([funnelId, order])
+}
+
+// An A/B test variant of a FunnelStep. The control variant (isControl=true) is
+// a snapshot of the step's pageJson at test start; other rows are challengers.
+// The renderer picks one per visitor by `weight` (deterministic on sessionId,
+// so a visitor sticks to the same variant), and FunnelEvent.variantId carries
+// the assignment for per-variant analytics.
+model StepVariant {
+  id        String   @id @default(cuid())
+  stepId    String
+  name      String   // "Control", "Variant B", "New headline"
+  pageJson  Json
+  weight    Int      @default(50)   // relative traffic split
+  isControl Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  step FunnelStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@index([stepId])
 }
 
 // Append-only analytics event log. One row per visitor action in a funnel:

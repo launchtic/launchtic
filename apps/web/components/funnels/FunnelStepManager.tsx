@@ -44,6 +44,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import AddStepDialog from "./AddStepDialog";
 import ProductsTab from "./ProductsTab";
 import FunnelAnalyticsView from "./FunnelAnalyticsView";
+import AbTestPanel from "./AbTestPanel";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import ChangeTemplateModal from "./ChangeTemplateModal";
 import { apiFetch } from "../../lib/api-client";
@@ -114,6 +115,7 @@ const TYPE_COLOR_MAP: Record<string, string> = {
 const ALL_TABS = [
   { id: "configuration", label: "Configuration", types: null },
   { id: "products",      label: "Products",      types: ["CHECKOUT"] },
+  { id: "ab",            label: "A/B Test",      types: null },
   { id: "analytics",     label: "Analytics",     types: null },
 ] as const;
 
@@ -331,12 +333,15 @@ export default function FunnelStepManager({
   initialSteps,
   rendererUrl,
   canViewAnalytics = false,
+  canAbTest = false,
 }: {
   funnel: Funnel;
   initialSteps: Step[];
   rendererUrl: string;
   // funnelAnalytics plan feature (Starter+) — gates the Analytics tab content.
   canViewAnalytics?: boolean;
+  // abTesting plan feature (Starter+) — gates the A/B Test tab content.
+  canAbTest?: boolean;
 }) {
   const { canManageFunnels, canDeleteFunnels } = useRole();
   const [steps, setSteps] = useState(initialSteps);
@@ -574,6 +579,9 @@ export default function FunnelStepManager({
                     {tab.id === "analytics" && !canViewAnalytics && (
                       <Lock size={11} className="text-gray-400" />
                     )}
+                    {tab.id === "ab" && !canAbTest && (
+                      <Lock size={11} className="text-gray-400" />
+                    )}
                   </button>
                 ))}
             </div>
@@ -585,6 +593,14 @@ export default function FunnelStepManager({
               <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} onUpdate={handleStepUpdate} />
             )}
             {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} />}
+            {activeTab === "ab"            && (
+              <AbTestPanel
+                key={selectedStep.id}
+                stepId={selectedStep.id}
+                workspaceSlug={slug}
+                canAbTest={canAbTest}
+              />
+            )}
             {activeTab === "analytics"     && (
               // Funnel-level analytics — same view on every step (no per-step key
               // so it stays mounted while switching steps).

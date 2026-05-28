@@ -48,16 +48,17 @@ export default async function FunnelDetailPage({ params }: Params) {
 
   const rendererUrl = await getRendererUrl();
 
-  // Gate the Analytics tab by the funnelAnalytics plan feature (Starter+).
+  // Gate the Analytics + A/B tabs by their respective plan features (Starter+).
   const org = await getOrganizationForWorkspace(workspaceId);
-  const canViewAnalytics = getPlanFeatures(getEffectivePlan(org)).funnelAnalytics;
+  const features = getPlanFeatures(getEffectivePlan(org));
 
   return (
     <FunnelStepManager
       funnel={{ id: funnel.id, name: funnel.name, primaryDomain }}
       initialSteps={steps}
       rendererUrl={rendererUrl}
-      canViewAnalytics={canViewAnalytics}
+      canViewAnalytics={features.funnelAnalytics}
+      canAbTest={features.abTesting}
     />
   );
 }

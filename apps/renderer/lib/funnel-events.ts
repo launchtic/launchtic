@@ -19,6 +19,8 @@ type RecordInput = {
   /** Pass when known (VIEW has it from page data); otherwise resolved from the step. */
   funnelId?: string;
   sessionId?: string | null;
+  /** A/B variant the visitor was assigned for this step (null when no test). */
+  variantId?: string | null;
   contactId?: string | null;
   orderId?: string | null;
   amountCents?: number | null;
@@ -66,6 +68,7 @@ export async function recordFunnelEvent(input: RecordInput): Promise<void> {
         // "unknown" only if the middleware somehow didn't run — keeps the row
         // valid while flagging un-stitched events in analytics.
         sessionId:   input.sessionId || "unknown",
+        variantId:   input.variantId ?? null,
         contactId:   input.contactId ?? null,
         orderId:     input.orderId ?? null,
         amountCents: input.amountCents ?? null,

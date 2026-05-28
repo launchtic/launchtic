@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { redis } from "../../../lib/redis";
 import { fireTrigger } from "../../../lib/automations";
 import { recordFunnelEvent, SID_HEADER } from "../../../lib/funnel-events";
+import { getAssignedVariantId } from "../../../lib/ab-testing";
 
 function ok(data: unknown, status = 200) {
   return NextResponse.json({ success: true, data }, { status });
@@ -185,12 +186,14 @@ export async function POST(req: NextRequest) {
           funnelStepId,
         }).catch(() => {});
 
+        const sid = req.headers.get(SID_HEADER);
         await recordFunnelEvent({
           type:         "LEAD",
           funnelId:     step.funnelId,
           funnelStepId,
           contactId:    contact.id,
-          sessionId:    req.headers.get(SID_HEADER),
+          sessionId:    sid,
+          variantId:    await getAssignedVariantId(funnelStepId, sid),
           ip,
         });
       }

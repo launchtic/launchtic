@@ -171,6 +171,11 @@ export type RendererPageData = {
   payment?: PaymentData;
   meta?: Record<string, unknown> | null;
   favicon?: string | null;
+  // A/B testing. When abTestActive, `variants` holds the candidate pages and
+  // the renderer picks one per visitor (by weight) instead of `pageJson`.
+  // Empty / false for normal steps.
+  abTestActive?: boolean;
+  variants?: { id: string; pageJson: CraftPageJson; weight: number }[];
 };
 
 // ─────────────────────────────────────────
