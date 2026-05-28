@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getRendererUrl } from "../../../../../lib/system-config";
+import { getOrganizationForWorkspace, getEffectivePlan } from "../../../../../lib/organization";
+import { getPlanFeatures } from "../../../../../lib/plan";
 import FunnelStepManager from "../../../../../components/funnels/FunnelStepManager";
 
 type Params = { params: Promise<{ id: string; workspaceSlug: string }> };
@@ -46,11 +48,16 @@ export default async function FunnelDetailPage({ params }: Params) {
 
   const rendererUrl = await getRendererUrl();
 
+  // Gate the Analytics tab by the funnelAnalytics plan feature (Starter+).
+  const org = await getOrganizationForWorkspace(workspaceId);
+  const canViewAnalytics = getPlanFeatures(getEffectivePlan(org)).funnelAnalytics;
+
   return (
     <FunnelStepManager
       funnel={{ id: funnel.id, name: funnel.name, primaryDomain }}
       initialSteps={steps}
       rendererUrl={rendererUrl}
+      canViewAnalytics={canViewAnalytics}
     />
   );
 }

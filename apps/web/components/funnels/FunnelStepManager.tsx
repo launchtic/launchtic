@@ -38,10 +38,12 @@ import {
   Save,
   AlertCircle,
   Plus,
+  Lock,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import AddStepDialog from "./AddStepDialog";
 import ProductsTab from "./ProductsTab";
+import FunnelAnalyticsView from "./FunnelAnalyticsView";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import ChangeTemplateModal from "./ChangeTemplateModal";
 import { apiFetch } from "../../lib/api-client";
@@ -112,6 +114,7 @@ const TYPE_COLOR_MAP: Record<string, string> = {
 const ALL_TABS = [
   { id: "configuration", label: "Configuration", types: null },
   { id: "products",      label: "Products",      types: ["CHECKOUT"] },
+  { id: "analytics",     label: "Analytics",     types: null },
 ] as const;
 
 /* ─── Sortable step row ─── */
@@ -327,10 +330,13 @@ export default function FunnelStepManager({
   funnel,
   initialSteps,
   rendererUrl,
+  canViewAnalytics = false,
 }: {
   funnel: Funnel;
   initialSteps: Step[];
   rendererUrl: string;
+  // funnelAnalytics plan feature (Starter+) — gates the Analytics tab content.
+  canViewAnalytics?: boolean;
 }) {
   const { canManageFunnels, canDeleteFunnels } = useRole();
   const [steps, setSteps] = useState(initialSteps);
@@ -558,13 +564,16 @@ export default function FunnelStepManager({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                    className={`px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors border-b-2 inline-flex items-center gap-1 ${
                       activeTab === tab.id
                         ? "text-blue-600 border-blue-500"
                         : "text-gray-500 border-transparent hover:text-gray-800"
                     }`}
                   >
                     {tab.label}
+                    {tab.id === "analytics" && !canViewAnalytics && (
+                      <Lock size={11} className="text-gray-400" />
+                    )}
                   </button>
                 ))}
             </div>
@@ -576,6 +585,15 @@ export default function FunnelStepManager({
               <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} onUpdate={handleStepUpdate} />
             )}
             {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} />}
+            {activeTab === "analytics"     && (
+              // Funnel-level analytics — same view on every step (no per-step key
+              // so it stays mounted while switching steps).
+              <FunnelAnalyticsView
+                funnelId={funnel.id}
+                canView={canViewAnalytics}
+                workspaceSlug={slug}
+              />
+            )}
           </div>
         </>
       ) : (

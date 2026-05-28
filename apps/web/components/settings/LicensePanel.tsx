@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { Key, CheckCircle, XCircle, Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles } from "lucide-react";
+import { XCircle, Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { planLabel, planColor } from "../../lib/plan";
 import { useRole } from "../../lib/role";
@@ -16,15 +14,10 @@ type LicenseStatus = {
 };
 
 export default function LicensePanel() {
-  const { update } = useSession();
-  const router = useRouter();
   const { isOwner } = useRole();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [keyInput, setKeyInput] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
 
   useEffect(() => {
@@ -57,40 +50,6 @@ export default function LicensePanel() {
     }
   }
 
-  // First-time activation only — shown when the install is still on the
-  // Community plan. Once a paid license is bound, this form is hidden;
-  // any later swap (tier change, key rotation) is handled by support so
-  // the operator doesn't paste a wrong key and brick their org.
-  async function activate() {
-    if (!keyInput.trim()) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const res = await apiFetch("/api/license", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ licenseKey: keyInput.trim() }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.error ?? "Failed to activate license.");
-      } else {
-        const newPlan = data.data.plan;
-        setSuccess(`License activated! Plan: ${newPlan}`);
-        setKeyInput("");
-        setStatus((prev) => prev ? { ...prev, plan: newPlan, licenseKey: "LT-••••••••", expiresAt: data.data.expiresAt, isExpired: false } : prev);
-        // Update session immediately — no re-login needed.
-        await update({ workspacePlan: newPlan });
-        router.refresh();
-      }
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   // Plan color + label come from the shared helper. Enum values (SOLO/
   // STARTER/AGENCY/CUSTOM) are the same names the operator sees in the UI —
   // no mapping layer. A null plan = locked (no valid license).
@@ -103,16 +62,12 @@ export default function LicensePanel() {
     );
   }
 
-  // First-time-activation gate. Locked (no plan) shows the activation form;
-  // once a license is bound the form is hidden.
-  const isLocked = !status?.plan;
-
   return (
     <div className="max-w-xl space-y-6">
       <div>
         <h2 className="text-base font-semibold text-gray-900">License</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Activate a Starter, Agency, or Custom license key to unlock advanced features.
+          Your license and plan for this instance. Activation happens automatically at install.
         </p>
       </div>
 
@@ -127,9 +82,8 @@ export default function LicensePanel() {
       <StatusHero status={status} onOpenPortal={openBillingPortal} openingPortal={openingPortal} isOwner={isOwner} />
 
       {/* Portal-open error — inline alert, only renders on failure. Lives
-          here (not inside the hero) so the hero stays stable in size.
-          Only shown when there's no activate form to consume the error. */}
-      {error && !isLocked && (
+          here (not inside the hero) so the hero stays stable in size. */}
+      {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-start gap-2">
           <XCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
           <p className="text-xs text-red-700 leading-snug">{error}</p>
@@ -141,47 +95,6 @@ export default function LicensePanel() {
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">License Key</p>
           <code className="text-sm font-mono text-gray-700">{status.licenseKey}</code>
-        </div>
-      )}
-
-      {/* First-time activation form — locked (unlicensed) only. After the
-          install is bound to a license, this disappears and tier changes go
-          via support (avoids "I pasted the wrong key" support threads). */}
-      {isLocked && isOwner && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-          <p className="text-sm font-medium text-gray-700">Activate License Key</p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                placeholder="LT-STR-xxxx / LT-AGY-xxxx / LT-CUS-xxxx"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                onKeyDown={(e) => e.key === "Enter" && activate()}
-              />
-            </div>
-            <button
-              onClick={activate}
-              disabled={saving || !keyInput.trim()}
-              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {saving && <Loader2 size={13} className="animate-spin" />}
-              Activate
-            </button>
-          </div>
-
-          {error && (
-            <p className="text-xs text-red-600 flex items-center gap-1.5">
-              <XCircle size={12} /> {error}
-            </p>
-          )}
-          {success && (
-            <p className="text-xs text-green-600 flex items-center gap-1.5">
-              <CheckCircle size={12} /> {success}
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -208,7 +121,7 @@ function StatusHero({
   if (!status) return null;
 
   // Perpetual license model: three states.
-  //   locked         — no valid license → activate
+  //   locked         — no valid license → get a license
   //   updates lapsed — license valid forever, but free-updates window ended
   //                    (features stay ON; renewing only resumes new updates)
   //   active         — licensed + updates current
@@ -224,7 +137,7 @@ function StatusHero({
         Icon:     ShieldOff,
         eyebrow:  "No license",
         title:    "Unlicensed",
-        subtitle: "Activate a license key to unlock Launchtic on this instance.",
+        subtitle: "No license detected on this instance. Get a license to unlock Launchtic.",
       }
     : updatesLapsed ? {
         bg:       "bg-amber-50",

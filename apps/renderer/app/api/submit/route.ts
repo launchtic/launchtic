@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { redis } from "../../../lib/redis";
 import { fireTrigger } from "../../../lib/automations";
+import { recordFunnelEvent, SID_HEADER } from "../../../lib/funnel-events";
 
 function ok(data: unknown, status = 200) {
   return NextResponse.json({ success: true, data }, { status });
@@ -174,14 +175,24 @@ export async function POST(req: NextRequest) {
       const { contact, isDuplicate } = await upsertContact(workspaceId, mapped, funnelStepId, ip);
       const nextStepUrl = await getNextStepUrl(funnelStepId, host);
 
-      // Fire FORM_SUBMIT automation trigger only on first submit within the
-      // dedupe window — prevents automations from running 1000× on spam.
+      // Fire FORM_SUBMIT automation trigger + LEAD analytics event only on the
+      // first submit within the dedupe window — keeps both from firing 1000×
+      // on spam / double-submit / retries.
       if (!isDuplicate) {
         fireTrigger(workspaceId, "FORM_SUBMIT", {
           contactId: contact.id,
           funnelId: step.funnelId,
           funnelStepId,
         }).catch(() => {});
+
+        await recordFunnelEvent({
+          type:         "LEAD",
+          funnelId:     step.funnelId,
+          funnelStepId,
+          contactId:    contact.id,
+          sessionId:    req.headers.get(SID_HEADER),
+          ip,
+        });
       }
 
       return ok({ nextStepUrl });

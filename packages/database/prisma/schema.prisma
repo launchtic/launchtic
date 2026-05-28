@@ -283,6 +283,7 @@ model Funnel {
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   steps     FunnelStep[]
   domains   FunnelDomain[]
+  events    FunnelEvent[]
 
   @@index([workspaceId, status])
 }
@@ -320,6 +321,41 @@ model FunnelStep {
 
   @@unique([funnelId, slug])
   @@index([funnelId, order])
+}
+
+// Append-only analytics event log. One row per visitor action in a funnel:
+//   VIEW     — a funnel step page was served
+//   LEAD     — an opt-in form was submitted
+//   PURCHASE — an order was paid (amountCents + orderId set)
+// Powers Funnel Analytics (aggregate by step/date) and, later, A/B testing
+// (group by variantId). Separate from ContactEvent (CRM timeline) because
+// VIEWs are anonymous (no contact) and we need sessionId + variant attribution.
+model FunnelEvent {
+  id          String    @id @default(cuid())
+  funnelId    String
+  stepId      String
+  type        FunnelEventType
+  // Per-visitor id from the lt_sid cookie set by the renderer — stitches a
+  // visitor's journey across steps and is the unit of A/B attribution.
+  sessionId   String
+  variantId   String?   // set once A/B testing ships; null today
+  contactId   String?   // LEAD / PURCHASE once identified
+  orderId     String?   // PURCHASE only
+  amountCents Int?       // PURCHASE only — for revenue rollups
+  ip          String?
+  createdAt   DateTime  @default(now())
+
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([funnelId, type, createdAt])
+  @@index([stepId, variantId])
+  @@index([sessionId])
+}
+
+enum FunnelEventType {
+  VIEW
+  LEAD
+  PURCHASE
 }
 
 model PageTemplate {

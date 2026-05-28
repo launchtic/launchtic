@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { loadPage } from "../../lib/page-loader";
+import { recordFunnelEvent, SID_HEADER } from "../../lib/funnel-events";
 import PageRenderClient from "../../components/PageRenderClient";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,16 @@ export default async function PublishedPage({ params }: Props) {
 
   const pageData = await loadPage(host, pageSlug);
   if (!pageData) return notFound();
+
+  // Record a VIEW for funnel analytics. Fires on every request (loadPage is
+  // Redis-cached but this runs regardless), best-effort, never blocks render.
+  await recordFunnelEvent({
+    type:         "VIEW",
+    funnelId:     pageData.funnelId,
+    funnelStepId: pageData.funnelStepId,
+    sessionId:    headersList.get(SID_HEADER),
+    ip:           headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return (
     <PageRenderClient

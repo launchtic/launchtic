@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { fireTrigger } from "../../../../lib/automations";
 import { grantOrderResources } from "../../../../lib/resources";
 import { recordCouponUsage } from "../../../../lib/coupons";
+import { recordFunnelEvent, SID_HEADER } from "../../../../lib/funnel-events";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -116,6 +117,19 @@ export async function POST(req: NextRequest) {
           funnelId: funnelStep?.funnelId,
           funnelStepId: order.funnelStepId ?? undefined,
         }).catch(() => {});
+
+        // PURCHASE analytics event — only for funnel-attributed orders.
+        if (order.funnelStepId && funnelStep) {
+          await recordFunnelEvent({
+            type:         "PURCHASE",
+            funnelId:     funnelStep.funnelId,
+            funnelStepId: order.funnelStepId,
+            contactId:    order.contactId,
+            orderId:      order.id,
+            amountCents:  order.total,
+            sessionId:    req.headers.get(SID_HEADER),
+          });
+        }
       }
 
       // Record coupon use exactly once, on first PENDING→PAID/TRIAL transition.
