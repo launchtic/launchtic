@@ -27,19 +27,20 @@ export async function getOrganizationForOwner(userId: string) {
 }
 
 /**
- * Apply license-expiry downgrade. A paid plan with an expired license
- * effectively reverts to COMMUNITY until the user re-validates. Callers
- * should use this for feature gates — never read organization.plan directly
- * when the gate needs to respect expiry.
+ * Resolve the effective plan for feature gating.
+ *
+ * PERPETUAL LICENSE MODEL: the license never expires. `licenseExpiresAt` is the
+ * end of the free-UPDATES window, NOT an access cutoff — so we do NOT downgrade
+ * when it passes. A customer past their update window keeps every feature of
+ * their tier; they just stop receiving new versions (enforced at install/update
+ * time, not here).
+ *
+ * Returns `null` when there is no valid license (pre-activation or revoked) —
+ * the locked state. `getPlanFeatures(null)` resolves that to the LOCKED set.
  */
 export function getEffectivePlan(organization: {
-  plan: string;
+  plan: string | null;
   licenseExpiresAt?: Date | null;
-} | null | undefined): string {
-  if (!organization) return "COMMUNITY";
-  if (organization.plan === "COMMUNITY") return "COMMUNITY";
-  if (organization.licenseExpiresAt != null && organization.licenseExpiresAt < new Date()) {
-    return "COMMUNITY";
-  }
-  return organization.plan;
+} | null | undefined): string | null {
+  return organization?.plan ?? null;
 }

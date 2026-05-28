@@ -22,8 +22,8 @@ export default async function Page({
   const { workspaceId, userId } = r;
 
   // Plan gate (URL-hop defense). Sidebar already hides this tab for non-
-  // Agency plans; an owner who pastes the URL on COMMUNITY/STARTER gets
-  // bounced to /license instead of a panel where every action is a 402.
+  // Agency plans; an owner who pastes the URL on SOLO/STARTER (or unlicensed)
+  // gets bounced to /license instead of a panel where every action is a 402.
   const ws = await db.workspace.findUnique({
     where: { id: workspaceId },
     select: { organization: { select: { plan: true, licenseExpiresAt: true } } },

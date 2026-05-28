@@ -15,6 +15,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
+import { bootstrapLicenseFromEnv } from "../../../../lib/license";
 import {
   loadPageTemplatesSeed,
   resolveAssetPlaceholders,
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     // OUTSIDE the tx (file I/O is non-transactional) — runs after commit and
     // logs a warning on failure; the workspace stays usable with broken
     // template thumbnails until the operator re-uploads.
-    const workspaceId = await db.$transaction(async (tx) => {
+    const { workspaceId, organizationId } = await db.$transaction(async (tx) => {
       const u = await tx.user.create({
         data: {
           email:        body.email.toLowerCase().trim(),
@@ -56,7 +57,8 @@ export async function POST(req: NextRequest) {
         data: {
           name:    `${body.name.trim()}'s Organization`,
           ownerId: u.id,
-          plan:    "COMMUNITY",
+          // plan left NULL (locked) — bootstrapLicenseFromEnv activates the
+          // real tier right after this tx using the install-time license key.
         },
       });
       const slug = body.workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "workspace";
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest) {
         await tx.pageTemplate.createMany({ data: seedData as any });
       }
 
-      return ws.id;
+      return { workspaceId: ws.id, organizationId: org.id };
     });
 
     // Copy seed assets to disk OUTSIDE the DB transaction. Failure here
@@ -103,6 +105,16 @@ export async function POST(req: NextRequest) {
       copySeedAssetsToWorkspace(workspaceId);
     } catch (e) {
       console.error("[setup/admin] seed asset copy failed:", e);
+    }
+
+    // If install.sh pre-wrote LAUNCHTIC_LICENSE into .env, auto-activate now
+    // so the operator never has to paste their key again in the dashboard.
+    // Failures here don't break wizard completion — they just leave the org
+    // locked (plan null) and the operator can paste manually in Settings → License.
+    try {
+      await bootstrapLicenseFromEnv(organizationId);
+    } catch (e) {
+      console.error("[setup/admin] license bootstrap failed:", e);
     }
 
     return ok({ workspaceId });

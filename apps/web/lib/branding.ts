@@ -56,7 +56,7 @@ export async function getBranding(organizationId: string): Promise<{
     select: { brandingConfig: true, plan: true },
   });
   const raw = (org?.brandingConfig ?? {}) as BrandingConfig;
-  const whiteLabelEnabled = getPlanFeatures(org?.plan ?? "COMMUNITY").whiteLabel;
+  const whiteLabelEnabled = getPlanFeatures(org?.plan).whiteLabel;
   return { raw, resolved: resolveBranding(raw), whiteLabelEnabled };
 }
 
@@ -123,7 +123,7 @@ export const getActiveBranding = cache(async (organizationId: string): Promise<R
     where: { id: organizationId },
     select: { brandingConfig: true, plan: true, licenseExpiresAt: true },
   });
-  // getEffectivePlan reverts paid plans to COMMUNITY when license expired
+  // getEffectivePlan returns null (locked) when there's no valid license
   const effective = getEffectivePlan(org);
   if (!getPlanFeatures(effective).whiteLabel) return LAUNCHTIC_DEFAULTS;
   return resolveBranding((org?.brandingConfig ?? {}) as BrandingConfig);

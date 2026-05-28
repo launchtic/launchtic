@@ -66,15 +66,19 @@ export async function GET() {
     });
     if (!organization) return err("Organization not found", 404);
 
-    const isExpired =
-      organization.licenseExpiresAt != null &&
-      organization.licenseExpiresAt < new Date();
+    // Perpetual license: the plan stays valid forever. licenseExpiresAt is the
+    // free-UPDATES deadline, not an access cutoff — so we never downgrade the
+    // plan here. `updatesCurrent` tells the UI whether new updates are still
+    // included (false = offer a renewal, but all features stay unlocked).
+    const updatesCurrent =
+      organization.licenseExpiresAt == null ||
+      organization.licenseExpiresAt >= new Date();
 
     return ok({
-      plan: isExpired ? "COMMUNITY" : organization.plan,
+      plan: organization.plan,
       licenseKey: organization.licenseKey ? maskKey(organization.licenseKey) : null,
       expiresAt: organization.licenseExpiresAt?.toISOString() ?? null,
-      isExpired,
+      updatesCurrent,
     });
   } catch (error) {
     return handleError(error);

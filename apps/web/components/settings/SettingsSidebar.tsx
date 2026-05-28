@@ -82,7 +82,7 @@ export default function SettingsSidebar({
   onSelect,
 }: {
   workspaceSlug: string;
-  workspacePlan: string;
+  workspacePlan: string | null;
   mobileView:    "nav" | "content";
   onSelect:      () => void;
 }) {

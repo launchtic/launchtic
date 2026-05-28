@@ -64,9 +64,9 @@ export async function POST(req: NextRequest) {
     const { workspaceId, userId: callerId } = r;
 
     // Plan gate. Belt-and-suspenders against the sidebar hide: an attacker
-    // hitting this endpoint directly on COMMUNITY would otherwise create a
-    // WorkspaceMember row that violates the 1-seat limit.
-    // Also enforces the per-tier seat cap (Starter = 3 total incl. owner).
+    // hitting this endpoint directly on SOLO (or unlicensed) would otherwise
+    // create a WorkspaceMember row that violates the 1-seat limit.
+    // Also enforces the per-tier seat cap (Starter = 5 total incl. owner).
     const planRow = await db.workspace.findUnique({
       where:  { id: workspaceId },
       select: { organization: { select: { plan: true, licenseExpiresAt: true } } },

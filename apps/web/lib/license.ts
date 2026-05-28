@@ -50,8 +50,8 @@ export async function reVerifyIfStale(organizationId: string): Promise<void> {
     },
   });
 
-  // Nothing to verify for COMMUNITY orgs or those without a key.
-  if (!organization?.licenseKey || organization.plan === "COMMUNITY") return;
+  // Nothing to verify for unlicensed orgs (no key / locked).
+  if (!organization?.licenseKey || !organization.plan) return;
 
   const now          = Date.now();
   const lastVerified = organization.licenseVerifiedAt?.getTime() ?? 0;
@@ -71,10 +71,10 @@ export async function reVerifyIfStale(organizationId: string): Promise<void> {
   }
 
   if (result.reachable) {
-    // Server responded: key is invalid or revoked → downgrade immediately.
+    // Server responded: key is invalid or revoked → lock immediately.
     await db.organization.update({
       where: { id: organizationId },
-      data: { plan: "COMMUNITY", licenseKey: null, licenseVerifiedAt: new Date() },
+      data: { plan: null, licenseKey: null, licenseVerifiedAt: new Date() },
     });
     return;
   }
@@ -83,8 +83,65 @@ export async function reVerifyIfStale(organizationId: string): Promise<void> {
   if (now - lastVerified > GRACE_PERIOD_MS) {
     await db.organization.update({
       where: { id: organizationId },
-      data: { plan: "COMMUNITY" },
+      data: { plan: null },
     });
   }
   // else: keep current plan and try again next page load.
+}
+
+/**
+ * Read LAUNCHTIC_LICENSE + LAUNCHTIC_INSTANCE_ID from the environment (written
+ * by install.sh during license-gated install) and activate them on the given
+ * Organization. Called once from the first-run wizard (/api/setup/admin) right
+ * after the Organization is created — this is the single env-activation point.
+ * Idempotent and silent on no-op:
+ *
+ *   - env missing key or instanceId → return false (nothing to do)
+ *   - Organization already has same licenseKey → return true (already done)
+ *   - license server says invalid → log + return false (org stays locked; admin
+ *     can paste a key manually in Settings → License)
+ *   - license server unreachable → log + return false (reVerifyIfStale retries
+ *     once the admin browses the dashboard)
+ *
+ * Returns true iff the Organization was activated (or was already correct).
+ */
+export async function bootstrapLicenseFromEnv(organizationId: string): Promise<boolean> {
+  const envKey        = process.env.LAUNCHTIC_LICENSE;
+  const envInstanceId = process.env.LAUNCHTIC_INSTANCE_ID;
+  if (!envKey || !envInstanceId) return false;
+
+  const org = await db.organization.findUnique({
+    where: { id: organizationId },
+    select: { licenseKey: true, plan: true },
+  });
+  if (!org) return false;
+
+  // Already activated with the same key → no-op (avoid pointless network call
+  // on every container restart).
+  if (org.licenseKey === envKey && org.plan != null) return true;
+
+  const result = await verifyLicenseKey(envKey, envInstanceId);
+
+  if (!result.valid) {
+    // Leave the org locked (plan null). Admin will see the activation prompt
+    // in Settings; preserves user agency without crashing boot.
+    console.warn(
+      `[license-bootstrap] Could not activate env license: ${result.valid === false ? result.error : "unknown"}`,
+    );
+    return false;
+  }
+
+  await db.organization.update({
+    where: { id: organizationId },
+    data: {
+      licenseKey:        envKey,
+      plan:              result.plan as any,
+      licenseExpiresAt:  result.expiresAt ? new Date(result.expiresAt) : null,
+      licenseVerifiedAt: new Date(),
+      instanceId:        envInstanceId,
+    },
+  });
+
+  console.log(`[license-bootstrap] Activated ${result.plan} license for organization ${organizationId}`);
+  return true;
 }

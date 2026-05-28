@@ -16,7 +16,7 @@ export default function SettingsShell({
   children,
 }: {
   workspaceSlug: string;
-  workspacePlan: string;
+  workspacePlan: string | null;
   children:      React.ReactNode;
 }) {
   const pathname = usePathname();

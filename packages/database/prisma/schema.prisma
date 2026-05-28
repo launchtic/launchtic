@@ -50,8 +50,10 @@ model Organization {
   id   String @id @default(cuid())
   name String
 
-  // Plan + license (paste from launchtic.com for self-host)
-  plan              Plan      @default(COMMUNITY)
+  // Plan + license. NULL = no valid license yet (locked). The license-gated
+  // installer activates a plan on first boot; reVerifyIfStale sets it back to
+  // NULL if the license server revokes the key.
+  plan              Plan?
   licenseKey        String?
   licenseExpiresAt  DateTime?
   licenseVerifiedAt DateTime?
@@ -1143,14 +1145,15 @@ model ContactSequenceEnrollment {
 // ENUMS
 // ─────────────────────────────────────────
 
-// Plan tiers — names match UI labels exactly (no mapping layer):
-//   COMMUNITY — free self-host, $0
-//   STARTER   — $299/yr, removes branding, premium templates
-//   AGENCY    — $1,499/yr, multi-workspace, team, white-label
-//   CUSTOM    — contact sales, SSO, audit, SLA
-// License key prefixes: LT-STR-, LT-AGY-, LT-CUS-.
+// Plan tiers — one-time license, no free tier. Names match UI labels exactly:
+//   SOLO    — $199 · 1 user, 1 workspace, 3 domains
+//   STARTER — $449 · 5 team members, 10 domains, A/B, upsells, analytics
+//   AGENCY  — $1,499 · unlimited workspaces/team/domains, white-label, reseller
+//   CUSTOM  — contact sales · SSO, audit, SLA
+// A NULL Organization.plan = no valid license (pre-activation / revoked) → locked.
+// License key prefixes: LT-SOL-, LT-STR-, LT-AGY-, LT-CUS-.
 enum Plan {
-  COMMUNITY
+  SOLO
   STARTER
   AGENCY
   CUSTOM

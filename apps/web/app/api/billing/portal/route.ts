@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       select: { licenseKey: true, plan: true },
     });
     if (!org) return err("Organization not found", 404);
-    if (!org.licenseKey || org.plan === "COMMUNITY") {
+    if (!org.licenseKey || !org.plan) {
       return err("No active subscription to manage. Activate a license first.", 400);
     }
 

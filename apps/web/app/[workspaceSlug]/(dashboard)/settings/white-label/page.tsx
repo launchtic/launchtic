@@ -18,8 +18,8 @@ export default async function Page({
   // because white-label decisions are billing-tier-locked and identity-bound
   // — granting via role would let admins override the founder's brand.
   // The sidebar already hides this tab for non-Agency plans; the plan check
-  // below is URL-hop defense (an owner who pastes the URL on COMMUNITY just
-  // gets redirected to /license rather than a useless empty editor).
+  // below is URL-hop defense (an owner who pastes the URL on a non-Agency plan
+  // just gets redirected to /license rather than a useless empty editor).
   const { workspaceId, isOwner } = await requireWorkspaceFromSlug(workspaceSlug);
   if (!isOwner) redirect(`/${workspaceSlug}/forbidden?perm=owner_only`);
 

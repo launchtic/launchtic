@@ -9,10 +9,10 @@ import { planLabel, planColor } from "../../lib/plan";
 import { useRole } from "../../lib/role";
 
 type LicenseStatus = {
-  plan: string;
+  plan: string | null;          // null = no valid license (locked)
   licenseKey: string | null;
-  expiresAt: string | null;
-  isExpired: boolean;
+  expiresAt: string | null;     // free-updates deadline, not an access cutoff
+  updatesCurrent: boolean;      // false = updates lapsed (renew optional; features stay on)
 };
 
 export default function LicensePanel() {
@@ -91,9 +91,9 @@ export default function LicensePanel() {
     }
   }
 
-  // Plan color + label come from the shared helper. Enum values (COMMUNITY/
+  // Plan color + label come from the shared helper. Enum values (SOLO/
   // STARTER/AGENCY/CUSTOM) are the same names the operator sees in the UI —
-  // no mapping layer.
+  // no mapping layer. A null plan = locked (no valid license).
 
   if (loading) {
     return (
@@ -103,9 +103,9 @@ export default function LicensePanel() {
     );
   }
 
-  // First-time-activation gate. Once a license is bound, the form is
-  // hidden; further changes go through support (see activate() comment).
-  const isCommunity = !status?.plan || status.plan === "COMMUNITY";
+  // First-time-activation gate. Locked (no plan) shows the activation form;
+  // once a license is bound the form is hidden.
+  const isLocked = !status?.plan;
 
   return (
     <div className="max-w-xl space-y-6">
@@ -129,7 +129,7 @@ export default function LicensePanel() {
       {/* Portal-open error — inline alert, only renders on failure. Lives
           here (not inside the hero) so the hero stays stable in size.
           Only shown when there's no activate form to consume the error. */}
-      {error && !isCommunity && (
+      {error && !isLocked && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-start gap-2">
           <XCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
           <p className="text-xs text-red-700 leading-snug">{error}</p>
@@ -144,10 +144,10 @@ export default function LicensePanel() {
         </div>
       )}
 
-      {/* First-time activation form — Community only. After the install is
-          bound to a paid license, this disappears and tier changes go via
-          support (avoids "I pasted the wrong key" support threads). */}
-      {isCommunity && isOwner && (
+      {/* First-time activation form — locked (unlicensed) only. After the
+          install is bound to a license, this disappears and tier changes go
+          via support (avoids "I pasted the wrong key" support threads). */}
+      {isLocked && isOwner && (
         <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
           <p className="text-sm font-medium text-gray-700">Activate License Key</p>
           <div className="flex gap-2">
@@ -207,38 +207,40 @@ function StatusHero({
 }) {
   if (!status) return null;
 
-  const isCommunity = !status.plan || status.plan === "COMMUNITY";
-  const isExpired   = status.isExpired;
-  const isActive    = !isCommunity && !isExpired;
+  // Perpetual license model: three states.
+  //   locked         — no valid license → activate
+  //   updates lapsed — license valid forever, but free-updates window ended
+  //                    (features stay ON; renewing only resumes new updates)
+  //   active         — licensed + updates current
+  const isLocked       = !status.plan;
+  const updatesLapsed  = !isLocked && !status.updatesCurrent;
 
-  // Palette + icon + copy per state. Kept inline (single component, easier
-  // to scan than dispatch to helpers).
-  const variant = isExpired   ? {
-        bg:       "bg-red-50",
-        border:   "border-red-200",
-        iconBg:   "bg-red-100",
-        iconFg:   "text-red-600",
-        accent:   "text-red-900",
-        Icon:     ShieldOff,
-        eyebrow:  "License expired",
-        title:    `${planLabel(status.plan)} plan`,
-        subtitle: status.expiresAt
-          ? `Expired on ${new Date(status.expiresAt).toLocaleDateString()}. Premium features are disabled.`
-          : "Premium features are disabled.",
-      }
-    : isCommunity ? {
+  const variant = isLocked ? {
         bg:       "bg-gray-50",
         border:   "border-gray-200",
         iconBg:   "bg-gray-100",
         iconFg:   "text-gray-500",
         accent:   "text-gray-900",
+        Icon:     ShieldOff,
+        eyebrow:  "No license",
+        title:    "Unlicensed",
+        subtitle: "Activate a license key to unlock Launchtic on this instance.",
+      }
+    : updatesLapsed ? {
+        bg:       "bg-amber-50",
+        border:   "border-amber-200",
+        iconBg:   "bg-amber-100",
+        iconFg:   "text-amber-600",
+        accent:   "text-amber-900",
         Icon:     Sparkles,
-        eyebrow:  "Free plan",
-        title:    "Community edition",
-        subtitle: "Upgrade to unlock white-label, multi-workspace, team roles, and more.",
+        eyebrow:  "Updates ended",
+        title:    `${planLabel(status.plan)} plan`,
+        subtitle: status.expiresAt
+          ? `Free updates ended ${new Date(status.expiresAt).toLocaleDateString()}. Your license stays active forever — renew to get new updates.`
+          : "Your license stays active forever — renew to get new updates.",
       }
     : {
-        // active
+        // active + updates current
         bg:       "bg-green-50",
         border:   "border-green-200",
         iconBg:   "bg-green-100",
@@ -248,8 +250,8 @@ function StatusHero({
         eyebrow:  "License active",
         title:    `${planLabel(status.plan)} plan`,
         subtitle: status.expiresAt
-          ? `Auto-renews on ${new Date(status.expiresAt).toLocaleDateString()}.`
-          : "Lifetime license — no renewal needed.",
+          ? `Free updates included until ${new Date(status.expiresAt).toLocaleDateString()}.`
+          : "Perpetual license — yours forever.",
       };
 
   const Icon = variant.Icon;
@@ -264,7 +266,7 @@ function StatusHero({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-sm font-semibold ${variant.accent}`}>{variant.title}</span>
-            {!isCommunity && (
+            {!isLocked && (
               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${planColor(status.plan)}`}>
                 {planLabel(status.plan)}
               </span>
@@ -278,40 +280,39 @@ function StatusHero({
 
         {/* Primary action — inline on right, only when there's room. Wraps
             below the meta on narrow viewports via flex-wrap on the parent. */}
-        {isCommunity ? (
+        {isLocked ? (
           <a
             href="https://launchtic.com/pricing"
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-900 hover:bg-black text-white rounded-lg leading-none"
           >
-            <span>View pricing</span>
+            <span>Get a license</span>
+            <ExternalLink size={11} />
+          </a>
+        ) : updatesLapsed ? (
+          <a
+            href="https://launchtic.com/account"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg leading-none"
+          >
+            <span>Renew updates</span>
             <ExternalLink size={11} />
           </a>
         ) : isOwner && (
           <button
             onClick={onOpenPortal}
             disabled={openingPortal}
-            className={`shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-60 leading-none ${
-              isExpired
-                ? "bg-red-600 hover:bg-red-700 text-white"
-                : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-200"
-            }`}
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-60 leading-none bg-white hover:bg-gray-50 text-gray-700 border border-gray-200"
           >
             {openingPortal ? <Loader2 size={11} className="animate-spin" /> : <ExternalLink size={11} />}
-            <span>{isExpired ? "Resume billing" : "Manage subscription"}</span>
+            <span>Manage license</span>
           </button>
         )}
       </div>
-
-      {/* Affected-features list — expired only. Subtle: smaller text,
-          divider above, no per-line icons (less visual noise). */}
-      {isExpired && (
-        <div className={`mt-3 pt-3 border-t ${variant.border} text-[11px] ${variant.accent} opacity-70 leading-relaxed`}>
-          <strong className="font-medium">Reverted features:</strong>{" "}
-          white-label branding · multi-workspace · team roles · premium templates · &quot;Powered by launchtic&quot; badge re-appears in funnel pages &amp; emails.
-        </div>
-      )}
+      {/* No "reverted features" block — under the perpetual model nothing is
+          revoked when the update window ends; the tier's features stay on. */}
     </div>
   );
 }

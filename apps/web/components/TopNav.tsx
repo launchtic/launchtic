@@ -165,7 +165,7 @@ function UserMenu({
   name, email, initials, workspaceSlug, workspaceName, workspacePlan,
 }: {
   name: string; email: string; initials: string;
-  workspaceSlug: string; workspaceName: string; workspacePlan: string;
+  workspaceSlug: string; workspaceName: string; workspacePlan: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -233,7 +233,7 @@ export default function TopNav({
   workspaceSlug: string;
   workspaceName: string;
   workspaces: WorkspaceListItem[];
-  workspacePlan: string;
+  workspacePlan: string | null;
   /** Agency-configured brand name. Defaults to "launchtic" upstream. */
   brandName: string;
   /** Agency-configured logo URL (primary, used on light TopNav). Null → fallback to /logo.svg. */
