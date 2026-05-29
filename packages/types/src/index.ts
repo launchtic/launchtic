@@ -174,6 +174,9 @@ export type UpsellOffer = {
   trialDays?:  number | null;
   acceptUrl:   string | null;
   declineUrl:  string | null;
+  // PayPal client id (when the workspace has PayPal configured) — lets the
+  // Accept button show a PayPal "pay again" modal when one-click isn't possible.
+  paypalClientId?: string | null;
 };
 
 export type RendererPageData = {

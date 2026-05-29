@@ -229,9 +229,23 @@ export class PayPalProvider implements PaymentProvider {
 
   // ─── captureOrder ──────────────────────────────────────────────────────────
 
-  async captureOrder(paypalOrderId: string): Promise<{ status: string; payerId: string }> {
+  async captureOrder(paypalOrderId: string): Promise<{ status: string; payerId: string; captureId: string | null }> {
     const result = await this.req<any>("POST", `/v2/checkout/orders/${paypalOrderId}/capture`);
-    return { status: result.status, payerId: result.payer?.payer_id ?? "" };
+    const captureId = result.purchase_units?.[0]?.payments?.captures?.[0]?.id ?? null;
+    return { status: result.status, payerId: result.payer?.payer_id ?? "", captureId };
+  }
+
+  // ─── createUpsellOrder ───────────────────────────────────────────────────────
+  // Bare one-time order for the one-click-upsell "pay again" modal: no checkout
+  // form, amount comes straight from the upsell offer. Returns the PayPal order id
+  // the client renders Smart Buttons against; /upsell/paypal/capture finalizes it.
+  async createUpsellOrder(amount: number, currency: string): Promise<string> {
+    const order = await this.req<{ id: string }>("POST", "/v2/checkout/orders", {
+      intent: "CAPTURE",
+      purchase_units: [{ amount: { currency_code: currency.toUpperCase(), value: formatAmount(amount, currency) } }],
+      application_context: { shipping_preference: "NO_SHIPPING", user_action: "PAY_NOW" },
+    });
+    return order.id;
   }
 
   // ─── getSubscription ───────────────────────────────────────────────────────

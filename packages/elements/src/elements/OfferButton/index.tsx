@@ -12,6 +12,7 @@ import { ElementWrapper } from "../common/ElementWrapper";
 import { ElementDrag } from "../common/ElementDrag";
 import { DelayedRender } from "../common/DelayedRender";
 import { useDraggableElement } from "../common/useDraggableElement";
+import { UpsellPayPalModal } from "./UpsellPayPalModal";
 
 // Offer buttons for UPSELL / DOWNSELL steps. They reuse the regular Button's
 // settings panel + styling, but their click does a one-click (off-session)
@@ -122,6 +123,7 @@ function OfferButtonView({ props, kind, indicatorName }: {
   const { isActive, isHover, enabled } = useNodeState();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPayPal, setShowPayPal] = useState(false);
 
   const rp = {
     delay: props.delay,
@@ -186,8 +188,14 @@ function OfferButtonView({ props, kind, indicatorName }: {
         redirect(json.nextStepUrl);
         return;
       }
-      // No saved card / off-session declined → continue down the decline branch
-      // so the funnel isn't blocked (interactive modal is a future enhancement).
+      // One-click not possible (PayPal main purchase / no saved card / SCA fail).
+      // If PayPal is configured, open a "pay again" modal; otherwise continue
+      // down the decline branch so the funnel is never blocked.
+      if (json?.requiresPayment && upsell?.paypalClientId) {
+        setShowPayPal(true);
+        setLoading(false);
+        return;
+      }
       redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
     } catch {
       setError("Something went wrong. Please try again.");
@@ -196,6 +204,7 @@ function OfferButtonView({ props, kind, indicatorName }: {
   }
 
   return (
+    <>
     <DelayedRender delay={rp.delay}>
       <ElementDrag elementType={kind === "accept" ? "AcceptOfferButton" : "DeclineOfferButton"}>
         <ElementWrapper
@@ -248,6 +257,8 @@ function OfferButtonView({ props, kind, indicatorName }: {
         </ElementWrapper>
       </ElementDrag>
     </DelayedRender>
+    {showPayPal && <UpsellPayPalModal onClose={() => setShowPayPal(false)} />}
+    </>
   );
 }
 

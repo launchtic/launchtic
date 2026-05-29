@@ -256,6 +256,12 @@ async function buildPageData(
         resolveBranchUrl(funnelStep, funnelStep.acceptStepId ?? null, host),
         resolveBranchUrl(funnelStep, funnelStep.declineStepId ?? null, host),
       ]);
+      // PayPal "pay again" modal — available for both ONE_TIME (order) and
+      // SUBSCRIPTION (billing plan) offers when the workspace has PayPal.
+      const ws = await db.workspaceSettings.findUnique({
+        where: { workspaceId: funnelStep.funnel.workspaceId },
+      });
+      const paypalClientId: string | null = (ws?.paypal as any)?.clientId ?? null;
       upsell = {
         pricePlanId: plan.id,
         name:        plan.name,
@@ -266,6 +272,7 @@ async function buildPageData(
         trialDays:   plan.trialDays ?? null,
         acceptUrl,
         declineUrl,
+        paypalClientId,
       };
     }
   }

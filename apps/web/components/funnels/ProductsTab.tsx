@@ -84,7 +84,7 @@ function PlanFormRow({ initial, currency, onSave, onCancel, saving }: {
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Name</label>
           <input
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="e.g. One-time $97"
             value={form.name}
             onChange={(e) => set("name", e.target.value)}
@@ -93,7 +93,7 @@ function PlanFormRow({ initial, currency, onSave, onCancel, saving }: {
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Type</label>
           <select
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={form.type}
             onChange={(e) => set("type", e.target.value as any)}
           >
@@ -106,12 +106,12 @@ function PlanFormRow({ initial, currency, onSave, onCancel, saving }: {
         <div>
           <label className="text-xs font-medium text-gray-500 mb-1 block">Amount</label>
           <div className="flex">
-            <span className="border border-r-0 rounded-l-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 font-medium uppercase select-none">
+            <span className="border border-gray-200 border-r-0 rounded-l-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 font-medium uppercase select-none">
               {currency}
             </span>
             <input
               type="number" min="0" step="0.01"
-              className="flex-1 border rounded-r-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 border border-gray-200 rounded-r-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="0.00" value={form.amount}
               onChange={(e) => set("amount", e.target.value)}
             />
@@ -121,7 +121,7 @@ function PlanFormRow({ initial, currency, onSave, onCancel, saving }: {
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">Interval</label>
             <select
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.interval} onChange={(e) => set("interval", e.target.value)}
             >
               <option value="month">Monthly</option>
@@ -137,7 +137,7 @@ function PlanFormRow({ initial, currency, onSave, onCancel, saving }: {
           </label>
           <input
             type="number" min="0" max="365"
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="0" value={form.trialDays}
             onChange={(e) => {
               const v = e.target.value;
@@ -152,14 +152,14 @@ function PlanFormRow({ initial, currency, onSave, onCancel, saving }: {
           Description <span className="text-gray-400 font-normal">(optional)</span>
         </label>
         <input
-          className="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="e.g. Most popular"
           value={form.description}
           onChange={(e) => set("description", e.target.value)}
         />
       </div>
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50">
+        <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">
           <X size={12} /> Cancel
         </button>
         <button
@@ -309,7 +309,7 @@ function ResourcesSection({ resources, allTags, onToggle, saving, perm }: {
           <div className="flex gap-2">
             {/* Type dropdown */}
             <select
-              className="border rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0"
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0"
               value={type}
               onChange={(e) => handleTypeChange(e.target.value as "TAG" | "COURSE")}
             >
@@ -332,7 +332,7 @@ function ResourcesSection({ resources, allTags, onToggle, saving, perm }: {
                 </p>
               ) : (
                 <select
-                  className="flex-1 border rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={resourceId}
                   onChange={(e) => setResourceId(e.target.value)}
                 >
@@ -1033,7 +1033,7 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
         <div className="border border-orange-200 rounded-xl p-3 bg-orange-50/40 mb-3 flex gap-2">
           <input
             autoFocus
-            className="flex-1 border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
             placeholder="Bump name e.g. Add Training Videos"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -1045,7 +1045,7 @@ function OrderBumpsSection({ stepId, bumps, currency, allTags, physicalProducts,
           >
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Add
           </button>
-          <button onClick={() => setAdding(false)} className="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50">
+          <button onClick={() => setAdding(false)} className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">
             <X size={12} />
           </button>
         </div>
