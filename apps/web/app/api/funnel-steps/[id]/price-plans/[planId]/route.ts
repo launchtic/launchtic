@@ -23,6 +23,22 @@ export async function PATCH(req: NextRequest, { params }: Props) {
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
+
+  // Stripe Prices and PayPal Billing Plans are IMMUTABLE — you can't change the
+  // amount of an existing one. We cache their ids on the plan (stripePriceId /
+  // paypalPlanId). If any pricing-defining field changes, drop those caches so
+  // the next checkout/subscription mints a fresh price/plan at the NEW amount;
+  // otherwise the gateway keeps charging the OLD price.
+  const newAmount   = body.amount   !== undefined ? Math.round(body.amount * 100) : plan.amount;
+  const newInterval = body.interval !== undefined ? body.interval : plan.interval;
+  const newCurrency = body.currency ?? plan.currency;
+  const newType     = body.type     ?? plan.type;
+  const pricingChanged =
+    newAmount !== plan.amount ||
+    newInterval !== plan.interval ||
+    (newCurrency ?? "").toLowerCase() !== (plan.currency ?? "").toLowerCase() ||
+    newType !== plan.type;
+
   const updated = await db.stepPricePlan.update({
     where: { id: planId },
     data: {
@@ -33,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
       currency: body.currency ?? undefined,
       interval: body.interval !== undefined ? body.interval : undefined,
       trialDays: body.trialDays !== undefined ? body.trialDays : undefined,
+      ...(pricingChanged ? { stripePriceId: null, paypalPlanId: null } : {}),
     },
   });
 

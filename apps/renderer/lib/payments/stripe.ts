@@ -403,8 +403,15 @@ export class StripeProvider implements PaymentProvider {
     } else {
       if (stripePriceId) {
         try {
+          // Prices are immutable — drop the cache if the amount/currency/interval
+          // no longer matches (price was edited), else we'd charge the OLD amount.
           const cached = await this.stripe.prices.retrieve(stripePriceId);
-          if (!cached.active) stripePriceId = "";
+          const stale =
+            !cached.active ||
+            cached.unit_amount !== toProviderAmount(plan.amount, plan.currency) ||
+            (cached.currency ?? "").toLowerCase() !== plan.currency.toLowerCase() ||
+            (cached.recurring?.interval ?? "month") !== (plan.interval ?? "month");
+          if (stale) stripePriceId = "";
         } catch (e: any) {
           if (e?.code === "resource_missing") stripePriceId = "";
           else throw e;

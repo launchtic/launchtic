@@ -167,8 +167,23 @@ export class PayPalProvider implements PaymentProvider {
       return { type: "paypal_order", paypalOrderId: paypalOrder.id };
     }
 
-    // Get or create PayPal Billing Plan
+    // Get or create PayPal Billing Plan. Plans are IMMUTABLE — validate the
+    // cached one still matches the current price/currency before reusing it,
+    // otherwise a price edit keeps charging the OLD amount (the cached id can
+    // be stale from before the price was changed).
     let paypalPlanId = plan.paypalPlanId ?? "";
+    if (paypalPlanId) {
+      try {
+        const cachedPlan = await this.req<any>("GET", `/v1/billing/plans/${paypalPlanId}`);
+        const regular = (cachedPlan.billing_cycles ?? []).find((c: any) => c.tenure_type === "REGULAR");
+        const fp = regular?.pricing_scheme?.fixed_price;
+        if (cachedPlan.status !== "ACTIVE" || fp?.value !== formatAmount(finalAmount, currency) || fp?.currency_code !== currency) {
+          paypalPlanId = ""; // stale (price/currency changed) → recreate
+        }
+      } catch {
+        paypalPlanId = ""; // can't verify → recreate
+      }
+    }
     if (!paypalPlanId) {
       // Ensure product exists
       const product = await this.req<{ id: string }>("POST", "/v1/catalogs/products", {

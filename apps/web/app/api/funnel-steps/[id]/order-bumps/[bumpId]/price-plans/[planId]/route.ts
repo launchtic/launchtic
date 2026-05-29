@@ -32,6 +32,15 @@ export async function PATCH(req: NextRequest, { params }: Props) {
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json();
+
+  // Stripe Prices / PayPal Billing Plans are immutable — drop the cached ids
+  // when pricing changes so the next checkout mints them at the NEW amount.
+  const newAmount   = body.amount   !== undefined ? Math.round(body.amount * 100) : plan.amount;
+  const newInterval = body.interval !== undefined ? body.interval : plan.interval;
+  const newType     = body.type     ?? plan.type;
+  const pricingChanged =
+    newAmount !== plan.amount || newInterval !== plan.interval || newType !== plan.type;
+
   const updated = await db.orderBumpPricePlan.update({
     where: { id: planId },
     data: {
@@ -41,6 +50,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
       amount:      body.amount      !== undefined ? Math.round(body.amount * 100) : undefined,
       interval:    body.interval    !== undefined ? body.interval : undefined,
       trialDays:   body.trialDays   !== undefined ? body.trialDays : undefined,
+      ...(pricingChanged ? { stripePriceId: null, paypalPlanId: null } : {}),
     },
   });
 
