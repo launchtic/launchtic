@@ -45,9 +45,17 @@ export async function POST(req: NextRequest) {
 
     // Who just bought? (linked to lt_sid at the main checkout)
     const session = await readPurchaseSession(sid);
-    // One-click is possible only when the main purchase was via Stripe (saved
-    // card) and the currency matches the customer's pinned currency.
-    if (!session || session.provider !== "stripe"
+
+    // No purchase session = direct access / expired (e.g. a guest landed on the
+    // upsell page without buying). We don't know the buyer, so neither one-click
+    // nor the PayPal "pay again" modal can work — just route to the decline
+    // branch. `requiresPayment: false` tells the button NOT to open the modal.
+    if (!session) return ok({ requiresPayment: false, declineUrl });
+
+    // Session exists but one-click isn't possible (PayPal main purchase, or
+    // currency mismatch with the Stripe customer). The PayPal pay-again modal
+    // CAN work here (the contact is known), so signal requiresPayment.
+    if (session.provider !== "stripe"
         || session.currency.toLowerCase() !== plan.currency.toLowerCase()) {
       return ok({ requiresPayment: true, declineUrl });
     }

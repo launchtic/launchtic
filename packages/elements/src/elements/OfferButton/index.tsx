@@ -160,7 +160,7 @@ function OfferButtonView({ props, kind, indicatorName }: {
   async function handleClick(e: React.MouseEvent) {
     if (enabled) { e.preventDefault(); return; } // editor mode — no action
     e.preventDefault();
-    if (loading) return;
+    if (loading || showPayPal) return; // already in-flight / PayPal modal open
 
     const data = (window as any).data ?? {};
     const upsell = data.upsell ?? null;

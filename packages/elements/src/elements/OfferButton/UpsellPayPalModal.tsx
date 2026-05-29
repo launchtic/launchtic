@@ -84,7 +84,28 @@ export function UpsellPayPalModal({ onClose }: { onClose: () => void }) {
       ? { ...common, createSubscription: () => start("paypalSubscriptionId"), onApprove: (d: any) => finish(d.subscriptionID) }
       : { ...common, createOrder: () => start("paypalOrderId"), onApprove: (d: any) => finish(d.orderID) };
 
-    window.paypal.Buttons(config).render(containerRef.current);
+    let buttons: any;
+    let cancelled = false;
+    try {
+      buttons = window.paypal.Buttons(config);
+      if (buttons.isEligible?.() === false) { setError("PayPal isn't available right now."); return; }
+      // .render() is async; swallow its rejection so a teardown mid-render
+      // (modal closed / re-rendered fast) doesn't bubble as an unhandled
+      // PayPal SDK exception.
+      Promise.resolve(buttons.render(containerRef.current)).catch((err: any) => {
+        if (!cancelled) console.warn("[upsell paypal] render failed", err);
+      });
+    } catch (err) {
+      console.warn("[upsell paypal] init failed", err);
+    }
+
+    // Tear the buttons down on unmount (StrictMode double-invoke, or the user
+    // closing the modal mid-render). Otherwise PayPal keeps rendering into a
+    // detached node → paypal_js_sdk_v5_unhandled_exception.
+    return () => {
+      cancelled = true;
+      try { buttons?.close?.(); } catch { /* already closed */ }
+    };
   }, [sdkReady]);
 
   return (
