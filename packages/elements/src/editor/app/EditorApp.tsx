@@ -27,6 +27,8 @@ import {
   Coupon,
   OrderBump,
   PhysicalProduct,
+  AcceptOfferButton,
+  DeclineOfferButton,
   AppProvider,
   useAppContext,
   getValidCraftContent,
@@ -122,7 +124,7 @@ const EditorInner: React.FC = () => {
     OrderBump, PhysicalProduct, Field, Checkbox, Text, Button, Headline,
     BulletedList, Image, Icon, Video, Section, Row, Column,
     Page, FAQ, Menu, Countdown, PaymentButton, PaymentMethod,
-    Coupon, OfferPrice,
+    Coupon, OfferPrice, AcceptOfferButton, DeclineOfferButton,
   }), []);
 
   // Keep a stable reference to appContext so the handlers factory below

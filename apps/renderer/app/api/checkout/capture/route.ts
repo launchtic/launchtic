@@ -4,6 +4,8 @@ import { redis } from "../../../../lib/redis";
 import { getPayPalProvider } from "../../../../lib/payments/registry";
 import { grantOrderResources } from "../../../../lib/resources";
 import { recordCouponUsage } from "../../../../lib/coupons";
+import { writePurchaseSession } from "../../../../lib/purchase-session";
+import { SID_HEADER } from "../../../../lib/funnel-events";
 import type { CheckoutInput, BumpPlanRow, PricePlanRow } from "../../../../lib/payments/types";
 
 function ok(data: unknown) { return NextResponse.json({ success: true, data }); }
@@ -123,6 +125,15 @@ export async function POST(req: NextRequest) {
 
     // Delete Redis key — no longer needed
     await redis.del(`paypal:order:${paypalOrderId}`);
+
+    // Link the purchase to the visitor session (PayPal has no saved card, so a
+    // downstream upsell falls back to an interactive payment modal).
+    await writePurchaseSession(req.headers.get(SID_HEADER), {
+      contactId:   input.contactId,
+      workspaceId: input.workspaceId,
+      currency,
+      provider:    "paypal",
+    });
 
     const host = req.headers.get("host") ?? "localhost:3001";
     return ok({ nextStepUrl: input.funnelStepId ? await getNextStepUrl(input.funnelStepId, host) : null });

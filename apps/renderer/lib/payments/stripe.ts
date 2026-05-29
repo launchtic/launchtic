@@ -274,8 +274,9 @@ export class StripeProvider implements PaymentProvider {
       currency: plan.currency,
       customer: customerId,
       payment_method: input.paymentMethodId ?? undefined,
-      // Save pm to customer so it can be reused for any subscription bump confirmations
-      setup_future_usage: subscriptionBumps.length > 0 ? "off_session" : undefined,
+      // Save pm to customer so it can be reused for subscription-bump confirmations
+      // AND for later off-session one-click upsells (input.savePaymentMethod).
+      setup_future_usage: subscriptionBumps.length > 0 || input.savePaymentMethod ? "off_session" : undefined,
       metadata: { orderId: order.id, workspaceId: input.workspaceId },
     });
 
@@ -543,6 +544,100 @@ export class StripeProvider implements PaymentProvider {
     }
 
     return { type: "stripe_confirm", clientSecret, orderId: order.id, bumpResults };
+  }
+
+  // ─── One-click upsell helpers (off-session, merchant-initiated) ──────────────
+
+  // Resolve the Stripe customer for a contact+currency (creates if missing).
+  // Public wrapper so the upsell route can charge without re-deriving the id.
+  async getCustomerId(contactId: string, currency: string): Promise<string> {
+    return this.getOrCreateCustomer(contactId, currency);
+  }
+
+  // Most recently attached card PaymentMethod for a customer, or null. Lets us
+  // charge a returning buyer off-session without re-entering the card. The card
+  // was attached on the main purchase via setup_future_usage / on_subscription.
+  async getSavedCardPaymentMethod(customerId: string): Promise<string | null> {
+    const list = await this.stripe.paymentMethods.list({ customer: customerId, type: "card", limit: 1 });
+    return list.data[0]?.id ?? null;
+  }
+
+  // Charge a saved card off-session for a ONE_TIME upsell. Confirms immediately.
+  // Throws on authentication_required / card_declined — the caller catches and
+  // falls back to an interactive payment modal.
+  async chargeSavedPaymentMethod(args: {
+    customerId: string; paymentMethodId: string;
+    amount: number; currency: string; workspaceId: string;
+    idempotencyKey: string; metadata?: Record<string, string>;
+  }): Promise<{ status: string; paymentIntentId: string; chargeId: string | null }> {
+    const intent = await this.stripe.paymentIntents.create({
+      amount: toProviderAmount(args.amount, args.currency),
+      currency: args.currency,
+      customer: args.customerId,
+      payment_method: args.paymentMethodId,
+      off_session: true,
+      confirm: true,
+      metadata: { workspaceId: args.workspaceId, ...(args.metadata ?? {}) },
+    }, { idempotencyKey: args.idempotencyKey });
+    return {
+      status: intent.status,
+      paymentIntentId: intent.id,
+      chargeId: typeof intent.latest_charge === "string" ? intent.latest_charge : (intent.latest_charge as any)?.id ?? null,
+    };
+  }
+
+  // Create a subscription off-session for a SUBSCRIPTION/FREE_TRIAL upsell using
+  // a saved card. `error_if_incomplete` fails fast if SCA is needed so the caller
+  // can fall back to the modal. Returns Stripe identifiers; caller persists DB.
+  async createOffSessionSubscription(args: {
+    customerId: string; paymentMethodId: string; plan: PricePlanRow;
+    workspaceId: string; idempotencyKey: string;
+  }): Promise<{ status: string; subscriptionId: string; invoiceId: string | null; trialEnd: number | null; currentPeriodStart: number | null; currentPeriodEnd: number | null }> {
+    const priceId = await this.getOrCreateRecurringPrice(args.plan);
+    const trialDays = args.plan.trialDays ?? 0;
+    const sub = await this.stripe.subscriptions.create({
+      customer: args.customerId,
+      items: [{ price: priceId }],
+      default_payment_method: args.paymentMethodId,
+      off_session: true,
+      payment_behavior: "error_if_incomplete",
+      trial_period_days: trialDays > 0 ? trialDays : undefined,
+      metadata: { workspaceId: args.workspaceId },
+      expand: ["latest_invoice"],
+    }, { idempotencyKey: args.idempotencyKey });
+    const rawInvoice = (sub as any).latest_invoice;
+    const per = subPeriod(sub);
+    return {
+      status: sub.status,
+      subscriptionId: sub.id,
+      invoiceId: typeof rawInvoice === "string" ? rawInvoice : rawInvoice?.id ?? null,
+      trialEnd: sub.trial_end ?? null,
+      currentPeriodStart: per.start,
+      currentPeriodEnd: per.end,
+    };
+  }
+
+  private async getOrCreateRecurringPrice(plan: PricePlanRow): Promise<string> {
+    let priceId = plan.stripePriceId ?? "";
+    if (priceId) {
+      try {
+        const cached = await this.stripe.prices.retrieve(priceId);
+        if (!cached.active) priceId = "";
+      } catch (e: any) {
+        if (e?.code === "resource_missing") priceId = ""; else throw e;
+      }
+    }
+    if (!priceId) {
+      const price = await this.stripe.prices.create({
+        unit_amount: toProviderAmount(plan.amount, plan.currency),
+        currency: plan.currency,
+        recurring: { interval: (plan.interval ?? "month") as "month" | "year" },
+        product_data: { name: plan.name },
+      });
+      priceId = price.id;
+      await db.stepPricePlan.update({ where: { id: plan.id }, data: { stripePriceId: priceId } }).catch(() => {});
+    }
+    return priceId;
   }
 
   async cancelSubscription(providerSubId: string, opts: { immediate: boolean }): Promise<CancelResult> {

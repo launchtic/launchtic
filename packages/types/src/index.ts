@@ -162,6 +162,20 @@ export type OrderBumpData = {
 // Renderer — data returned for the published page
 // ─────────────────────────────────────────
 
+// One-click upsell/downsell offer served on UPSELL/DOWNSELL steps. The Accept
+// button charges `pricePlanId` off-session; accept/decline route to these URLs.
+export type UpsellOffer = {
+  pricePlanId: string;
+  name:        string;
+  amount:      number;   // cents
+  currency:    string;
+  type:        "ONE_TIME" | "SUBSCRIPTION";
+  interval?:   string | null;
+  trialDays?:  number | null;
+  acceptUrl:   string | null;
+  declineUrl:  string | null;
+};
+
 export type RendererPageData = {
   workspaceId: string;
   funnelId: string;
@@ -176,6 +190,8 @@ export type RendererPageData = {
   // Empty / false for normal steps.
   abTestActive?: boolean;
   variants?: { id: string; pageJson: CraftPageJson; weight: number }[];
+  // Set on UPSELL/DOWNSELL steps — drives the Accept/Decline offer buttons.
+  upsell?: UpsellOffer | null;
 };
 
 // ─────────────────────────────────────────

@@ -690,9 +690,11 @@ function TriggerCard({
   const selectedFunnel = funnels.find((f) => f.id === selectedFunnelId);
   const optinSteps = selectedFunnel?.steps.filter((s) => s.type === "OPTIN") ?? [];
   // NEW_SALE only fires on payment-processing steps. Renting it to SALES or
-  // THANKYOU pages would never fire (no payment event there). UPSELL/DOWNSELL
-  // exist in the schema but aren't user-supported yet — CHECKOUT only.
-  const saleSteps = selectedFunnel?.steps.filter((s) => s.type === "CHECKOUT") ?? [];
+  // THANKYOU pages would never fire (no payment event there). CHECKOUT plus
+  // one-click UPSELL/DOWNSELL all create paid orders → all can trigger it.
+  const saleSteps = selectedFunnel?.steps.filter((s) =>
+    s.type === "CHECKOUT" || s.type === "UPSELL" || s.type === "DOWNSELL"
+  ) ?? [];
 
   const summary = triggerSummary(triggerType, triggerConfig, tags, funnels);
 

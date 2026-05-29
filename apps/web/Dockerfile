@@ -4,12 +4,13 @@ RUN corepack enable
 # ─── Stage 1: Install dependencies ───────────────────────────────────────────
 FROM base AS deps
 WORKDIR /app
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .pnpmfile.cjs ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/database/package.json packages/database/
 COPY packages/database/prisma packages/database/prisma
 COPY packages/email/package.json packages/email/
 COPY packages/ui/package.json packages/ui/
 COPY packages/types/package.json packages/types/
+COPY packages/elements/package.json packages/elements/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter=@launchtic/web...
 

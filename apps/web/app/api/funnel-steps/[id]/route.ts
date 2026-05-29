@@ -32,6 +32,9 @@ const patchSchema = z.object({
   name:     z.string().min(1).max(100).optional(),
   slug:     z.string().max(200).regex(/^[a-z0-9-]*$/, "Slug may only contain lowercase letters, numbers and hyphens").optional(),
   meta:     metaSchema,
+  // One-click upsell/downsell branching targets (null clears → next-by-order).
+  acceptStepId:  z.string().nullable().optional(),
+  declineStepId: z.string().nullable().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -87,6 +90,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       resources: step.resources ?? null,
       couponIds: step.couponIds ?? [],
       shippingFee: step.shippingFee ?? 0,
+      acceptStepId: step.acceptStepId ?? null,
+      declineStepId: step.declineStepId ?? null,
       pageJson: step.pageJson,
       funnel: {
         id:           step.funnel.id,
@@ -148,6 +153,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       // Normalize: always store as an object (JSONB), not a string
       updateData.pageJson = normalizeJson(data.pageJson);
     }
+
+    if (data.acceptStepId !== undefined)  updateData.acceptStepId = data.acceptStepId;
+    if (data.declineStepId !== undefined) updateData.declineStepId = data.declineStepId;
 
     if (Object.keys(updateData).length === 0) {
       return err("No fields to update", 400);

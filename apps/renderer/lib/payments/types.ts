@@ -40,6 +40,11 @@ export interface CheckoutInput {
   shippingFee: number;
   bumpPlans: BumpPlanRow[];
   paymentMethodId: string | null;
+  // When true, attach the card to the Stripe customer for later off-session
+  // (one-click upsell) charges. Set by the intent route when the funnel has
+  // downstream UPSELL/DOWNSELL steps. ONE_TIME only — subscriptions already
+  // save a default PM via `save_default_payment_method`.
+  savePaymentMethod?: boolean;
   billingDetails: {
     name: string;
     email: string;

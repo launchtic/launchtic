@@ -20,6 +20,15 @@ export async function getProvider(workspaceId: string, method: string): Promise<
   throw new Error(`Unsupported payment method: ${method}`);
 }
 
+// Typed Stripe accessor — the off-session one-click-upsell methods live on
+// StripeProvider, not the shared PaymentProvider interface.
+export async function getStripeProvider(workspaceId: string): Promise<StripeProvider> {
+  const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
+  const config = (settings as any)?.stripe;
+  if (!config?.secretKey) throw new Error("Stripe not configured for this workspace");
+  return new StripeProvider(config.secretKey, config.webhookSecret ?? "");
+}
+
 export async function getPayPalProvider(workspaceId: string): Promise<PayPalProvider> {
   const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
   const config = (settings as any)?.paypal;

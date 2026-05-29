@@ -40,6 +40,8 @@ export default async function FunnelDetailPage({ params }: Params) {
     slug: s.slug,
     type: s.type,
     order: s.order,
+    acceptStepId: s.acceptStepId,
+    declineStepId: s.declineStepId,
   }));
 
   const primaryDomain = funnel.domains[0]?.domain.verified
@@ -59,6 +61,7 @@ export default async function FunnelDetailPage({ params }: Params) {
       rendererUrl={rendererUrl}
       canViewAnalytics={features.funnelAnalytics}
       canAbTest={features.abTesting}
+      canUpsell={features.upsells}
     />
   );
 }

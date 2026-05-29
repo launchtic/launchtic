@@ -3,7 +3,7 @@ RUN corepack enable
 
 FROM base AS deps
 WORKDIR /app
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .pnpmfile.cjs ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/database/package.json packages/database/
 COPY packages/database/prisma packages/database/prisma
 COPY packages/email/package.json packages/email/

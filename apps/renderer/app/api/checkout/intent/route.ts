@@ -26,10 +26,17 @@ export async function POST(req: NextRequest) {
     // Get funnel step → workspace
     const step = await db.funnelStep.findUnique({
       where: { id: funnelStepId },
-      select: { funnel: { select: { workspaceId: true } }, shippingFee: true },
+      select: { funnel: { select: { id: true, workspaceId: true } }, shippingFee: true },
     });
     if (!step) return fail("Funnel step not found", 404);
     const { workspaceId } = step.funnel;
+
+    // If the funnel has any UPSELL/DOWNSELL step, save the card to the Stripe
+    // customer so those steps can charge one-click (off-session) later.
+    const upsellStepCount = await db.funnelStep.count({
+      where: { funnelId: step.funnel.id, type: { in: ["UPSELL", "DOWNSELL"] } },
+    });
+    const savePaymentMethod = upsellStepCount > 0;
 
     // Get price plan (only if pricePlanId provided — physical product pages won't have one)
     const pricePlan = pricePlanId
@@ -248,6 +255,7 @@ export async function POST(req: NextRequest) {
       discountAmount: validatedCoupon?.discountAmount ?? 0,
       shippingFee: physicalProduct?.id ? (step.shippingFee ?? 0) : 0,
       bumpPlans,
+      savePaymentMethod,
     };
 
     const result = await provider.createCheckout(input, planRow);

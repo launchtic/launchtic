@@ -21,6 +21,7 @@ export { Coupon } from "./elements/Coupon";
 export { OfferPrice } from "./elements/OfferPrice";
 export { OrderBump } from "./elements/OrderBump";
 export { PhysicalProduct } from "./elements/PhysicalProduct";
+export { AcceptOfferButton, DeclineOfferButton } from "./elements/OfferButton";
 
 // Contexts
 export { AppProvider, useAppContext } from "./contexts/AppContext";

@@ -55,6 +55,9 @@ type Step = {
   slug: string;
   type: string;
   order: number;
+  // One-click upsell/downsell branching targets (UPSELL/DOWNSELL steps only).
+  acceptStepId?: string | null;
+  declineStepId?: string | null;
 };
 
 type Funnel = {
@@ -113,10 +116,12 @@ const TYPE_COLOR_MAP: Record<string, string> = {
 
 const ALL_TABS = [
   { id: "configuration", label: "Configuration", types: null },
-  { id: "products",      label: "Products",      types: ["CHECKOUT"] },
+  { id: "products",      label: "Products",      types: ["CHECKOUT", "UPSELL", "DOWNSELL"] },
   { id: "ab",            label: "A/B Test",      types: null },
   { id: "analytics",     label: "Analytics",     types: null },
 ] as const;
+
+const UPSELL_TYPES = ["UPSELL", "DOWNSELL"];
 
 /* ─── Sortable step row ─── */
 function SortableStepItem({
@@ -206,18 +211,27 @@ function SortableStepItem({
 }
 
 /* ─── Configuration tab ─── */
-function ConfigurationTab({ step, rendererUrl, primaryDomain, onUpdate }: { step: Step; funnelId: string; rendererUrl: string; primaryDomain: string | null; onUpdate: (updated: Step) => void }) {
+function ConfigurationTab({ step, steps, rendererUrl, primaryDomain, canUpsell, onUpdate }: { step: Step; steps: Step[]; funnelId: string; rendererUrl: string; primaryDomain: string | null; canUpsell: boolean; onUpdate: (updated: Step) => void }) {
   const urlPrefix = stepUrlPrefix(rendererUrl, primaryDomain);
   const { canManageFunnels } = useRole();
   const [name, setName] = useState(step.name);
   const [slug, setSlug] = useState(step.slug);
+  const [acceptStepId, setAcceptStepId] = useState<string>(step.acceptStepId ?? "");
+  const [declineStepId, setDeclineStepId] = useState<string>(step.declineStepId ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isUpsell = step.type === "UPSELL" || step.type === "DOWNSELL";
+  const showBranching = isUpsell && canUpsell;
+  // Branch targets: any other step in this funnel.
+  const branchOptions = steps.filter((s) => s.id !== step.id);
+
   useEffect(() => {
     setName(step.name);
     setSlug(step.slug);
+    setAcceptStepId(step.acceptStepId ?? "");
+    setDeclineStepId(step.declineStepId ?? "");
     setSaved(false);
     setError(null);
   }, [step.id]);
@@ -227,10 +241,15 @@ function ConfigurationTab({ step, rendererUrl, primaryDomain, onUpdate }: { step
     setSaving(true);
     setError(null);
 
+    const body: Record<string, unknown> = { name, slug };
+    if (showBranching) {
+      body.acceptStepId = acceptStepId || null;
+      body.declineStepId = declineStepId || null;
+    }
     const res = await apiFetch(`/api/funnel-steps/${step.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, slug }),
+      body: JSON.stringify(body),
     });
     const json = await res.json();
     setSaving(false);
@@ -241,7 +260,7 @@ function ConfigurationTab({ step, rendererUrl, primaryDomain, onUpdate }: { step
     }
 
     setSaved(true);
-    onUpdate({ ...step, name, slug });
+    onUpdate({ ...step, name, slug, ...(showBranching ? { acceptStepId: acceptStepId || null, declineStepId: declineStepId || null } : {}) });
     setTimeout(() => setSaved(false), 2500);
   }
 
@@ -299,6 +318,46 @@ function ConfigurationTab({ step, rendererUrl, primaryDomain, onUpdate }: { step
         </div>
       </div>
 
+      {showBranching && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 mb-1">Offer flow</h3>
+          <p className="text-xs text-gray-400 mb-4">
+            Where to send the visitor after they accept or decline this offer.
+            Leave as “Next step” to follow the funnel order.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">When accepted →</label>
+              <select
+                value={acceptStepId}
+                onChange={(e) => setAcceptStepId(e.target.value)}
+                disabled={!canManageFunnels}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${!canManageFunnels ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
+              >
+                <option value="">Next step (default)</option>
+                {branchOptions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">When declined →</label>
+              <select
+                value={declineStepId}
+                onChange={(e) => setDeclineStepId(e.target.value)}
+                disabled={!canManageFunnels}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${!canManageFunnels ? "bg-gray-50 cursor-not-allowed text-gray-500" : ""}`}
+              >
+                <option value="">Next step (default)</option>
+                {branchOptions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {canManageFunnels && (
         <button
           type="submit"
@@ -333,6 +392,7 @@ export default function FunnelStepManager({
   rendererUrl,
   canViewAnalytics = false,
   canAbTest = false,
+  canUpsell = false,
 }: {
   funnel: Funnel;
   initialSteps: Step[];
@@ -341,6 +401,9 @@ export default function FunnelStepManager({
   canViewAnalytics?: boolean;
   // abTesting plan feature (Starter+) — gates the A/B Test tab content.
   canAbTest?: boolean;
+  // upsells plan feature — gates the Products + branching config on
+  // UPSELL/DOWNSELL steps.
+  canUpsell?: boolean;
 }) {
   const { canManageFunnels, canDeleteFunnels } = useRole();
   const [steps, setSteps] = useState(initialSteps);
@@ -567,6 +630,9 @@ export default function FunnelStepManager({
                 // Hide plan-gated tabs entirely when the license lacks the feature.
                 .filter((tab) => (tab.id === "analytics" ? canViewAnalytics : true))
                 .filter((tab) => (tab.id === "ab" ? canAbTest : true))
+                // Products on UPSELL/DOWNSELL is the upsell offer config — gated
+                // by `upsells`. On CHECKOUT it's always available.
+                .filter((tab) => (tab.id === "products" && UPSELL_TYPES.includes(selectedStep.type) ? canUpsell : true))
                 .map((tab) => (
                   <button
                     key={tab.id}
@@ -586,7 +652,7 @@ export default function FunnelStepManager({
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {activeTab === "configuration" && (
-              <ConfigurationTab key={selectedStep.id} step={selectedStep} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} onUpdate={handleStepUpdate} />
+              <ConfigurationTab key={selectedStep.id} step={selectedStep} steps={steps} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} canUpsell={canUpsell} onUpdate={handleStepUpdate} />
             )}
             {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} />}
             {activeTab === "ab"            && (

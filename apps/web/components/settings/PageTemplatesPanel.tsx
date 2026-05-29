@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
-  FileText, TrendingUp, ShoppingCart, CheckCircle,
+  FileText, TrendingUp, ShoppingCart, CheckCircle, ArrowUpCircle, ArrowDownCircle,
   Search, ChevronLeft, ChevronRight, Settings, Image as ImageIcon, Filter, Copy,
   Power, Download,
 } from "lucide-react";
@@ -66,21 +66,18 @@ type StatusFilter = "all" | "active" | "disabled";
 
 type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
 
-// UPSELL / DOWNSELL hidden from filter chips + creation. Legacy records
-// of those types still render via the dedicated TYPE_LABEL/COLOR maps in
-// ChangeTemplateModal / FunnelStepManager / StepList.
 const STEP_TYPES: { value: StepType; label: string; icon: React.ReactNode; color: string }[] = [
   { value: "OPTIN",    label: "Opt-in",    icon: <FileText size={12} />,       color: "text-violet-600 bg-violet-50" },
   { value: "SALES",    label: "Sales",     icon: <TrendingUp size={12} />,     color: "text-blue-600 bg-blue-50" },
   { value: "CHECKOUT", label: "Checkout",  icon: <ShoppingCart size={12} />,   color: "text-amber-600 bg-amber-50" },
+  { value: "UPSELL",   label: "Upsell",    icon: <ArrowUpCircle size={12} />,  color: "text-green-600 bg-green-50" },
+  { value: "DOWNSELL", label: "Downsell",  icon: <ArrowDownCircle size={12} />, color: "text-orange-600 bg-orange-50" },
   { value: "THANKYOU", label: "Thank You", icon: <CheckCircle size={12} />,    color: "text-teal-600 bg-teal-50" },
   { value: "CUSTOM",   label: "Custom page", icon: <FileText size={12} />,     color: "text-gray-700 bg-gray-100" },
 ];
 
 function TypeBadge({ type }: { type: StepType }) {
-  // Legacy step types (UPSELL / DOWNSELL) are no longer in STEP_TYPES but
-  // existing records still render — fall back to a neutral badge so the
-  // page doesn't crash with `find().!`.
+  // Defensive fallback for any unknown/legacy type so the page never crashes.
   const t = STEP_TYPES.find((s) => s.value === type);
   if (!t) {
     return (

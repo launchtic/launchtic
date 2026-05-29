@@ -70,6 +70,7 @@ export default async function PublishedPage({ params }: Props) {
         pageJson,
         payment: pageData.payment,
         meta: pageData.meta ?? null,
+        upsell: pageData.upsell ?? null,
       }}
     />
   );

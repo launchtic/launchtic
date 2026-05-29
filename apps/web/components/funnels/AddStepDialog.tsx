@@ -5,14 +5,14 @@ import { X, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api-client";
 
-// UPSELL and DOWNSELL exist in the schema but aren't supported in the UI
-// yet — hidden from the creation dropdown. Existing records of those types
-// still render in the funnel list (display path keeps full enum).
 // CUSTOM = generic static page (About / Privacy / Terms / Contact / FAQ).
+// UPSELL/DOWNSELL = one-click post-purchase offers (charge the saved card).
 const STEP_TYPES = [
   { value: "OPTIN",    label: "Opt-in" },
   { value: "SALES",    label: "Sales" },
   { value: "CHECKOUT", label: "Checkout" },
+  { value: "UPSELL",   label: "Upsell (one-click)" },
+  { value: "DOWNSELL", label: "Downsell (one-click)" },
   { value: "THANKYOU", label: "Thank You" },
   { value: "CUSTOM",   label: "Custom page (About / Privacy / Terms)" },
 ];

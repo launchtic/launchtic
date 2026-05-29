@@ -743,13 +743,13 @@ const addFunnelStep = defineTool({
   description:
     "Add a new step to an existing funnel. " +
     "For SALES/OPTIN/THANKYOU/CUSTOM steps: only funnelId, type, name needed. " +
-    "For CHECKOUT: include offerType + price/product details. " +
+    "For CHECKOUT/UPSELL/DOWNSELL: include offerType + price/product details. " +
+    "UPSELL/DOWNSELL = one-click post-purchase offers (charge the saved card after the main checkout). " +
     "CUSTOM = generic static page (About / Privacy / Terms / Contact / FAQ) — no form, no price. " +
-    "Step is auto-positioned by type (OPTIN first, CHECKOUT mid, THANKYOU last; CUSTOM appended). " +
-    "Note: UPSELL/DOWNSELL exist in DB schema but aren't user-supported yet — don't create them.",
+    "Step is auto-positioned by type (OPTIN first, CHECKOUT mid, UPSELL/DOWNSELL after, THANKYOU last; CUSTOM appended).",
   inputSchema: z.object({
     funnelId: z.string().describe("Funnel ID. Use list_funnels to find."),
-    type: z.enum(["OPTIN", "SALES", "CHECKOUT", "THANKYOU", "CUSTOM"]),
+    type: z.enum(["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]),
     name: z.string().min(1).describe("Step name shown internally + on page."),
     offerType: z.enum(["DIGITAL", "PHYSICAL"]).optional(),
     price: z.number().positive().optional().describe("Price in dollars. Required for CHECKOUT."),

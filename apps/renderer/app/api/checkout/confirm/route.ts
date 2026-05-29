@@ -5,6 +5,7 @@ import { grantOrderResources } from "../../../../lib/resources";
 import { recordCouponUsage } from "../../../../lib/coupons";
 import { recordFunnelEvent, SID_HEADER } from "../../../../lib/funnel-events";
 import { getAssignedVariantId } from "../../../../lib/ab-testing";
+import { writePurchaseSession } from "../../../../lib/purchase-session";
 
 function ok(data: unknown) {
   return NextResponse.json({ success: true, data });
@@ -150,6 +151,15 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(bumpOrderIds) && bumpOrderIds.length > 0) {
       await Promise.all((bumpOrderIds as string[]).map(markOrderPaid));
     }
+
+    // Link this purchase to the visitor's session so a downstream UPSELL /
+    // DOWNSELL page can charge them one-click (off-session). Best-effort.
+    await writePurchaseSession(req.headers.get(SID_HEADER), {
+      contactId:   order.contactId,
+      workspaceId: order.workspaceId,
+      currency:    order.currency,
+      provider:    order.paymentProvider === "paypal" ? "paypal" : order.paymentProvider === "free" ? "free" : "stripe",
+    });
 
     const host = req.headers.get("host") ?? "localhost:3001";
     const nextStepUrl = order.funnelStepId ? await getNextStepUrl(order.funnelStepId, host) : null;

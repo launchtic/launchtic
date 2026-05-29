@@ -27,6 +27,8 @@ import {
   OfferPrice,
   OrderBump,
   PhysicalProduct,
+  AcceptOfferButton,
+  DeclineOfferButton,
   AppProvider,
   PageRenderProvider,
   PaymentProvider,
@@ -40,6 +42,8 @@ export type PageRenderAppPageData = {
   pageJson: Record<string, unknown>;
   payment?: any;
   meta?: Record<string, unknown> | null;
+  // Upsell/downsell offer (UPSELL/DOWNSELL steps) — read by the offer buttons.
+  upsell?: any;
 };
 
 type Props = {
@@ -53,6 +57,7 @@ export default function PageRenderApp({ pageData }: Props) {
       funnelStepId: pageData.funnelStepId,
       nextStepUrl: pageData.nextStepUrl,
       payment: pageData.payment ?? null,
+      upsell: pageData.upsell ?? null,
     };
   }
 
@@ -98,6 +103,8 @@ export default function PageRenderApp({ pageData }: Props) {
       OfferPrice,
       OrderBump,
       PhysicalProduct,
+      AcceptOfferButton,
+      DeclineOfferButton,
     }),
     [],
   );

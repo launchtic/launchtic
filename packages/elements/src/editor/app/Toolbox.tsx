@@ -23,6 +23,8 @@ import {
   PhysicalProduct,
   PaymentButton,
   PaymentMethod,
+  AcceptOfferButton,
+  DeclineOfferButton,
   DEFAULT_STYLES,
   getIconPath,
 } from "../../index";
@@ -44,6 +46,7 @@ import {
 // Which sections to show per step type
 const SECTION_RULES = {
   payment: ["CHECKOUT"],
+  offer:   ["UPSELL", "DOWNSELL"],
 } as const;
 
 function allowed(section: keyof typeof SECTION_RULES, stepType: string) {
@@ -139,6 +142,30 @@ export const Toolbox: React.FC = () => {
                 <i className="fa-solid fa-cart-plus"></i>
               </IconWrapper>
               <ItemLabel>Order Bump</ItemLabel>
+            </ToolboxItemContent>
+          </ToolboxItem>
+        </ToolboxGrid>
+      </ToolboxSection>
+      )}
+
+      {allowed("offer", stepType) && (
+      <ToolboxSection>
+        <ToolboxSectionTitle>Offer</ToolboxSectionTitle>
+        <ToolboxGrid>
+          <ToolboxItem ref={(ref) => createElement(ref, <AcceptOfferButton {...DEFAULT_STYLES.button} text="Yes, add it to my order" />)}>
+            <ToolboxItemContent>
+              <IconWrapper>
+                <i className="fa-solid fa-circle-check"></i>
+              </IconWrapper>
+              <ItemLabel>Accept offer button</ItemLabel>
+            </ToolboxItemContent>
+          </ToolboxItem>
+          <ToolboxItem ref={(ref) => createElement(ref, <DeclineOfferButton {...DEFAULT_STYLES.button} text="No thanks" backgroundColor="transparent" color="#6b7280" />)}>
+            <ToolboxItemContent>
+              <IconWrapper>
+                <i className="fa-solid fa-circle-xmark"></i>
+              </IconWrapper>
+              <ItemLabel>Decline offer button</ItemLabel>
             </ToolboxItemContent>
           </ToolboxItem>
         </ToolboxGrid>

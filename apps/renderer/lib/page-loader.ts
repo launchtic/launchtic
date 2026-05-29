@@ -101,6 +101,28 @@ async function getNextStepUrl(
   return `${protocol}://${host}/${next.slug}`;
 }
 
+// Resolve where an UPSELL/DOWNSELL step routes after accept/decline. Uses the
+// explicit branch target when set + valid; otherwise the next step by order.
+async function resolveBranchUrl(
+  funnelStep: { id: string; funnelId: string; order: number },
+  targetStepId: string | null,
+  host: string
+): Promise<string | null> {
+  if (targetStepId) {
+    const target = await db.funnelStep.findFirst({
+      where: { id: targetStepId, funnelId: funnelStep.funnelId },
+      select: { slug: true },
+    });
+    if (target) {
+      const isDev = process.env.NODE_ENV === "development";
+      const isLocalhost = host.startsWith("localhost") || host.startsWith("127.");
+      const protocol = isDev || isLocalhost ? "http" : "https";
+      return `${protocol}://${host}/${target.slug}`;
+    }
+  }
+  return getNextStepUrl(funnelStep, host);
+}
+
 async function buildPageData(
   funnelStep: any,
   slug: string,
@@ -225,6 +247,29 @@ async function buildPageData(
       })).map((v: any) => ({ id: v.id, pageJson: v.pageJson, weight: v.weight }))
     : [];
 
+  // Upsell/downsell offer — drives the Accept/Decline buttons + one-click charge.
+  let upsell: RendererPageData["upsell"] = undefined;
+  if (funnelStep.type === "UPSELL" || funnelStep.type === "DOWNSELL") {
+    const plan = funnelStep.pricePlans?.[0];
+    if (plan) {
+      const [acceptUrl, declineUrl] = await Promise.all([
+        resolveBranchUrl(funnelStep, funnelStep.acceptStepId ?? null, host),
+        resolveBranchUrl(funnelStep, funnelStep.declineStepId ?? null, host),
+      ]);
+      upsell = {
+        pricePlanId: plan.id,
+        name:        plan.name,
+        amount:      plan.amount,
+        currency:    funnelStep.funnel.currency,
+        type:        plan.type,
+        interval:    plan.interval ?? null,
+        trialDays:   plan.trialDays ?? null,
+        acceptUrl,
+        declineUrl,
+      };
+    }
+  }
+
   const pageData: RendererPageData = {
     workspaceId: funnelStep.funnel.workspaceId,
     funnelId: funnelStep.funnelId,
@@ -236,6 +281,7 @@ async function buildPageData(
     favicon: funnelStep.funnel.favicon ?? null,
     abTestActive: funnelStep.abTestActive,
     variants,
+    upsell,
   };
 
   if (process.env.NODE_ENV !== "development") {

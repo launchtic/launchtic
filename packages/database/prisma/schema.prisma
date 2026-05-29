@@ -302,6 +302,12 @@ model FunnelStep {
   shippingFee       Int        @default(0) // cents
   couponIds         String[]   @default([])
 
+  // One-click upsell/downsell branching: which step to route to after the
+  // visitor accepts (buys) vs declines this step. Null → fall back to the next
+  // step by `order`. Plain ids (no FK) — navigation resolves + validates them.
+  acceptStepId      String?
+  declineStepId     String?
+
   // Craft.js JSON — stored as JSONB
   pageJson Json
 
