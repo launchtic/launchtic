@@ -107,6 +107,18 @@ export async function POST(req: NextRequest) {
           }),
         ]);
 
+        // Subscription main offer: the first invoice was just confirmed
+        // client-side, so the Stripe sub is active now. Flip our DB record from
+        // INCOMPLETE → ACTIVE here instead of waiting for the webhook (which can
+        // be delayed or absent locally). Guarded so it never overrides a
+        // CANCELED/TRIALING state.
+        if (order.subscriptionId) {
+          await db.subscription.updateMany({
+            where: { id: order.subscriptionId, status: "INCOMPLETE" },
+            data: { status: "ACTIVE" },
+          });
+        }
+
         // Fire NEW_SALE automation trigger (best-effort)
         const funnelStep = order.funnelStepId
           ? await db.funnelStep.findUnique({ where: { id: order.funnelStepId }, select: { funnelId: true } })

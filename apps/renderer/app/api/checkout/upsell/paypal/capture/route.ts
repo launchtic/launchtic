@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       });
       if (existingSub) return ok({ nextStepUrl: acceptUrl, alreadyProcessed: true });
 
-      const { status } = await provider.getSubscription(id);
+      const { status, startTime, nextBillingTime } = await provider.getSubscription(id);
       if (!["ACTIVE", "APPROVED", "TRIALING"].includes(status)) {
         return fail(`PayPal subscription status: ${status}`, 402);
       }
@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
           stepPricePlanId: p.pricePlanId,
           status: isTrial ? "TRIALING" : "ACTIVE",
           paymentProvider: "paypal", providerSubId: id, trialEnd,
+          currentPeriodStart: startTime ? new Date(startTime) : null,
+          currentPeriodEnd: nextBillingTime ? new Date(nextBillingTime) : null,
           planSnapshot: { planName: p.name, amount: p.amount, finalAmount: p.amount, currency: p.currency, interval: p.interval ?? "month", trialDays: trialDays > 0 ? trialDays : null },
         },
       });

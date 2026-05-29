@@ -250,9 +250,16 @@ export class PayPalProvider implements PaymentProvider {
 
   // ─── getSubscription ───────────────────────────────────────────────────────
 
-  async getSubscription(paypalSubscriptionId: string): Promise<{ status: string; startTime: string }> {
+  async getSubscription(paypalSubscriptionId: string): Promise<{ status: string; startTime: string; nextBillingTime: string | null }> {
     const result = await this.req<any>("GET", `/v1/billing/subscriptions/${paypalSubscriptionId}`);
-    return { status: result.status, startTime: result.start_time ?? "" };
+    return {
+      status: result.status,
+      startTime: result.start_time ?? "",
+      // PayPal returns the period dates here (unlike Stripe, the create call
+      // doesn't include them) — used to populate currentPeriodStart/End so we
+      // don't have to wait for the first webhook.
+      nextBillingTime: result.billing_info?.next_billing_time ?? null,
+    };
   }
 
   // ─── handleWebhook ─────────────────────────────────────────────────────────

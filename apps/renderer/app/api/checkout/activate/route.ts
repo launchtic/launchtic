@@ -4,6 +4,8 @@ import { redis } from "../../../../lib/redis";
 import { getPayPalProvider } from "../../../../lib/payments/registry";
 import { grantOrderResources } from "../../../../lib/resources";
 import { recordCouponUsage } from "../../../../lib/coupons";
+import { writePurchaseSession } from "../../../../lib/purchase-session";
+import { SID_HEADER } from "../../../../lib/funnel-events";
 import type { CheckoutInput, BumpPlanRow, PricePlanRow } from "../../../../lib/payments/types";
 
 function ok(data: unknown) { return NextResponse.json({ success: true, data }); }
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     // Verify subscription is approved with PayPal
     const provider = await getPayPalProvider(input.workspaceId);
-    const { status } = await provider.getSubscription(paypalSubscriptionId);
+    const { status, startTime, nextBillingTime } = await provider.getSubscription(paypalSubscriptionId);
 
     const acceptableStatuses = ["ACTIVE", "APPROVED", "TRIALING"];
     if (!acceptableStatuses.includes(status)) return fail(`PayPal subscription status: ${status}`, 402);
@@ -86,6 +88,8 @@ export async function POST(req: NextRequest) {
         status: isTrial ? "TRIALING" : "ACTIVE",
         paymentProvider: "paypal", providerSubId: paypalSubscriptionId,
         trialEnd,
+        currentPeriodStart: startTime ? new Date(startTime) : null,
+        currentPeriodEnd: nextBillingTime ? new Date(nextBillingTime) : null,
         planSnapshot: {
           planName: planRow.name, amount: planRow.amount, finalAmount,
           currency, interval: planRow.interval ?? "month",
@@ -139,6 +143,16 @@ export async function POST(req: NextRequest) {
 
     // Delete Redis key — no longer needed
     await redis.del(`paypal:sub:${paypalSubscriptionId}`);
+
+    // Link this purchase to the visitor's session so a downstream UPSELL/
+    // DOWNSELL page can offer a PayPal "pay again" modal. Without this, the
+    // upsell sees no session and treats the buyer like a direct-access guest.
+    await writePurchaseSession(req.headers.get(SID_HEADER), {
+      contactId:   input.contactId,
+      workspaceId: input.workspaceId,
+      currency,
+      provider:    "paypal",
+    });
 
     const host = req.headers.get("host") ?? "localhost:3001";
     return ok({ nextStepUrl: input.funnelStepId ? await getNextStepUrl(input.funnelStepId, host) : null });
