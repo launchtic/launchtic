@@ -7,6 +7,7 @@ import {
   Page, Section, Row, Column, Text, Headline, Button, Image, Icon, Video,
   BulletedList, Field, Checkbox, FAQ, Menu, Countdown,
   PaymentButton, PaymentMethod, OfferPrice, Coupon, OrderBump, PhysicalProduct,
+  AcceptOfferButton, DeclineOfferButton,
   AppProvider, useAppContext, getValidCraftContent,
 } from "../../index";
 
@@ -46,6 +47,7 @@ const EditorInner: React.FC = () => {
     OrderBump, PhysicalProduct, Field, Checkbox, Text, Button, Headline,
     BulletedList, Image, Icon, Video, Section, Row, Column,
     Page, FAQ, Menu, Countdown, PaymentButton, PaymentMethod, Coupon, OfferPrice,
+    AcceptOfferButton, DeclineOfferButton,
   }), []);
 
   // Stable handlers factory — see EditorApp.tsx for the full reasoning.

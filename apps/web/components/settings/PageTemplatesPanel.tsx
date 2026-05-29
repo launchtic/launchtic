@@ -205,6 +205,7 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
   const [description, setDescription] = useState(template.description ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(template.thumbnailUrl);
   const [isActive, setIsActive] = useState(template.isActive);
+  const [type, setType] = useState<StepType>(template.type);
   const [tags, setTags] = useState<string[]>(template.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -232,12 +233,12 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
     const res = await apiFetch(`/api/page-templates/${template.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description: description || null, thumbnailUrl, isActive, tags: finalTags }),
+      body: JSON.stringify({ name, description: description || null, thumbnailUrl, isActive, type, tags: finalTags }),
     });
     const json = await res.json();
     setSaving(false);
     if (!res.ok) { setError(json.error ?? "Failed to save"); return; }
-    onSaved({ ...template, name, description: description || null, thumbnailUrl, isActive, tags: finalTags });
+    onSaved({ ...template, name, description: description || null, thumbnailUrl, isActive, type, tags: finalTags });
     onClose();
   }
 
@@ -325,7 +326,20 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Type</label>
-            <div className="px-3 py-2 bg-gray-50 rounded-xl border border-gray-200"><TypeBadge type={template.type} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              {STEP_TYPES.map((s) => (
+                <button key={s.value} type="button" disabled={!canManagePageTemplates} onClick={() => setType(s.value)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                    type === s.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                  }`}>
+                  <span className={`${s.color} p-1 rounded-md`}>{s.icon}</span>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">
+              Re-categorizes the template — controls which step type it shows up for.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Status</label>

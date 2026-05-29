@@ -34,6 +34,7 @@ const patchSchema = z.object({
   meta:         metaSchema,
   tags:         z.array(z.string().min(1).max(40)).max(20).optional(),
   isActive:     z.boolean().optional(),
+  type:         z.enum(["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -73,6 +74,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (data.meta         !== undefined) updateData.meta         = data.meta;
     if (data.tags         !== undefined) updateData.tags         = data.tags;
     if (data.isActive     !== undefined) updateData.isActive     = data.isActive;
+    if (data.type         !== undefined) updateData.type         = data.type;
 
     if (Object.keys(updateData).length === 0) return err("No fields to update", 400);
 
