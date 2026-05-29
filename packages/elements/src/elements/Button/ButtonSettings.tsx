@@ -20,7 +20,9 @@ import { ButtonHoverSettings } from "../../editor/toolbar/ButtonHoverSettings";
 import { ButtonProps } from "../ElementProps";
 import { SettingsGroupLarge, Label, Input, InputWrapper } from "../../editor/common/SettingsUI";
 
-export const ButtonSettings: React.FC = () => {
+// `showAction=false` hides the Action / redirect / double-opt-in section — used
+// by the Offer buttons (Accept/Decline) whose click behavior is fixed.
+export const ButtonSettings: React.FC<{ showAction?: boolean }> = ({ showAction = true }) => {
   const {
     actions: { setProp },
     text,
@@ -143,23 +145,25 @@ export const ButtonSettings: React.FC = () => {
   return (
     <>
      
-      {/* Button Action Settings */}
-      <ButtonActionSettings
-        action={action}
-        redirectionType={redirectionType}
-        linkUrl={linkUrl}
-        nofollow={nofollow}
-        popup={popup}
-        doubleOptIn={doubleOptIn}
-        updateProperty={(property, value) => {
-          if (property === "action") updateProp("action")(value);
-          else if (property === "redirectionType") updateProp("redirectionType")(value);
-          else if (property === "linkUrl") updateProp("linkUrl")(value);
-          else if (property === "nofollow") updateProp("nofollow")(value);
-          else if (property === "popup") updateProp("popup")(value);
-          else if (property === "doubleOptIn") updateProp("doubleOptIn")(value);
-        }}
-      />
+      {/* Button Action Settings — hidden for Offer buttons (fixed behavior) */}
+      {showAction && (
+        <ButtonActionSettings
+          action={action}
+          redirectionType={redirectionType}
+          linkUrl={linkUrl}
+          nofollow={nofollow}
+          popup={popup}
+          doubleOptIn={doubleOptIn}
+          updateProperty={(property, value) => {
+            if (property === "action") updateProp("action")(value);
+            else if (property === "redirectionType") updateProp("redirectionType")(value);
+            else if (property === "linkUrl") updateProp("linkUrl")(value);
+            else if (property === "nofollow") updateProp("nofollow")(value);
+            else if (property === "popup") updateProp("popup")(value);
+            else if (property === "doubleOptIn") updateProp("doubleOptIn")(value);
+          }}
+        />
+      )}
       {/* Button Text Settings */}
       <SettingsGroupLarge>
         <Label>Button text</Label>

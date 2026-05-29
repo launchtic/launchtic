@@ -1113,9 +1113,12 @@ export type CrossDomainPerm = {
   canManagePricePlans: boolean;
 };
 
-export default function ProductsTab({ stepId }: { stepId: string }) {
+export default function ProductsTab({ stepId, stepType }: { stepId: string; stepType?: string }) {
   const params = useParams();
   const slug = params.workspaceSlug as string;
+  // Coupons + Order Bumps are checkout-form concepts. Upsell/Downsell are
+  // one-click fixed-price charges (no cart, no coupon entry) → hide them there.
+  const isCheckout = stepType === "CHECKOUT";
   const {
     canManageFunnels,
     canManagePricePlans,
@@ -1396,13 +1399,16 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
             plans={plans} currency={funnelCurrency}
             onAdd={handleAddPlan} onEdit={handleEditPlan} onDelete={handleDeletePlan}
             saving={savingPlan}
+            // One-click upsell/downsell = a single fixed offer; checkout can have
+            // multiple pricing tiers.
+            maxPlans={isCheckout ? undefined : 1}
             canManage={canManagePricePlans}
           />
         </>
       )}
 
-      {/* Coupons */}
-      {offerType && (
+      {/* Coupons — checkout only (no coupon entry on one-click upsell/downsell) */}
+      {offerType && isCheckout && (
         <div className="border-t pt-5">
           <CouponsSection
             stepId={stepId}
@@ -1415,8 +1421,8 @@ export default function ProductsTab({ stepId }: { stepId: string }) {
         </div>
       )}
 
-      {/* Order Bumps */}
-      {offerType && (
+      {/* Order Bumps — checkout only (no cart add-ons on one-click upsell/downsell) */}
+      {offerType && isCheckout && (
         <div className="border-t pt-5">
           <OrderBumpsSection
             stepId={stepId}

@@ -251,12 +251,16 @@ function OfferButtonView({ props, kind, indicatorName }: {
   );
 }
 
+// Offer buttons reuse the Button styling panel but hide the Action/redirect
+// section — their click behavior is fixed (charge / navigate).
+const OfferButtonSettings: React.FC = () => <ButtonSettings showAction={false} />;
+
 export const AcceptOfferButton: UserComponent<ButtonProps> = (props) => (
   <OfferButtonView props={props} kind="accept" indicatorName="Accept offer button" />
 );
 AcceptOfferButton.craft = {
   props: { ...DEFAULT_STYLES.button, text: "Yes, add it to my order" },
-  related: { settings: ButtonSettings },
+  related: { settings: OfferButtonSettings },
   displayName: "Accept offer button",
 };
 
@@ -265,6 +269,6 @@ export const DeclineOfferButton: UserComponent<ButtonProps> = (props) => (
 );
 DeclineOfferButton.craft = {
   props: { ...DEFAULT_STYLES.button, text: "No thanks", backgroundColor: "transparent", color: "#6b7280" },
-  related: { settings: ButtonSettings },
+  related: { settings: OfferButtonSettings },
   displayName: "Decline offer button",
 };

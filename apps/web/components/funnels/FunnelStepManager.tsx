@@ -536,7 +536,7 @@ export default function FunnelStepManager({
       {/* Add step */}
       {canManageFunnels && (
         <div className="p-3 border-t border-gray-100">
-          <AddStepDialog funnelId={funnel.id} fullWidth />
+          <AddStepDialog funnelId={funnel.id} fullWidth canUpsell={canUpsell} />
         </div>
       )}
     </div>
@@ -654,7 +654,7 @@ export default function FunnelStepManager({
             {activeTab === "configuration" && (
               <ConfigurationTab key={selectedStep.id} step={selectedStep} steps={steps} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} canUpsell={canUpsell} onUpdate={handleStepUpdate} />
             )}
-            {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} />}
+            {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} stepType={selectedStep.type} />}
             {activeTab === "ab"            && (
               <AbTestPanel
                 key={selectedStep.id}

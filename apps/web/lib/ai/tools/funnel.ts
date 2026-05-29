@@ -10,6 +10,8 @@ import { extractSlotsFromPageJson } from "../../page-templates/slots";
 import { fillSlotsInPageJson } from "../../page-templates/slot-filler";
 import { fillSlotsWithAI } from "../../page-templates/ai-fill";
 import { generateUniqueSlug } from "../../funnels/slug-validation";
+import { getOrganizationForWorkspace, getEffectivePlan } from "../../organization";
+import { getPlanFeatures } from "../../plan";
 
 // Stripe + PayPal intersection. Source of truth: @launchtic/types.
 // VND, IDR, INR etc. are NOT supported (Stripe lacks them, or PayPal does).
@@ -784,6 +786,15 @@ const addFunnelStep = defineTool({
       select: { id: true },
     });
     if (!funnelMeta) throw new Error("Funnel not found");
+
+    // Plan gate: one-click upsell/downsell steps require the `upsells` feature.
+    if (args.type === "UPSELL" || args.type === "DOWNSELL") {
+      const org = await getOrganizationForWorkspace(ctx.workspaceId);
+      if (!getPlanFeatures(getEffectivePlan(org)).upsells) {
+        throw new Error("One-click upsells & downsells require a paid plan. Upgrade to unlock.");
+      }
+    }
+
     const slug = await generateUniqueSlug({
       workspaceId: ctx.workspaceId,
       funnelId: args.funnelId,

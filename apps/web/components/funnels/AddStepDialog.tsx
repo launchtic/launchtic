@@ -11,19 +11,24 @@ const STEP_TYPES = [
   { value: "OPTIN",    label: "Opt-in" },
   { value: "SALES",    label: "Sales" },
   { value: "CHECKOUT", label: "Checkout" },
-  { value: "UPSELL",   label: "Upsell (one-click)" },
-  { value: "DOWNSELL", label: "Downsell (one-click)" },
+  { value: "UPSELL",   label: "Upsell" },
+  { value: "DOWNSELL", label: "Downsell" },
   { value: "THANKYOU", label: "Thank You" },
   { value: "CUSTOM",   label: "Custom page (About / Privacy / Terms)" },
 ];
 
-export default function AddStepDialog({ funnelId, fullWidth }: { funnelId: string; fullWidth?: boolean }) {
+export default function AddStepDialog({ funnelId, fullWidth, canUpsell = false }: { funnelId: string; fullWidth?: boolean; canUpsell?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [type, setType] = useState("OPTIN");
   const router = useRouter();
+
+  // UPSELL/DOWNSELL require the `upsells` plan feature — hide them otherwise.
+  const stepTypes = canUpsell
+    ? STEP_TYPES
+    : STEP_TYPES.filter((t) => t.value !== "UPSELL" && t.value !== "DOWNSELL");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -94,7 +99,7 @@ export default function AddStepDialog({ funnelId, fullWidth }: { funnelId: strin
                   onChange={(e) => setType(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {STEP_TYPES.map((t) => (
+                  {stepTypes.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
