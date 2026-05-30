@@ -18,11 +18,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const log = await db.emailSend.findFirst({
       where: { id, workspaceId },
       include: {
-        broadcast:        { select: { id: true, subject: true, htmlBody: true, fromEmail: true, fromName: true } },
-        template:         { select: { id: true, subject: true, htmlBody: true } },
-        sequenceStep:     { select: { id: true, emailSubject: true, emailHtmlBody: true, emailFromName: true, emailFromEmail: true } },
-        automationAction: { select: { id: true, emailSubject: true, emailHtmlBody: true, emailFromName: true, emailFromEmail: true } },
-        contact:          { select: { id: true, email: true, firstName: true, lastName: true } },
+        broadcast: { select: { id: true, subject: true, htmlBody: true, fromEmail: true, fromName: true } },
+        template:  { select: { id: true, subject: true, htmlBody: true } },
+        contact:   { select: { id: true, email: true, firstName: true, lastName: true } },
       },
     });
     if (!log) return err("Email log not found", 404);
@@ -36,35 +34,27 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return err("SMTP not configured. Configure it in Settings → SMTP first.", 400);
     }
 
+    // Use rendered bodyHtml + subject snapshots when available — Phase 1C
+    // removed automation/sequence step joins, so workflow-sourced emails rely
+    // on their snapshotted body/subject (always populated at create time).
     const sourceHtml =
       log.broadcast?.htmlBody ??
-      log.sequenceStep?.emailHtmlBody ??
-      log.automationAction?.emailHtmlBody ??
+      log.bodyHtml ??
       log.template?.htmlBody ??
       null;
     const sourceSubject =
       log.broadcast?.subject ??
-      log.sequenceStep?.emailSubject ??
-      log.automationAction?.emailSubject ??
+      log.subject ??
       log.template?.subject ??
       null;
     if (!sourceHtml || !sourceSubject) {
       return err("Cannot retry — source content not available.", 400);
     }
 
-    // Resolve sender from snapshot. Broadcast / step / action all carry their
-    // own from-fields; templates don't, so fall back to the workspace's
-    // default Sender Identity.
-    let fromEmail: string | null =
-      log.broadcast?.fromEmail ??
-      log.sequenceStep?.emailFromEmail ??
-      log.automationAction?.emailFromEmail ??
-      null;
-    let fromName: string | null =
-      log.broadcast?.fromName ??
-      log.sequenceStep?.emailFromName ??
-      log.automationAction?.emailFromName ??
-      null;
+    // Resolve sender. Broadcast carries its own; everything else (including
+    // workflow-sent emails) falls through to the workspace's default Sender Identity.
+    let fromEmail: string | null = log.broadcast?.fromEmail ?? null;
+    let fromName:  string | null = log.broadcast?.fromName  ?? null;
     if (!fromEmail || !fromName) {
       const def = await db.senderIdentity.findFirst({
         where: { workspaceId },

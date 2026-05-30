@@ -20,7 +20,7 @@ export default async function ContactDetailPage({ params }: Params) {
   const { id, workspaceSlug } = await params;
   const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "contacts:read");
 
-  const [contact, tags, enrollments] = await Promise.all([
+  const [contact, tags] = await Promise.all([
     db.contact.findFirst({
       where: { id, workspaceId },
       include: {
@@ -30,27 +30,6 @@ export default async function ContactDetailPage({ params }: Params) {
       },
     }),
     db.tag.findMany({ where: { workspaceId }, orderBy: { name: "asc" } }),
-    db.contactSequenceEnrollment.findMany({
-      where: { contactId: id, workspaceId },
-      orderBy: { enrolledAt: "desc" },
-      take: 20,
-      select: {
-        id: true,
-        status: true,
-        currentStepIndex: true,
-        nextSendAt: true,
-        enrolledAt: true,
-        completedAt: true,
-        exitReason: true,
-        sequence: {
-          select: {
-            id: true,
-            name: true,
-            _count: { select: { steps: true } },
-          },
-        },
-      },
-    }),
   ]);
 
   if (!contact) notFound();
@@ -78,17 +57,5 @@ export default async function ContactDetailPage({ params }: Params) {
 
   const serializedTags = tags.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
-  const serializedEnrollments = enrollments.map((e) => ({
-    id: e.id,
-    status: e.status,
-    currentStepIndex: e.currentStepIndex,
-    totalSteps: e.sequence._count.steps,
-    nextSendAt: e.nextSendAt.toISOString(),
-    enrolledAt: e.enrolledAt.toISOString(),
-    completedAt: e.completedAt?.toISOString() ?? null,
-    exitReason: e.exitReason,
-    sequence: { id: e.sequence.id, name: e.sequence.name },
-  }));
-
-  return <ContactDetail contact={serialized} allTags={serializedTags} enrollments={serializedEnrollments} />;
+  return <ContactDetail contact={serialized} allTags={serializedTags} enrollments={[]} />;
 }

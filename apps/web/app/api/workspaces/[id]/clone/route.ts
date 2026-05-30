@@ -167,38 +167,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
-      // ── Email Sequences (+ steps) ───────────────────────────────────
-      // SequenceStep keeps its snapshot subject/html (sequence runs without
-      // the template FK). emailTemplateId is dropped — user can re-link in
-      // the new workspace if they want template-driven edits.
-      if (inc.sequences) {
-        const sequences = await tx.emailSequence.findMany({
-          where: { workspaceId: sourceId },
-          include: { steps: true },
-        });
-        for (const seq of sequences) {
-          const createdSeq = await tx.emailSequence.create({
+      // ── Workflows (graph clone) ─────────────────────────────────────
+      // Always cloned as DRAFT. Nodes/edges JSON carried as-is — tag IDs
+      // and other resource refs in node configs point at the source
+      // workspace's resources, so operator re-wires after clone.
+      if (inc.sequences || inc.automations) {
+        const workflows = await tx.workflow.findMany({ where: { workspaceId: sourceId } });
+        for (const wf of workflows) {
+          await tx.workflow.create({
             data: {
-              workspaceId: newWsId,
-              name:        seq.name,
-              status:      seq.status,
+              workspaceId:          newWsId,
+              name:                 wf.name,
+              description:          wf.description,
+              status:               "DRAFT",
+              triggerType:          wf.triggerType,
+              triggerConfig:        {},
+              nodes:                wf.nodes as any,
+              edges:                wf.edges as any,
+              startNodeId:          wf.startNodeId,
+              reEnrollPolicy:       wf.reEnrollPolicy,
+              reEnrollCooldownDays: wf.reEnrollCooldownDays,
+              maxDurationDays:      wf.maxDurationDays,
             },
-            select: { id: true },
           });
-          for (const step of seq.steps) {
-            await tx.sequenceStep.create({
-              data: {
-                sequenceId:      createdSeq.id,
-                order:           step.order,
-                delayMinutes:    step.delayMinutes,
-                emailTemplateId: null,
-                emailSubject:    step.emailSubject,
-                emailHtmlBody:   step.emailHtmlBody,
-                emailFromName:   step.emailFromName,
-                emailFromEmail:  step.emailFromEmail,
-              },
-            });
-          }
         }
       }
 
@@ -251,44 +242,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 couponIds:         [],
                 pageJson:          s.pageJson ?? {},
                 meta:              s.meta ?? undefined,
-              },
-            });
-          }
-        }
-      }
-
-      // ── Automations (+ actions) ─────────────────────────────────────
-      // Cloned as DRAFT with cleared trigger/action configs — broken refs
-      // would otherwise either silently no-op or fire on the wrong resource.
-      // User reviews each automation and rebuilds its wiring in the new ws.
-      if (inc.automations) {
-        const autos = await tx.automation.findMany({
-          where: { workspaceId: sourceId },
-          include: { actions: true },
-        });
-        for (const a of autos) {
-          const newAuto = await tx.automation.create({
-            data: {
-              workspaceId:   newWsId,
-              name:          a.name,
-              status:        "DRAFT",
-              triggerType:   a.triggerType,
-              triggerConfig: {},
-            },
-            select: { id: true },
-          });
-          for (const act of a.actions) {
-            await tx.automationAction.create({
-              data: {
-                automationId:    newAuto.id,
-                order:           act.order,
-                actionType:      act.actionType,
-                actionConfig:    {},
-                emailTemplateId: null,
-                emailSubject:    act.emailSubject,
-                emailHtmlBody:   act.emailHtmlBody,
-                emailFromName:   act.emailFromName,
-                emailFromEmail:  act.emailFromEmail,
               },
             });
           }

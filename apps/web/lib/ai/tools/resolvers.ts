@@ -25,18 +25,10 @@ export async function resolveTagLabel(id: string, ctx: ToolContext): Promise<str
   return t?.name ?? id;
 }
 
-export async function resolveSequenceLabel(id: string, ctx: ToolContext): Promise<string> {
-  const s = await db.emailSequence.findFirst({
+export async function resolveWorkflowLabel(id: string, ctx: ToolContext): Promise<string> {
+  const w = await db.workflow.findFirst({
     where: { id, workspaceId: ctx.workspaceId },
     select: { name: true },
   }).catch(() => null);
-  return s?.name ?? id;
-}
-
-export async function resolveAutomationLabel(id: string, ctx: ToolContext): Promise<string> {
-  const a = await db.automation.findFirst({
-    where: { id, workspaceId: ctx.workspaceId },
-    select: { name: true },
-  }).catch(() => null);
-  return a?.name ?? id;
+  return w?.name ?? id;
 }

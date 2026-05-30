@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  Plus, Workflow, Loader2, Search, Trash2, Play, Pause, FileEdit,
+  Plus, Workflow, Loader2, Search, Trash2, Play, Pause, FileEdit, Sparkles,
   ShoppingCart, FormInput, Tag as TagIcon, Tag as TagOff, MousePointerClick,
   Undo2, AlertTriangle,
 } from "lucide-react";
@@ -12,6 +12,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useRole } from "../../lib/role";
 import { apiFetch } from "../../lib/api-client";
+import TemplateGallery from "./TemplateGallery";
 
 type Status = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
 type TriggerType =
@@ -42,6 +43,7 @@ const TRIGGER_LABELS: Record<string, { label: string; Icon: typeof Workflow }> =
   TAG_ADDED:                   { label: "Tag added",                   Icon: TagIcon            },
   TAG_REMOVED:                 { label: "Tag removed",                 Icon: TagOff             },
   EMAIL_LINK_CLICKED:          { label: "Email link clicked",          Icon: MousePointerClick  },
+  CHECKOUT_STARTED:            { label: "Checkout started",            Icon: ShoppingCart       },
 };
 
 const STATUS_BADGE: Record<Status, string> = {
@@ -69,6 +71,7 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
   const [tab, setTab]       = useState<"ALL" | Status>("ALL");
   const [search, setSearch] = useState("");
   const [busy, setBusy]     = useState<string | null>(null);
+  const [showGallery, setShowGallery] = useState(false);
   const { canManageAutomations } = useRole();
 
   const filtered = useMemo(() => {
@@ -142,14 +145,23 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
           </p>
         </div>
         {canManageAutomations && (
-          <button
-            onClick={handleCreate}
-            disabled={busy === "__new"}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shrink-0 disabled:opacity-50"
-          >
-            {busy === "__new" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            New workflow
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowGallery(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors"
+            >
+              <Sparkles size={14} className="text-amber-500" />
+              Browse templates
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={busy === "__new"}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {busy === "__new" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              New workflow
+            </button>
+          </div>
         )}
       </div>
 
@@ -183,14 +195,22 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
             {items.length === 0 ? "No workflows yet. Build one to automate your funnel response." : "No workflows match your filters."}
           </p>
           {items.length === 0 && canManageAutomations && (
-            <button
-              onClick={handleCreate}
-              disabled={busy === "__new"}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {busy === "__new" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              New workflow
-            </button>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setShowGallery(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-90 rounded-xl transition-opacity"
+              >
+                <Sparkles size={14} /> Start from template
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={busy === "__new"}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {busy === "__new" ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                Blank workflow
+              </button>
+            </div>
           )}
         </div>
       ) : (
@@ -264,6 +284,7 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
           })}
         </div>
       )}
+      {showGallery && <TemplateGallery onClose={() => setShowGallery(false)} />}
     </div>
   );
 }

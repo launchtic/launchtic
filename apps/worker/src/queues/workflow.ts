@@ -494,6 +494,30 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       result = true;
       break;
     }
+    case "contact_completed_purchase": {
+      // True if the contact has a PAID Order at the trigger's funnelStepId
+      // created AFTER this run started. Used by cart-abandonment GOAL nodes
+      // to exit when the buyer completes their order during the recovery
+      // window so we don't send "did you forget?" after they've checked out.
+      if (!ctx.contactId) { result = false; break; }
+      const stepId = (cfg.funnelStepId as string | undefined) ?? (ctx.triggerData.funnelStepId as string | undefined);
+      const run = await db.workflowRun.findUnique({
+        where:  { id: ctx.runId },
+        select: { startedAt: true },
+      });
+      const since = run?.startedAt ?? new Date(0);
+      const order = await db.order.findFirst({
+        where: {
+          contactId:   ctx.contactId,
+          status:      "PAID",
+          createdAt:   { gte: since },
+          ...(stepId ? { funnelStepId: stepId } : {}),
+        },
+        select: { id: true },
+      });
+      result = !!order;
+      break;
+    }
     case "contact_has_tag": {
       if (!ctx.contact) { result = false; break; }
       const tagId = cfg.tagId as string | undefined;

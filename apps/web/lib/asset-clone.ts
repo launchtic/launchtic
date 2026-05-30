@@ -283,19 +283,6 @@ export async function rewriteWorkspaceContentAssets(
     });
   }
 
-  // ── Sequence steps (snapshot HTML, independent of EmailTemplate) ──────
-  const sequenceSteps = await db.sequenceStep.findMany({
-    where:  { sequence: { workspaceId } },
-    select: { id: true, emailHtmlBody: true },
-  });
-  for (const s of sequenceSteps) {
-    if (!s.emailHtmlBody) continue;
-    await db.sequenceStep.update({
-      where: { id: s.id },
-      data:  { emailHtmlBody: rewriteHtmlAssetUrls(s.emailHtmlBody, refs) },
-    });
-  }
-
   // ── Saved blocks ──────────────────────────────────────────────────────
   const savedBlocks = await db.savedBlock.findMany({
     where:  { workspaceId },

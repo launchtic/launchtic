@@ -14,7 +14,8 @@ export type TriggerType =
   | "FORM_SUBMIT"
   | "TAG_ADDED"
   | "TAG_REMOVED"
-  | "EMAIL_LINK_CLICKED";
+  | "EMAIL_LINK_CLICKED"
+  | "CHECKOUT_STARTED";
 
 export type TriggerContext = {
   contactId?:    string;

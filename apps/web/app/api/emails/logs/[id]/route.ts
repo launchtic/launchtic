@@ -17,13 +17,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const log = await db.emailSend.findFirst({
       where: { id, workspaceId },
       include: {
-        broadcast:        { select: { id: true, name: true, subject: true, htmlBody: true } },
-        template:         { select: { id: true, name: true, subject: true, htmlBody: true } },
-        automation:       { select: { id: true, name: true } },
-        automationAction: { select: { id: true, emailSubject: true, emailHtmlBody: true } },
-        sequence:         { select: { id: true, name: true } },
-        sequenceStep:     { select: { id: true, emailSubject: true, emailHtmlBody: true } },
-        contact:          { select: { id: true, email: true, firstName: true, lastName: true } },
+        broadcast: { select: { id: true, name: true, subject: true, htmlBody: true } },
+        template:  { select: { id: true, name: true, subject: true, htmlBody: true } },
+        contact:   { select: { id: true, email: true, firstName: true, lastName: true } },
       },
     });
     if (!log) return err("Email log not found", 404);
@@ -50,14 +46,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     } else {
       const sourceHtml =
         log.broadcast?.htmlBody ??
-        log.sequenceStep?.emailHtmlBody ??
-        log.automationAction?.emailHtmlBody ??
         log.template?.htmlBody ??
         null;
       const sourceSubject =
         log.broadcast?.subject ??
-        log.sequenceStep?.emailSubject ??
-        log.automationAction?.emailSubject ??
         log.template?.subject ??
         null;
 
@@ -84,21 +76,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
       }
     }
 
-    let sourceType: "BROADCAST" | "TEMPLATE" | "AUTOMATION" | "SEQUENCE" | "TRANSACTIONAL" = "TRANSACTIONAL";
+    let sourceType: "BROADCAST" | "TEMPLATE" | "TRANSACTIONAL" = "TRANSACTIONAL";
     let sourceName: string = log.transactionalKey ?? "Transactional";
     let sourceHref: string | null = null;
     if (log.broadcast) {
       sourceType = "BROADCAST";
       sourceName = log.broadcast.name;
       sourceHref = `/emails/broadcasts/${log.broadcast.id}`;
-    } else if (log.sequence) {
-      sourceType = "SEQUENCE";
-      sourceName = log.sequence.name;
-      sourceHref = `/sequences/${log.sequence.id}`;
-    } else if (log.automation) {
-      sourceType = "AUTOMATION";
-      sourceName = log.automation.name;
-      sourceHref = `/automations/${log.automation.id}`;
     } else if (log.template) {
       sourceType = "TEMPLATE";
       sourceName = log.template.name;

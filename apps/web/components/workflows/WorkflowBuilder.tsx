@@ -8,7 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ReactFlow, Background, Controls, MiniMap, ReactFlowProvider,
-  useNodesState, useEdgesState, addEdge, type Edge, type Node, type Connection, MarkerType,
+  useNodesState, useEdgesState, addEdge, Handle, Position,
+  type Edge, type Node, type Connection, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -79,6 +80,7 @@ const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: str
 const TRIGGER_TYPES = [
   "NEW_SALE", "SALE_CANCELED", "SUBSCRIPTION_PAYMENT_FAILED",
   "FORM_SUBMIT", "TAG_ADDED", "TAG_REMOVED", "EMAIL_LINK_CLICKED",
+  "CHECKOUT_STARTED",
 ];
 
 // ─── Custom node renderer ──────────────────────────────────────────────────
@@ -88,6 +90,11 @@ const TRIGGER_TYPES = [
 function NodeCard({ data }: { data: { type: NodeType; label?: string; isStart: boolean; subtitle?: string } }) {
   const def = NODE_DEFS[data.type];
   const Icon = def.Icon;
+  // END nodes have no outgoing handle (terminal). Every other node can both
+  // receive and send. Handles must be rendered inside the custom node for
+  // react-flow to wire edges visually — without them, edges exist in state
+  // but have no anchor point and render invisibly.
+  const handleStyle = { width: 8, height: 8, background: "#94a3b8", border: "1.5px solid white" } as const;
   return (
     <div
       style={{
@@ -100,6 +107,7 @@ function NodeCard({ data }: { data: { type: NodeType; label?: string; isStart: b
         position: "relative",
       }}
     >
+      <Handle type="target" position={Position.Top} style={handleStyle} />
       {data.isStart && (
         <div style={{ position: "absolute", top: -8, right: -8, background: "#2563eb", color: "white", borderRadius: 999, padding: "1px 6px", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", gap: 2 }}>
           <Star size={9} fill="white" /> START
@@ -112,6 +120,7 @@ function NodeCard({ data }: { data: { type: NodeType; label?: string; isStart: b
         <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{data.label ?? def.label}</div>
       </div>
       {data.subtitle && <div style={{ fontSize: 11, color: "#6b7280", marginLeft: 30 }}>{data.subtitle}</div>}
+      {data.type !== "END" && <Handle type="source" position={Position.Bottom} style={handleStyle} />}
     </div>
   );
 }
@@ -580,6 +589,7 @@ function NodeConfigForm({
           <label className={lbl}>Kind</label>
           <select className={inp} value={kind} onChange={(e) => onChange({ kind: e.target.value })}>
             <option value="contact_has_tag">Contact has tag</option>
+            <option value="contact_completed_purchase">Contact completed purchase</option>
             <option value="contact_field">Contact field</option>
             <option value="trigger_amount">Trigger amount</option>
             <option value="trigger_funnel">Trigger funnel</option>

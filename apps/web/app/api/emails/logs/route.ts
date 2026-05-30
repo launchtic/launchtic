@@ -8,7 +8,7 @@ const PAGE_SIZE = 50;
 const STATUSES = ["QUEUED", "SENT", "FAILED", "BOUNCED"] as const;
 type StatusFilter = (typeof STATUSES)[number];
 
-const SOURCES = ["BROADCAST", "TEMPLATE", "AUTOMATION", "SEQUENCE", "TRANSACTIONAL"] as const;
+const SOURCES = ["BROADCAST", "TEMPLATE", "TRANSACTIONAL"] as const;
 type SourceFilter = (typeof SOURCES)[number];
 
 const RANGES: Record<string, number> = {
@@ -38,10 +38,8 @@ export async function GET(req: NextRequest) {
 
     if (sourceParam && (SOURCES as readonly string[]).includes(sourceParam)) {
       const s = sourceParam as SourceFilter;
-      if (s === "BROADCAST")     where.broadcastId   = { not: null };
-      if (s === "TEMPLATE")      where.templateId    = { not: null };
-      if (s === "AUTOMATION")    where.automationId  = { not: null };
-      if (s === "SEQUENCE")      where.sequenceId    = { not: null };
+      if (s === "BROADCAST")     where.broadcastId      = { not: null };
+      if (s === "TEMPLATE")      where.templateId       = { not: null };
       if (s === "TRANSACTIONAL") where.transactionalKey = { not: null };
     }
 
@@ -71,8 +69,6 @@ export async function GET(req: NextRequest) {
         failedAt: true,
         broadcastId: true,
         templateId: true,
-        automationId: true,
-        sequenceId: true,
         transactionalKey: true,
         errorMessage: true,
       },
@@ -83,30 +79,20 @@ export async function GET(req: NextRequest) {
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
     // Batch-resolve source names so the list shows "Welcome blast" instead of an ID.
-    const broadcastIds  = [...new Set(items.map((r) => r.broadcastId).filter(Boolean))] as string[];
-    const templateIds   = [...new Set(items.map((r) => r.templateId).filter(Boolean))] as string[];
-    const automationIds = [...new Set(items.map((r) => r.automationId).filter(Boolean))] as string[];
-    const sequenceIds   = [...new Set(items.map((r) => r.sequenceId).filter(Boolean))] as string[];
+    const broadcastIds = [...new Set(items.map((r) => r.broadcastId).filter(Boolean))] as string[];
+    const templateIds  = [...new Set(items.map((r) => r.templateId).filter(Boolean))]  as string[];
 
-    const [broadcasts, templates, automations, sequences] = await Promise.all([
+    const [broadcasts, templates] = await Promise.all([
       broadcastIds.length
         ? db.broadcast.findMany({ where: { id: { in: broadcastIds } }, select: { id: true, name: true } })
         : [],
       templateIds.length
         ? db.emailTemplate.findMany({ where: { id: { in: templateIds } }, select: { id: true, name: true } })
         : [],
-      automationIds.length
-        ? db.automation.findMany({ where: { id: { in: automationIds } }, select: { id: true, name: true } })
-        : [],
-      sequenceIds.length
-        ? db.emailSequence.findMany({ where: { id: { in: sequenceIds } }, select: { id: true, name: true } })
-        : [],
     ]);
 
-    const broadcastMap  = new Map(broadcasts.map((b)  => [b.id, b.name]));
-    const templateMap   = new Map(templates.map((t)   => [t.id, t.name]));
-    const automationMap = new Map(automations.map((a) => [a.id, a.name]));
-    const sequenceMap   = new Map(sequences.map((s)   => [s.id, s.name]));
+    const broadcastMap = new Map(broadcasts.map((b: { id: string; name: string }) => [b.id, b.name]));
+    const templateMap  = new Map(templates.map((t:  { id: string; name: string }) => [t.id, t.name]));
 
     const resolved = items.map((r) => {
       let sourceType: SourceFilter = "TRANSACTIONAL";
@@ -116,14 +102,6 @@ export async function GET(req: NextRequest) {
         sourceType = "BROADCAST";
         sourceName = broadcastMap.get(r.broadcastId) ?? "(deleted broadcast)";
         sourceId = r.broadcastId;
-      } else if (r.sequenceId) {
-        sourceType = "SEQUENCE";
-        sourceName = sequenceMap.get(r.sequenceId) ?? "(deleted sequence)";
-        sourceId = r.sequenceId;
-      } else if (r.automationId) {
-        sourceType = "AUTOMATION";
-        sourceName = automationMap.get(r.automationId) ?? "(deleted automation)";
-        sourceId = r.automationId;
       } else if (r.templateId) {
         sourceType = "TEMPLATE";
         sourceName = templateMap.get(r.templateId) ?? "(deleted template)";

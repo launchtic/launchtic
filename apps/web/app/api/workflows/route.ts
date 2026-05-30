@@ -20,6 +20,7 @@ const TRIGGER_TYPES = [
   "TAG_ADDED",
   "TAG_REMOVED",
   "EMAIL_LINK_CLICKED",
+  "CHECKOUT_STARTED",
 ] as const;
 const STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"] as const;
 const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "SPLIT", "GOAL", "END"] as const;

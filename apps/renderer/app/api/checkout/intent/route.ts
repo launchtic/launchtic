@@ -4,6 +4,7 @@ import { redis } from "../../../../lib/redis";
 import { getProvider } from "../../../../lib/payments/registry";
 import type { CheckoutInput, BumpPlanRow } from "../../../../lib/payments/types";
 import { isPaypalSupported } from "../../../../lib/payments/currency";
+import { fireTrigger } from "../../../../lib/automations";
 
 function ok(data: Record<string, unknown>) {
   return NextResponse.json({ success: true, ...data });
@@ -91,6 +92,15 @@ export async function POST(req: NextRequest) {
     await db.contactEvent.create({
       data: { contactId: contact.id, type: "FORM_SUBMIT", data: { funnelStepId }, ip: ip ?? null },
     });
+
+    // Fire CHECKOUT_STARTED for workflows (cart abandonment recovery, etc.).
+    // The workflow's GOAL nodes use condition kind `contact_completed_purchase`
+    // to short-circuit if the buyer completes the order in time.
+    fireTrigger(workspaceId, "CHECKOUT_STARTED", {
+      contactId:    contact.id,
+      funnelId:     step?.funnel?.id,
+      funnelStepId,
+    }).catch(() => {});
 
     // Validate coupon server-side (if provided)
     let validatedCoupon: { code: string; discountAmount: number; type: string } | null = null;

@@ -35,8 +35,7 @@ const listEmailLogs = defineTool({
       select: {
         id: true, toEmail: true, subject: true, status: true,
         errorMessage: true, queuedAt: true, sentAt: true, failedAt: true,
-        broadcastId: true, sequenceId: true, automationId: true,
-        transactionalKey: true,
+        broadcastId: true, templateId: true, transactionalKey: true,
       },
     });
     return {
@@ -46,11 +45,10 @@ const listEmailLogs = defineTool({
         to:           l.toEmail,
         subject:      l.subject,
         status:       l.status,
-        source:       l.broadcastId    ? "broadcast"
-                    : l.sequenceId     ? "sequence"
-                    : l.automationId   ? "automation"
+        source:       l.broadcastId      ? "broadcast"
+                    : l.templateId       ? "template"
                     : l.transactionalKey ? `transactional (${l.transactionalKey})`
-                    : "unknown",
+                    : "workflow",
         error:        l.errorMessage ?? null,
         queuedAt:     l.queuedAt.toISOString(),
         sentAt:       l.sentAt?.toISOString() ?? null,
