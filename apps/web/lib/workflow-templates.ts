@@ -25,7 +25,7 @@ export type WorkflowTemplate = {
   id:           string;
   name:         string;
   description:  string;
-  category:     "Sales" | "Onboarding" | "Re-engagement" | "Retention" | "Tagging";
+  category:     "Sales" | "Onboarding" | "Re-engagement" | "Retention" | "Tagging" | "Rules";
   icon:         string; // lucide icon name
   badge?:       "Flagship" | "Popular" | "New";
   triggerType:  string;
@@ -43,11 +43,14 @@ export type WorkflowTemplate = {
 // (CONDITION → true/false) use col=-1 / +1 to split paths left/right
 // so the canvas reads as a tree, not a stacked column.
 
-const Y_STEP = 130;
-const X_STEP = 260;
+// Y_STEP must be ≥ node card height (~70px) + arrow gap + edge label space.
+// 150 leaves a clean 80px vertical edge, enough room for the smoothstep curve
+// and the optional true/false chip on CONDITION/GOAL outputs.
+const Y_STEP = 150;
+const X_STEP = 280;
 const X_CENTER = 360;
 
-function y(i: number) { return 100 + i * Y_STEP; }
+function y(i: number) { return 160 + i * Y_STEP; }
 function x(col: number = 0) { return X_CENTER + col * X_STEP; }
 
 function emailNode(id: string, idx: number, subject: string, bodyHtml: string, col = 0): TemplateNode {
@@ -76,6 +79,9 @@ function condAmount(id: string, idx: number, gte: number, col = 0): TemplateNode
 }
 function endNode(id: string, idx: number, col = 0): TemplateNode {
   return { id, type: "END", position: { x: x(col), y: y(idx) } };
+}
+function webhookNode(id: string, idx: number, url: string, col = 0): TemplateNode {
+  return { id, type: "WEBHOOK", position: { x: x(col), y: y(idx) }, config: { url, method: "POST" } };
 }
 function edge(id: string, source: string, target: string, label?: string): TemplateEdge {
   return { id, source, target, label };
@@ -478,6 +484,125 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       edge("e1", "email1", "delay1"),
       edge("e2", "delay1", "email2"),
       edge("e3", "email2", "end"),
+    ],
+  },
+
+  // ─── Quick Rules ─────────────────────────────────────────────────────────
+  // Single-action workflows that replace "automation rules" in other tools
+  // (Klaviyo/HubSpot/Mailchimp). Each is 2-3 nodes — clone, pick the tag/URL,
+  // activate. No editing copy required.
+
+  // ─── 11. Quick Rule: Auto-tag form leads ─────────────────────────────────
+  {
+    id: "rule_autotag_form_lead",
+    name: "Quick Rule — Auto-tag form leads",
+    description: "Every contact who submits a form gets a tag. Filter the trigger by funnel to scope to one campaign.",
+    category: "Rules",
+    icon: "TagPlus",
+    badge: "New",
+    triggerType: "FORM_SUBMIT",
+    triggerConfig: {},
+    reEnrollPolicy: "SINGLE_ACTIVE",
+    startNodeId: "tag1",
+    nodes: [
+      tagNode("tag1", 0, "ADD_TAG"),
+      endNode("end", 1),
+    ],
+    edges: [
+      edge("e1", "tag1", "end"),
+    ],
+  },
+
+  // ─── 12. Quick Rule: Webhook alert on high-value sale ────────────────────
+  {
+    id: "rule_webhook_big_sale",
+    name: "Quick Rule — Slack/CRM alert on $500+ sale",
+    description: "Ping any HTTP endpoint (Slack incoming webhook, Zapier, custom CRM) when a sale ≥ $500 closes.",
+    category: "Rules",
+    icon: "Bell",
+    badge: "New",
+    triggerType: "NEW_SALE",
+    triggerConfig: {},
+    reEnrollPolicy: "ALWAYS",
+    startNodeId: "cond1",
+    nodes: [
+      condAmount("cond1", 0, 50000), // $500.00 in cents
+      webhookNode("webhook1", 1, "https://hooks.slack.com/services/REPLACE_ME", -1),
+      endNode("end_hit", 2, -1),
+      endNode("end_skip", 1, 1),
+    ],
+    edges: [
+      edge("e1", "cond1", "webhook1", "true"),
+      edge("e2", "cond1", "end_skip", "false"),
+      edge("e3", "webhook1", "end_hit"),
+    ],
+  },
+
+  // ─── 13. Quick Rule: Trial → Paid tag swap ───────────────────────────────
+  {
+    id: "rule_upgrade_tag_swap",
+    name: "Quick Rule — Trial → Paid tag swap",
+    description: "When someone buys, remove their `trial` tag and add `paid-customer`. Keeps your segments clean.",
+    category: "Rules",
+    icon: "ArrowUpCircle",
+    triggerType: "NEW_SALE",
+    triggerConfig: {},
+    reEnrollPolicy: "ALWAYS",
+    startNodeId: "remove1",
+    nodes: [
+      tagNode("remove1", 0, "REMOVE_TAG"),
+      tagNode("add1", 1, "ADD_TAG"),
+      endNode("end", 2),
+    ],
+    edges: [
+      edge("e1", "remove1", "add1"),
+      edge("e2", "add1", "end"),
+    ],
+  },
+
+  // ─── 14. Quick Rule: Refund cleanup ──────────────────────────────────────
+  {
+    id: "rule_refund_cleanup",
+    name: "Quick Rule — Refund cleanup",
+    description: "On refund: remove `customer` tag, add `refunded`. Use this to exclude refunded buyers from upsell campaigns.",
+    category: "Rules",
+    icon: "Eraser",
+    triggerType: "SALE_CANCELED",
+    triggerConfig: {},
+    reEnrollPolicy: "ALWAYS",
+    startNodeId: "remove1",
+    nodes: [
+      tagNode("remove1", 0, "REMOVE_TAG"),
+      tagNode("add1", 1, "ADD_TAG"),
+      endNode("end", 2),
+    ],
+    edges: [
+      edge("e1", "remove1", "add1"),
+      edge("e2", "add1", "end"),
+    ],
+  },
+
+  // ─── 15. Quick Rule: VIP threshold tagger ────────────────────────────────
+  {
+    id: "rule_vip_threshold",
+    name: "Quick Rule — Tag VIP buyers",
+    description: "Any order ≥ $500 → contact gets a `vip` tag. Combine with broadcast segments for VIP-only offers.",
+    category: "Rules",
+    icon: "Crown",
+    triggerType: "NEW_SALE",
+    triggerConfig: {},
+    reEnrollPolicy: "ALWAYS",
+    startNodeId: "cond1",
+    nodes: [
+      condAmount("cond1", 0, 50000),
+      tagNode("tag_vip", 1, "ADD_TAG", -1),
+      endNode("end_yes", 2, -1),
+      endNode("end_no", 1, 1),
+    ],
+    edges: [
+      edge("e1", "cond1", "tag_vip", "true"),
+      edge("e2", "cond1", "end_no",  "false"),
+      edge("e3", "tag_vip", "end_yes"),
     ],
   },
 ];

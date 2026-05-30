@@ -3,18 +3,27 @@
 // Visual workflow builder — react-flow canvas + node palette + properties panel.
 // Auto-saves debounced; explicit Activate transitions DRAFT→ACTIVE via the
 // status endpoint (which validates the graph server-side too).
+//
+// Pattern 1 layout: the Trigger is rendered as a special first canvas node
+// (locked, non-deletable). The edge FROM the trigger node to any action node
+// determines `startNodeId` — there is no separate "set as start" UI. Trigger
+// type + funnel/step filter are edited via the properties panel when the
+// trigger node is selected. The trigger node and its outgoing edge are virtual
+// at the persistence layer: filtered out on save, re-injected on load.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ReactFlow, Background, Controls, MiniMap, ReactFlowProvider,
-  useNodesState, useEdgesState, addEdge, Handle, Position,
+  useNodesState, useEdgesState, addEdge, Handle, Position, useStore,
   type Edge, type Node, type Connection, MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import dagre from "@dagrejs/dagre";
 import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
-  GitBranch, Split as SplitIcon, Target, Square, Loader2, Save, History, Star,
+  GitBranch, Split as SplitIcon, Target, Square, Loader2, Save, History, Zap, X,
+  Undo2, Redo2, Trash2,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
@@ -63,6 +72,104 @@ type Props = {
   funnels:  { id: string; name: string; steps: { id: string; name: string; type: string }[] }[];
 };
 
+// Reserved IDs for the virtual trigger node + its outgoing edge. Filtered out
+// when persisting `nodes` and `edges` JSON to the database.
+const TRIGGER_ID = "__trigger";
+const TRIGGER_EDGE_ID = "__trigger_edge";
+
+// ─── Auto-layout (dagre) ────────────────────────────────────────────────────
+// Every structural change to the graph (add/delete/connect) re-runs dagre to
+// keep the diagram clean. User cannot drag nodes manually — keeps the canvas
+// consistent across sessions and devices, matching Klaviyo / Mailchimp / etc.
+// Node sizes are approximate; dagre uses them to size lanes/gaps. Tweak NODE_*
+// to taste.
+
+// Node widths must match the rendered card so dagre allocates correct lane
+// space — otherwise siblings overlap when subtitle text is long. Cards
+// truncate subtitle to keep width fixed (see maxWidth/ellipsis in NodeCard).
+// Trigger card and step cards share the same width so dagre's center-align
+// produces a perfectly vertical edge between them. Trigger gets a slightly
+// taller card (extra row for trigger subtitle) but the width matches.
+const NODE_W         = 220;
+const NODE_H         = 76;
+const TRIGGER_W      = 220;
+const TRIGGER_H      = 80;
+const LAYOUT_RANKSEP = 90;
+const LAYOUT_NODESEP = 120;
+
+// Gap between the trigger card bottom and the first-step card top. Smaller
+// than the regular ranksep so the trigger reads as a "header" attached to the
+// flow rather than a separate floating node.
+const TRIGGER_FIRST_GAP = 30;
+
+function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
+  if (nodes.length === 0) return nodes;
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: "TB",
+    ranksep: LAYOUT_RANKSEP,
+    nodesep: LAYOUT_NODESEP,
+    marginx: 40,
+    marginy: 40,
+  });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  for (const n of nodes) {
+    const isTrigger = n.id === TRIGGER_ID;
+    g.setNode(n.id, {
+      width:  isTrigger ? TRIGGER_W : NODE_W,
+      height: isTrigger ? TRIGGER_H : NODE_H,
+    });
+  }
+  for (const e of edges) g.setEdge(e.source, e.target);
+
+  dagre.layout(g);
+
+  const laid = nodes.map((n) => {
+    const p = g.node(n.id);
+    if (!p) return n;
+    return { ...n, position: { x: p.x - p.width / 2, y: p.y - p.height / 2 } };
+  });
+
+  // Post-process trigger: snap it directly above the first step so the start
+  // edge is (a) perfectly vertical — fixing the horizontal-offset wobble from
+  // dagre's lane assignment when trigger.width ≠ node.width — and (b) short,
+  // matching the "header attached to flow" look of Klaviyo / Mailchimp.
+  const triggerNode  = laid.find((n) => n.id === TRIGGER_ID);
+  const startEdge    = edges.find((e) => e.source === TRIGGER_ID);
+  const firstStepNode = startEdge ? laid.find((n) => n.id === startEdge.target) : undefined;
+  if (triggerNode && firstStepNode) {
+    // Center-align X: triggerLeft = firstStepCenterX - TRIGGER_W/2
+    triggerNode.position.x = firstStepNode.position.x + (NODE_W - TRIGGER_W) / 2;
+    triggerNode.position.y = firstStepNode.position.y - TRIGGER_H - TRIGGER_FIRST_GAP;
+  }
+
+  return laid;
+}
+
+// Structural key: changes only when the graph topology shifts (add/delete a
+// node, add/delete/redirect an edge). Stable across position drift, data
+// updates, and node selection — so the layout effect doesn't loop.
+function structuralKey(nodes: Node[], edges: Edge[]): string {
+  const ns = nodes.map((n) => n.id).sort().join(",");
+  const es = edges.map((e) => `${e.source}>${e.target}`).sort().join("|");
+  return `${ns};${es}`;
+}
+
+// Context lets the custom node components reach into the builder's state
+// without us threading callbacks through node.data (which would force the
+// autosave hash to recompute every render).
+const BuilderContext = createContext<{
+  openPicker: (sourceNodeId: string) => void;
+  deleteNode: (nodeId: string) => void;
+} | null>(null);
+
+function useBuilder() {
+  const ctx = useContext(BuilderContext);
+  if (!ctx) throw new Error("Custom workflow node/edge rendered outside BuilderContext");
+  return ctx;
+}
+
 // ─── Node metadata ──────────────────────────────────────────────────────────
 
 const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: string; defaultConfig: Record<string, unknown> }> = {
@@ -83,49 +190,195 @@ const TRIGGER_TYPES = [
   "CHECKOUT_STARTED",
 ];
 
-// ─── Custom node renderer ──────────────────────────────────────────────────
-// Compact card with icon + label. CONDITION nodes get visual marker for the
-// true/false branches so designers see at a glance which way is which.
+function triggerHumanLabel(t: string): string {
+  return t.replace(/_/g, " ").toLowerCase();
+}
 
-function NodeCard({ data }: { data: { type: NodeType; label?: string; isStart: boolean; subtitle?: string } }) {
+// ─── Custom node renderers ──────────────────────────────────────────────────
+
+const handleStyle = { width: 8, height: 8, background: "#94a3b8", border: "1.5px solid white" } as const;
+
+// Inline "+" button rendered below the node card. Click opens the action
+// picker modal anchored at this source node. Visible only when this node
+// can accept a new outgoing edge (END never; linear types only when
+// no outgoing edge yet; CONDITION/GOAL/SPLIT always — they fan out).
+function NextStepButton({ onClick, accent }: { onClick: () => void; accent?: string }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      title="Add next step"
+      style={{
+        position: "absolute",
+        bottom: -34,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 24,
+        height: 24,
+        borderRadius: 999,
+        border: `1.5px dashed ${accent ?? "#cbd5e1"}`,
+        background: "white",
+        color: accent ?? "#64748b",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        zIndex: 10,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+      }}
+      className="hover:!border-solid hover:!scale-110 transition-transform"
+    >
+      <Plus size={12} />
+    </button>
+  );
+}
+
+// `canAddNext` is computed by each node from the live edges store — so the
+// "+" appears/disappears reactively without needing the parent to push flags
+// into node.data on every edges update.
+//
+// Rules per node type:
+//   • TRIGGER             → only one outgoing edge allowed
+//   • END                 → terminal, never adds
+//   • CONDITION / GOAL    → at most 2 outgoing (true / false branches)
+//   • SPLIT               → unbounded (weighted random routes)
+//   • everything else     → at most 1 outgoing (linear chain)
+function useCanAddNext(nodeId: string, nodeType: NodeType | "TRIGGER"): boolean {
+  return useStore((s) => {
+    const outgoingCount = s.edges.reduce((n, e) => e.source === nodeId ? n + 1 : n, 0);
+    if (nodeType === "TRIGGER")  return outgoingCount < 1;
+    if (nodeType === "END")      return false;
+    if (nodeType === "SPLIT")    return true;
+    if (nodeType === "CONDITION" || nodeType === "GOAL") return outgoingCount < 2;
+    return outgoingCount < 1;
+  });
+}
+
+function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtitle?: string }; id: string }) {
   const def = NODE_DEFS[data.type];
   const Icon = def.Icon;
-  // END nodes have no outgoing handle (terminal). Every other node can both
-  // receive and send. Handles must be rendered inside the custom node for
-  // react-flow to wire edges visually — without them, edges exist in state
-  // but have no anchor point and render invisibly.
-  const handleStyle = { width: 8, height: 8, background: "#94a3b8", border: "1.5px solid white" } as const;
+  const { openPicker, deleteNode } = useBuilder();
+  const canAddNext = useCanAddNext(id, data.type);
   return (
     <div
+      className="group/node"
       style={{
         background: "white",
         borderRadius: 10,
-        border: `1.5px solid ${data.isStart ? "#2563eb" : "#e5e7eb"}`,
-        boxShadow: data.isStart ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "0 1px 2px rgba(0,0,0,0.04)",
+        border: "1.5px solid #e5e7eb",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         padding: "10px 12px",
-        minWidth: 170,
+        // Fixed width so the rendered size matches dagre's NODE_W hint. If we
+        // let cards auto-size to content, long email subjects make siblings
+        // overflow into each other.
+        width: 220,
         position: "relative",
       }}
     >
       <Handle type="target" position={Position.Top} style={handleStyle} />
-      {data.isStart && (
-        <div style={{ position: "absolute", top: -8, right: -8, background: "#2563eb", color: "white", borderRadius: 999, padding: "1px 6px", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", gap: 2 }}>
-          <Star size={9} fill="white" /> START
-        </div>
-      )}
+      {/* Hover-revealed delete button. Stopping propagation so the click
+          doesn't also fire react-flow's onNodeClick. */}
+      <button
+        onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
+        title="Delete node"
+        className="opacity-0 group-hover/node:opacity-100 transition-opacity"
+        style={{
+          position: "absolute",
+          top: -8,
+          right: -8,
+          width: 20,
+          height: 20,
+          borderRadius: 999,
+          border: "1.5px solid white",
+          background: "#ef4444",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          zIndex: 10,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+        }}
+      >
+        <Trash2 size={10} />
+      </button>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: data.subtitle ? 2 : 0 }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: `${def.color}15`, display: "flex", alignItems: "center", justifyContent: "center", color: def.color, flexShrink: 0 }}>
           <Icon size={13} />
         </div>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{data.label ?? def.label}</div>
       </div>
-      {data.subtitle && <div style={{ fontSize: 11, color: "#6b7280", marginLeft: 30 }}>{data.subtitle}</div>}
+      {data.subtitle && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "#6b7280",
+            marginLeft: 30,
+            // Single-line truncation keeps card height fixed. Hover title
+            // reveals the full string.
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={data.subtitle}
+        >
+          {data.subtitle}
+        </div>
+      )}
       {data.type !== "END" && <Handle type="source" position={Position.Bottom} style={handleStyle} />}
+      {canAddNext && <NextStepButton onClick={() => openPicker(id)} />}
     </div>
   );
 }
 
-const nodeTypes = { workflowNode: NodeCard };
+function TriggerNodeCard({ data, id }: { data: { triggerType: string; triggerSubtitle: string | null }; id: string }) {
+  const { openPicker } = useBuilder();
+  const canAddNext = useCanAddNext(id, "TRIGGER");
+  return (
+    <div
+      style={{
+        background: "linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%)",
+        borderRadius: 10,
+        border: "1.5px solid #2563eb",
+        boxShadow: "0 2px 8px rgba(37, 99, 235, 0.15)",
+        padding: "10px 12px",
+        // Fixed width matching NODE_W and dagre's TRIGGER_W so the trigger
+        // center sits exactly above the first-step center → straight edge.
+        width: 220,
+        position: "relative",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+        <div style={{ width: 22, height: 22, borderRadius: 6, background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", color: "white", flexShrink: 0 }}>
+          <Zap size={13} fill="white" />
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "#1e3a8a", letterSpacing: 0.6, textTransform: "uppercase" }}>Trigger</div>
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "#1e3a8a", marginLeft: 30 }}>
+        {triggerHumanLabel(data.triggerType)}
+      </div>
+      {data.triggerSubtitle && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "#3730a3",
+            marginLeft: 30,
+            marginTop: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={data.triggerSubtitle}
+        >
+          {data.triggerSubtitle}
+        </div>
+      )}
+      <Handle type="source" position={Position.Bottom} style={{ ...handleStyle, background: "#2563eb" }} />
+      {canAddNext && <NextStepButton onClick={() => openPicker(id)} accent="#2563eb" />}
+    </div>
+  );
+}
+
+const nodeTypes = { workflowNode: NodeCard, triggerNode: TriggerNodeCard };
 
 // ─── Main component ────────────────────────────────────────────────────────
 
@@ -147,7 +400,6 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
   const [status, setStatus]       = useState<Status>(initial.status);
   const [triggerType, setTriggerType]     = useState<string>(initial.triggerType);
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(initial.triggerConfig);
-  const [startNodeId, setStartNodeId]     = useState<string | null>(initial.startNodeId);
   const [reEnrollPolicy, setReEnrollPolicy] = useState<string>(initial.reEnrollPolicy);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -159,29 +411,88 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
     return m;
   });
 
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(
-    initial.nodes.map((n) => ({
-      id: n.id,
-      type: "workflowNode",
-      position: n.position ?? { x: 100, y: 100 },
-      data: {
-        type: n.type,
-        isStart: n.id === initial.startNodeId,
-        subtitle: nodeSubtitle(n.type, n.config ?? {}, tags),
+  // Helpers to build the trigger virtual node + edge.
+  const triggerSubtitle = useMemo(() => describeTriggerScope(triggerConfig, funnels), [triggerConfig, funnels]);
+
+  // Build initial nodes + edges and run dagre once so first paint is laid out
+  // (no {0,0} flash before the layout effect catches up).
+  const initialEdges: Edge[] = useMemo(() => [
+    ...(initial.startNodeId
+      ? [styleTriggerEdge({
+          id: TRIGGER_EDGE_ID, source: TRIGGER_ID, target: initial.startNodeId,
+        })]
+      : []),
+    ...initial.edges.map((e) => edgeToRf(e)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
+
+  const initialNodes: Node[] = useMemo(() => {
+    const raw: Node[] = [
+      {
+        id: TRIGGER_ID,
+        type: "triggerNode",
+        position: { x: 0, y: 0 },
+        deletable: false,
+        data: { triggerType: initial.triggerType, triggerSubtitle: describeTriggerScope(initial.triggerConfig, funnels) },
       },
-    })) as Node[],
-  );
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(
-    initial.edges.map((e) => edgeToRf(e)) as Edge[],
-  );
+      ...initial.nodes.map((n) => ({
+        id: n.id,
+        type: "workflowNode",
+        position: { x: 0, y: 0 },
+        data: {
+          type: n.type,
+          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags),
+        },
+      } as Node)),
+    ];
+    return autoLayout(raw, initialEdges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>(initialNodes);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"saving" | "activating" | null>(null);
+  // Action picker modal — opened by either a node's "+" button (append) or an
+  // edge's "+" button (insert between source and target). Null when closed.
+  // Action picker modal — opened by clicking the "+" button under any node.
+  // Holds the source node id; null when closed.
+  const [pickerSourceId, setPickerSourceId] = useState<string | null>(null);
+  const openPicker = useCallback((sourceId: string) => setPickerSourceId(sourceId), []);
+
+  // Reflect trigger type / scope changes into the trigger node's visible data.
+  useEffect(() => {
+    setRfNodes((prev) => prev.map((n) => n.id === TRIGGER_ID
+      ? { ...n, data: { ...n.data, triggerType, triggerSubtitle } }
+      : n));
+  }, [triggerType, triggerSubtitle, setRfNodes]);
+
+  // Auto-layout: any structural change (node added/removed, edge added/redirected)
+  // re-runs dagre to recompute positions. Position-only updates (none here, since
+  // drag is disabled) don't trigger this — `structuralKey` ignores position.
+  const layoutKey = useMemo(() => structuralKey(rfNodes, rfEdges), [rfNodes, rfEdges]);
+  useEffect(() => {
+    setRfNodes((prev) => autoLayout(prev, rfEdges));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutKey]);
+
+  // Note: `canAddNext` used to be computed here and pushed into node.data.
+  // It's now read reactively by each node via useStore() — see useCanAddNext()
+  // in NodeCard / TriggerNodeCard.
+
+  // startNodeId is derived from the edge originating at the trigger node.
+  // Persisted on save; never stored in component state to avoid divergence
+  // between "the edge user sees" and "the value sent to the server".
+  const derivedStartNodeId = useMemo(
+    () => rfEdges.find((e) => e.source === TRIGGER_ID)?.target ?? null,
+    [rfEdges],
+  );
 
   // ─── Auto-save (debounced) ──────────────────────────────────────────────
   const lastSaved = useRef<string>("");
   useEffect(() => {
-    const snap = JSON.stringify({ name, triggerType, triggerConfig, rfNodes, rfEdges, startNodeId, reEnrollPolicy, configMap });
+    const snap = JSON.stringify({ name, triggerType, triggerConfig, rfNodes, rfEdges, derivedStartNodeId, reEnrollPolicy, configMap });
     if (snap === lastSaved.current) return;
     const t = setTimeout(async () => {
       lastSaved.current = snap;
@@ -189,7 +500,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
     }, 1000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, triggerType, triggerConfig, rfNodes, rfEdges, startNodeId, reEnrollPolicy, configMap]);
+  }, [name, triggerType, triggerConfig, rfNodes, rfEdges, derivedStartNodeId, reEnrollPolicy, configMap]);
 
   // ─── Persistence ────────────────────────────────────────────────────────
   async function save() {
@@ -197,19 +508,23 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
     const payload = {
       name,
       triggerConfig,
-      startNodeId,
+      startNodeId: derivedStartNodeId,
       reEnrollPolicy,
-      nodes: rfNodes.map((n) => ({
-        id: n.id,
-        type: (n.data as any).type as NodeType,
-        position: n.position,
-        config: configMap[n.id] ?? {},
-      })),
-      edges: rfEdges.map((e) => ({
-        id: e.id, source: e.source, target: e.target,
-        label: e.label as string | undefined,
-        weight: (e.data as any)?.weight as number | undefined,
-      })),
+      nodes: rfNodes
+        .filter((n) => n.id !== TRIGGER_ID) // virtual — don't persist
+        .map((n) => ({
+          id: n.id,
+          type: (n.data as any).type as NodeType,
+          position: n.position,
+          config: configMap[n.id] ?? {},
+        })),
+      edges: rfEdges
+        .filter((e) => e.source !== TRIGGER_ID && e.target !== TRIGGER_ID) // virtual — don't persist
+        .map((e) => ({
+          id: e.id, source: e.source, target: e.target,
+          label: e.label as string | undefined,
+          weight: (e.data as any)?.weight as number | undefined,
+        })),
     };
     const res  = await apiFetch(`/api/workflows/${initial.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -235,39 +550,189 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
   }
 
   // ─── Graph mutations ────────────────────────────────────────────────────
-  function addNode(type: NodeType) {
-    const id = `n_${Math.random().toString(36).slice(2, 10)}`;
+  // Append a new node as the next step from `sourceId`. The new node is
+  // placed visually below the source; an edge is wired from source → new.
+  // For the trigger node, the edge is the styled "start" edge and replaces
+  // any existing one (only one outgoing edge from trigger is permitted).
+  // For CONDITION/GOAL, the second outgoing edge gets the auto-derived
+  // true/false label.
+  function addNodeFrom(sourceId: string, type: NodeType) {
+    const id  = `n_${Math.random().toString(36).slice(2, 10)}`;
     const def = NODE_DEFS[type];
     const newCfg = { ...def.defaultConfig };
+
+    const sourceNode = rfNodes.find((n) => n.id === sourceId);
+    // Position is a placeholder — the structural-change effect below will
+    // re-run dagre and reposition every node within the same tick.
+    const position = { x: 0, y: 0 };
+
     setConfigMap((prev) => ({ ...prev, [id]: newCfg }));
     setRfNodes((prev) => prev.concat({
-      id,
-      type: "workflowNode",
-      position: { x: 200 + Math.random() * 200, y: 200 + Math.random() * 200 },
-      data: { type, isStart: false, subtitle: nodeSubtitle(type, newCfg, tags) },
+      id, type: "workflowNode", position,
+      data: { type, subtitle: nodeSubtitle(type, newCfg, tags) },
     }));
-    // First-node convenience: auto-mark as start.
-    if (rfNodes.length === 0) setStartNodeId(id);
+
+    if (sourceId === TRIGGER_ID) {
+      setRfEdges((prev) => prev
+        .filter((e) => e.source !== TRIGGER_ID)
+        .concat(styleTriggerEdge({ id: TRIGGER_EDGE_ID, source: TRIGGER_ID, target: id })));
+    } else {
+      const sourceType = (sourceNode?.data as any)?.type as NodeType | undefined;
+      let label: string | undefined;
+      if (sourceType === "CONDITION" || sourceType === "GOAL") {
+        const has = rfEdges.filter((e) => e.source === sourceId);
+        label = has.some((e) => e.label === "true") ? "false" : "true";
+      }
+      const edgeId = `e_${Math.random().toString(36).slice(2, 10)}`;
+      setRfEdges((prev) => prev.concat(buildNormalEdge(edgeId, sourceId, id, label)));
+    }
+
+    setSelectedNodeId(id);
+    setPickerSourceId(null);
   }
+
+  // Delete a node (and any edges touching it) by id. Used both by the hover
+  // X on the node card and the keyboard Backspace shortcut. Trigger node is
+  // protected at the top of the function and via onNodesChangeGuarded.
+  const deleteNode = useCallback((nodeId: string) => {
+    if (nodeId === TRIGGER_ID) return;
+    setRfNodes((prev) => prev.filter((n) => n.id !== nodeId));
+    setRfEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
+    setConfigMap((prev) => { const next = { ...prev }; delete next[nodeId]; return next; });
+    setSelectedNodeId((sel) => sel === nodeId ? null : sel);
+  }, [setRfNodes, setRfEdges]);
 
   function deleteSelected() {
-    if (!selectedNodeId) return;
-    setRfNodes((prev) => prev.filter((n) => n.id !== selectedNodeId));
-    setRfEdges((prev) => prev.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId));
-    setConfigMap((prev) => { const next = { ...prev }; delete next[selectedNodeId]; return next; });
-    if (startNodeId === selectedNodeId) setStartNodeId(null);
-    setSelectedNodeId(null);
+    if (selectedNodeId) deleteNode(selectedNodeId);
   }
 
-  function setAsStart(id: string) {
-    setStartNodeId(id);
-    setRfNodes((prev) => prev.map((n) => ({ ...n, data: { ...n.data, isStart: n.id === id } })));
-  }
+  // Block deletion of the trigger node via keyboard / programmatic changes.
+  const onNodesChangeGuarded = useCallback(
+    (changes: Parameters<typeof onNodesChange>[0]) => {
+      const safe = changes.filter((c) => !(c.type === "remove" && c.id === TRIGGER_ID));
+      onNodesChange(safe);
+    },
+    [onNodesChange],
+  );
+
+  // Builder context value — provided AFTER deleteNode is in scope. Stable
+  // reference so custom node/edge components don't re-render on every change.
+  const builderCtxValue = useMemo(() => ({ openPicker, deleteNode }), [openPicker, deleteNode]);
+
+  // ─── Undo / Redo ────────────────────────────────────────────────────────
+  // Snapshot-based history: every debounced change pushes a deep-clone of the
+  // current state onto undoStack and clears redoStack. Ctrl/Cmd+Z restores the
+  // previous snapshot; Ctrl/Cmd+Shift+Z (or Ctrl+Y) redoes.
+  type Snapshot = {
+    rfNodes:       Node[];
+    rfEdges:       Edge[];
+    configMap:     Record<string, Record<string, unknown>>;
+    name:          string;
+    triggerType:   string;
+    triggerConfig: Record<string, unknown>;
+    reEnrollPolicy: string;
+  };
+  const makeSnapshot = useCallback((): Snapshot => ({
+    rfNodes:       JSON.parse(JSON.stringify(rfNodes)),
+    rfEdges:       JSON.parse(JSON.stringify(rfEdges)),
+    configMap:     JSON.parse(JSON.stringify(configMap)),
+    name, triggerType,
+    triggerConfig: JSON.parse(JSON.stringify(triggerConfig)),
+    reEnrollPolicy,
+  }), [rfNodes, rfEdges, configMap, name, triggerType, triggerConfig, reEnrollPolicy]);
+
+  const [undoStack, setUndoStack] = useState<Snapshot[]>(() => [{
+    rfNodes:       JSON.parse(JSON.stringify(initialNodes)),
+    rfEdges:       JSON.parse(JSON.stringify(initialEdges)),
+    configMap:     (() => { const m: Record<string, Record<string, unknown>> = {}; for (const n of initial.nodes) m[n.id] = { ...(n.config ?? {}) }; return m; })(),
+    name:          initial.name,
+    triggerType:   initial.triggerType,
+    triggerConfig: JSON.parse(JSON.stringify(initial.triggerConfig)),
+    reEnrollPolicy: initial.reEnrollPolicy,
+  }]);
+  const [redoStack, setRedoStack] = useState<Snapshot[]>([]);
+  const isRestoring = useRef(false);
+
+  // Debounced snapshot push. Skips when the current state equals the top of
+  // the undo stack (no real change — e.g. selection-only react-flow updates).
+  useEffect(() => {
+    if (isRestoring.current) { isRestoring.current = false; return; }
+    const t = setTimeout(() => {
+      const snap = makeSnapshot();
+      const key  = JSON.stringify(snap);
+      setUndoStack((u) => {
+        const top = u[u.length - 1];
+        if (top && JSON.stringify(top) === key) return u; // no-op change
+        return [...u.slice(-49), snap];
+      });
+      setRedoStack([]);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [makeSnapshot]);
+
+  const restoreSnapshot = useCallback((s: Snapshot) => {
+    isRestoring.current = true;
+    setRfNodes(JSON.parse(JSON.stringify(s.rfNodes)));
+    setRfEdges(JSON.parse(JSON.stringify(s.rfEdges)));
+    setConfigMap(JSON.parse(JSON.stringify(s.configMap)));
+    setName(s.name);
+    setTriggerType(s.triggerType);
+    setTriggerConfig(JSON.parse(JSON.stringify(s.triggerConfig)));
+    setReEnrollPolicy(s.reEnrollPolicy);
+  }, [setRfNodes, setRfEdges]);
+
+  const canUndo = undoStack.length > 1;
+  const canRedo = redoStack.length > 0;
+
+  const undo = useCallback(() => {
+    if (undoStack.length < 2) return;
+    const current  = undoStack[undoStack.length - 1];
+    const previous = undoStack[undoStack.length - 2];
+    setRedoStack((r) => [...r, current]);
+    setUndoStack((u) => u.slice(0, -1));
+    restoreSnapshot(previous);
+  }, [undoStack, restoreSnapshot]);
+
+  const redo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setRedoStack((r) => r.slice(0, -1));
+    setUndoStack((u) => [...u, next]);
+    restoreSnapshot(next);
+  }, [redoStack, restoreSnapshot]);
+
+  // Keyboard: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl+Y = redo. Skip if
+  // focus is in a text input/textarea (those handle their own undo natively).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(); }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
 
   const onConnect = useCallback(
     (conn: Connection) => {
       const sourceNode = rfNodes.find((n) => n.id === conn.source);
       const sourceType = (sourceNode?.data as any)?.type as NodeType | undefined;
+
+      // Trigger → action edge: only one allowed. Replace any existing edge
+      // from the trigger so reconnecting to a new start is a single drag.
+      if (conn.source === TRIGGER_ID) {
+        setRfEdges((prev) => {
+          const without = prev.filter((e) => e.source !== TRIGGER_ID);
+          return without.concat(styleTriggerEdge({
+            id: TRIGGER_EDGE_ID, source: TRIGGER_ID, target: conn.target!,
+          }));
+        });
+        return;
+      }
+
       // CONDITION + GOAL fan out via labeled edges. SPLIT uses labeled edges
       // for weighted random. Default label for sane wiring.
       let label: string | undefined;
@@ -276,17 +741,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
         label = existing.some((e) => e.label === "true") ? "false" : "true";
       }
       const id = `e_${Math.random().toString(36).slice(2, 10)}`;
-      setRfEdges((prev) => addEdge({
-        ...conn,
-        id,
-        label,
-        type: "smoothstep",
-        animated: false,
-        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
-        style: { stroke: "#94a3b8", strokeWidth: 1.5 },
-        labelStyle: { fontSize: 11, fontWeight: 600, fill: label === "true" ? "#059669" : label === "false" ? "#dc2626" : "#64748b" },
-        labelBgStyle: { fill: "white" },
-      } as Edge, prev));
+      setRfEdges((prev) => addEdge(buildNormalEdge(id, conn.source!, conn.target!, label) as Edge, prev));
     },
     [rfNodes, rfEdges, setRfEdges],
   );
@@ -294,10 +749,10 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
   // ─── Selected node config ───────────────────────────────────────────────
   const selectedNode  = useMemo(() => rfNodes.find((n) => n.id === selectedNodeId), [rfNodes, selectedNodeId]);
   const selectedType  = (selectedNode?.data as any)?.type as NodeType | undefined;
-  const selectedConfig = selectedNodeId ? (configMap[selectedNodeId] ?? {}) : {};
+  const selectedConfig = selectedNodeId && selectedNodeId !== TRIGGER_ID ? (configMap[selectedNodeId] ?? {}) : {};
 
   function patchConfig(patch: Record<string, unknown>) {
-    if (!selectedNodeId) return;
+    if (!selectedNodeId || selectedNodeId === TRIGGER_ID) return;
     setConfigMap((prev) => {
       const next = { ...prev, [selectedNodeId]: { ...(prev[selectedNodeId] ?? {}), ...patch } };
       // Update the subtitle in node data so the canvas reflects changes.
@@ -310,10 +765,8 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────
-  const triggerFunnelId = (triggerConfig.funnelId as string | undefined) ?? "";
-  const triggerFunnel   = funnels.find((f) => f.id === triggerFunnelId);
-
   return (
+    <BuilderContext.Provider value={builderCtxValue}>
     <div className="flex flex-col h-[calc(100vh-56px)] bg-gray-50">
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 bg-white shrink-0">
@@ -334,6 +787,27 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
           "bg-gray-100 text-gray-600"
         }`}>{status.toLowerCase()}</span>
         {busy === "saving" && <span className="text-xs text-gray-400 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> saving…</span>}
+        {/* Undo / Redo. Disabled state mirrors stack emptiness. Ctrl/Cmd+Z and
+            Ctrl/Cmd+Shift+Z (or Ctrl+Y) also work via the document key listener. */}
+        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            title="Undo (Ctrl/Cmd+Z)"
+            className="p-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <Undo2 size={13} />
+          </button>
+          <div className="w-px h-4 bg-gray-200" />
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+            className="p-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <Redo2 size={13} />
+          </button>
+        </div>
         <button
           onClick={() => setShowHistory(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -361,77 +835,16 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
       </div>
 
       <div className="flex flex-1 min-h-0">
-        {/* Left palette */}
-        <div className="w-56 border-r border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
-          <h3 className="text-[11px] uppercase font-semibold tracking-wider text-gray-400 mb-2 px-1">Trigger</h3>
-          <select
-            value={triggerType}
-            onChange={(e) => setTriggerType(e.target.value)}
-            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {TRIGGER_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ").toLowerCase()}</option>)}
-          </select>
-          <select
-            value={triggerFunnelId}
-            onChange={(e) => setTriggerConfig({ ...triggerConfig, funnelId: e.target.value || undefined, funnelStepId: undefined })}
-            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">— any funnel —</option>
-            {funnels.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-          {triggerFunnel && (
-            <select
-              value={(triggerConfig.funnelStepId as string | undefined) ?? ""}
-              onChange={(e) => setTriggerConfig({ ...triggerConfig, funnelStepId: e.target.value || undefined })}
-              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— any step —</option>
-              {triggerFunnel.steps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
-            </select>
-          )}
-
-          <h3 className="text-[11px] uppercase font-semibold tracking-wider text-gray-400 mb-2 mt-4 px-1">Nodes</h3>
-          <div className="space-y-1">
-            {(Object.keys(NODE_DEFS) as NodeType[]).map((t) => {
-              const def = NODE_DEFS[t];
-              const Icon = def.Icon;
-              return (
-                <button
-                  key={t}
-                  onClick={() => addNode(t)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded-lg text-left"
-                >
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: `${def.color}15`, color: def.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon size={12} />
-                  </div>
-                  <span>{def.label}</span>
-                  <Plus size={11} className="ml-auto text-gray-300" />
-                </button>
-              );
-            })}
-          </div>
-
-          <h3 className="text-[11px] uppercase font-semibold tracking-wider text-gray-400 mb-2 mt-4 px-1">Re-enroll</h3>
-          <select
-            value={reEnrollPolicy}
-            onChange={(e) => setReEnrollPolicy(e.target.value)}
-            className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="SINGLE_ACTIVE">Single active</option>
-            <option value="ALWAYS">Always re-enroll</option>
-            <option value="COOLDOWN">Cooldown (days)</option>
-          </select>
-        </div>
-
         {/* Canvas */}
         <div className="flex-1 relative bg-[#fafafa]">
           <ReactFlow
             nodes={rfNodes}
             edges={rfEdges}
-            onNodesChange={onNodesChange}
+            onNodesChange={onNodesChangeGuarded}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
+            nodesDraggable={false}
             onNodeClick={(_, n) => setSelectedNodeId(n.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             fitView
@@ -443,18 +856,40 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
             <MiniMap nodeStrokeWidth={2} pannable zoomable />
           </ReactFlow>
 
-          {rfNodes.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center text-gray-400 text-sm">
-                <p>Click a node on the left to add it</p>
-                <p className="text-xs mt-1">Drag from a node's edge to connect to another</p>
-              </div>
-            </div>
-          )}
+          {/* Floating re-enroll selector (bottom-left of canvas) */}
+          <div className="absolute bottom-3 left-3 bg-white border border-gray-200 rounded-lg shadow-sm px-2 py-1.5 flex items-center gap-2 z-10">
+            <span className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Re-enroll</span>
+            <select
+              value={reEnrollPolicy}
+              onChange={(e) => setReEnrollPolicy(e.target.value)}
+              className="text-xs border-none outline-none bg-transparent text-gray-700 focus:ring-0 cursor-pointer"
+            >
+              <option value="SINGLE_ACTIVE">Single active</option>
+              <option value="ALWAYS">Always</option>
+              <option value="COOLDOWN">Cooldown</option>
+            </select>
+          </div>
         </div>
 
         {/* Right properties panel */}
-        {selectedNode && selectedType && (
+        {selectedNodeId === TRIGGER_ID && (
+          <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                <Zap size={14} className="text-blue-600" />
+                Trigger
+              </h3>
+            </div>
+            <TriggerConfigForm
+              triggerType={triggerType}
+              triggerConfig={triggerConfig}
+              funnels={funnels}
+              onTypeChange={setTriggerType}
+              onConfigChange={setTriggerConfig}
+            />
+          </div>
+        )}
+        {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && (
           <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -462,11 +897,6 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
                 {NODE_DEFS[selectedType].label}
               </h3>
               <div className="flex gap-1">
-                {selectedNodeId !== startNodeId && (
-                  <button onClick={() => setAsStart(selectedNodeId!)} className="p-1 text-blue-500 hover:bg-blue-50 rounded" title="Mark as start">
-                    <Star size={13} />
-                  </button>
-                )}
                 <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
               </div>
             </div>
@@ -478,6 +908,143 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
       {showHistory && (
         <WorkflowRunHistory workflowId={initial.id} onClose={() => setShowHistory(false)} />
       )}
+
+      {pickerSourceId && (
+        <AddNodePicker
+          sourceId={pickerSourceId}
+          onPick={(type) => addNodeFrom(pickerSourceId, type)}
+          onClose={() => setPickerSourceId(null)}
+        />
+      )}
+    </div>
+    </BuilderContext.Provider>
+  );
+}
+
+// ─── Action picker modal ───────────────────────────────────────────────────
+// Triggered by the "+" button under any node. Shows a grid of available node
+// types with icon + label + one-line hint. Picking one closes the modal and
+// inserts that node below the source with edges auto-wired.
+
+function AddNodePicker({
+  sourceId, onPick, onClose,
+}: {
+  sourceId: string;
+  onPick: (type: NodeType) => void;
+  onClose: () => void;
+}) {
+  // Hint copy per type — kept short so the grid stays scannable.
+  const HINTS: Record<NodeType, string> = {
+    SEND_EMAIL: "Personalised email with Mustache vars",
+    ADD_TAG:    "Tag the contact",
+    REMOVE_TAG: "Remove a tag from the contact",
+    WEBHOOK:    "Call any HTTP endpoint (Slack, CRM, custom)",
+    DELAY:      "Wait minutes / hours / days before next step",
+    CONDITION:  "Rẽ nhánh true / false",
+    SPLIT:      "A/B split by weighted random",
+    GOAL:       "Exit run early if condition is met",
+    END:        "Mark this branch completed",
+  };
+
+  // Hide END after the trigger — `trigger → end` with nothing between is
+  // never a useful workflow. Allow everywhere else.
+  const hideEnd = sourceId === TRIGGER_ID;
+  const types = (Object.keys(NODE_DEFS) as NodeType[]).filter((t) => !(hideEnd && t === "END"));
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">Add a step</h2>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:bg-gray-100 rounded">
+            <X size={14} />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 p-3">
+          {types.map((t) => {
+            const def = NODE_DEFS[t];
+            const Icon = def.Icon;
+            return (
+              <button
+                key={t}
+                onClick={() => onPick(t)}
+                className="flex items-start gap-3 p-3 text-left rounded-lg hover:bg-gray-50 transition-colors group"
+              >
+                <div
+                  style={{ background: `${def.color}15`, color: def.color }}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform"
+                >
+                  <Icon size={16} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900">{def.label}</div>
+                  <div className="text-[11px] text-gray-500 leading-snug">{HINTS[t]}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Trigger config form (right panel when trigger node selected) ──────────
+
+function TriggerConfigForm({
+  triggerType, triggerConfig, funnels, onTypeChange, onConfigChange,
+}: {
+  triggerType: string;
+  triggerConfig: Record<string, unknown>;
+  funnels: Props["funnels"];
+  onTypeChange: (t: string) => void;
+  onConfigChange: (c: Record<string, unknown>) => void;
+}) {
+  const inp = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
+  const funnelId = (triggerConfig.funnelId as string | undefined) ?? "";
+  const funnel = funnels.find((f) => f.id === funnelId);
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={lbl}>When</label>
+        <select className={inp} value={triggerType} onChange={(e) => onTypeChange(e.target.value)}>
+          {TRIGGER_TYPES.map((t) => <option key={t} value={t}>{triggerHumanLabel(t)}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className={lbl}>Funnel filter</label>
+        <select
+          className={inp}
+          value={funnelId}
+          onChange={(e) => onConfigChange({ ...triggerConfig, funnelId: e.target.value || undefined, funnelStepId: undefined })}
+        >
+          <option value="">— any funnel —</option>
+          {funnels.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+      </div>
+      {funnel && (
+        <div>
+          <label className={lbl}>Step filter</label>
+          <select
+            className={inp}
+            value={(triggerConfig.funnelStepId as string | undefined) ?? ""}
+            onChange={(e) => onConfigChange({ ...triggerConfig, funnelStepId: e.target.value || undefined })}
+          >
+            <option value="">— any step —</option>
+            {funnel.steps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
+          </select>
+        </div>
+      )}
+      <p className="text-[10px] text-gray-400 leading-snug">
+        Only events matching this trigger type + filter will start a run for this workflow.
+      </p>
     </div>
   );
 }
@@ -498,7 +1065,6 @@ function NodeConfigForm({
 
   if (type === "SEND_EMAIL") {
     const senderId = (config.senderId as string | undefined) ?? "";
-    const sender = senders.find((s) => s.id === senderId) ?? senders.find((s) => s.isDefault) ?? senders[0];
     return (
       <div className="space-y-3">
         <div>
@@ -682,15 +1248,32 @@ function CompareFields({ config, onChange, numericOnly }: { config: Record<strin
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function edgeToRf(e: WorkflowEdge): Edge {
+  return buildNormalEdge(e.id, e.source, e.target, e.label, { weight: e.weight });
+}
+
+function buildNormalEdge(id: string, source: string, target: string, label?: string, extraData?: Record<string, unknown>): Edge {
   return {
-    id: e.id, source: e.source, target: e.target,
-    label: e.label,
+    id, source, target, label,
     type: "smoothstep",
     markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
     style: { stroke: "#94a3b8", strokeWidth: 1.5 },
-    labelStyle: { fontSize: 11, fontWeight: 600, fill: e.label === "true" ? "#059669" : e.label === "false" ? "#dc2626" : "#64748b" },
+    labelStyle: { fontSize: 11, fontWeight: 600, fill: label === "true" ? "#059669" : label === "false" ? "#dc2626" : "#64748b" },
     labelBgStyle: { fill: "white" },
-    data: { weight: e.weight },
+    data: { ...(extraData ?? {}) },
+  };
+}
+
+function styleTriggerEdge(e: { id: string; source: string; target: string }): Edge {
+  return {
+    id: e.id, source: e.source, target: e.target,
+    // "straight" goes point-to-point — no rounded corners or curves. Since we
+    // post-process trigger position to be perfectly above the first step,
+    // source and target handles are vertically aligned and this renders as a
+    // clean straight vertical line.
+    type: "straight",
+    animated: true,
+    markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "#2563eb" },
+    style: { stroke: "#2563eb", strokeWidth: 2 },
   };
 }
 
@@ -705,6 +1288,17 @@ function nodeSubtitle(type: NodeType, config: Record<string, unknown>, tags: Pro
   if (type === "DELAY")   return totalDelayLabel(config);
   if (type === "CONDITION" || type === "GOAL") return (config.kind as string) || undefined;
   return undefined;
+}
+
+function describeTriggerScope(triggerConfig: Record<string, unknown>, funnels: Props["funnels"]): string | null {
+  const funnelId = triggerConfig.funnelId as string | undefined;
+  if (!funnelId) return null;
+  const funnel = funnels.find((f) => f.id === funnelId);
+  if (!funnel) return "(funnel deleted)";
+  const stepId = triggerConfig.funnelStepId as string | undefined;
+  if (!stepId) return funnel.name;
+  const step = funnel.steps.find((s) => s.id === stepId);
+  return step ? `${funnel.name} · ${step.name}` : funnel.name;
 }
 
 function totalDelayLabel(config: Record<string, unknown>): string {

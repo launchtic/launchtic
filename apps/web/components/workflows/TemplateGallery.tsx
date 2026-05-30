@@ -9,6 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   X, Search, ShoppingCart, Mail, PackageCheck, Crown, Undo2, AlertTriangle,
   Heart, Split, MousePointerClick, Gift, Loader2, Sparkles,
+  TagIcon as TagPlus, Bell, ArrowUpCircle, Eraser, Zap,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
@@ -17,6 +18,7 @@ import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "../../lib/workflow-te
 const ICONS: Record<string, typeof Sparkles> = {
   ShoppingCart, Mail, PackageCheck, Crown, Undo2, AlertTriangle,
   Heart, Split, MousePointerClick, Gift,
+  TagPlus, Bell, ArrowUpCircle, Eraser, Zap,
 };
 
 const CATEGORY_COLORS: Record<WorkflowTemplate["category"], string> = {
@@ -25,6 +27,7 @@ const CATEGORY_COLORS: Record<WorkflowTemplate["category"], string> = {
   "Re-engagement": "bg-purple-50 text-purple-700",
   Retention:       "bg-amber-50 text-amber-700",
   Tagging:         "bg-pink-50 text-pink-700",
+  Rules:           "bg-slate-100 text-slate-700",
 };
 
 const BADGE_COLORS: Record<NonNullable<WorkflowTemplate["badge"]>, string> = {
@@ -33,7 +36,7 @@ const BADGE_COLORS: Record<NonNullable<WorkflowTemplate["badge"]>, string> = {
   New:      "bg-blue-500 text-white",
 };
 
-const CATEGORIES = ["All", "Sales", "Onboarding", "Re-engagement", "Retention", "Tagging"] as const;
+const CATEGORIES = ["All", "Rules", "Sales", "Onboarding", "Re-engagement", "Retention", "Tagging"] as const;
 
 export default function TemplateGallery({ onClose }: { onClose: () => void }) {
   const router  = useRouter();
