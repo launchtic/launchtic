@@ -163,20 +163,36 @@ export type OrderBumpData = {
 // ─────────────────────────────────────────
 
 // One-click upsell/downsell offer served on UPSELL/DOWNSELL steps. The Accept
-// button charges `pricePlanId` off-session; accept/decline route to these URLs.
+// button charges off-session; accept/decline route to these URLs.
+// Two flavours selected via `kind`:
+//   - "digital"  → charges a StepPricePlan (off-session). Default for back-compat
+//                  (undefined kind reads as digital).
+//   - "physical" → sells a PhysicalProduct. Visitor picks variant/qty in the
+//                  PhysicalProduct element (writes into PaymentContext); server
+//                  reuses the parent Order's shippingAddress and adds the flat
+//                  `shippingFee` from the funnel step.
 export type UpsellOffer = {
-  pricePlanId: string;
+  kind?:       "digital" | "physical";
+
+  // Common across kinds
   name:        string;
-  amount:      number;   // cents
+  amount:      number;   // cents — digital: plan.amount; physical: product reference price
   currency:    string;
-  type:        "ONE_TIME" | "SUBSCRIPTION";
-  interval?:   string | null;
-  trialDays?:  number | null;
   acceptUrl:   string | null;
   declineUrl:  string | null;
   // PayPal client id (when the workspace has PayPal configured) — lets the
   // Accept button show a PayPal "pay again" modal when one-click isn't possible.
   paypalClientId?: string | null;
+
+  // Digital-only
+  pricePlanId?: string;
+  type?:        "ONE_TIME" | "SUBSCRIPTION";
+  interval?:    string | null;
+  trialDays?:   number | null;
+
+  // Physical-only
+  physicalProductId?: string;
+  shippingFee?:       number; // cents — flat shipping for the upsell item
 };
 
 export type RendererPageData = {

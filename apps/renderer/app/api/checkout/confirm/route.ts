@@ -171,6 +171,7 @@ export async function POST(req: NextRequest) {
       workspaceId: order.workspaceId,
       currency:    order.currency,
       provider:    order.paymentProvider === "paypal" ? "paypal" : order.paymentProvider === "free" ? "free" : "stripe",
+      mainOrderId: order.id,
     });
 
     const host = req.headers.get("host") ?? "localhost:3001";

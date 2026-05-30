@@ -168,6 +168,26 @@ export const Toolbox: React.FC = () => {
               <ItemLabel>Decline offer button</ItemLabel>
             </ToolboxItemContent>
           </ToolboxItem>
+          {/* OfferPrice + PhysicalProduct also live in the Payment Form section
+              for CHECKOUT; we surface them here so designers can drop them onto
+              UPSELL/DOWNSELL pages (needed for PHYSICAL upsell — visitor must
+              be able to pick variant/qty on the offer page). */}
+          <ToolboxItem ref={(ref) => createElement(ref, <OfferPrice {...DEFAULT_STYLES.offerPrice} />)}>
+            <ToolboxItemContent>
+              <IconWrapper>
+                <i className="fa-solid fa-dollar-sign"></i>
+              </IconWrapper>
+              <ItemLabel>Offer Price</ItemLabel>
+            </ToolboxItemContent>
+          </ToolboxItem>
+          <ToolboxItem ref={(ref) => createElement(ref, <PhysicalProduct {...DEFAULT_STYLES.physicalProduct} />)}>
+            <ToolboxItemContent>
+              <IconWrapper>
+                <i className="fa-solid fa-box"></i>
+              </IconWrapper>
+              <ItemLabel>Physical Product</ItemLabel>
+            </ToolboxItemContent>
+          </ToolboxItem>
         </ToolboxGrid>
       </ToolboxSection>
       )}

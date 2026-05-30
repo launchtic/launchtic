@@ -647,6 +647,10 @@ model Order {
   stepPricePlanId      String?
   orderBumpPricePlanId String? // set when the order originates from a bump
   subscriptionId       String?
+  // Set when this order IS an upsell/downsell purchase — points at the main
+  // step Order that visitor bought first. Drives dashboard grouping + refund
+  // cascading. SetNull on parent delete so a child order survives independently.
+  parentOrderId        String?
   physicalProductId    String?
   variantId            String?
   quantity             Int     @default(1)
@@ -696,12 +700,15 @@ model Order {
   orderBumpPricePlan OrderBumpPricePlan?     @relation(fields: [orderBumpPricePlanId], references: [id], onDelete: SetNull)
   subscription       Subscription?           @relation(fields: [subscriptionId], references: [id])
   refundedBy         User?                   @relation("OrderRefundedBy", fields: [refundedByUserId], references: [id])
+  parent             Order?                  @relation("OrderChildren", fields: [parentOrderId], references: [id], onDelete: SetNull)
+  children           Order[]                 @relation("OrderChildren")
   transactions       Transaction[]
   resourceAccesses   ContactResourceAccess[]
 
   @@index([workspaceId, status])
   @@index([contactId])
   @@index([providerOrderId])
+  @@index([parentOrderId])
 }
 
 model Transaction {

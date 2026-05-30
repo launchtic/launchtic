@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
       workspaceId: input.workspaceId,
       currency,
       provider:    "paypal",
+      mainOrderId: order.id,
     });
 
     const host = req.headers.get("host") ?? "localhost:3001";

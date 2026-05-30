@@ -85,7 +85,12 @@ export const PaymentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const upsellAsPlan = (): PricePlan | null => {
     try {
       const u = (window as any)?.data?.upsell;
+      // Skip when there's no offer, or when this is a PHYSICAL upsell — for
+      // physical the price/qty/variant flow goes through PaymentContext's
+      // physicalSelection (driven by the PhysicalProduct element), not through
+      // a PricePlan projection.
       if (!u || u.amount === undefined) return null;
+      if (u.kind === "physical" || !u.pricePlanId) return null;
       return {
         id:                  u.pricePlanId,
         name:                u.name ?? "Offer",

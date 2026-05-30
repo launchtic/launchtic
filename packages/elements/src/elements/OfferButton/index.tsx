@@ -13,6 +13,7 @@ import { ElementDrag } from "../common/ElementDrag";
 import { DelayedRender } from "../common/DelayedRender";
 import { useDraggableElement } from "../common/useDraggableElement";
 import { UpsellPayPalModal } from "./UpsellPayPalModal";
+import { useSafePayment } from "../../contexts/PaymentContext";
 
 // Offer buttons for UPSELL / DOWNSELL steps. They reuse the regular Button's
 // settings panel + styling, but their click does a one-click (off-session)
@@ -121,6 +122,11 @@ function OfferButtonView({ props, kind, indicatorName }: {
   const { viewMode } = useAppContext();
   const { ref, elementId, UUIDWrapper } = useDraggableElement("button", "htmlAttrId");
   const { isActive, isHover, enabled } = useNodeState();
+  // Read selection + computed prices from PaymentContext — for PHYSICAL upsell
+  // offers we need variantId/qty (driven by the PhysicalProduct element) and
+  // the basePrice/shippingFee/finalPrice to render the breakdown above the
+  // Accept button. Safe to call on DIGITAL pages too; the context just isn't read.
+  const payment = useSafePayment();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPayPal, setShowPayPal] = useState(false);
@@ -170,18 +176,42 @@ function OfferButtonView({ props, kind, indicatorName }: {
       return;
     }
 
-    // Accept → one-click off-session charge.
-    if (!upsell?.pricePlanId || !data.funnelStepId) {
+    // Accept → one-click off-session charge. Body shape depends on offer kind:
+    //   digital  → { funnelStepId, pricePlanId }
+    //   physical → { funnelStepId, physicalProductId, variantId, quantity }
+    // physicalSelection comes from PaymentContext (PhysicalProduct element writes
+    // variantId + qty there as the visitor picks options on this page).
+    if (!upsell || !data.funnelStepId) {
       setError("This offer is not configured. Please contact support.");
       return;
     }
+    let body: Record<string, unknown>;
+    if (upsell.kind === "physical") {
+      if (!upsell.physicalProductId) {
+        setError("This offer is not configured. Please contact support.");
+        return;
+      }
+      body = {
+        funnelStepId:      data.funnelStepId,
+        physicalProductId: upsell.physicalProductId,
+        variantId:         payment.physicalSelection.variantId,
+        quantity:          payment.physicalSelection.quantity,
+      };
+    } else {
+      if (!upsell.pricePlanId) {
+        setError("This offer is not configured. Please contact support.");
+        return;
+      }
+      body = { funnelStepId: data.funnelStepId, pricePlanId: upsell.pricePlanId };
+    }
+
     setError(null);
     setLoading(true);
     try {
       const res = await fetch("/api/checkout/upsell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ funnelStepId: data.funnelStepId, pricePlanId: upsell.pricePlanId }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json?.success && json.nextStepUrl) {

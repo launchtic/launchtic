@@ -12,20 +12,226 @@ import { fireTrigger } from "../../../../lib/automations";
 function ok(data: Record<string, unknown>) { return NextResponse.json({ success: true, ...data }); }
 function fail(error: string, status = 400) { return NextResponse.json({ success: false, error }, { status }); }
 
-// POST /api/checkout/upsell  { funnelStepId, pricePlanId }
+// PhysicalProduct.variants is stored as JSON — typed here so we can resolve
+// the visitor's selected variant + price.
+type ProductVariant = {
+  id: string; name: string; combination: string[];
+  sku: string | null; price: number | null; image: string | null;
+};
+
+// POST /api/checkout/upsell
 //
 // One-click (off-session) purchase of an UPSELL/DOWNSELL offer using the card
-// the visitor saved on the main checkout. Returns:
+// saved on the main checkout. Branches by request body shape:
+//   digital  → { funnelStepId, pricePlanId }
+//   physical → { funnelStepId, physicalProductId, variantId, quantity }
+//
+// Returns:
 //   { nextStepUrl }                 — charged, go to the accept branch
 //   { requiresPayment, declineUrl } — no saved card / off-session failed →
 //                                     the front-end shows a payment modal
 export async function POST(req: NextRequest) {
   try {
-    const { funnelStepId, pricePlanId } = await req.json();
-    if (!funnelStepId || !pricePlanId) return fail("funnelStepId and pricePlanId are required");
+    const body = await req.json();
+    const funnelStepId: string | undefined = body?.funnelStepId;
+    if (!funnelStepId) return fail("funnelStepId is required");
 
-    const sid = req.headers.get(SID_HEADER);
+    const sid  = req.headers.get(SID_HEADER);
     const host = req.headers.get("host") ?? "localhost:3001";
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PHYSICAL upsell branch
+    // ─────────────────────────────────────────────────────────────────────
+    if (body.physicalProductId) {
+      const physicalProductId: string = body.physicalProductId;
+      const variantId: string | null  = body.variantId ?? null;
+      const quantity: number = Math.max(1, Number.isFinite(Number(body.quantity)) ? Math.floor(Number(body.quantity)) : 1);
+
+      const step = await db.funnelStep.findUnique({
+        where: { id: funnelStepId },
+        select: {
+          id: true, funnelId: true, type: true, offerType: true,
+          physicalProductId: true, shippingFee: true,
+          acceptStepId: true, declineStepId: true,
+          funnel: { select: { currency: true } },
+        },
+      });
+      if (!step) return fail("Funnel step not found", 404);
+      if (step.type !== "UPSELL" && step.type !== "DOWNSELL") {
+        return fail("Step is not an upsell or downsell", 400);
+      }
+      if (step.offerType !== "PHYSICAL" || !step.physicalProductId) {
+        return fail("Step is not configured for a physical offer", 400);
+      }
+      if (step.physicalProductId !== physicalProductId) {
+        return fail("Offer mismatch — refresh the page and try again", 400);
+      }
+
+      const acceptUrl  = await getBranchUrl(step, "accept", host);
+      const declineUrl = await getBranchUrl(step, "decline", host);
+
+      const session = await readPurchaseSession(sid);
+      // Direct access / expired — can't charge silently → route to decline.
+      if (!session) return ok({ requiresPayment: false, declineUrl });
+      // One-click physical requires Stripe (off-session). PayPal main purchase
+      // would need an interactive "pay again" modal — left for a follow-up.
+      if (session.provider !== "stripe") {
+        return ok({ requiresPayment: true, declineUrl });
+      }
+
+      // Need the main Order to reuse `shippingAddress`. v1 falls back to
+      // decline when missing; the inline-address modal is a follow-up.
+      if (!session.mainOrderId) {
+        return ok({ requiresPayment: false, declineUrl, error: "missing_main_order" });
+      }
+      const mainOrder = await db.order.findUnique({
+        where: { id: session.mainOrderId },
+        select: { shippingAddress: true, currency: true },
+      });
+      if (!mainOrder || !mainOrder.shippingAddress) {
+        return ok({ requiresPayment: false, declineUrl, error: "missing_shipping_address" });
+      }
+      const currency = (step.funnel.currency || mainOrder.currency).toLowerCase();
+      if (session.currency.toLowerCase() !== currency) {
+        return ok({ requiresPayment: true, declineUrl });
+      }
+
+      const product = await db.physicalProduct.findUnique({
+        where: { id: physicalProductId },
+        select: {
+          id: true, name: true, price: true, currency: true, variants: true,
+          limitStock: true, stockLimit: true,
+        },
+      });
+      if (!product) return fail("Product not found", 404);
+
+      // Resolve unit price from variant override (if any), otherwise the
+      // product's reference price.
+      let unitPrice = product.price;
+      let variantSnapshot: { id: string; name: string; combination: string[] } | null = null;
+      if (variantId) {
+        const variants = (product.variants ?? []) as ProductVariant[];
+        const v = variants.find((x) => x.id === variantId);
+        if (!v) return fail("Variant not found", 400);
+        if (v.price != null) unitPrice = v.price;
+        variantSnapshot = { id: v.id, name: v.name, combination: v.combination };
+      }
+
+      // Best-effort stock guard. We do NOT reserve before charging — full
+      // inventory locking is a v2 concern (race is rare in upsell flows
+      // because the buyer pool is capped by main-checkout volume).
+      if (product.limitStock && (product.stockLimit ?? 0) < quantity) {
+        return ok({ requiresPayment: false, declineUrl, error: "out_of_stock" });
+      }
+
+      const shippingFee = step.shippingFee ?? 0;
+      const subtotal    = unitPrice * quantity;
+      const total       = subtotal + shippingFee;
+
+      const provider        = await getStripeProvider(session.workspaceId);
+      const customerId      = await provider.getCustomerId(session.contactId, currency);
+      const paymentMethodId = await provider.getSavedCardPaymentMethod(customerId);
+      if (!paymentMethodId) return ok({ requiresPayment: true, declineUrl });
+
+      // Idempotency: at most one upsell charge per (session, step). Same
+      // semantics as the digital branch — see comments below.
+      const lockKey = `upsell:lock:${sid}:${funnelStepId}`;
+      let locked: string | null;
+      try {
+        locked = await redis.set(lockKey, "1", "EX", 7200, "NX");
+      } catch (e) {
+        console.error("[/api/checkout/upsell] physical lock failed (Redis down) — fallback to modal", e);
+        return ok({ requiresPayment: true, declineUrl, error: "lock_unavailable" });
+      }
+      if (locked === null) return ok({ nextStepUrl: acceptUrl, alreadyProcessed: true });
+
+      const contactSnapshot = await db.contact.findUnique({
+        where: { id: session.contactId },
+        select: { email: true, firstName: true, lastName: true },
+      });
+      const idempotencyKey = `upsell:${sid}:${funnelStepId}`;
+
+      let chargeRef: { provider: "stripe"; id: string; kind: "payment" } | null = null;
+      try {
+        const charge = await provider.chargeSavedPaymentMethod({
+          customerId, paymentMethodId,
+          amount: total, currency,
+          workspaceId: session.workspaceId,
+          idempotencyKey,
+          metadata: { funnelStepId, kind: "upsell", physicalProductId, variantId: variantId ?? "" },
+        });
+        if (charge.status !== "succeeded") throw new Error(`charge status: ${charge.status}`);
+        chargeRef = { provider: "stripe", id: charge.paymentIntentId, kind: "payment" };
+
+        const order = await db.order.create({
+          data: {
+            workspaceId: session.workspaceId, contactId: session.contactId, funnelStepId,
+            parentOrderId: session.mainOrderId,
+            physicalProductId, variantId,
+            quantity,
+            orderItemSnapshot: {
+              productName: product.name, unitPrice, quantity,
+              variant: variantSnapshot,
+            },
+            status: "PAID", paymentProvider: "stripe", paymentMethod: "card",
+            paymentMethodId, providerOrderId: charge.paymentIntentId,
+            subtotal, discountAmount: 0, shippingFee, total, currency,
+            shippingAddress: mainOrder.shippingAddress as Prisma.InputJsonValue,
+            contactSnapshot: contactSnapshot ?? Prisma.JsonNull,
+          },
+          select: { id: true, total: true },
+        });
+        await db.transaction.create({
+          data: { orderId: order.id, type: "SALE", amount: total, currency, reference: charge.chargeId, status: "COMPLETED" },
+        });
+
+        // Decrement stock — fire-and-forget so a transient DB error doesn't
+        // unwind a successful charge.
+        if (product.limitStock) {
+          db.physicalProduct.update({
+            where: { id: physicalProductId },
+            data: { stockLimit: { decrement: quantity } },
+          }).catch((e) => console.error("[/api/checkout/upsell] stock decrement failed", e));
+        }
+
+        await db.contactEvent.create({
+          data: { contactId: session.contactId, type: "PURCHASE", data: { orderId: order.id, amount: total, currency } },
+        });
+        await recordFunnelEvent({
+          type: "PURCHASE", funnelId: step.funnelId, funnelStepId,
+          contactId: session.contactId, orderId: order.id, amountCents: total,
+          sessionId: sid, variantId: await getAssignedVariantId(funnelStepId, sid),
+        });
+        await grantOrderResources(order.id).catch((e) => console.error("[/api/checkout/upsell] grantOrderResources", e));
+        fireTrigger(session.workspaceId, "NEW_SALE", {
+          contactId: session.contactId, orderId: order.id,
+          orderTotal: total / 100, orderCurrency: currency,
+          funnelId: step.funnelId, funnelStepId,
+        }).catch(() => {});
+
+        return ok({ nextStepUrl: acceptUrl });
+      } catch (err: any) {
+        if (chargeRef) {
+          // Gateway moved money — bookkeeping after failed. Keep the lock,
+          // log for reconciliation, route the buyer forward.
+          console.error(
+            "[/api/checkout/upsell] PHYSICAL BOOKKEEPING_FAILED_AFTER_CHARGE — manual reconciliation required",
+            { chargeRef, sid, funnelStepId, physicalProductId, variantId, quantity, error: err?.message ?? err },
+          );
+          return ok({ nextStepUrl: acceptUrl, reconciliationPending: true });
+        }
+        // Off-session charge failed → release lock, front-end shows modal.
+        await redis.del(lockKey).catch(() => {});
+        console.error("[/api/checkout/upsell] physical off-session charge failed:", err?.message ?? err);
+        return ok({ requiresPayment: true, declineUrl, error: "off_session_failed" });
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // DIGITAL upsell branch (existing behavior, unchanged)
+    // ─────────────────────────────────────────────────────────────────────
+    const pricePlanId: string | undefined = body?.pricePlanId;
+    if (!pricePlanId) return fail("pricePlanId or physicalProductId is required");
 
     const step = await db.funnelStep.findUnique({
       where: { id: funnelStepId },
@@ -108,6 +314,7 @@ export async function POST(req: NextRequest) {
           data: {
             workspaceId: session.workspaceId, contactId: session.contactId, funnelStepId,
             stepPricePlanId: plan.id,
+            parentOrderId: session.mainOrderId ?? null,
             orderItemSnapshot: { planName: plan.name, planType: plan.type, unitPrice: plan.amount },
             status: "PAID", paymentProvider: "stripe", paymentMethod: "card",
             paymentMethodId, providerOrderId: charge.paymentIntentId,
@@ -145,6 +352,7 @@ export async function POST(req: NextRequest) {
           data: {
             workspaceId: session.workspaceId, contactId: session.contactId, funnelStepId,
             stepPricePlanId: plan.id, subscriptionId: dbSub.id,
+            parentOrderId: session.mainOrderId ?? null,
             orderItemSnapshot: { planName: plan.name, planType: plan.type, unitPrice: plan.amount },
             status: isTrial ? "TRIAL" : "PAID", paymentProvider: "stripe", paymentMethod: "card",
             paymentMethodId, providerOrderId: sub.subscriptionId, invoiceId: sub.invoiceId,

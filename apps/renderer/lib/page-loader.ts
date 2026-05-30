@@ -249,35 +249,93 @@ async function buildPageData(
     : [];
 
   // Upsell/downsell offer — drives the Accept/Decline buttons + one-click charge.
-  // Only price-plan (DIGITAL) offers are chargeable here; PHYSICAL upsell isn't
-  // supported, so don't surface a stale price-plan offer when the step was
-  // switched to PHYSICAL (the leftover price plans would otherwise be used).
+  // Two kinds:
+  //   - DIGITAL  → off-session charge against a StepPricePlan.
+  //   - PHYSICAL → sells a PhysicalProduct. We also populate paymentData with
+  //                the product + shippingFee so the PhysicalProduct element
+  //                (variants/qty) and PaymentContext can render normally on
+  //                this step, exactly like a CHECKOUT step does.
   let upsell: RendererPageData["upsell"] = undefined;
-  if ((funnelStep.type === "UPSELL" || funnelStep.type === "DOWNSELL") && funnelStep.offerType !== "PHYSICAL") {
-    const plan = funnelStep.pricePlans?.[0];
-    if (plan) {
-      const [acceptUrl, declineUrl] = await Promise.all([
-        resolveBranchUrl(funnelStep, funnelStep.acceptStepId ?? null, host),
-        resolveBranchUrl(funnelStep, funnelStep.declineStepId ?? null, host),
-      ]);
-      // PayPal "pay again" modal — available for both ONE_TIME (order) and
-      // SUBSCRIPTION (billing plan) offers when the workspace has PayPal.
-      const ws = await db.workspaceSettings.findUnique({
-        where: { workspaceId: funnelStep.funnel.workspaceId },
+  if (funnelStep.type === "UPSELL" || funnelStep.type === "DOWNSELL") {
+    const [acceptUrl, declineUrl, ws] = await Promise.all([
+      resolveBranchUrl(funnelStep, funnelStep.acceptStepId ?? null, host),
+      resolveBranchUrl(funnelStep, funnelStep.declineStepId ?? null, host),
+      db.workspaceSettings.findUnique({ where: { workspaceId: funnelStep.funnel.workspaceId } }),
+    ]);
+    const stripeWs = ws?.stripe as any;
+    const paypalWs = ws?.paypal as any;
+    const paypalClientId: string | null = paypalWs?.clientId ?? null;
+
+    if (funnelStep.offerType === "PHYSICAL" && funnelStep.physicalProductId) {
+      const prod = await db.physicalProduct.findUnique({
+        where: { id: funnelStep.physicalProductId },
       });
-      const paypalClientId: string | null = (ws?.paypal as any)?.clientId ?? null;
-      upsell = {
-        pricePlanId: plan.id,
-        name:        plan.name,
-        amount:      plan.amount,
-        currency:    funnelStep.funnel.currency,
-        type:        plan.type,
-        interval:    plan.interval ?? null,
-        trialDays:   plan.trialDays ?? null,
-        acceptUrl,
-        declineUrl,
-        paypalClientId,
-      };
+      if (prod) {
+        const currency = funnelStep.funnel.currency;
+        const shippingFee = funnelStep.shippingFee ?? 0;
+        const paymentMethods = [
+          ...(stripeWs?.publishableKey ? ["stripe" as const] : []),
+          ...(paypalWs?.clientId       ? ["paypal" as const] : []),
+        ];
+        // PaymentData shape mirrors what the CHECKOUT branch produces so the
+        // PhysicalProduct element + PaymentContext read it the same way. We
+        // leave pricePlans/orderBumps empty — the upsell step sells just this
+        // single physical offer.
+        paymentData = {
+          paymentMethods,
+          stripePublicKey: stripeWs?.publishableKey ?? undefined,
+          paypalClientId,
+          paypalMode: (paypalWs?.mode ?? "sandbox") as "sandbox" | "live",
+          currency,
+          offer: { pricePlans: [] },
+          checkedPlanId: "",
+          selectedPaymentMethod: paymentMethods[0] ?? null,
+          physicalProduct: {
+            id: prod.id,
+            name: prod.name,
+            description: prod.description,
+            images: prod.images,
+            price: prod.price,
+            currency: prod.currency,
+            options: (prod.options ?? []) as Array<{ id: string; name: string; values: string[] }>,
+            variants: (prod.variants ?? []) as Array<{
+              id: string; name: string; combination: string[];
+              sku: string | null; price: number | null; image: string | null;
+            }>,
+          },
+          shippingFee,
+          orderBumps: [],
+        };
+        upsell = {
+          kind: "physical",
+          physicalProductId: prod.id,
+          name: prod.name,
+          amount: prod.price,
+          currency,
+          shippingFee,
+          acceptUrl,
+          declineUrl,
+          paypalClientId,
+        };
+      }
+    } else {
+      // DIGITAL — off-session charge against the step's first price plan.
+      const plan = funnelStep.pricePlans?.[0];
+      if (plan) {
+        upsell = {
+          kind:        "digital",
+          pricePlanId: plan.id,
+          name:        plan.name,
+          amount:      plan.amount,
+          currency:    funnelStep.funnel.currency,
+          type:        plan.type,
+          interval:    plan.interval ?? null,
+          trialDays:   plan.trialDays ?? null,
+          acceptUrl,
+          declineUrl,
+          paypalClientId,
+        };
+      }
     }
   }
 

@@ -17,6 +17,10 @@ export type PurchaseSession = {
   // Set for Stripe purchases — lets the upsell charge off-session. Absent for
   // PayPal/free → the upsell falls back to a payment modal.
   stripeCustomerId?: string | null;
+  // The main step Order id. Required for a downstream PHYSICAL upsell so the
+  // route can reuse `shippingAddress` + currency from this Order without
+  // joining contact + funnel + time. Best-effort: missing on legacy sessions.
+  mainOrderId?: string | null;
 };
 
 export async function writePurchaseSession(sid: string | null | undefined, s: PurchaseSession): Promise<void> {
