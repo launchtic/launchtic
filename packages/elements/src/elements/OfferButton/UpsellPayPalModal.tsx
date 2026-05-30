@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useSafePayment } from "../../contexts/PaymentContext";
+import type { ShippingAddress } from "./UpsellAddressModal";
 
 declare global {
   interface Window { paypal?: any; data?: any; }
@@ -7,21 +9,33 @@ declare global {
 // Standalone PayPal "pay again" modal for the upsell Accept button. Used when
 // one-click isn't possible (PayPal main purchase / no saved card) and the
 // workspace has PayPal configured (window.data.upsell.paypalClientId set).
-// Handles BOTH a one-time order and a subscription offer. Self-contained —
-// unlike PayPalButtonWrapper it has no checkout form / payment context; the
-// offer + contact come from the server via the purchase session.
-export function UpsellPayPalModal({ onClose }: { onClose: () => void }) {
+// Handles ALL three offer kinds:
+//   - digital ONE_TIME → bare PayPal order
+//   - digital SUBSCRIPTION → vault + subscription billing plan
+//   - physical (always ONE_TIME) → PayPal order for item + shipping
+export function UpsellPayPalModal({
+  onClose,
+  inlineShipTo,
+}: {
+  onClose: () => void;
+  // Pre-collected address from UpsellAddressModal — only meaningful for
+  // physical offers whose main checkout was digital-only.
+  inlineShipTo?: ShippingAddress | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const payment = useSafePayment();
 
   const data = typeof window !== "undefined" ? (window as any).data : null;
   const upsell = data?.upsell ?? null;
   const funnelStepId: string | null = data?.funnelStepId ?? null;
   const clientId: string | undefined = upsell?.paypalClientId;
   const currency = String(upsell?.currency ?? "USD").toUpperCase();
-  const isSubscription = upsell?.type === "SUBSCRIPTION";
+  const isPhysical    = upsell?.kind === "physical";
+  // Physical is always ONE_TIME — only digital can be SUBSCRIPTION.
+  const isSubscription = !isPhysical && upsell?.type === "SUBSCRIPTION";
 
   // Load the PayPal SDK once. Subscriptions need vault + intent=subscription.
   useEffect(() => {
@@ -37,16 +51,28 @@ export function UpsellPayPalModal({ onClose }: { onClose: () => void }) {
 
   // Render Smart Buttons.
   useEffect(() => {
-    if (!sdkReady || !containerRef.current || !window.paypal || !upsell?.pricePlanId || !funnelStepId) return;
+    if (!sdkReady || !containerRef.current || !window.paypal || !funnelStepId) return;
+    // Need either a digital pricePlanId or a physical productId to start.
+    if (!isPhysical && !upsell?.pricePlanId) return;
+    if (isPhysical  && !upsell?.physicalProductId) return;
     containerRef.current.innerHTML = "";
 
     const start = async (field: "paypalOrderId" | "paypalSubscriptionId") => {
       setProcessing(true);
       setError(null);
+      const body = isPhysical
+        ? {
+            funnelStepId,
+            physicalProductId: upsell.physicalProductId,
+            variantId:         payment.physicalSelection.variantId,
+            quantity:          payment.physicalSelection.quantity,
+            ...(inlineShipTo ? { inlineShipTo } : {}),
+          }
+        : { funnelStepId, pricePlanId: upsell.pricePlanId };
       const res = await fetch("/api/checkout/upsell/paypal/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ funnelStepId, pricePlanId: upsell.pricePlanId }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!json.success || !json[field]) {

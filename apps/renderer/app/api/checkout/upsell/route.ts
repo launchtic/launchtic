@@ -47,6 +47,31 @@ export async function POST(req: NextRequest) {
       const variantId: string | null  = body.variantId ?? null;
       const quantity: number = Math.max(1, Number.isFinite(Number(body.quantity)) ? Math.floor(Number(body.quantity)) : 1);
 
+      // Optional inline-collected address when the main checkout was digital-only
+      // (parent Order has no shippingAddress to reuse). Front-end pops the modal
+      // after we respond with `requiresShipping: true`, then re-POSTs with this.
+      const inlineShipToRaw = body.inlineShipTo;
+      const inlineShipTo: {
+        name: string; line1: string; line2?: string; city: string;
+        state?: string; postalCode: string; country: string;
+      } | null = (
+        inlineShipToRaw
+          && typeof inlineShipToRaw === "object"
+          && typeof inlineShipToRaw.name === "string"        && inlineShipToRaw.name.trim()
+          && typeof inlineShipToRaw.line1 === "string"       && inlineShipToRaw.line1.trim()
+          && typeof inlineShipToRaw.city === "string"        && inlineShipToRaw.city.trim()
+          && typeof inlineShipToRaw.postalCode === "string"  && inlineShipToRaw.postalCode.trim()
+          && typeof inlineShipToRaw.country === "string"     && inlineShipToRaw.country.trim()
+      ) ? {
+        name:       inlineShipToRaw.name.trim(),
+        line1:      inlineShipToRaw.line1.trim(),
+        line2:      typeof inlineShipToRaw.line2 === "string" && inlineShipToRaw.line2.trim() ? inlineShipToRaw.line2.trim() : undefined,
+        city:       inlineShipToRaw.city.trim(),
+        state:      typeof inlineShipToRaw.state === "string" && inlineShipToRaw.state.trim() ? inlineShipToRaw.state.trim() : undefined,
+        postalCode: inlineShipToRaw.postalCode.trim(),
+        country:    inlineShipToRaw.country.trim().toUpperCase(),
+      } : null;
+
       const step = await db.funnelStep.findUnique({
         where: { id: funnelStepId },
         select: {
@@ -79,8 +104,9 @@ export async function POST(req: NextRequest) {
         return ok({ requiresPayment: true, declineUrl });
       }
 
-      // Need the main Order to reuse `shippingAddress`. v1 falls back to
-      // decline when missing; the inline-address modal is a follow-up.
+      // Need a shipping address — reuse from the main Order, OR accept the
+      // inline-collected one when the buyer filled the modal. Missing both →
+      // signal `requiresShipping` so the front-end opens the modal.
       if (!session.mainOrderId) {
         return ok({ requiresPayment: false, declineUrl, error: "missing_main_order" });
       }
@@ -88,8 +114,14 @@ export async function POST(req: NextRequest) {
         where: { id: session.mainOrderId },
         select: { shippingAddress: true, currency: true },
       });
-      if (!mainOrder || !mainOrder.shippingAddress) {
-        return ok({ requiresPayment: false, declineUrl, error: "missing_shipping_address" });
+      if (!mainOrder) {
+        return ok({ requiresPayment: false, declineUrl, error: "missing_main_order" });
+      }
+      const shippingAddress: Prisma.InputJsonValue | null = inlineShipTo
+        ? (inlineShipTo as unknown as Prisma.InputJsonValue)
+        : (mainOrder.shippingAddress as Prisma.InputJsonValue | null);
+      if (!shippingAddress) {
+        return ok({ requiresShipping: true, declineUrl });
       }
       const currency = (step.funnel.currency || mainOrder.currency).toLowerCase();
       if (session.currency.toLowerCase() !== currency) {
@@ -117,11 +149,20 @@ export async function POST(req: NextRequest) {
         variantSnapshot = { id: v.id, name: v.name, combination: v.combination };
       }
 
-      // Best-effort stock guard. We do NOT reserve before charging — full
-      // inventory locking is a v2 concern (race is rare in upsell flows
-      // because the buyer pool is capped by main-checkout volume).
-      if (product.limitStock && (product.stockLimit ?? 0) < quantity) {
-        return ok({ requiresPayment: false, declineUrl, error: "out_of_stock" });
+      // Atomic stock reservation. The single UPDATE with `gte` guard runs as
+      // one SQL statement, so concurrent buyers can't both win against the
+      // last unit in stock. If the conditional update touches 0 rows → sold
+      // out. Charge-failure path further down releases the reservation.
+      let reservedStock = 0;
+      if (product.limitStock) {
+        const reserved = await db.physicalProduct.updateMany({
+          where: { id: physicalProductId, stockLimit: { gte: quantity } },
+          data:  { stockLimit: { decrement: quantity } },
+        });
+        if (reserved.count === 0) {
+          return ok({ requiresPayment: false, declineUrl, error: "out_of_stock" });
+        }
+        reservedStock = quantity;
       }
 
       const shippingFee = step.shippingFee ?? 0;
@@ -176,7 +217,7 @@ export async function POST(req: NextRequest) {
             status: "PAID", paymentProvider: "stripe", paymentMethod: "card",
             paymentMethodId, providerOrderId: charge.paymentIntentId,
             subtotal, discountAmount: 0, shippingFee, total, currency,
-            shippingAddress: mainOrder.shippingAddress as Prisma.InputJsonValue,
+            shippingAddress,
             contactSnapshot: contactSnapshot ?? Prisma.JsonNull,
           },
           select: { id: true, total: true },
@@ -185,14 +226,8 @@ export async function POST(req: NextRequest) {
           data: { orderId: order.id, type: "SALE", amount: total, currency, reference: charge.chargeId, status: "COMPLETED" },
         });
 
-        // Decrement stock — fire-and-forget so a transient DB error doesn't
-        // unwind a successful charge.
-        if (product.limitStock) {
-          db.physicalProduct.update({
-            where: { id: physicalProductId },
-            data: { stockLimit: { decrement: quantity } },
-          }).catch((e) => console.error("[/api/checkout/upsell] stock decrement failed", e));
-        }
+        // Stock already decremented atomically before the charge — no
+        // post-charge update needed here.
 
         await db.contactEvent.create({
           data: { contactId: session.contactId, type: "PURCHASE", data: { orderId: order.id, amount: total, currency } },
@@ -220,7 +255,14 @@ export async function POST(req: NextRequest) {
           );
           return ok({ nextStepUrl: acceptUrl, reconciliationPending: true });
         }
-        // Off-session charge failed → release lock, front-end shows modal.
+        // Off-session charge failed → release lock + stock reservation, then
+        // let the front-end show the PayPal "pay again" modal.
+        if (reservedStock > 0) {
+          db.physicalProduct.update({
+            where: { id: physicalProductId },
+            data:  { stockLimit: { increment: reservedStock } },
+          }).catch((e) => console.error("[/api/checkout/upsell] stock rollback failed", e));
+        }
         await redis.del(lockKey).catch(() => {});
         console.error("[/api/checkout/upsell] physical off-session charge failed:", err?.message ?? err);
         return ok({ requiresPayment: true, declineUrl, error: "off_session_failed" });

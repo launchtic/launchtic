@@ -13,6 +13,7 @@ import { ElementDrag } from "../common/ElementDrag";
 import { DelayedRender } from "../common/DelayedRender";
 import { useDraggableElement } from "../common/useDraggableElement";
 import { UpsellPayPalModal } from "./UpsellPayPalModal";
+import { UpsellAddressModal, type ShippingAddress } from "./UpsellAddressModal";
 import { useSafePayment } from "../../contexts/PaymentContext";
 
 // Offer buttons for UPSELL / DOWNSELL steps. They reuse the regular Button's
@@ -130,6 +131,13 @@ function OfferButtonView({ props, kind, indicatorName }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPayPal, setShowPayPal] = useState(false);
+  // PHYSICAL upsell on a digital-main checkout: server returns `requiresShipping`
+  // and we collect the address inline before re-POSTing the charge. We hold
+  // onto it so a downstream PayPal "pay again" fallback can use it too.
+  const [showAddress, setShowAddress] = useState(false);
+  const [addressBusy, setAddressBusy] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [inlineShipTo, setInlineShipTo] = useState<ShippingAddress | null>(null);
 
   const rp = {
     delay: props.delay,
@@ -163,28 +171,27 @@ function OfferButtonView({ props, kind, indicatorName }: {
     hover: props.hover || {},
   };
 
-  async function handleClick(e: React.MouseEvent) {
-    if (enabled) { e.preventDefault(); return; } // editor mode — no action
-    e.preventDefault();
-    if (loading || showPayPal) return; // already in-flight / PayPal modal open
-
+  // The Accept POST is extracted into a thunk so the address modal can re-run
+  // it with the just-collected `inlineShipTo` without duplicating any of the
+  // response handling (success / requiresShipping / requiresPayment / decline).
+  async function performAccept(inlineShipToArg?: ShippingAddress) {
     const data = (window as any).data ?? {};
     const upsell = data.upsell ?? null;
-
-    if (kind === "decline") {
-      redirect(upsell?.declineUrl ?? data.nextStepUrl);
-      return;
-    }
-
-    // Accept → one-click off-session charge. Body shape depends on offer kind:
-    //   digital  → { funnelStepId, pricePlanId }
-    //   physical → { funnelStepId, physicalProductId, variantId, quantity }
-    // physicalSelection comes from PaymentContext (PhysicalProduct element writes
-    // variantId + qty there as the visitor picks options on this page).
     if (!upsell || !data.funnelStepId) {
       setError("This offer is not configured. Please contact support.");
       return;
     }
+
+    // Snapshot any freshly-collected address into state so the PayPal "pay
+    // again" fallback below can re-use it without prompting the buyer twice.
+    if (inlineShipToArg) setInlineShipTo(inlineShipToArg);
+    const effectiveShipTo = inlineShipToArg ?? inlineShipTo;
+
+    // Body shape depends on offer kind:
+    //   digital  → { funnelStepId, pricePlanId }
+    //   physical → { funnelStepId, physicalProductId, variantId, quantity, inlineShipTo? }
+    // physicalSelection comes from PaymentContext (PhysicalProduct element writes
+    // variantId + qty there as the visitor picks options on this page).
     let body: Record<string, unknown>;
     if (upsell.kind === "physical") {
       if (!upsell.physicalProductId) {
@@ -196,6 +203,7 @@ function OfferButtonView({ props, kind, indicatorName }: {
         physicalProductId: upsell.physicalProductId,
         variantId:         payment.physicalSelection.variantId,
         quantity:          payment.physicalSelection.quantity,
+        ...(effectiveShipTo ? { inlineShipTo: effectiveShipTo } : {}),
       };
     } else {
       if (!upsell.pricePlanId) {
@@ -206,7 +214,9 @@ function OfferButtonView({ props, kind, indicatorName }: {
     }
 
     setError(null);
-    setLoading(true);
+    setAddressError(null);
+    if (inlineShipToArg) setAddressBusy(true); else setLoading(true);
+
     try {
       const res = await fetch("/api/checkout/upsell", {
         method: "POST",
@@ -218,19 +228,46 @@ function OfferButtonView({ props, kind, indicatorName }: {
         redirect(json.nextStepUrl);
         return;
       }
+      // PHYSICAL on a digital-main checkout — server has no shippingAddress
+      // to reuse. Open the inline modal; modal submit calls back into this
+      // function with the collected address.
+      if (json?.requiresShipping) {
+        setShowAddress(true);
+        setLoading(false);
+        setAddressBusy(false);
+        return;
+      }
       // One-click not possible (PayPal main purchase / no saved card / SCA fail).
-      // If PayPal is configured, open a "pay again" modal; otherwise continue
-      // down the decline branch so the funnel is never blocked.
+      // If PayPal is configured, open the "pay again" modal; otherwise route to
+      // decline so the funnel is never blocked.
       if (json?.requiresPayment && upsell?.paypalClientId) {
         setShowPayPal(true);
         setLoading(false);
+        setAddressBusy(false);
         return;
       }
       redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
     } catch {
-      setError("Something went wrong. Please try again.");
+      const msg = "Something went wrong. Please try again.";
+      if (inlineShipToArg) setAddressError(msg); else setError(msg);
       setLoading(false);
+      setAddressBusy(false);
     }
+  }
+
+  async function handleClick(e: React.MouseEvent) {
+    if (enabled) { e.preventDefault(); return; } // editor mode — no action
+    e.preventDefault();
+    if (loading || showPayPal || showAddress) return;
+
+    const data = (window as any).data ?? {};
+    const upsell = data.upsell ?? null;
+
+    if (kind === "decline") {
+      redirect(upsell?.declineUrl ?? data.nextStepUrl);
+      return;
+    }
+    await performAccept();
   }
 
   return (
@@ -287,7 +324,15 @@ function OfferButtonView({ props, kind, indicatorName }: {
         </ElementWrapper>
       </ElementDrag>
     </DelayedRender>
-    {showPayPal && <UpsellPayPalModal onClose={() => setShowPayPal(false)} />}
+    {showPayPal && <UpsellPayPalModal inlineShipTo={inlineShipTo} onClose={() => setShowPayPal(false)} />}
+    {showAddress && (
+      <UpsellAddressModal
+        busy={addressBusy}
+        error={addressError}
+        onSubmit={(addr) => performAccept(addr)}
+        onClose={() => { setShowAddress(false); setAddressBusy(false); setAddressError(null); }}
+      />
+    )}
     </>
   );
 }

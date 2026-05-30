@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
 
     const where = {
       workspaceId,
+      // Top-level list shows main step orders only. Upsell/downsell children
+      // come along inline via `include.children` and the UI renders them as
+      // expandable rows under their parent.
+      parentOrderId: null,
       ...(status && { status: status as any }),
       ...(kind === "subscription" && { subscriptionId: { not: null }, isRenewal: false }),
       ...(kind === "renewal" && { isRenewal: true }),
@@ -33,13 +37,18 @@ export async function GET(req: NextRequest) {
       }),
     };
 
+    const childInclude = {
+      contact:      { select: { id: true, email: true, firstName: true, lastName: true } },
+      funnelStep:   { include: { funnel: { select: { name: true } } } },
+      subscription: { select: { id: true, status: true, trialEnd: true } },
+      _count:       { select: { transactions: true } },
+    };
+
     const rows = await db.order.findMany({
       where,
       include: {
-        contact: { select: { id: true, email: true, firstName: true, lastName: true } },
-        funnelStep: { include: { funnel: { select: { name: true } } } },
-        subscription: { select: { id: true, status: true, trialEnd: true } },
-        _count: { select: { transactions: true } },
+        ...childInclude,
+        children: { include: childInclude, orderBy: { createdAt: "asc" } },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: PAGE_SIZE + 1,

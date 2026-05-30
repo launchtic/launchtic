@@ -9,16 +9,27 @@ import type { CheckoutInput, PricePlanRow } from "../../../../../../lib/payments
 function ok(data: Record<string, unknown>) { return NextResponse.json({ success: true, ...data }); }
 function fail(error: string, status = 400) { return NextResponse.json({ success: false, error }, { status }); }
 
-// POST /api/checkout/upsell/paypal/create  { funnelStepId, pricePlanId }
+type ProductVariant = {
+  id: string; name: string; combination: string[];
+  sku: string | null; price: number | null; image: string | null;
+};
+
+// POST /api/checkout/upsell/paypal/create
 //
-// "Pay again" modal for an UPSELL/DOWNSELL offer when one-click isn't possible
-// (PayPal main purchase / no saved card). Creates a PayPal order (ONE_TIME) or
-// PayPal subscription (SUBSCRIPTION); the client renders Smart Buttons against
-// it and /capture finalizes it.
+// "Pay again" modal for an UPSELL/DOWNSELL offer when one-click isn't possible.
+// Body shape branches:
+//   digital  → { funnelStepId, pricePlanId }
+//   physical → { funnelStepId, physicalProductId, variantId, quantity, inlineShipTo? }
+//
+// Creates a PayPal order/subscription (digital) OR a PayPal order for the
+// item + shipping total (physical). Client renders Smart Buttons, then
+// /capture finalizes. PayPal physical is ONE_TIME only — recurring physical
+// upsells aren't a thing.
 export async function POST(req: NextRequest) {
   try {
-    const { funnelStepId, pricePlanId } = await req.json();
-    if (!funnelStepId || !pricePlanId) return fail("funnelStepId and pricePlanId are required");
+    const body = await req.json();
+    const funnelStepId: string | undefined = body?.funnelStepId;
+    if (!funnelStepId) return fail("funnelStepId is required");
 
     const sid = req.headers.get(SID_HEADER);
     const session = await readPurchaseSession(sid);
@@ -26,16 +37,141 @@ export async function POST(req: NextRequest) {
 
     const step = await db.funnelStep.findUnique({
       where: { id: funnelStepId },
-      select: { id: true, type: true },
+      select: {
+        id: true, type: true, offerType: true,
+        physicalProductId: true, shippingFee: true,
+        funnel: { select: { currency: true } },
+      },
     });
     if (!step || (step.type !== "UPSELL" && step.type !== "DOWNSELL")) {
       return fail("Step is not an upsell or downsell", 400);
     }
 
+    const provider = await getPayPalProvider(session.workspaceId);
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PHYSICAL branch — bare PayPal order for (item + shipping). One-time only.
+    // ─────────────────────────────────────────────────────────────────────
+    if (body.physicalProductId) {
+      const physicalProductId: string = body.physicalProductId;
+      const variantId: string | null  = body.variantId ?? null;
+      const quantity: number = Math.max(1, Number.isFinite(Number(body.quantity)) ? Math.floor(Number(body.quantity)) : 1);
+
+      // Inline-collected address when main Order has none. Same shape + validation
+      // as the Stripe upsell route — keep them in sync.
+      const inlineShipToRaw = body.inlineShipTo;
+      const inlineShipTo: {
+        name: string; line1: string; line2?: string; city: string;
+        state?: string; postalCode: string; country: string;
+      } | null = (
+        inlineShipToRaw && typeof inlineShipToRaw === "object"
+        && typeof inlineShipToRaw.name === "string"        && inlineShipToRaw.name.trim()
+        && typeof inlineShipToRaw.line1 === "string"       && inlineShipToRaw.line1.trim()
+        && typeof inlineShipToRaw.city === "string"        && inlineShipToRaw.city.trim()
+        && typeof inlineShipToRaw.postalCode === "string"  && inlineShipToRaw.postalCode.trim()
+        && typeof inlineShipToRaw.country === "string"     && inlineShipToRaw.country.trim()
+      ) ? {
+        name:       inlineShipToRaw.name.trim(),
+        line1:      inlineShipToRaw.line1.trim(),
+        line2:      typeof inlineShipToRaw.line2 === "string" && inlineShipToRaw.line2.trim() ? inlineShipToRaw.line2.trim() : undefined,
+        city:       inlineShipToRaw.city.trim(),
+        state:      typeof inlineShipToRaw.state === "string" && inlineShipToRaw.state.trim() ? inlineShipToRaw.state.trim() : undefined,
+        postalCode: inlineShipToRaw.postalCode.trim(),
+        country:    inlineShipToRaw.country.trim().toUpperCase(),
+      } : null;
+
+      if (step.offerType !== "PHYSICAL" || !step.physicalProductId) {
+        return fail("Step is not configured for a physical offer", 400);
+      }
+      if (step.physicalProductId !== physicalProductId) {
+        return fail("Offer mismatch — refresh the page and try again", 400);
+      }
+      if (!session.mainOrderId) return fail("missing_main_order", 400);
+
+      const mainOrder = await db.order.findUnique({
+        where: { id: session.mainOrderId },
+        select: { shippingAddress: true, currency: true },
+      });
+      if (!mainOrder) return fail("missing_main_order", 400);
+
+      const shippingAddress = inlineShipTo ?? (mainOrder.shippingAddress as any);
+      if (!shippingAddress) return ok({ requiresShipping: true });
+
+      const product = await db.physicalProduct.findUnique({
+        where: { id: physicalProductId },
+        select: {
+          id: true, name: true, price: true, currency: true,
+          variants: true, limitStock: true, stockLimit: true,
+        },
+      });
+      if (!product) return fail("Product not found", 404);
+
+      let unitPrice = product.price;
+      let variantSnapshot: { id: string; name: string; combination: string[] } | null = null;
+      if (variantId) {
+        const variants = (product.variants ?? []) as ProductVariant[];
+        const v = variants.find((x) => x.id === variantId);
+        if (!v) return fail("Variant not found", 400);
+        if (v.price != null) unitPrice = v.price;
+        variantSnapshot = { id: v.id, name: v.name, combination: v.combination };
+      }
+
+      // Atomic stock reservation — same pattern as the Stripe upsell route.
+      // Rollback happens in /capture if the buyer abandons mid-flow (Redis
+      // key TTL expires) OR if capture fails.
+      let reservedStock = 0;
+      if (product.limitStock) {
+        const reserved = await db.physicalProduct.updateMany({
+          where: { id: physicalProductId, stockLimit: { gte: quantity } },
+          data:  { stockLimit: { decrement: quantity } },
+        });
+        if (reserved.count === 0) return ok({ outOfStock: true });
+        reservedStock = quantity;
+      }
+
+      const currency    = (step.funnel.currency || mainOrder.currency).toLowerCase();
+      const shippingFee = step.shippingFee ?? 0;
+      const subtotal    = unitPrice * quantity;
+      const total       = subtotal + shippingFee;
+
+      try {
+        const paypalOrderId = await provider.createUpsellOrder(total, currency);
+        await redis.setex(
+          `upsell:paypal:${paypalOrderId}`,
+          1800,
+          JSON.stringify({
+            kind: "physical_order",
+            funnelStepId, sid: sid ?? null,
+            contactId: session.contactId, workspaceId: session.workspaceId,
+            currency, amount: total, name: product.name,
+            physicalProductId, variantId, quantity, unitPrice,
+            shippingFee, subtotal,
+            shippingAddress, variantSnapshot,
+            mainOrderId: session.mainOrderId ?? null,
+            reservedStock,
+          }),
+        );
+        return ok({ kind: "order", paypalOrderId });
+      } catch (err) {
+        // PayPal order creation failed before money moved — release the stock.
+        if (reservedStock > 0) {
+          db.physicalProduct.update({
+            where: { id: physicalProductId },
+            data:  { stockLimit: { increment: reservedStock } },
+          }).catch((e) => console.error("[upsell/paypal/create] physical stock rollback failed", e));
+        }
+        throw err;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // DIGITAL branch (existing behavior)
+    // ─────────────────────────────────────────────────────────────────────
+    const pricePlanId: string | undefined = body?.pricePlanId;
+    if (!pricePlanId) return fail("pricePlanId or physicalProductId is required");
+
     const plan = await db.stepPricePlan.findFirst({ where: { id: pricePlanId, funnelStepId } });
     if (!plan) return fail("Offer not found", 404);
-
-    const provider = await getPayPalProvider(session.workspaceId);
 
     // ── ONE_TIME → bare PayPal order ──
     if (plan.type === "ONE_TIME") {

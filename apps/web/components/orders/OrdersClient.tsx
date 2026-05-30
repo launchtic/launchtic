@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  Search, ChevronDown, Loader2, ShoppingCart,
-  CheckCircle, Clock, XCircle, RotateCcw, Ban, Repeat, Timer,
+  Search, ChevronDown, ChevronRight, Loader2, ShoppingCart,
+  CheckCircle, Clock, XCircle, RotateCcw, Ban, Repeat, Timer, ArrowDownRight,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 type Contact = { id: string; email: string; firstName: string | null; lastName: string | null };
@@ -25,6 +25,9 @@ type Order = {
   funnelStep: FunnelStep | null;
   subscription: OrderSubscription | null;
   _count: { transactions: number };
+  // Upsell / downsell orders that link back here via Order.parentOrderId.
+  // Only set on top-level rows; child rows render this empty.
+  children?: Order[];
 };
 const STATUS_STYLE: Record<string, { className: string; icon: React.ReactNode }> = {
   PAID:     { className: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle size={11} /> },
@@ -53,6 +56,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
   const params = useParams();
   const slug = params.workspaceSlug as string;
   const [orders, setOrders] = useState<Order[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -127,6 +131,14 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
 
   function handleStatusFilter(val: string | null) { setStatusFilter(val); }
   function handleKindFilter(val: string | null) { setKindFilter(val); }
+
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const fullName = (c: Contact) =>
     [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email;
@@ -215,57 +227,125 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {orders.map((o) => (
-                <tr key={o.id} className="hover:bg-gray-50 transition-colors group">
-                  <td className="px-6 py-3">
-                    <Link href={`/${slug}/orders/${o.id}`} className="block">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-gray-900 group-hover:text-blue-700 transition-colors font-mono text-xs">
-                          #{o.id.slice(-8).toUpperCase()}
-                        </p>
-                        {o.subscriptionId && (
-                          o.isRenewal ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
-                              <Repeat size={9} /> Renewal
-                            </span>
+              {orders.map((o) => {
+                const childCount  = o.children?.length ?? 0;
+                const hasChildren = childCount > 0;
+                const isOpen      = expanded.has(o.id);
+                return (
+                  <React.Fragment key={o.id}>
+                    <tr className="hover:bg-gray-50 transition-colors group">
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(o.id)}
+                              className="p-0.5 -ml-1 rounded hover:bg-gray-200 text-gray-500"
+                              aria-label={isOpen ? "Collapse" : "Expand"}
+                            >
+                              {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
                           ) : (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                              <Repeat size={9} /> Subscription
-                            </span>
-                          )
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-400 mt-0.5 capitalize">{o.paymentProvider}</p>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link href={`/${slug}/contacts/${o.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
-                      {fullName(o.contact)}
-                    </Link>
-                    <p className="text-xs text-gray-400">{o.contact.email}</p>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {o.funnelStep ? (
-                      <div>
-                        <p className="text-sm text-gray-700">{o.funnelStep.funnel.name}</p>
-                        <p className="text-xs text-gray-400">{o.funnelStep.name}</p>
-                      </div>
-                    ) : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge
-                      status={o.status}
-                        label={STATUS_LABELS[o.status] ?? o.status}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">
-                    {formatAmount(o.total, o.currency)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">
-                    {new Date(o.createdAt).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
+                            <span className="w-[18px]" />
+                          )}
+                          <Link href={`/${slug}/orders/${o.id}`} className="block">
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-gray-900 group-hover:text-blue-700 transition-colors font-mono text-xs">
+                                #{o.id.slice(-8).toUpperCase()}
+                              </p>
+                              {o.subscriptionId && (
+                                o.isRenewal ? (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                    <Repeat size={9} /> Renewal
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                                    <Repeat size={9} /> Subscription
+                                  </span>
+                                )
+                              )}
+                              {hasChildren && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                  +{childCount} {childCount === 1 ? "upsell" : "upsells"}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5 capitalize">{o.paymentProvider}</p>
+                          </Link>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`/${slug}/contacts/${o.contact.id}`} className="text-sm text-gray-700 hover:text-blue-600 transition-colors">
+                          {fullName(o.contact)}
+                        </Link>
+                        <p className="text-xs text-gray-400">{o.contact.email}</p>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {o.funnelStep ? (
+                          <div>
+                            <p className="text-sm text-gray-700">{o.funnelStep.funnel.name}</p>
+                            <p className="text-xs text-gray-400">{o.funnelStep.name}</p>
+                          </div>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge
+                          status={o.status}
+                          label={STATUS_LABELS[o.status] ?? o.status}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                        {formatAmount(o.total, o.currency)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">
+                        {new Date(o.createdAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                    {isOpen && o.children?.map((c) => (
+                      <tr key={c.id} className="bg-blue-50/30 hover:bg-blue-50/60 transition-colors group">
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-1.5 pl-6">
+                            <ArrowDownRight size={13} className="text-blue-400 shrink-0" />
+                            <Link href={`/${slug}/orders/${c.id}`} className="block">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium text-gray-700 group-hover:text-blue-700 transition-colors font-mono text-xs">
+                                  #{c.id.slice(-8).toUpperCase()}
+                                </p>
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                  Upsell
+                                </span>
+                                {c.subscriptionId && !c.isRenewal && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                                    <Repeat size={9} /> Subscription
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-400 mt-0.5 capitalize">{c.paymentProvider}</p>
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-400">same buyer</span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">
+                          {c.funnelStep ? (
+                            <p className="text-xs text-gray-500">{c.funnelStep.name}</p>
+                          ) : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={c.status} label={STATUS_LABELS[c.status] ?? c.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-700">
+                          {formatAmount(c.total, c.currency)}
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">
+                          {new Date(c.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
           </div>

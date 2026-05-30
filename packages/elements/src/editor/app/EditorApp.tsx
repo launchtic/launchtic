@@ -320,6 +320,40 @@ export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, br
               physicalProduct,
               orderBumps,
             };
+          } else if ((step.type === "UPSELL" || step.type === "DOWNSELL")
+                     && step.offerType === "PHYSICAL"
+                     && step.physicalProductId) {
+            // Editor preview for PHYSICAL upsell/downsell. Mirrors the renderer's
+            // page-loader.ts PHYSICAL branch so PhysicalProduct + OfferPrice
+            // elements read variants/price/shipping from window.data.payment
+            // exactly like they do on the published page.
+            const physProdRes = await fetch(`/api/physical-products/${step.physicalProductId}`).then((r) => r.json());
+            if (physProdRes && !physProdRes.error) {
+              const currency    = step.funnel?.currency ?? "usd";
+              const shippingFee = step.shippingFee ?? 0;
+              paymentData = {
+                paymentMethods: ["stripe"],
+                offer: { pricePlans: [] },
+                currency,
+                checkedPlanId: "",
+                selectedPaymentMethod: "stripe",
+                physicalProduct: {
+                  id: physProdRes.id,
+                  name: physProdRes.name,
+                  description: physProdRes.description,
+                  images: physProdRes.images ?? [],
+                  price: physProdRes.price,
+                  currency: physProdRes.currency,
+                  tax: physProdRes.tax ?? 0,
+                  taxBehavior: physProdRes.taxBehavior ?? "EXCLUSIVE",
+                  disableShipping: physProdRes.disableShipping ?? false,
+                  options: physProdRes.options ?? [],
+                  variants: physProdRes.variants ?? [],
+                },
+                shippingFee,
+                orderBumps: [],
+              };
+            }
           }
 
           const previewUrl = step.slug ? stepViewUrl(rendererUrl, step.funnel?.primaryDomain ?? null, step.slug) : "";

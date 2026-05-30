@@ -11,17 +11,37 @@ import { fireTrigger } from "../../../../../../lib/automations";
 function ok(data: Record<string, unknown>) { return NextResponse.json({ success: true, ...data }); }
 function fail(error: string, status = 400) { return NextResponse.json({ success: false, error }, { status }); }
 
-type Pending = {
+// Pending payload variants stored in Redis by /create. Discriminator drives
+// the capture flow.
+type PendingDigital = {
   kind: "order" | "subscription";
   funnelStepId: string; pricePlanId: string; sid: string | null;
-  contactId: string; workspaceId: string; currency: string; amount: number; name: string;
+  contactId: string; workspaceId: string;
+  currency: string; amount: number; name: string;
   interval?: string; trialDays?: number;
 };
 
+type PendingPhysical = {
+  kind: "physical_order";
+  funnelStepId: string; sid: string | null;
+  contactId: string; workspaceId: string;
+  currency: string; amount: number; name: string;
+  physicalProductId: string;
+  variantId: string | null;
+  quantity: number;
+  unitPrice: number;
+  shippingFee: number;
+  subtotal: number;
+  shippingAddress: any;
+  variantSnapshot: { id: string; name: string; combination: string[] } | null;
+  mainOrderId: string | null;
+  reservedStock: number;
+};
+
+type Pending = PendingDigital | PendingPhysical;
+
 // POST /api/checkout/upsell/paypal/capture  { id }
-// `id` = the PayPal order id (ONE_TIME) or subscription id (SUBSCRIPTION) the
-// buyer approved. Captures/activates it, finalizes the sale, returns the
-// accept-branch URL. Mirrors /api/checkout/{capture,activate} for the upsell.
+//   `id` = PayPal order id (ONE_TIME / physical_order) or subscription id.
 export async function POST(req: NextRequest) {
   try {
     const { id } = await req.json();
@@ -50,7 +70,80 @@ export async function POST(req: NextRequest) {
     let orderId: string;
     let amountCents: number;
 
-    if (p.kind === "subscription") {
+    // ─────────────────────────────────────────────────────────────────────
+    // PHYSICAL — capture PayPal order, create Order with shippingAddress +
+    // variant snapshot + parentOrderId. Stock was reserved at /create.
+    // ─────────────────────────────────────────────────────────────────────
+    if (p.kind === "physical_order") {
+      const existing = await db.order.findFirst({
+        where: { providerOrderId: id, status: "PAID" },
+        select: { id: true },
+      });
+      if (existing) {
+        await redis.del(`upsell:paypal:${id}`);
+        return ok({ nextStepUrl: acceptUrl, alreadyProcessed: true });
+      }
+
+      let captureRef: { status: string; captureId: string | null };
+      try {
+        captureRef = await provider.captureOrder(id);
+      } catch (err) {
+        // Capture failed before money moved → release stock reservation.
+        if (p.reservedStock > 0) {
+          db.physicalProduct.update({
+            where: { id: p.physicalProductId },
+            data:  { stockLimit: { increment: p.reservedStock } },
+          }).catch((e) => console.error("[upsell/paypal/capture] physical stock rollback failed", e));
+        }
+        await redis.del(`upsell:paypal:${id}`);
+        throw err;
+      }
+      if (captureRef.status !== "COMPLETED") {
+        if (p.reservedStock > 0) {
+          db.physicalProduct.update({
+            where: { id: p.physicalProductId },
+            data:  { stockLimit: { increment: p.reservedStock } },
+          }).catch(() => {});
+        }
+        await redis.del(`upsell:paypal:${id}`);
+        return fail(`PayPal capture status: ${captureRef.status}`, 402);
+      }
+
+      try {
+        const order = await db.order.create({
+          data: {
+            workspaceId: p.workspaceId, contactId: p.contactId, funnelStepId: p.funnelStepId,
+            parentOrderId: p.mainOrderId ?? null,
+            physicalProductId: p.physicalProductId, variantId: p.variantId,
+            quantity: p.quantity,
+            orderItemSnapshot: {
+              productName: p.name, unitPrice: p.unitPrice, quantity: p.quantity,
+              variant: p.variantSnapshot,
+            },
+            status: "PAID", paymentProvider: "paypal", paymentMethod: "paypal",
+            providerOrderId: id,
+            subtotal: p.subtotal, discountAmount: 0, shippingFee: p.shippingFee,
+            total: p.amount, currency: p.currency,
+            shippingAddress: p.shippingAddress as Prisma.InputJsonValue,
+            contactSnapshot: contactSnapshot ?? Prisma.JsonNull,
+          },
+          select: { id: true, total: true },
+        });
+        await db.transaction.create({
+          data: { orderId: order.id, type: "SALE", amount: p.amount, currency: p.currency, reference: captureRef.captureId ?? id, status: "COMPLETED" },
+        });
+        orderId     = order.id;
+        amountCents = order.total;
+      } catch (err) {
+        // Money already moved — keep stock decremented, log for reconciliation.
+        console.error(
+          "[upsell/paypal/capture] PHYSICAL BOOKKEEPING_FAILED_AFTER_CAPTURE — manual reconciliation required",
+          { paypalOrderId: id, p, error: (err as any)?.message ?? err },
+        );
+        await redis.del(`upsell:paypal:${id}`);
+        return ok({ nextStepUrl: acceptUrl, reconciliationPending: true });
+      }
+    } else if (p.kind === "subscription") {
       // Idempotency: subscription already activated → don't re-create.
       const existingSub = await db.subscription.findFirst({
         where: { providerSubId: id },
@@ -63,10 +156,8 @@ export async function POST(req: NextRequest) {
         return fail(`PayPal subscription status: ${status}`, 402);
       }
 
-      // Redis snapshot was written when the modal opened — re-read DB so a
-      // merchant edit to trialDays during the 30-min window doesn't bake a
-      // stale trial into the new sub. PayPal plan was already created with
-      // the snapshot value (immutable), so we still use it as fallback.
+      // Re-read DB so a merchant edit during the 30-min window doesn't bake
+      // a stale trial into the new sub.
       const livePlan = await db.stepPricePlan.findUnique({
         where: { id: p.pricePlanId },
         select: { trialDays: true },
@@ -106,7 +197,7 @@ export async function POST(req: NextRequest) {
         });
       }
     } else {
-      // ── ONE_TIME order capture ──
+      // ── ONE_TIME digital order capture ──
       const existing = await db.order.findFirst({
         where: { providerOrderId: id, status: "PAID" },
         select: { id: true },
@@ -134,7 +225,7 @@ export async function POST(req: NextRequest) {
       amountCents = order.total;
     }
 
-    // CRM + analytics + resources + automation (shared for both kinds).
+    // CRM + analytics + resources + automation (shared across kinds).
     await db.contactEvent.create({
       data: { contactId: p.contactId, type: "PURCHASE", data: { orderId, amount: amountCents, currency: p.currency } },
     });
