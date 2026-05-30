@@ -65,10 +65,17 @@ export async function POST(req: NextRequest) {
     const paymentMethodId = await provider.getSavedCardPaymentMethod(customerId);
     if (!paymentMethodId) return ok({ requiresPayment: true, declineUrl });
 
-    // Idempotency: at most one upsell charge per (session, step). Lock first so a
-    // double-click / reload doesn't double-charge. Fail-open if Redis is down.
+    // Idempotency: at most one upsell charge per (session, step). Lock first so
+    // a double-click / reload doesn't double-charge. Fail-CLOSED if Redis is
+    // down — better to fall back to the PayPal modal than risk a double-charge.
     const lockKey = `upsell:lock:${sid}:${funnelStepId}`;
-    const locked = await redis.set(lockKey, "1", "EX", 7200, "NX").catch(() => "OK" as const);
+    let locked: string | null;
+    try {
+      locked = await redis.set(lockKey, "1", "EX", 7200, "NX");
+    } catch (e) {
+      console.error("[/api/checkout/upsell] lock failed (Redis down) — falling back to modal", e);
+      return ok({ requiresPayment: true, declineUrl, error: "lock_unavailable" });
+    }
     if (locked === null) return ok({ nextStepUrl: acceptUrl, alreadyProcessed: true });
 
     const contactSnapshot = await db.contact.findUnique({
@@ -76,6 +83,12 @@ export async function POST(req: NextRequest) {
       select: { email: true, firstName: true, lastName: true },
     });
     const idempotencyKey = `upsell:${sid}:${funnelStepId}`;
+
+    // chargeRef set the instant the gateway confirms money moved. If anything
+    // after this point throws, the customer is ALREADY charged — releasing the
+    // lock would let PayPal fallback double-bill. Keep the lock + log for
+    // admin reconciliation instead.
+    let chargeRef: { provider: "stripe"; id: string; kind: "payment" | "subscription" } | null = null;
 
     try {
       let order: { id: string; total: number };
@@ -89,6 +102,7 @@ export async function POST(req: NextRequest) {
           metadata: { funnelStepId, kind: "upsell" },
         });
         if (charge.status !== "succeeded") throw new Error(`charge status: ${charge.status}`);
+        chargeRef = { provider: "stripe", id: charge.paymentIntentId, kind: "payment" };
 
         order = await db.order.create({
           data: {
@@ -113,6 +127,7 @@ export async function POST(req: NextRequest) {
           workspaceId: session.workspaceId,
           idempotencyKey,
         });
+        chargeRef = { provider: "stripe", id: sub.subscriptionId, kind: "subscription" };
         const isTrial = !!sub.trialEnd;
         const dbSub = await db.subscription.create({
           data: {
@@ -164,6 +179,17 @@ export async function POST(req: NextRequest) {
 
       return ok({ nextStepUrl: acceptUrl });
     } catch (err: any) {
+      if (chargeRef) {
+        // The gateway already moved money — DB bookkeeping (order/subscription/
+        // events/resources) failed afterwards. Releasing the lock would let
+        // PayPal fallback re-charge. KEEP the lock, surface for admin reconciliation,
+        // and route the user forward as if accepted (charge succeeded).
+        console.error(
+          "[/api/checkout/upsell] BOOKKEEPING_FAILED_AFTER_CHARGE — manual reconciliation required",
+          { chargeRef, sid, funnelStepId, planId: plan.id, error: err?.message ?? err },
+        );
+        return ok({ nextStepUrl: acceptUrl, reconciliationPending: true });
+      }
       // Off-session charge failed (authentication_required / card_declined) —
       // release the lock and let the front-end show an interactive modal.
       await redis.del(lockKey).catch(() => {});

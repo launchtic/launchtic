@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../../../lib/permissions";
+import { invalidateStepCache } from "../../../../../lib/funnels/step-cache";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -68,6 +69,8 @@ export async function PATCH(req: NextRequest, { params }: Props) {
       shippingFee: targetShipping,
     },
   });
+
+  await invalidateStepCache(workspaceId, id);
 
   return NextResponse.json({ offerType: updated.offerType, physicalProductId: updated.physicalProductId, shippingFee: updated.shippingFee });
 }

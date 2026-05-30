@@ -28,7 +28,8 @@ export async function loadPage(
       where: { slug, funnel: { status: "ACTIVE" } },
       include: {
         funnel: true,
-        pricePlans: true,
+        // Deterministic order so `pricePlans[0]` is stable across requests.
+        pricePlans: { orderBy: { createdAt: "asc" } },
       },
     });
     if (!step) return null;
@@ -63,7 +64,7 @@ export async function loadPage(
             domains: { none: { domain: { isDefault: false } } },
           },
         },
-        include: { funnel: true, pricePlans: true },
+        include: { funnel: true, pricePlans: { orderBy: { createdAt: "asc" } } },
         orderBy: { updatedAt: "desc" },
       })
     : await db.funnelStep.findFirst({
@@ -74,7 +75,7 @@ export async function loadPage(
             domains: { some: { domainId: domainRecord.id } },
           },
         },
-        include: { funnel: true, pricePlans: true },
+        include: { funnel: true, pricePlans: { orderBy: { createdAt: "asc" } } },
         orderBy: { updatedAt: "desc" },
       });
 
@@ -248,8 +249,11 @@ async function buildPageData(
     : [];
 
   // Upsell/downsell offer — drives the Accept/Decline buttons + one-click charge.
+  // Only price-plan (DIGITAL) offers are chargeable here; PHYSICAL upsell isn't
+  // supported, so don't surface a stale price-plan offer when the step was
+  // switched to PHYSICAL (the leftover price plans would otherwise be used).
   let upsell: RendererPageData["upsell"] = undefined;
-  if (funnelStep.type === "UPSELL" || funnelStep.type === "DOWNSELL") {
+  if ((funnelStep.type === "UPSELL" || funnelStep.type === "DOWNSELL") && funnelStep.offerType !== "PHYSICAL") {
     const plan = funnelStep.pricePlans?.[0];
     if (plan) {
       const [acceptUrl, declineUrl] = await Promise.all([

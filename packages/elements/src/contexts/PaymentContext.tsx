@@ -78,9 +78,36 @@ const PaymentContext = createContext<PaymentContextValue | null>(null);
 export const PaymentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   // ========== INITIALIZE FROM WINDOW.DATA (ONE-TIME ONLY) ==========
+  // On UPSELL/DOWNSELL pages there is no full `payment` shape — the renderer
+  // exposes a single offer at `window.data.upsell`. Project it into the same
+  // PricePlan shape so OfferPrice/OfferButton can render the LIVE DB price
+  // instead of whatever literal the designer typed in the editor.
+  const upsellAsPlan = (): PricePlan | null => {
+    try {
+      const u = (window as any)?.data?.upsell;
+      if (!u || u.amount === undefined) return null;
+      return {
+        id:                  u.pricePlanId,
+        name:                u.name ?? "Offer",
+        directChargeAmount:  u.amount,
+        currency:            u.currency ?? "usd",
+        isLimited:           false,
+        type:                u.type ?? "ONE_TIME",
+        taxBehavior:         "inclusive",
+        interval:            u.interval ?? null,
+        trialDays:           u.trialDays ?? null,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const getInitialPlans = (): PricePlan[] => {
     try {
-      return window?.data?.payment?.offer?.pricePlans || [];
+      const checkoutPlans = window?.data?.payment?.offer?.pricePlans || [];
+      if (checkoutPlans.length > 0) return checkoutPlans;
+      const u = upsellAsPlan();
+      return u ? [u] : [];
     } catch {
       return [];
     }

@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../../../../../../lib/permissions";
+import { invalidateStepCache } from "../../../../../../../../lib/funnels/step-cache";
 
 type Props = { params: Promise<{ id: string; bumpId: string; planId: string }> };
 
@@ -34,12 +35,17 @@ export async function PATCH(req: NextRequest, { params }: Props) {
   const body = await req.json();
 
   // Stripe Prices / PayPal Billing Plans are immutable — drop the cached ids
-  // when pricing changes so the next checkout mints them at the NEW amount.
-  const newAmount   = body.amount   !== undefined ? Math.round(body.amount * 100) : plan.amount;
-  const newInterval = body.interval !== undefined ? body.interval : plan.interval;
-  const newType     = body.type     ?? plan.type;
+  // when pricing changes (incl. trialDays, which PayPal bakes into the plan)
+  // so the next checkout mints them at the NEW config.
+  const newAmount    = body.amount    !== undefined ? Math.round(body.amount * 100) : plan.amount;
+  const newInterval  = body.interval  !== undefined ? body.interval : plan.interval;
+  const newType      = body.type      ?? plan.type;
+  const newTrialDays = body.trialDays !== undefined ? body.trialDays : plan.trialDays;
   const pricingChanged =
-    newAmount !== plan.amount || newInterval !== plan.interval || newType !== plan.type;
+    newAmount !== plan.amount ||
+    newInterval !== plan.interval ||
+    newType !== plan.type ||
+    newTrialDays !== plan.trialDays;
 
   const updated = await db.orderBumpPricePlan.update({
     where: { id: planId },
@@ -54,6 +60,8 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     },
   });
 
+  await invalidateStepCache(workspaceId, id);
+
   return NextResponse.json(updated);
 }
 
@@ -66,6 +74,17 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
   const plan = await verifyPlan(planId, bumpId, id, workspaceId);
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await db.orderBumpPricePlan.delete({ where: { id: planId } });
+  try {
+    await db.orderBumpPricePlan.delete({ where: { id: planId } });
+  } catch (e: any) {
+    if (e?.code === "P2003") {
+      return NextResponse.json(
+        { error: "Can't delete: this bump plan has existing orders or subscriptions referencing it." },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
+  await invalidateStepCache(workspaceId, id);
   return NextResponse.json({ ok: true });
 }

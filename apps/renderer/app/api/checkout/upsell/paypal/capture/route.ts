@@ -63,7 +63,15 @@ export async function POST(req: NextRequest) {
         return fail(`PayPal subscription status: ${status}`, 402);
       }
 
-      const trialDays = p.trialDays ?? 0;
+      // Redis snapshot was written when the modal opened — re-read DB so a
+      // merchant edit to trialDays during the 30-min window doesn't bake a
+      // stale trial into the new sub. PayPal plan was already created with
+      // the snapshot value (immutable), so we still use it as fallback.
+      const livePlan = await db.stepPricePlan.findUnique({
+        where: { id: p.pricePlanId },
+        select: { trialDays: true },
+      });
+      const trialDays = livePlan?.trialDays ?? p.trialDays ?? 0;
       const trialEnd = trialDays > 0 ? new Date(Date.now() + trialDays * 86400_000) : null;
       const isTrial = !!trialEnd;
 

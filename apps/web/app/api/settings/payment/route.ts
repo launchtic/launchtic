@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { invalidateAllPagesForWorkspace } from "../../../../lib/funnels/step-cache";
 
 const stripeSchema = z.object({
   provider:       z.literal("stripe"),
@@ -70,6 +71,12 @@ export async function POST(req: NextRequest) {
       create: { workspaceId, [provider]: data },
       update: { [provider]: data },
     });
+
+    // PayPal clientId is embedded in pageJson (SDK loads with it client-side);
+    // Stripe publishableKey is read from settings at render-time but cached
+    // alongside the page. Either rotation must bust all cached pages or buyers
+    // continue hitting the OLD provider's SDK.
+    await invalidateAllPagesForWorkspace(workspaceId);
 
     return ok({ provider });
   } catch (error) {

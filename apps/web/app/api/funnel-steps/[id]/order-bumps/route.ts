@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../../../lib/permissions";
+import { invalidateStepCache } from "../../../../../lib/funnels/step-cache";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -67,6 +68,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       resources: true,
     },
   });
+
+  await invalidateStepCache(workspaceId, id);
 
   return NextResponse.json(bump, { status: 201 });
 }

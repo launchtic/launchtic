@@ -4,6 +4,7 @@ import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { assertSlugAvailable } from "../../../../lib/funnels/slug-validation";
+import { invalidateStepCache } from "../../../../lib/funnels/step-cache";
 
 // Validate pageJson — must be a valid object (Craft.js JSON)
 const metaSchema = z.object({
@@ -178,7 +179,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // renderer will keep serving stale data and font / SEO / tracking
     // updates won't take effect until the cache TTL expires.
     if (Object.keys(updateData).length > 0) {
-      invalidateCache(step.funnel.workspaceId, id).catch(() => {});
+      invalidateStepCache(step.funnel.workspaceId, id).catch(() => {});
     }
 
     return ok({ id: step.id, updatedAt: step.updatedAt });
@@ -206,27 +207,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function invalidateCache(workspaceId: string, funnelStepId: string) {
-  try {
-    const [domains, step] = await Promise.all([
-      db.domain.findMany({ where: { workspaceId }, select: { domain: true } }),
-      db.funnelStep.findUnique({ where: { id: funnelStepId }, select: { slug: true } }),
-    ]);
-    if (!step) return;
-    // Internal docker DNS hostname — direct hop to renderer container, avoids
-    // bouncing through Caddy. Falls back to localhost for dev outside Docker.
-    const rendererUrl = process.env.RENDERER_INTERNAL_URL ?? "http://renderer:3001";
-    const targets = domains.length > 0 ? domains : [{ domain: `localhost:3001` }];
-    for (const { domain } of targets) {
-      fetch(`${rendererUrl}/api/cache/invalidate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, slug: step.slug }),
-      }).catch(() => {});
-    }
-  } catch { /* non-critical */ }
-}
 
 function normalizeJson(value: string | Record<string, unknown>): Record<string, unknown> {
   if (typeof value === "string") {

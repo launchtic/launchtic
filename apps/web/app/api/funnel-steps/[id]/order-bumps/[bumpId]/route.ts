@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../../../../lib/permissions";
+import { invalidateStepCache } from "../../../../../../lib/funnels/step-cache";
 
 type Props = { params: Promise<{ id: string; bumpId: string }> };
 
@@ -64,6 +65,8 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     },
   });
 
+  await invalidateStepCache(workspaceId, id);
+
   return NextResponse.json(updated);
 }
 
@@ -76,6 +79,17 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
   const bump = await verifyBump(bumpId, id, workspaceId);
   if (!bump) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await db.orderBump.delete({ where: { id: bumpId } });
+  try {
+    await db.orderBump.delete({ where: { id: bumpId } });
+  } catch (e: any) {
+    if (e?.code === "P2003") {
+      return NextResponse.json(
+        { error: "Can't delete: this bump has existing orders or subscriptions referencing it." },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
+  await invalidateStepCache(workspaceId, id);
   return NextResponse.json({ ok: true });
 }

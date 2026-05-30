@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../../../lib/permissions";
+import { invalidateStepCache } from "../../../../../lib/funnels/step-cache";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -47,6 +48,20 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: "name, type, amount required" }, { status: 400 });
   }
 
+  // UPSELL/DOWNSELL are one-click single-offer pages — the renderer always
+  // serves `pricePlans[0]`, so a second plan would be silently ignored. Cap
+  // server-side so direct API calls can't bypass the builder UI's cap.
+  const stepType = (await db.funnelStep.findUnique({ where: { id }, select: { type: true } }))?.type;
+  if (stepType === "UPSELL" || stepType === "DOWNSELL") {
+    const existing = await db.stepPricePlan.count({ where: { funnelStepId: id } });
+    if (existing >= 1) {
+      return NextResponse.json(
+        { error: "Upsell/Downsell steps support only one price plan." },
+        { status: 409 },
+      );
+    }
+  }
+
   const plan = await db.stepPricePlan.create({
     data: {
       funnelStepId: id,
@@ -59,6 +74,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       trialDays: trialDays ?? null,
     },
   });
+
+  await invalidateStepCache(workspaceId, id);
 
   return NextResponse.json(plan, { status: 201 });
 }
