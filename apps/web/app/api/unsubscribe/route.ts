@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { verifyUnsubscribeToken } from "@launchtic/email/server";
-import { exitEnrollmentsForContact } from "../../../lib/sequences";
 
 // Public, unauthenticated. Anyone with a signed token can unsubscribe the
 // referenced contact — that's the whole point. No rate limit needed: a stolen
@@ -50,13 +49,19 @@ export async function GET(req: NextRequest) {
         userAgent,
       },
     }).catch(() => {});
-    // Best-effort mass-exit so stats reflect immediately. Worker tick would
-    // catch unsubscribed contacts at next step send anyway, so failure here
-    // is non-fatal.
-    await exitEnrollmentsForContact({
-      contactId: contact.id,
-      workspaceId: contact.workspaceId,
-      reason: "unsubscribed",
+    // Best-effort exit of every active WorkflowRun this contact is in — so
+    // stats reflect immediately and SEND_EMAIL nodes don't fire after the
+    // contact unsubscribed. The next scheduled node would skip them anyway
+    // via the compliance gate, so this is just optimistic cleanup.
+    await db.workflowRun.updateMany({
+      where: { contactId: contact.id, workspaceId: contact.workspaceId, status: "ACTIVE" },
+      data:  {
+        status:      "EXITED",
+        exitReason:  "unsubscribed",
+        completedAt: new Date(),
+        currentNodeId: null,
+        scheduledFor:  null,
+      },
     }).catch(() => {});
   }
 

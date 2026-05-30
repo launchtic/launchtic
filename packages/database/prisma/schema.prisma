@@ -121,12 +121,6 @@ model Workspace {
   emailTemplates      EmailTemplate[]
   broadcasts          Broadcast[]
   emailSends          EmailSend[]
-  automations         Automation[]
-  automationRuns      AutomationRun[]
-  emailSequences      EmailSequence[]
-  sequenceEnrollments ContactSequenceEnrollment[]
-  // ─── Workflows (graph-based automation, next-gen replacement for Automation
-  //     + Sequence). Built parallel during Phase 1; legacy stays running. ───
   workflows           Workflow[]
   workflowRuns        WorkflowRun[]
   senderIdentities    SenderIdentity[]
@@ -592,8 +586,6 @@ model Contact {
   subscriptions       Subscription[]
   resourceAccesses    ContactResourceAccess[]
   emailSends          EmailSend[]
-  automationRuns      AutomationRun[]
-  sequenceEnrollments ContactSequenceEnrollment[]
   workflowRuns        WorkflowRun[]
 
   @@unique([workspaceId, email])
@@ -921,11 +913,9 @@ model EmailTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  broadcasts        Broadcast[]
-  emailSends        EmailSend[]
-  automationActions AutomationAction[]
-  sequenceSteps     SequenceStep[]
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  broadcasts Broadcast[]
+  emailSends EmailSend[]
 
   @@unique([workspaceId, systemKey])
   @@index([workspaceId, category])
@@ -975,15 +965,9 @@ model EmailSend {
   contactId   String?
   toEmail     String
 
-  // Source — exactly one of broadcastId / templateId / automationId / sequenceId / transactionalKey is set
+  // Source — exactly one of broadcastId / templateId / transactionalKey is set
   broadcastId        String?
   templateId         String?
-  automationId       String?
-  automationRunId    String?
-  automationActionId String?
-  sequenceId         String?
-  sequenceStepId     String?
-  enrollmentId       String?
   transactionalKey   String? // e.g. "order_confirmation" for ad-hoc transactional sends
 
   subject  String
@@ -998,23 +982,14 @@ model EmailSend {
   sentAt   DateTime?
   failedAt DateTime?
 
-  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact          Contact?                   @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  broadcast        Broadcast?                 @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
-  template         EmailTemplate?             @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  automation       Automation?                @relation(fields: [automationId], references: [id], onDelete: SetNull)
-  automationRun    AutomationRun?             @relation(fields: [automationRunId], references: [id], onDelete: SetNull)
-  automationAction AutomationAction?          @relation(fields: [automationActionId], references: [id], onDelete: SetNull)
-  sequence         EmailSequence?             @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
-  sequenceStep     SequenceStep?              @relation(fields: [sequenceStepId], references: [id], onDelete: SetNull)
-  enrollment       ContactSequenceEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?       @relation(fields: [contactId],   references: [id], onDelete: SetNull)
+  broadcast Broadcast?     @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
+  template  EmailTemplate? @relation(fields: [templateId],  references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, queuedAt])
   @@index([contactId, queuedAt])
   @@index([broadcastId])
-  @@index([automationId])
-  @@index([sequenceId])
-  @@index([enrollmentId])
 }
 
 // ─────────────────────────────────────────
@@ -1026,88 +1001,6 @@ model EmailSend {
 //   actions:  [SEND_EMAIL "welcome", ADD_TAG "customer", WEBHOOK "notify slack"]
 //
 // Visual canvas builder (with branching/decision nodes) is a separate Phase 4 model.
-
-model Automation {
-  id          String           @id @default(cuid())
-  workspaceId String
-  name        String
-  status      AutomationStatus @default(DRAFT)
-
-  // Trigger — one per automation
-  triggerType   TriggerType
-  triggerConfig Json        @default("{}") // { tagId? funnelId? funnelStepId? } — depends on triggerType
-
-  // Stats
-  timesTriggered  Int       @default(0)
-  lastTriggeredAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  actions    AutomationAction[]
-  runs       AutomationRun[]
-  emailSends EmailSend[]
-
-  @@index([workspaceId, status])
-  @@index([triggerType, status])
-}
-
-// One action within an automation. Actions execute sequentially in `order`.
-// Failure of one action does NOT halt subsequent actions (best-effort) — the
-// failure is recorded on AutomationRun.errorMessage as the first error seen.
-model AutomationAction {
-  id           String @id @default(cuid())
-  automationId String
-  order        Int    @default(0) // 0-based execution order within automation
-
-  actionType   ActionType
-  actionConfig Json       @default("{}") // { tagId? webhookUrl? sequenceId? ... }
-
-  // For SEND_EMAIL action — snapshot at save time (editing template later
-  // does not affect already-saved actions). Sender fields are guaranteed
-  // non-null for SEND_EMAIL by the API save handler (resolves to default
-  // SenderIdentity if user didn't pick one). Null for non-email actions.
-  emailTemplateId String?
-  emailSubject    String?
-  emailHtmlBody   String?
-  emailFromName   String?
-  emailFromEmail  String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  automation Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  template   EmailTemplate? @relation(fields: [emailTemplateId], references: [id])
-  emailSends EmailSend[]
-
-  @@index([automationId, order])
-}
-
-// Per-execution log. One row per (automation, trigger event) — needed for
-// audit trail, idempotency, and surfacing failures to the user.
-model AutomationRun {
-  id           String  @id @default(cuid())
-  automationId String
-  workspaceId  String
-  contactId    String?
-
-  status       AutomationRunStatus @default(PENDING)
-  triggerData  Json                @default("{}") // { orderId? tagId? } — context that fired the trigger
-  errorMessage String?
-
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-
-  automation Automation  @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact    Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  emailSends EmailSend[]
-
-  @@index([automationId, startedAt])
-  @@index([contactId, startedAt])
-  @@index([workspaceId, status])
-}
 
 // ─────────────────────────────────────────
 // SENDER IDENTITIES
@@ -1133,99 +1026,6 @@ model SenderIdentity {
 
   @@unique([workspaceId, email])
   @@index([workspaceId])
-}
-
-// ─────────────────────────────────────────
-// SEQUENCES — Drip campaigns (M6)
-// ─────────────────────────────────────────
-//
-// EmailSequence:  Definition. N steps with delays.
-// SequenceStep:   One email + delay-from-previous-step.
-// ContactSequenceEnrollment: Per-contact instance. Tracks which step is next
-//                  and when (`nextSendAt`) — the scheduler tick polls this.
-
-model EmailSequence {
-  id          String         @id @default(cuid())
-  workspaceId String
-  name        String
-  status      SequenceStatus @default(DRAFT)
-
-  // Exit conditions are NOT stored on the sequence — unsubscribed/bounced
-  // contacts are always excluded (compliance, hardcoded in worker), and any
-  // other "exit" logic (purchase, tag, segment, manual) is composed via an
-  // automation with the END_SEQUENCE action.
-
-  // Stats — denormalized counters for the list view.
-  totalEnrolled  Int @default(0)
-  activeCount    Int @default(0)
-  completedCount Int @default(0)
-  exitedCount    Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  steps       SequenceStep[]
-  enrollments ContactSequenceEnrollment[]
-  emailSends  EmailSend[]
-
-  @@index([workspaceId, status])
-}
-
-model SequenceStep {
-  id           String @id @default(cuid())
-  sequenceId   String
-  order        Int    @default(0) // 0-based execution order
-  delayMinutes Int    @default(0) // minutes to wait after previous step (0 for step 1 = send immediately)
-
-  // Email content — snapshot at save time, like AutomationAction. Sender
-  // fields are NOT NULL (resolved from default SenderIdentity at save time).
-  emailTemplateId String?
-  emailSubject    String
-  emailHtmlBody   String
-  emailFromName   String
-  emailFromEmail  String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  sequence   EmailSequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  template   EmailTemplate? @relation(fields: [emailTemplateId], references: [id])
-  emailSends EmailSend[]
-
-  @@index([sequenceId, order])
-}
-
-model ContactSequenceEnrollment {
-  id          String @id @default(cuid())
-  sequenceId  String
-  contactId   String
-  workspaceId String
-
-  status           EnrollmentStatus @default(ACTIVE)
-  currentStepIndex Int              @default(0) // next step to send (0-based)
-  nextSendAt       DateTime // scheduler tick polls this
-  exitReason       String? // "unsubscribed" | "purchased" | "tag_added" | "manual" | ...
-
-  enrolledAt  DateTime  @default(now())
-  completedAt DateTime?
-  lastSentAt  DateTime?
-
-  // Provenance — which automation/run enrolled this contact (null = manual).
-  enrolledByAutomationId String?
-  enrolledByRunId        String?
-
-  sequence   EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  contact    Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  emailSends EmailSend[]
-
-  // One active enrollment per (sequence, contact) — enforced via partial index in migration.
-  // (Prisma can't model partial unique, so the unique is enforced in SQL.)
-  @@index([status, nextSendAt])
-  @@index([sequenceId, status])
-  @@index([contactId, status])
-  @@index([workspaceId, status])
 }
 
 // ─────────────────────────────────────────
@@ -1365,8 +1165,8 @@ enum EmailSendStatus {
 // without schema churn. Node + edge SHAPES are documented in the executor
 // (apps/worker/src/queues/workflow.ts).
 //
-// Coexists with legacy Automation + EmailSequence during migration. New
-// fireTrigger() fires both. Phase 1C will drop legacy.
+// Sole automation primitive after Phase 1C — replaced legacy Automation +
+// EmailSequence + ContactSequenceEnrollment in one drop.
 
 model Workflow {
   id            String         @id @default(cuid())
@@ -1375,8 +1175,7 @@ model Workflow {
   description   String?
   status        WorkflowStatus @default(DRAFT)
 
-  // Trigger — same semantics as Automation.triggerType for v1 compat. New
-  // trigger types added in Phase 2 (CHECKOUT_STARTED, PAGE_VISITED, etc.)
+  // Trigger — new types added in Phase 2 (CHECKOUT_STARTED, PAGE_VISITED, etc.)
   // Stored as string (no enum) for forward extensibility without migrations.
   triggerType   String
   triggerConfig Json?   // { funnelId?, funnelStepId?, tagId?, amountMin?, ... }
@@ -1488,50 +1287,6 @@ enum WorkflowRunStatus {
 }
 
 // ─────────────────────────────────────────
-
-enum AutomationStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-}
-
-enum TriggerType {
-  NEW_SALE
-  SALE_CANCELED              // refund completed (full) OR subscription canceled (immediate or scheduled)
-  SUBSCRIPTION_PAYMENT_FAILED // subscription renewal payment failed → status PAST_DUE
-  FORM_SUBMIT
-  TAG_ADDED
-  TAG_REMOVED
-  EMAIL_LINK_CLICKED
-}
-
-enum ActionType {
-  SEND_EMAIL
-  ADD_TAG
-  REMOVE_TAG
-  WEBHOOK
-  START_SEQUENCE
-  END_SEQUENCE
-}
-
-enum AutomationRunStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
-enum SequenceStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-}
-
-enum EnrollmentStatus {
-  ACTIVE
-  COMPLETED
-  EXITED
-  FAILED
-}
 
 // ─────────────────────────────────────────
 // SYSTEM CONFIG  — singleton row, instance-wide settings

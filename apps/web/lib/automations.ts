@@ -1,18 +1,12 @@
-// Automation event bus.
-//
-// Call fireTrigger() from anywhere a relevant event happens (Stripe webhook,
-// PayPal webhook, tag CRUD, form submit). It finds matching ACTIVE automations,
-// applies trigger filters, creates an AutomationRun row, and enqueues a job
-// for the worker to execute.
-//
-// Designed to be safe to call without awaiting completion — callers shouldn't
-// block their own response on automation execution. Errors here are logged
-// but do not propagate (an automation failing should never break a payment
-// webhook).
+// Workflow trigger entrypoint (legacy filename kept to avoid touching 85
+// callsites — file now only fires Workflows). Phase 2 may rename this to
+// `workflows.ts` once the import surface stabilizes.
 
 import { db } from "@launchtic/database";
-import { automationQueue, workflowQueue } from "./queue";
+import { workflowQueue } from "./queue";
 
+// Phase 1C: legacy TriggerType enum still re-exported to keep callsite
+// signatures stable. New trigger types added in Phase 2 just extend this.
 export type TriggerType =
   | "NEW_SALE"
   | "SALE_CANCELED"
@@ -23,75 +17,19 @@ export type TriggerType =
   | "EMAIL_LINK_CLICKED";
 
 export type TriggerContext = {
-  contactId?: string;
-  // Trigger-specific data — will be passed to the run as triggerData and
-  // exposed to template variables.
-  orderId?: string;
-  orderTotal?: number;
+  contactId?:    string;
+  orderId?:      string;
+  orderTotal?:   number;
   orderCurrency?: string;
   subscriptionId?: string;
-  tagId?: string;
-  funnelId?: string;
+  tagId?:        string;
+  funnelId?:     string;
   funnelStepId?: string;
-  emailSendId?: string;
-  // Allow arbitrary extras
+  emailSendId?:  string;
   [key: string]: unknown;
 };
 
 export async function fireTrigger(
-  workspaceId: string,
-  triggerType: TriggerType,
-  context: TriggerContext,
-): Promise<void> {
-  // Fire BOTH legacy Automation runs and new Workflow runs in parallel — the
-  // refactor coexistence period (Phase 1A/1B). Phase 1C drops the legacy
-  // automation path.
-  await Promise.all([
-    fireLegacyAutomations(workspaceId, triggerType, context),
-    fireWorkflows(workspaceId, triggerType, context),
-  ]);
-}
-
-async function fireLegacyAutomations(
-  workspaceId: string,
-  triggerType: TriggerType,
-  context: TriggerContext,
-): Promise<void> {
-  try {
-    const automations = await db.automation.findMany({
-      where: { workspaceId, status: "ACTIVE", triggerType },
-      select: { id: true, triggerConfig: true },
-    });
-
-    const matching = automations.filter((a) => matchesFilter(a.triggerConfig as any, context));
-    if (matching.length === 0) return;
-
-    const queue = automationQueue();
-
-    for (const a of matching) {
-      const run = await db.automationRun.create({
-        data: {
-          automationId: a.id,
-          workspaceId,
-          contactId: context.contactId ?? null,
-          status: "PENDING",
-          triggerData: context as any,
-        },
-      });
-
-      await queue.add("execute", { runId: run.id, workspaceId });
-    }
-  } catch (err) {
-    // Log but do not throw — automations failing must never break payment flow.
-    console.error(`[automations] fireTrigger ${triggerType} failed:`, err);
-  }
-}
-
-// New graph-workflow path. Mirrors automations.fire flow but:
-//  - matches Workflow rows (separate table)
-//  - applies re-enrollment policy (SINGLE_ACTIVE / ALWAYS / COOLDOWN)
-//  - enqueues the FIRST node of the graph; the executor walks the rest
-async function fireWorkflows(
   workspaceId: string,
   triggerType: TriggerType,
   context: TriggerContext,
@@ -111,7 +49,9 @@ async function fireWorkflows(
       if (!matchesFilter(wf.triggerConfig as Record<string, unknown> | null, context)) continue;
       if (!wf.startNodeId) continue;
 
-      // Re-enrollment policy gate.
+      // Re-enrollment policy: SINGLE_ACTIVE (default) blocks concurrent runs
+      // for the same contact; COOLDOWN blocks if the contact was enrolled
+      // recently; ALWAYS lets every fire start a new run.
       if (context.contactId) {
         if (wf.reEnrollPolicy === "SINGLE_ACTIVE") {
           const existing = await db.workflowRun.findFirst({
@@ -152,23 +92,15 @@ async function fireWorkflows(
       await queue.add("step", { runId: run.id, workspaceId, nodeId: wf.startNodeId });
     }
   } catch (err) {
+    // Never break the calling flow (payment webhook, form submit, etc.).
     console.error(`[workflows] fireTrigger ${triggerType} failed:`, err);
   }
 }
 
-// Apply per-trigger filter rules from triggerConfig JSON.
-// Returns true if context satisfies the filter.
 function matchesFilter(config: Record<string, unknown> | null, context: TriggerContext): boolean {
   if (!config) return true;
-
-  // NEW_SALE filters
-  if (config.funnelId && context.funnelId !== config.funnelId) return false;
-
-  // TAG_ADDED / TAG_REMOVED filter
-  if (config.tagId && context.tagId !== config.tagId) return false;
-
-  // FORM_SUBMIT filter
+  if (config.funnelId     && context.funnelId     !== config.funnelId)     return false;
+  if (config.tagId        && context.tagId        !== config.tagId)        return false;
   if (config.funnelStepId && context.funnelStepId !== config.funnelStepId) return false;
-
   return true;
 }

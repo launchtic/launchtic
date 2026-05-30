@@ -14,8 +14,6 @@ import { contactTools }       from "./contact";
 import { funnelTools }        from "./funnel";
 import { pageTemplateTools }  from "./page-template";
 import { broadcastTools }     from "./broadcast";
-import { sequenceTools }      from "./sequence";
-import { automationTools }    from "./automation";
 import { couponTools }        from "./coupon";
 import { productTools }       from "./product";
 import { subscriptionTools }  from "./subscription";
@@ -41,8 +39,6 @@ const ALL_TOOLS: ToolDef<any>[] = [
   ...funnelTools,
   ...pageTemplateTools,
   ...broadcastTools,
-  ...sequenceTools,
-  ...automationTools,
   ...couponTools,
   ...productTools,
   ...subscriptionTools,

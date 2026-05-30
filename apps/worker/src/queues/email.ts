@@ -26,10 +26,6 @@ export type EmailJobData = {
   fromEmail: string;
   fromName: string;
   broadcastId?: string;
-  // Set by sequence worker when this is the last step's email — used to emit
-  // SEQUENCE_COMPLETED in the contact's timeline AFTER EMAIL_SENT, so the
-  // ordering reflects reality ("email delivered, then sequence done").
-  sequenceCompletedOnSend?: { sequenceId: string; enrollmentId: string };
 };
 
 // Dedicated connection for rate-limit primitives. Separate from the BullMQ
@@ -61,7 +57,7 @@ function looksLikeHardBounce(error: unknown): boolean {
 }
 
 async function processEmailJob(job: Job<EmailJobData>, token?: string) {
-  const { emailSendId, workspaceId, contactId, to, subject, html, fromEmail, fromName, broadcastId, sequenceCompletedOnSend } = job.data;
+  const { emailSendId, workspaceId, contactId, to, subject, html, fromEmail, fromName, broadcastId } = job.data;
 
   const smtp = await loadWorkspaceSmtp(workspaceId);
   if (!smtp) {
@@ -131,19 +127,6 @@ async function processEmailJob(job: Job<EmailJobData>, token?: string) {
           data: { emailSendId, subject, to, providerMessageId: result.messageId || null },
         },
       }).catch(() => {});
-      // Last step's email just landed → close out the sequence in the
-      // timeline. Emitted here (not in the sequence worker's completeEnrollment)
-      // so the SEQUENCE_COMPLETED createdAt > EMAIL_SENT createdAt and the
-      // activity feed shows the right order.
-      if (sequenceCompletedOnSend) {
-        await db.contactEvent.create({
-          data: {
-            contactId,
-            type: "SEQUENCE_COMPLETED",
-            data: sequenceCompletedOnSend,
-          },
-        }).catch(() => {});
-      }
     }
     if (broadcastId) {
       await db.broadcast.update({

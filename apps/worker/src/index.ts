@@ -10,8 +10,6 @@
 
 import { createEmailWorker } from "./queues/email";
 import { createBroadcastWorker } from "./queues/broadcast";
-import { createAutomationWorker } from "./queues/automation";
-import { createSequenceWorker, ensureSequenceTickScheduled } from "./queues/sequence";
 import { createWorkflowWorker } from "./queues/workflow";
 import type { Worker } from "bullmq";
 
@@ -23,16 +21,9 @@ export function bootWorkers(): Worker[] {
     return [];
   }
   console.log(`[worker] booting (mode=${mode})`);
-  // Schedule the sequence tick (singleton repeatable job). Fire-and-forget;
-  // the function self-heals via BullMQ dedup if called multiple times.
-  ensureSequenceTickScheduled().catch((e) =>
-    console.error("[sequence] failed to schedule tick:", e),
-  );
   return [
     createEmailWorker(),
     createBroadcastWorker(),
-    createAutomationWorker(),
-    createSequenceWorker(),
     createWorkflowWorker(),
   ];
 }

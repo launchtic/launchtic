@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox, Building2,
+  Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox, Building2, Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -92,12 +92,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: Mail,
     children: [
       { href: "/emails/broadcasts", label: "Broadcasts",  icon: Megaphone, requirePerm: "broadcasts:read"      },
-      { href: "/sequences",         label: "Sequences",   icon: Repeat,    requirePerm: "sequences:read"       },
       { href: "/emails/templates",  label: "Templates",   icon: FileText,  requirePerm: "email_templates:read" },
       { href: "/emails/logs",       label: "Email Logs",  icon: Inbox,     requirePerm: "email_logs:read"      },
     ],
   },
-  { href: "/automations", label: "Automations", icon: GitBranch, requirePerm: "automations:read" },
+  { href: "/workflows",   label: "Workflows",   icon: Workflow,  requirePerm: "automations:read" },
   { href: "/settings",    label: "Settings",    icon: Settings                                   },
 ];
 
