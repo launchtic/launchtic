@@ -125,26 +125,29 @@ export async function POST(req: NextRequest) {
         ? (inlineShipTo as unknown as Prisma.InputJsonValue)
         : (mainOrder.shippingAddress as Prisma.InputJsonValue | null);
       if (!shippingAddress) {
-        // canUseStripe tells the client whether to show the "Confirm with card"
-        // button (Stripe one-click). Only true when the main checkout went
-        // through Stripe — otherwise there's no saved card to charge.
-        // canUsePayPal is decided client-side from `upsell.paypalClientId`.
-        const canUseStripe = session.provider === "stripe";
-        console.log("[upsell/physical] no shipping address → requiresShipping", { hasMainAddress: !!mainOrder.shippingAddress, hasInline: !!inlineShipTo, canUseStripe });
-        return ok({ requiresShipping: true, canUseStripe, declineUrl });
+        // Tell the client which provider to surface in the modal — strictly
+        // matches the main checkout's provider (industry standard: 1-click
+        // upsell never asks the buyer to re-authorize a different gateway).
+        // Client decides:
+        //   "stripe" → address form + "Confirm with card"
+        //   "paypal" → address form + PayPal buttons (if workspace has PayPal)
+        //   other   → route to decline
+        console.log("[upsell/physical] no shipping address → requiresShipping", { hasMainAddress: !!mainOrder.shippingAddress, hasInline: !!inlineShipTo, provider: session.provider });
+        return ok({ requiresShipping: true, provider: session.provider, declineUrl });
       }
 
       // Provider gate — needs Stripe for one-click off-session. If main was
-      // PayPal/free, the PayPal "pay again" modal handles the rest (now safely,
-      // because shipping is already in hand via inlineShipTo or mainOrder).
+      // PayPal, the PayPal "pay again" modal handles the rest (shipping is
+      // already in hand via inlineShipTo or mainOrder). `provider` tag piggybacks
+      // so the client renders only the matching fallback section.
       if (session.provider !== "stripe") {
         console.log("[upsell/physical] non-stripe session → PayPal modal", { provider: session.provider });
-        return ok({ requiresPayment: true, declineUrl });
+        return ok({ requiresPayment: true, provider: session.provider, declineUrl });
       }
 
       const currency = (step.funnel.currency || mainOrder.currency).toLowerCase();
       if (session.currency.toLowerCase() !== currency) {
-        return ok({ requiresPayment: true, declineUrl });
+        return ok({ requiresPayment: true, provider: session.provider, declineUrl });
       }
 
       const product = await db.physicalProduct.findUnique({
@@ -191,7 +194,7 @@ export async function POST(req: NextRequest) {
       const provider        = await getStripeProvider(session.workspaceId);
       const customerId      = await provider.getCustomerId(session.contactId, currency);
       const paymentMethodId = await provider.getSavedCardPaymentMethod(customerId);
-      if (!paymentMethodId) return ok({ requiresPayment: true, declineUrl });
+      if (!paymentMethodId) return ok({ requiresPayment: true, provider: session.provider, declineUrl });
 
       // Idempotency: at most one upsell charge per (session, step). Same
       // semantics as the digital branch — see comments below.
@@ -201,7 +204,7 @@ export async function POST(req: NextRequest) {
         locked = await redis.set(lockKey, "1", "EX", 7200, "NX");
       } catch (e) {
         console.error("[/api/checkout/upsell] physical lock failed (Redis down) — fallback to modal", e);
-        return ok({ requiresPayment: true, declineUrl, error: "lock_unavailable" });
+        return ok({ requiresPayment: true, provider: session.provider, declineUrl, error: "lock_unavailable" });
       }
       if (locked === null) return ok({ nextStepUrl: acceptUrl, alreadyProcessed: true });
 
@@ -284,7 +287,7 @@ export async function POST(req: NextRequest) {
         }
         await redis.del(lockKey).catch(() => {});
         console.error("[/api/checkout/upsell] physical off-session charge failed:", err?.message ?? err);
-        return ok({ requiresPayment: true, declineUrl, error: "off_session_failed" });
+        return ok({ requiresPayment: true, provider: session.provider, declineUrl, error: "off_session_failed" });
       }
     }
 
@@ -322,15 +325,17 @@ export async function POST(req: NextRequest) {
     // Session exists but one-click isn't possible (PayPal main purchase, or
     // currency mismatch with the Stripe customer). The PayPal pay-again modal
     // CAN work here (the contact is known), so signal requiresPayment.
+    // `provider` tag tells the client which fallback section is appropriate
+    // — strict matching per industry standard.
     if (session.provider !== "stripe"
         || session.currency.toLowerCase() !== plan.currency.toLowerCase()) {
-      return ok({ requiresPayment: true, declineUrl });
+      return ok({ requiresPayment: true, provider: session.provider, declineUrl });
     }
 
     const provider = await getStripeProvider(session.workspaceId);
     const customerId = await provider.getCustomerId(session.contactId, plan.currency);
     const paymentMethodId = await provider.getSavedCardPaymentMethod(customerId);
-    if (!paymentMethodId) return ok({ requiresPayment: true, declineUrl });
+    if (!paymentMethodId) return ok({ requiresPayment: true, provider: session.provider, declineUrl });
 
     // Idempotency: at most one upsell charge per (session, step). Lock first so
     // a double-click / reload doesn't double-charge. Fail-CLOSED if Redis is
@@ -341,7 +346,7 @@ export async function POST(req: NextRequest) {
       locked = await redis.set(lockKey, "1", "EX", 7200, "NX");
     } catch (e) {
       console.error("[/api/checkout/upsell] lock failed (Redis down) — falling back to modal", e);
-      return ok({ requiresPayment: true, declineUrl, error: "lock_unavailable" });
+      return ok({ requiresPayment: true, provider: session.provider, declineUrl, error: "lock_unavailable" });
     }
     if (locked === null) return ok({ nextStepUrl: acceptUrl, alreadyProcessed: true });
 
@@ -463,7 +468,7 @@ export async function POST(req: NextRequest) {
       // release the lock and let the front-end show an interactive modal.
       await redis.del(lockKey).catch(() => {});
       console.error("[/api/checkout/upsell] off-session charge failed:", err?.message ?? err);
-      return ok({ requiresPayment: true, declineUrl, error: "off_session_failed" });
+      return ok({ requiresPayment: true, provider: session.provider, declineUrl, error: "off_session_failed" });
     }
   } catch (error) {
     console.error("[/api/checkout/upsell]", error);

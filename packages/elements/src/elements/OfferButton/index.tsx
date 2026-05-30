@@ -211,30 +211,39 @@ function OfferButtonView({ props, kind, indicatorName }: {
       });
       const json = await res.json();
       if (json?.success && json.nextStepUrl) { redirect(json.nextStepUrl); return; }
-      // Open the unified fallback modal. Which sections it shows depends on
-      // what the server flagged + which payment paths are actually usable:
-      //   requiresShipping → address form. "Confirm with card" only when the
-      //                      main checkout used Stripe (server tells us via
-      //                      canUseStripe). PayPal section if workspace has
-      //                      paypalClientId.
-      //   requiresPayment  → PayPal only (Stripe one-click already failed).
-      // If neither payment path is usable on a requiresShipping/Payment
-      // response we route to decline — opening a modal with no buttons is
-      // worse than just continuing the funnel.
+      // Strict provider matching — industry standard for 1-click upsell.
+      // The modal only ever surfaces ONE payment path, whichever was used at
+      // the main checkout. Mixing (e.g. showing PayPal on a Stripe upsell) is
+      // a UX/confusion bug, not a feature.
+      //   provider="stripe" → Stripe path (address form + "Confirm with card")
+      //   provider="paypal" → PayPal pay-again (PayPal Smart Buttons)
+      //   anything else     → decline
       const hasPayPal = !!upsell?.paypalClientId;
+      const mainProvider: string | null = json?.provider ?? null;
       if (json?.requiresShipping) {
-        const showStripe = !!json.canUseStripe;
-        if (!showStripe && !hasPayPal) {
-          redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
+        if (mainProvider === "stripe") {
+          setModal({ needsAddress: true, showStripe: true, showPayPal: false });
+          setLoading(false);
           return;
         }
-        setModal({ needsAddress: true, showStripe, showPayPal: hasPayPal });
-        setLoading(false);
+        if (mainProvider === "paypal" && hasPayPal) {
+          setModal({ needsAddress: true, showStripe: false, showPayPal: true });
+          setLoading(false);
+          return;
+        }
+        redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
         return;
       }
-      if (json?.requiresPayment && hasPayPal) {
-        setModal({ needsAddress: false, showStripe: false, showPayPal: true });
-        setLoading(false);
+      if (json?.requiresPayment) {
+        // PayPal pay-again is only appropriate when main was PayPal. Stripe
+        // off-session failures (SCA / declined card / etc.) fall to decline —
+        // platform doesn't ask the buyer to switch gateways mid-funnel.
+        if (mainProvider === "paypal" && hasPayPal) {
+          setModal({ needsAddress: false, showStripe: false, showPayPal: true });
+          setLoading(false);
+          return;
+        }
+        redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
         return;
       }
       redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);

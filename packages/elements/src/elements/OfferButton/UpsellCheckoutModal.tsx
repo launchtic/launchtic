@@ -261,8 +261,10 @@ export function UpsellCheckoutModal({
         </div>
         <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 14 }}>
           {needsAddress
-            ? "We'll use the card you saved at checkout — just need the delivery address."
-            : "One-click charge isn't available — choose a payment option below."}
+            ? (showStripe
+                ? "We'll use the card you saved at checkout — just need the delivery address."
+                : "We'll use your PayPal account — just need the delivery address.")
+            : "Complete your purchase with PayPal."}
         </div>
 
         {/* ── Address form ── */}
@@ -327,7 +329,7 @@ export function UpsellCheckoutModal({
                   fontSize: 14, fontWeight: 600, marginBottom: showPayPal ? 12 : 0,
                 }}
               >
-                {processing ? "Processing…" : "Confirm with card"}
+                {processing ? "Processing…" : "Complete purchase"}
               </button>
             )}
           </form>
