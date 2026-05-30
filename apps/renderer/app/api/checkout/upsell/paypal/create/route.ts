@@ -199,6 +199,7 @@ export async function POST(req: NextRequest) {
           kind: "order", funnelStepId, pricePlanId: plan.id, sid: sid ?? null,
           contactId: session.contactId, workspaceId: session.workspaceId,
           currency: plan.currency, amount: plan.amount, name: plan.name,
+          mainOrderId: session.mainOrderId ?? null,
         }),
       );
       return ok({ kind: "order", paypalOrderId });
@@ -247,6 +248,7 @@ export async function POST(req: NextRequest) {
         contactId: session.contactId, workspaceId: session.workspaceId,
         currency: plan.currency, amount: plan.amount, name: plan.name,
         interval: plan.interval ?? "month", trialDays: plan.trialDays ?? 0,
+        mainOrderId: session.mainOrderId ?? null,
       }),
     );
     return ok({ kind: "subscription", paypalSubscriptionId });

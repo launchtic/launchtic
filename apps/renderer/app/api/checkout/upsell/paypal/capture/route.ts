@@ -19,6 +19,8 @@ type PendingDigital = {
   contactId: string; workspaceId: string;
   currency: string; amount: number; name: string;
   interval?: string; trialDays?: number;
+  // Link back to the main step Order so dashboard/refund tree stays correct.
+  mainOrderId?: string | null;
 };
 
 type PendingPhysical = {
@@ -181,6 +183,7 @@ export async function POST(req: NextRequest) {
         data: {
           workspaceId: p.workspaceId, contactId: p.contactId, funnelStepId: p.funnelStepId,
           stepPricePlanId: p.pricePlanId, subscriptionId: dbSub.id,
+          parentOrderId: p.mainOrderId ?? null,
           orderItemSnapshot: { planName: p.name, planType: "SUBSCRIPTION", unitPrice: p.amount },
           status: isTrial ? "TRIAL" : "PAID", paymentProvider: "paypal", paymentMethod: "paypal",
           providerOrderId: id, subtotal: p.amount, discountAmount: 0,
@@ -211,6 +214,7 @@ export async function POST(req: NextRequest) {
         data: {
           workspaceId: p.workspaceId, contactId: p.contactId, funnelStepId: p.funnelStepId,
           stepPricePlanId: p.pricePlanId,
+          parentOrderId: p.mainOrderId ?? null,
           orderItemSnapshot: { planName: p.name, planType: "ONE_TIME", unitPrice: p.amount },
           status: "PAID", paymentProvider: "paypal", paymentMethod: "paypal",
           providerOrderId: id, subtotal: p.amount, discountAmount: 0, total: p.amount, currency: p.currency,
