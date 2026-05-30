@@ -125,6 +125,10 @@ model Workspace {
   automationRuns      AutomationRun[]
   emailSequences      EmailSequence[]
   sequenceEnrollments ContactSequenceEnrollment[]
+  // ─── Workflows (graph-based automation, next-gen replacement for Automation
+  //     + Sequence). Built parallel during Phase 1; legacy stays running. ───
+  workflows           Workflow[]
+  workflowRuns        WorkflowRun[]
   senderIdentities    SenderIdentity[]
   aiConversations     AiConversation[]
   savedBlocks         SavedBlock[]
@@ -590,6 +594,7 @@ model Contact {
   emailSends          EmailSend[]
   automationRuns      AutomationRun[]
   sequenceEnrollments ContactSequenceEnrollment[]
+  workflowRuns        WorkflowRun[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, createdAt])
@@ -1347,6 +1352,142 @@ enum EmailSendStatus {
   FAILED
   BOUNCED
 }
+
+// ─────────────────────────────────────────
+// WORKFLOWS  — graph-based automation (Phase 1 refactor)
+// ─────────────────────────────────────────
+//
+// A Workflow is a directed graph of Nodes connected by Edges. Each WorkflowRun
+// is a state machine that walks the graph one node at a time — the worker
+// executes a node, then schedules the next node (immediate or delayed).
+//
+// Stored as JSON so the visual builder can write arbitrary positions / labels
+// without schema churn. Node + edge SHAPES are documented in the executor
+// (apps/worker/src/queues/workflow.ts).
+//
+// Coexists with legacy Automation + EmailSequence during migration. New
+// fireTrigger() fires both. Phase 1C will drop legacy.
+
+model Workflow {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  name          String
+  description   String?
+  status        WorkflowStatus @default(DRAFT)
+
+  // Trigger — same semantics as Automation.triggerType for v1 compat. New
+  // trigger types added in Phase 2 (CHECKOUT_STARTED, PAGE_VISITED, etc.)
+  // Stored as string (no enum) for forward extensibility without migrations.
+  triggerType   String
+  triggerConfig Json?   // { funnelId?, funnelStepId?, tagId?, amountMin?, ... }
+
+  // Graph definition. See WorkflowNode + WorkflowEdge types in the executor.
+  //   nodes: [{ id, type, position: {x,y}, config }]
+  //   edges: [{ id, source, target, label?, condition? }]
+  nodes         Json
+  edges         Json
+  // Entry point — node id where every run starts. Validated on activate.
+  startNodeId   String?
+
+  // Exit policy — industry standard re-enrollment + goal handling.
+  reEnrollPolicy        String  @default("SINGLE_ACTIVE") // SINGLE_ACTIVE | ALWAYS | COOLDOWN
+  reEnrollCooldownDays  Int?
+  maxDurationDays       Int?
+
+  // Denormalized stats (incremented at run creation / completion). Source of
+  // truth still WorkflowRun count queries.
+  totalEnrolled  Int @default(0)
+  activeCount    Int @default(0)
+  completedCount Int @default(0)
+  exitedCount    Int @default(0)
+  failedCount    Int @default(0)
+  lastTriggeredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs      WorkflowRun[]
+
+  @@index([workspaceId, status, triggerType])
+  @@index([workspaceId, createdAt])
+}
+
+model WorkflowRun {
+  id          String            @id @default(cuid())
+  workflowId  String
+  workspaceId String
+  contactId   String?
+  status      WorkflowRunStatus @default(ACTIVE)
+
+  // State-machine pointer. Null when run hasn't started OR has completed.
+  currentNodeId String?
+
+  // Scheduled execution time for the NEXT node. Used for delay nodes — the
+  // worker poller picks runs with `status=ACTIVE AND scheduledFor <= now()`
+  // and resumes them. Cleared once node is being executed.
+  scheduledFor DateTime?
+
+  // Trigger payload (immutable) + accumulated context (mutable across nodes).
+  triggerData Json @default("{}")
+  context     Json @default("{}")
+
+  // Lifecycle. exitReason: "goal" | "manual" | "max_duration" | "workflow_paused"
+  //                       | "workflow_deleted" | "re_enroll_blocked" | etc.
+  exitReason  String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  workflow  Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?          @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  steps     WorkflowRunStep[]
+
+  @@index([workflowId, status])
+  @@index([workspaceId, status])
+  @@index([contactId])
+  // Cron-style poller picks due runs from this index.
+  @@index([status, scheduledFor])
+}
+
+model WorkflowRunStep {
+  id       String  @id @default(cuid())
+  runId    String
+  // Refers to Workflow.nodes[].id. Denormalized for fast filtering without
+  // parsing the parent workflow JSON.
+  nodeId   String
+  nodeType String
+
+  status   String // PENDING | RUNNING | COMPLETED | FAILED | SKIPPED
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  error       String?   @db.Text
+  // Per-step output (e.g. EmailSend.id, webhook response status). Indexed by
+  // node id so the UI can render the step inside its node card.
+  output      Json?
+
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, startedAt])
+  @@index([runId, nodeId])
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum WorkflowRunStatus {
+  ACTIVE     // executing or scheduled for next node
+  COMPLETED  // reached an END node
+  EXITED     // exited via goal / manual / re-enroll / pause
+  FAILED     // unrecoverable error mid-run
+}
+
+// ─────────────────────────────────────────
 
 enum AutomationStatus {
   DRAFT

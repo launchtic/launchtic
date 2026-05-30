@@ -10,6 +10,7 @@ export const EMAIL_QUEUE_NAME = "email";
 export const BROADCAST_QUEUE_NAME = "broadcast";
 export const AUTOMATION_QUEUE_NAME = "automation";
 export const SEQUENCE_QUEUE_NAME = "sequence";
+export const WORKFLOW_QUEUE_NAME = "workflow";
 
 // Job payload contracts — keep in sync with worker
 export type EmailJobData = {
@@ -35,6 +36,14 @@ export type AutomationRunJobData = {
   workspaceId: string;
 };
 
+// Workflow state-machine job — one node executed per job, then re-enqueued
+// for the next node (or scheduled with delay).
+export type WorkflowJobData = {
+  runId:       string;
+  workspaceId: string;
+  nodeId:      string;
+};
+
 // Sequence scheduler — single repeatable job ticks every minute.
 // No payload needed; the worker scans the DB for due enrollments.
 export type SequenceTickJobData = Record<string, never>;
@@ -49,6 +58,7 @@ const g = globalThis as unknown as {
   __launchtic_broadcast_queue?: Queue<BroadcastDispatchJobData>;
   __launchtic_automation_queue?: Queue<AutomationRunJobData>;
   __launchtic_sequence_queue?: Queue<SequenceTickJobData>;
+  __launchtic_workflow_queue?: Queue<WorkflowJobData>;
 };
 
 function getConnection(): Redis {
@@ -111,6 +121,21 @@ export function automationQueue(): Queue<AutomationRunJobData> {
 // only the broadcast ID.
 export function dispatchJobId(broadcastId: string): string {
   return `dispatch-${broadcastId}`;
+}
+
+export function workflowQueue(): Queue<WorkflowJobData> {
+  if (!g.__launchtic_workflow_queue) {
+    g.__launchtic_workflow_queue = new Queue<WorkflowJobData>(WORKFLOW_QUEUE_NAME, {
+      connection: getConnection(),
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: "exponential", delay: 30_000 },
+        removeOnComplete: { count: 1000, age: 7 * 24 * 3600 },
+        removeOnFail:     { count: 2000 },
+      },
+    });
+  }
+  return g.__launchtic_workflow_queue;
 }
 
 export function sequenceQueue(): Queue<SequenceTickJobData> {

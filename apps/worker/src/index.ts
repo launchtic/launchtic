@@ -12,6 +12,7 @@ import { createEmailWorker } from "./queues/email";
 import { createBroadcastWorker } from "./queues/broadcast";
 import { createAutomationWorker } from "./queues/automation";
 import { createSequenceWorker, ensureSequenceTickScheduled } from "./queues/sequence";
+import { createWorkflowWorker } from "./queues/workflow";
 import type { Worker } from "bullmq";
 
 const mode = process.env.WORKER_MODE ?? "standalone";
@@ -32,6 +33,7 @@ export function bootWorkers(): Worker[] {
     createBroadcastWorker(),
     createAutomationWorker(),
     createSequenceWorker(),
+    createWorkflowWorker(),
   ];
 }
 

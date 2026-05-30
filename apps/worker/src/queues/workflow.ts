@@ -1,0 +1,655 @@
+// Workflow state-machine executor.
+//
+// Each WorkflowRun walks a graph of Nodes one at a time. The worker executes
+// the current node, then schedules the NEXT node (immediate or delayed) as
+// a separate BullMQ job. A run can take seconds (welcome flow) or weeks
+// (re-engagement) — BullMQ's delayed jobs handle the wait, no separate poller.
+//
+// ─── Graph shape ────────────────────────────────────────────────────────────
+//   workflow.nodes : [
+//     { id, type: "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK"
+//                  | "DELAY"   | "CONDITION" | "SPLIT"  | "GOAL" | "END",
+//       position: { x, y }, config: {...} }
+//   ]
+//   workflow.edges : [
+//     { id, source, target, label?, weight? }
+//     // CONDITION node fans out via edge.label === "true" | "false"
+//     // SPLIT node fans out via edge.weight (random pick by weight)
+//   ]
+
+import { Queue, Worker, type Job } from "bullmq";
+import { db } from "@launchtic/database";
+import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
+import { getAppUrl } from "../lib/system-config";
+import { marketingRenderOptions } from "../lib/email-footer";
+import { createRedisConnection } from "../lib/redis";
+import { EMAIL_QUEUE_NAME, type EmailJobData } from "./email";
+
+export const WORKFLOW_QUEUE_NAME = "workflow";
+
+export type WorkflowJobData = {
+  runId:       string;
+  workspaceId: string;
+  // The node to execute on this job. We pass the id explicitly so a stale
+  // job (workflow edited mid-flight) is detected by mismatching run.currentNodeId.
+  nodeId:      string;
+};
+
+// ─── Singleton queue + email queue ──────────────────────────────────────────
+// Reuse across jobs — opening/closing Redis connections per email send is
+// expensive and was a real perf hit in the legacy automation worker.
+
+const g = globalThis as unknown as {
+  __launchtic_workflow_queue?: Queue<WorkflowJobData>;
+  __launchtic_email_queue?:    Queue<EmailJobData>;
+};
+
+function workflowQueue(): Queue<WorkflowJobData> {
+  if (!g.__launchtic_workflow_queue) {
+    g.__launchtic_workflow_queue = new Queue<WorkflowJobData>(WORKFLOW_QUEUE_NAME, {
+      connection: createRedisConnection(),
+      defaultJobOptions: {
+        attempts: 2,
+        backoff: { type: "exponential", delay: 30_000 },
+        removeOnComplete: { count: 1000, age: 7 * 24 * 3600 },
+        removeOnFail:     { count: 2000 },
+      },
+    });
+  }
+  return g.__launchtic_workflow_queue;
+}
+
+function emailQueue(): Queue<EmailJobData> {
+  if (!g.__launchtic_email_queue) {
+    g.__launchtic_email_queue = new Queue<EmailJobData>(EMAIL_QUEUE_NAME, {
+      connection: createRedisConnection(),
+    });
+  }
+  return g.__launchtic_email_queue;
+}
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+type WorkflowNode = {
+  id:       string;
+  type:     string;
+  position?: { x: number; y: number };
+  config?:  Record<string, unknown>;
+};
+
+type WorkflowEdge = {
+  id:     string;
+  source: string;
+  target: string;
+  label?: string;   // "true" / "false" for CONDITION; "accept" / "decline" for branching actions
+  weight?: number;  // for SPLIT
+};
+
+type RunCtx = {
+  runId:        string;
+  workspaceId:  string;
+  workflowId:   string;
+  workspaceName: string;
+  contactId:    string | null;
+  contact: {
+    id:        string;
+    email:     string;
+    firstName: string | null;
+    lastName:  string | null;
+  } | null;
+  triggerData: Record<string, unknown>;
+  context:     Record<string, unknown>;
+  // Accumulated context delta to write back at the end of the node. Avoids
+  // multiple round-trips when a node updates several fields.
+  contextDelta: Record<string, unknown>;
+  // What the node returned (for next-step routing).
+  nodeOutput:   Record<string, unknown> | null;
+  // Edge label preference set by the node executor — drives branching.
+  // Eg. CONDITION sets "true"/"false"; SPLIT sets the picked branch id.
+  preferredLabel: string | null;
+  // If the node decided to terminate the run early (GOAL / END), set this.
+  terminate: { status: "COMPLETED" | "EXITED"; reason: string } | null;
+};
+
+// ─── Main job processor ─────────────────────────────────────────────────────
+
+async function processWorkflowJob(job: Job<WorkflowJobData>) {
+  const { runId, workspaceId, nodeId } = job.data;
+
+  const run = await db.workflowRun.findFirst({
+    where: { id: runId, workspaceId },
+    include: {
+      workflow: true,
+      contact:  { select: { id: true, email: true, firstName: true, lastName: true } },
+    },
+  });
+  if (!run) throw new Error(`WorkflowRun ${runId} not found`);
+
+  // Lifecycle gates — skip any run that's no longer eligible to advance.
+  if (run.status !== "ACTIVE") return { skipped: true, reason: `run-status-${run.status}` };
+  if (run.workflow.status !== "ACTIVE") {
+    // Operator paused / archived the workflow after this job was scheduled.
+    // Exit cleanly so we don't keep firing actions for a disabled workflow.
+    await exitRun(runId, "EXITED", `workflow_${run.workflow.status.toLowerCase()}`);
+    return { skipped: true, reason: `workflow-${run.workflow.status}` };
+  }
+  // Stale-job defense: the node id we're told to run must match the run's
+  // currentNodeId. If the workflow graph was edited and currentNodeId no
+  // longer exists, exit gracefully.
+  if (run.currentNodeId && run.currentNodeId !== nodeId) {
+    return { skipped: true, reason: "stale-node" };
+  }
+
+  const nodes = (run.workflow.nodes as unknown as WorkflowNode[]) ?? [];
+  const edges = (run.workflow.edges as unknown as WorkflowEdge[]) ?? [];
+  const node  = nodes.find((n) => n.id === nodeId);
+  if (!node) {
+    await exitRun(runId, "FAILED", "node_not_found");
+    return { error: "node_not_found", nodeId };
+  }
+
+  const workspace = await db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } });
+
+  const ctx: RunCtx = {
+    runId, workspaceId,
+    workflowId: run.workflowId,
+    workspaceName: workspace?.name ?? "Your Workspace",
+    contactId: run.contactId,
+    contact:   run.contact,
+    triggerData: (run.triggerData ?? {}) as Record<string, unknown>,
+    context:     (run.context     ?? {}) as Record<string, unknown>,
+    contextDelta:   {},
+    nodeOutput:     null,
+    preferredLabel: null,
+    terminate:      null,
+  };
+
+  // Create RUNNING step row first — so even if executor crashes we have
+  // a record of which node was last attempted.
+  const step = await db.workflowRunStep.create({
+    data: {
+      runId, nodeId, nodeType: node.type, status: "RUNNING",
+    },
+  });
+
+  let stepStatus: "COMPLETED" | "FAILED" | "SKIPPED" = "COMPLETED";
+  let stepError: string | null = null;
+  try {
+    await executeNode(node, ctx, edges);
+  } catch (err) {
+    stepStatus = "FAILED";
+    stepError  = err instanceof Error ? err.message : "Unknown error";
+    console.error(`[workflow] run ${runId} node ${nodeId} (${node.type}) failed:`, stepError);
+    // Per-node failure does NOT abort the run by default. Mark step FAILED
+    // and continue routing to the next node — same best-effort posture as
+    // the legacy automation worker. Operators get the error in the run
+    // timeline + step.error so they can debug.
+  }
+
+  await db.workflowRunStep.update({
+    where: { id: step.id },
+    data:  { status: stepStatus, completedAt: new Date(), error: stepError?.slice(0, 1000), output: (ctx.nodeOutput as any) ?? undefined },
+  });
+
+  // Merge context delta back to run.
+  const updatedContext = { ...ctx.context, ...ctx.contextDelta };
+
+  // Did the node terminate the run?
+  if (ctx.terminate) {
+    await db.workflowRun.update({
+      where: { id: runId },
+      data: {
+        status:        ctx.terminate.status,
+        exitReason:    ctx.terminate.reason,
+        completedAt:   new Date(),
+        currentNodeId: null,
+        scheduledFor:  null,
+        context:       updatedContext as any,
+      },
+    });
+    await bumpWorkflowCounter(run.workflowId, ctx.terminate.status === "COMPLETED" ? "completedCount" : "exitedCount");
+    return { terminated: ctx.terminate };
+  }
+
+  // Pick the next edge to follow.
+  const next = pickNextEdge(nodeId, edges, ctx.preferredLabel);
+  if (!next) {
+    // No outgoing edge → workflow finished naturally.
+    await db.workflowRun.update({
+      where: { id: runId },
+      data: {
+        status:        "COMPLETED",
+        completedAt:   new Date(),
+        currentNodeId: null,
+        scheduledFor:  null,
+        context:       updatedContext as any,
+      },
+    });
+    await bumpWorkflowCounter(run.workflowId, "completedCount");
+    return { completed: true };
+  }
+
+  // Delay scheduling: a DELAY node sets contextDelta.__delayMs to tell us
+  // how long to wait BEFORE the next node fires. Everything else fires
+  // immediately.
+  const delayMs = typeof ctx.contextDelta.__delayMs === "number" ? ctx.contextDelta.__delayMs : 0;
+  const scheduledFor = delayMs > 0 ? new Date(Date.now() + delayMs) : null;
+  // Don't leak the delay marker into persistent context.
+  delete (updatedContext as Record<string, unknown>).__delayMs;
+
+  await db.workflowRun.update({
+    where: { id: runId },
+    data: {
+      currentNodeId: next.target,
+      scheduledFor,
+      context:       updatedContext as any,
+    },
+  });
+
+  await workflowQueue().add(
+    "step",
+    { runId, workspaceId, nodeId: next.target },
+    delayMs > 0 ? { delay: delayMs } : undefined,
+  );
+
+  return { nextNodeId: next.target, delayMs };
+}
+
+// ─── Edge routing ───────────────────────────────────────────────────────────
+//
+// CONDITION node: executor sets ctx.preferredLabel = "true" | "false" — we
+// pick the outgoing edge whose `label` matches. If none matches we fall back
+// to the first unlabeled edge ("default" branch).
+//
+// SPLIT node: executor sets ctx.preferredLabel = picked branch id from
+// weighted random — same matching strategy.
+//
+// Other nodes: take the first outgoing edge.
+
+function pickNextEdge(fromNodeId: string, edges: WorkflowEdge[], preferredLabel: string | null): WorkflowEdge | null {
+  const outgoing = edges.filter((e) => e.source === fromNodeId);
+  if (outgoing.length === 0) return null;
+  if (preferredLabel) {
+    const labeled = outgoing.find((e) => e.label === preferredLabel);
+    if (labeled) return labeled;
+    const unlabeled = outgoing.find((e) => !e.label);
+    return unlabeled ?? outgoing[0];
+  }
+  return outgoing[0];
+}
+
+// ─── Node executor dispatcher ───────────────────────────────────────────────
+
+async function executeNode(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[]): Promise<void> {
+  switch (node.type) {
+    case "SEND_EMAIL":   return execSendEmail(node, ctx);
+    case "ADD_TAG":      return execAddTag(node, ctx);
+    case "REMOVE_TAG":   return execRemoveTag(node, ctx);
+    case "WEBHOOK":      return execWebhook(node, ctx);
+    case "DELAY":        return execDelay(node, ctx);
+    case "CONDITION":    return execCondition(node, ctx);
+    case "SPLIT":        return execSplit(node, ctx, edges);
+    case "GOAL":         return execGoal(node, ctx);
+    case "END":          return execEnd(node, ctx);
+    default:
+      throw new Error(`Unknown node type: ${node.type}`);
+  }
+}
+
+// ─── SEND_EMAIL ─────────────────────────────────────────────────────────────
+
+async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  if (!ctx.contact) throw new Error("SEND_EMAIL requires a contact in the run context");
+
+  const cfg = (node.config ?? {}) as Record<string, unknown>;
+  const subject    = cfg.subject    as string | undefined;
+  const bodyHtml   = cfg.bodyHtml   as string | undefined;
+  const fromEmail  = cfg.fromEmail  as string | undefined;
+  const fromName   = cfg.fromName   as string | undefined;
+  if (!subject || !bodyHtml || !fromEmail || !fromName) {
+    throw new Error("SEND_EMAIL missing subject / bodyHtml / fromEmail / fromName");
+  }
+
+  const c = ctx.contact;
+  const firstName = c.firstName ?? "";
+  const lastName  = c.lastName  ?? "";
+  const fullName  = [firstName, lastName].filter(Boolean).join(" ").trim() || c.email;
+  const appUrl    = await getAppUrl();
+  const vars = {
+    contact: { firstName, lastName, email: c.email, fullName },
+    workspace: { name: ctx.workspaceName },
+    order: ctx.triggerData.order ?? {},
+    unsubscribeUrl: buildUnsubscribeUrl(c.id, appUrl),
+    ...ctx.triggerData,
+    ...ctx.context,
+  };
+
+  const renderedSubject = render(subject, vars);
+  const renderOpts      = await marketingRenderOptions(ctx.workspaceId);
+  const renderedHtml    = await renderEmailContent(bodyHtml, vars, renderOpts);
+
+  // Persist EmailSend FIRST then enqueue — if enqueue fails we mark the
+  // send FAILED so it's not stuck QUEUED forever (bug #1 from the audit).
+  // EmailSend has no workflow-link columns yet (Phase 1B will add them);
+  // for now the back-reference is via WorkflowRunStep.output.emailSendId.
+  const send = await db.emailSend.create({
+    data: {
+      workspaceId: ctx.workspaceId,
+      contactId:   c.id,
+      toEmail:     c.email,
+      subject:     renderedSubject,
+      bodyHtml:    renderedHtml,
+      status:      "QUEUED",
+    },
+  });
+
+  try {
+    await emailQueue().add("send", {
+      emailSendId: send.id,
+      workspaceId: ctx.workspaceId,
+      contactId:   c.id,
+      to:          c.email,
+      subject:     renderedSubject,
+      html:        renderedHtml,
+      fromEmail,
+      fromName,
+    });
+    ctx.nodeOutput = { emailSendId: send.id };
+  } catch (err) {
+    await db.emailSend.update({
+      where: { id: send.id },
+      data:  { status: "FAILED", errorMessage: err instanceof Error ? err.message : "enqueue failed" },
+    }).catch(() => {});
+    throw err;
+  }
+}
+
+// ─── ADD_TAG / REMOVE_TAG ───────────────────────────────────────────────────
+
+async function execAddTag(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  if (!ctx.contact) throw new Error("ADD_TAG requires a contact");
+  const tagId = (node.config?.tagId as string | undefined)?.trim();
+  if (!tagId) throw new Error("ADD_TAG missing tagId");
+
+  const tag = await db.tag.findFirst({ where: { id: tagId, workspaceId: ctx.workspaceId } });
+  if (!tag) throw new Error(`Tag ${tagId} not found in workspace`);
+
+  await db.contactTag.upsert({
+    where: { contactId_tagId: { contactId: ctx.contact.id, tagId } },
+    create: { contactId: ctx.contact.id, tagId },
+    update: {},
+  });
+  await db.contactEvent.create({
+    data: {
+      contactId: ctx.contact.id, type: "TAG_ADDED",
+      data: { tagId, source: "workflow", workflowId: ctx.workflowId, runId: ctx.runId },
+    },
+  });
+  ctx.nodeOutput = { tagId };
+}
+
+async function execRemoveTag(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  if (!ctx.contact) throw new Error("REMOVE_TAG requires a contact");
+  const tagId = (node.config?.tagId as string | undefined)?.trim();
+  if (!tagId) throw new Error("REMOVE_TAG missing tagId");
+
+  await db.contactTag
+    .delete({ where: { contactId_tagId: { contactId: ctx.contact.id, tagId } } })
+    .catch(() => {});  // idempotent
+  await db.contactEvent.create({
+    data: {
+      contactId: ctx.contact.id, type: "TAG_REMOVED",
+      data: { tagId, source: "workflow", workflowId: ctx.workflowId, runId: ctx.runId },
+    },
+  });
+  ctx.nodeOutput = { tagId };
+}
+
+// ─── WEBHOOK ────────────────────────────────────────────────────────────────
+
+async function execWebhook(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  const cfg = (node.config ?? {}) as Record<string, unknown>;
+  const url = cfg.url as string | undefined;
+  if (!url) throw new Error("WEBHOOK missing url");
+
+  const method  = (cfg.method as string | undefined) ?? "POST";
+  const headers: Record<string, string> = {
+    "Content-Type":            "application/json",
+    "User-Agent":              "Launchtic-Workflow/1.0",
+    "X-Launchtic-Workspace":   ctx.workspaceId,
+    "X-Launchtic-Workflow":    ctx.workflowId,
+    "X-Launchtic-Run":         ctx.runId,
+    "X-Launchtic-Node":        node.id,
+    ...((cfg.headers as Record<string, string> | undefined) ?? {}),
+  };
+
+  const payload = {
+    workspaceId: ctx.workspaceId,
+    workflowId:  ctx.workflowId,
+    runId:       ctx.runId,
+    nodeId:      node.id,
+    contact:     ctx.contact,
+    trigger:     ctx.triggerData,
+    context:     ctx.context,
+    sentAt:      new Date().toISOString(),
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(url, {
+      method, headers,
+      body: method === "GET" ? undefined : JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Webhook returned ${res.status}: ${text.slice(0, 200)}`);
+    }
+    ctx.nodeOutput = { status: res.status };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ─── DELAY ──────────────────────────────────────────────────────────────────
+//
+// Sets ctx.contextDelta.__delayMs — the dispatcher reads it and schedules
+// the next job with that delay. The delay itself doesn't block the worker.
+
+async function execDelay(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  const cfg     = (node.config ?? {}) as Record<string, unknown>;
+  const minutes = Number(cfg.minutes ?? cfg.delayMinutes ?? 0);
+  const hours   = Number(cfg.hours   ?? 0);
+  const days    = Number(cfg.days    ?? 0);
+  const totalMs = (((days * 24) + hours) * 60 + minutes) * 60_000;
+  if (totalMs <= 0) {
+    // Zero-delay is allowed (no-op) — useful for builder placeholders.
+    return;
+  }
+  ctx.contextDelta.__delayMs = totalMs;
+  ctx.nodeOutput = { delayMs: totalMs };
+}
+
+// ─── CONDITION ──────────────────────────────────────────────────────────────
+//
+// Evaluates `node.config` against the run context + contact and sets
+// ctx.preferredLabel = "true" | "false" for edge routing.
+//
+// Supported kinds (Phase 1):
+//   "contact_has_tag"   → { tagId }
+//   "contact_field"     → { field: "email"|"firstName"|..., operator, value }
+//   "trigger_amount"    → { operator: "gt"|"gte"|"lt"|"lte"|"eq", value }
+//   "trigger_funnel"    → { funnelId }
+//   "context_key"       → { key, operator, value }
+//   "always_true"       → (used to wire static branches in builder)
+
+async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  const cfg  = (node.config ?? {}) as Record<string, unknown>;
+  const kind = (cfg.kind as string | undefined) ?? "always_true";
+  let result = false;
+
+  switch (kind) {
+    case "always_true": {
+      result = true;
+      break;
+    }
+    case "contact_has_tag": {
+      if (!ctx.contact) { result = false; break; }
+      const tagId = cfg.tagId as string | undefined;
+      if (!tagId) { result = false; break; }
+      const ct = await db.contactTag.findUnique({
+        where: { contactId_tagId: { contactId: ctx.contact.id, tagId } },
+      });
+      result = !!ct;
+      break;
+    }
+    case "contact_field": {
+      if (!ctx.contact) { result = false; break; }
+      const field    = cfg.field as string | undefined;
+      const operator = (cfg.operator as string | undefined) ?? "eq";
+      const value    = cfg.value;
+      const actual   = field ? (ctx.contact as any)[field] : undefined;
+      result = compare(actual, operator, value);
+      break;
+    }
+    case "trigger_amount": {
+      const operator = (cfg.operator as string | undefined) ?? "gte";
+      const value    = Number(cfg.value ?? 0);
+      const amount   = Number(ctx.triggerData.orderTotal ?? 0);
+      result = compare(amount, operator, value);
+      break;
+    }
+    case "trigger_funnel": {
+      const funnelId = cfg.funnelId as string | undefined;
+      result = !!funnelId && ctx.triggerData.funnelId === funnelId;
+      break;
+    }
+    case "context_key": {
+      const key      = cfg.key as string | undefined;
+      const operator = (cfg.operator as string | undefined) ?? "eq";
+      const value    = cfg.value;
+      const actual   = key ? (ctx.context as any)[key] : undefined;
+      result = compare(actual, operator, value);
+      break;
+    }
+    default:
+      throw new Error(`CONDITION: unsupported kind "${kind}"`);
+  }
+
+  ctx.preferredLabel = result ? "true" : "false";
+  ctx.nodeOutput     = { evaluated: result, kind };
+}
+
+function compare(actual: unknown, operator: string, value: unknown): boolean {
+  switch (operator) {
+    case "eq":   return actual === value;
+    case "neq":  return actual !== value;
+    case "gt":   return Number(actual) >  Number(value);
+    case "gte":  return Number(actual) >= Number(value);
+    case "lt":   return Number(actual) <  Number(value);
+    case "lte":  return Number(actual) <= Number(value);
+    case "contains": return String(actual ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
+    case "empty":    return actual == null || actual === "";
+    case "not_empty": return actual != null && actual !== "";
+    default: return false;
+  }
+}
+
+// ─── SPLIT ──────────────────────────────────────────────────────────────────
+//
+// Weighted random branching. Each outgoing edge from the split node carries
+// a `weight` field; we pick one in proportion and set preferredLabel to the
+// edge's label so pickNextEdge routes correctly.
+//
+// Used for A/B subject testing or any kind of test arm allocation.
+
+async function execSplit(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[]): Promise<void> {
+  const outgoing = edges.filter((e) => e.source === node.id);
+  if (outgoing.length === 0) return;
+  const total = outgoing.reduce((sum, e) => sum + (e.weight ?? 1), 0);
+  let pick = Math.random() * total;
+  for (const e of outgoing) {
+    pick -= (e.weight ?? 1);
+    if (pick <= 0) {
+      ctx.preferredLabel = e.label ?? null;
+      ctx.nodeOutput     = { picked: e.id };
+      return;
+    }
+  }
+  // Floating-point fallthrough — last edge wins.
+  const last = outgoing[outgoing.length - 1];
+  ctx.preferredLabel = last.label ?? null;
+  ctx.nodeOutput     = { picked: last.id };
+}
+
+// ─── GOAL ───────────────────────────────────────────────────────────────────
+//
+// Optional early-exit gate. Evaluates `config.kind` similarly to CONDITION;
+// if the goal is met → terminate the run with status=EXITED, reason="goal".
+// Otherwise continues to the next node.
+
+async function execGoal(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  const cfg = (node.config ?? {}) as Record<string, unknown>;
+  // Reuse the condition evaluator.
+  await execCondition({ ...node, type: "CONDITION", config: cfg }, ctx);
+  if (ctx.preferredLabel === "true") {
+    ctx.terminate = { status: "EXITED", reason: "goal" };
+  }
+  // Goal didn't fire → reset preferred label so it doesn't pollute routing.
+  ctx.preferredLabel = null;
+}
+
+// ─── END ────────────────────────────────────────────────────────────────────
+
+async function execEnd(_node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  ctx.terminate = { status: "COMPLETED", reason: "end_node" };
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function exitRun(runId: string, status: "EXITED" | "COMPLETED" | "FAILED", reason: string) {
+  await db.workflowRun.update({
+    where: { id: runId },
+    data: {
+      status, exitReason: reason,
+      completedAt: new Date(),
+      currentNodeId: null,
+      scheduledFor:  null,
+    },
+  }).catch(() => {});
+}
+
+async function bumpWorkflowCounter(
+  workflowId: string,
+  field: "completedCount" | "exitedCount" | "failedCount" | "activeCount",
+) {
+  await db.workflow.update({
+    where: { id: workflowId },
+    data:  { [field]: { increment: 1 }, ...(field !== "activeCount" ? { activeCount: { decrement: 1 } } : {}) },
+  }).catch(() => {});
+}
+
+// ─── Worker factory ─────────────────────────────────────────────────────────
+
+export function createWorkflowWorker(): Worker<WorkflowJobData> {
+  const worker = new Worker<WorkflowJobData>(
+    WORKFLOW_QUEUE_NAME,
+    processWorkflowJob,
+    {
+      connection: createRedisConnection(),
+      concurrency: Number(process.env.WORKFLOW_WORKER_CONCURRENCY ?? 8),
+    },
+  );
+  worker.on("ready",     () => console.log(`[workflow] worker ready`));
+  worker.on("completed", (job, result) => console.log(`[workflow] run ${job.data.runId} node ${job.data.nodeId}:`, result));
+  worker.on("failed",    (job, err)    => console.error(`[workflow] run ${job?.data.runId} node ${job?.data.nodeId} failed:`, err.message));
+  worker.on("error",     (err)         => console.error(`[workflow] worker error:`, err));
+  return worker;
+}
+
+// ─── Public API: enqueue first step of a new run ────────────────────────────
+
+export async function scheduleFirstStep(runId: string, workspaceId: string, nodeId: string) {
+  await workflowQueue().add("step", { runId, workspaceId, nodeId });
+}
