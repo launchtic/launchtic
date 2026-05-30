@@ -689,8 +689,11 @@ model Order {
   workspace          Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact            Contact                 @relation(fields: [contactId], references: [id])
   funnelStep         FunnelStep?             @relation(fields: [funnelStepId], references: [id])
-  stepPricePlan      StepPricePlan?          @relation(fields: [stepPricePlanId], references: [id])
-  orderBumpPricePlan OrderBumpPricePlan?     @relation(fields: [orderBumpPricePlanId], references: [id])
+  // SetNull: merchant can hard-delete a plan after orders have referenced it —
+  // orderItemSnapshot/bumpItems preserve everything needed for invoice / refund /
+  // analytics, so the row link itself is non-essential.
+  stepPricePlan      StepPricePlan?          @relation(fields: [stepPricePlanId], references: [id], onDelete: SetNull)
+  orderBumpPricePlan OrderBumpPricePlan?     @relation(fields: [orderBumpPricePlanId], references: [id], onDelete: SetNull)
   subscription       Subscription?           @relation(fields: [subscriptionId], references: [id])
   refundedBy         User?                   @relation("OrderRefundedBy", fields: [refundedByUserId], references: [id])
   transactions       Transaction[]
@@ -738,8 +741,11 @@ model Subscription {
   workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact            Contact             @relation(fields: [contactId], references: [id])
   funnelStep         FunnelStep?         @relation(fields: [funnelStepId], references: [id])
-  stepPricePlan      StepPricePlan?      @relation(fields: [stepPricePlanId], references: [id])
-  orderBumpPricePlan OrderBumpPricePlan? @relation(fields: [orderBumpPricePlanId], references: [id])
+  // SetNull: merchant can hard-delete a plan even while a subscription is
+  // active — planSnapshot has the name/amount/interval, providerSubId drives
+  // renewal on the gateway side. Nothing here requires the plan row to exist.
+  stepPricePlan      StepPricePlan?      @relation(fields: [stepPricePlanId], references: [id], onDelete: SetNull)
+  orderBumpPricePlan OrderBumpPricePlan? @relation(fields: [orderBumpPricePlanId], references: [id], onDelete: SetNull)
   orders             Order[]
 
   @@index([workspaceId, status])

@@ -74,17 +74,10 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
   const plan = await verifyPlan(planId, bumpId, id, workspaceId);
   if (!plan) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  try {
-    await db.orderBumpPricePlan.delete({ where: { id: planId } });
-  } catch (e: any) {
-    if (e?.code === "P2003") {
-      return NextResponse.json(
-        { error: "Can't delete: this bump plan has existing orders or subscriptions referencing it." },
-        { status: 409 },
-      );
-    }
-    throw e;
-  }
+  // FK from Order/Subscription is ON DELETE SET NULL — see migration
+  // 20260530000000_plan_fk_setnull. Snapshot in Order.orderItemSnapshot /
+  // Subscription.planSnapshot preserves everything for invoice + analytics.
+  await db.orderBumpPricePlan.delete({ where: { id: planId } });
   await invalidateStepCache(workspaceId, id);
   return NextResponse.json({ ok: true });
 }

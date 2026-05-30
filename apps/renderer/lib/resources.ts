@@ -12,6 +12,7 @@ import { db } from "@launchtic/database";
 import { fireTrigger } from "./automations";
 
 type BumpItem = { orderBumpId?: string };
+type OrderItemSnapshot = { orderBumpId?: string };
 
 export async function grantOrderResources(orderId: string): Promise<void> {
   const order = await db.order.findUnique({
@@ -22,7 +23,7 @@ export async function grantOrderResources(orderId: string): Promise<void> {
       contactId: true,
       funnelStepId: true,
       stepPricePlanId: true,
-      orderBumpPricePlanId: true,
+      orderItemSnapshot: true,
       bumpItems: true,
       isRenewal: true,
     },
@@ -43,20 +44,17 @@ export async function grantOrderResources(orderId: string): Promise<void> {
 
   // Bump IDs carried by this order:
   //   - bumpItems[] holds ONE_TIME bumps merged into the main order
-  //   - orderBumpPricePlanId is set when this order IS a subscription bump
+  //   - orderItemSnapshot.orderBumpId is set when this order IS a subscription bump
+  // Both read from snapshot — no DB lookup required, so a merchant hard-deleting
+  // the bump plan after purchase doesn't break resource grants.
   const bumpIds = new Set<string>();
   if (Array.isArray(order.bumpItems)) {
     for (const item of order.bumpItems as BumpItem[]) {
       if (item?.orderBumpId) bumpIds.add(item.orderBumpId);
     }
   }
-  if (order.orderBumpPricePlanId) {
-    const bumpPlan = await db.orderBumpPricePlan.findUnique({
-      where: { id: order.orderBumpPricePlanId },
-      select: { orderBumpId: true },
-    });
-    if (bumpPlan) bumpIds.add(bumpPlan.orderBumpId);
-  }
+  const snapshotBumpId = (order.orderItemSnapshot as OrderItemSnapshot | null)?.orderBumpId;
+  if (snapshotBumpId) bumpIds.add(snapshotBumpId);
 
   const bumpResources = bumpIds.size > 0
     ? await db.orderBumpResource.findMany({

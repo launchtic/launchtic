@@ -172,7 +172,9 @@ export class StripeProvider implements PaymentProvider {
         contactId: input.contactId,
         funnelStepId: input.funnelStepId,
         orderBumpPricePlanId: bump.planId ?? null,
-        orderItemSnapshot: { planName: bump.planName!, planType: bump.type, unitPrice: bump.amount },
+        // orderBumpId in snapshot lets resources.ts grant access without needing
+        // the OrderBumpPricePlan row to still exist (FK is SetNull on plan delete).
+        orderItemSnapshot: { planName: bump.planName!, planType: bump.type, unitPrice: bump.amount, orderBumpId: bump.orderBumpId },
         subscriptionId: dbSub.id,
         status: "PENDING",
         paymentProvider: "stripe",

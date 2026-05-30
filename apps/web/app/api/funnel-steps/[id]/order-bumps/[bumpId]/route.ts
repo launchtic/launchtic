@@ -79,17 +79,10 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
   const bump = await verifyBump(bumpId, id, workspaceId);
   if (!bump) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  try {
-    await db.orderBump.delete({ where: { id: bumpId } });
-  } catch (e: any) {
-    if (e?.code === "P2003") {
-      return NextResponse.json(
-        { error: "Can't delete: this bump has existing orders or subscriptions referencing it." },
-        { status: 409 },
-      );
-    }
-    throw e;
-  }
+  // OrderBumpPricePlan cascade-deletes from OrderBump; Order/Subscription FKs
+  // to those plans are SET NULL. Snapshots in Order/Subscription preserve the
+  // historical bump name + amount for invoices and analytics.
+  await db.orderBump.delete({ where: { id: bumpId } });
   await invalidateStepCache(workspaceId, id);
   return NextResponse.json({ ok: true });
 }
