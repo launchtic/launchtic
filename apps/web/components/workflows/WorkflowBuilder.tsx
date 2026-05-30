@@ -94,7 +94,10 @@ const NODE_W         = 220;
 const NODE_H         = 76;
 const TRIGGER_W      = 220;
 const TRIGGER_H      = 80;
-const LAYOUT_RANKSEP = 90;
+// Vertical gap between layers — 50px is enough room for the arrow head and
+// optional true/false label without making the canvas feel sparse. Smaller
+// than competitors (Klaviyo ~80, HubSpot ~70) but works well at our node size.
+const LAYOUT_RANKSEP = 50;
 const LAYOUT_NODESEP = 120;
 
 // Gap between the trigger card bottom and the first-step card top. Smaller
