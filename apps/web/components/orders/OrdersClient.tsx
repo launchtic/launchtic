@@ -264,11 +264,6 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
                                   </span>
                                 )
                               )}
-                              {hasChildren && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                                  +{childCount} {childCount === 1 ? "upsell" : "upsells"}
-                                </span>
-                              )}
                             </div>
                             <p className="text-xs text-gray-400 mt-0.5 capitalize">{o.paymentProvider}</p>
                           </Link>
@@ -311,9 +306,6 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
                                 <p className="font-medium text-gray-700 group-hover:text-blue-700 transition-colors font-mono text-xs">
                                   #{c.id.slice(-8).toUpperCase()}
                                 </p>
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                                  Upsell
-                                </span>
                                 {c.subscriptionId && !c.isRenewal && (
                                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
                                     <Repeat size={9} /> Subscription
@@ -325,7 +317,7 @@ export default function OrdersClient({ initialTotal = 0 }: { initialTotal?: numb
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-gray-400">same buyer</span>
+                          <span className="text-xs text-gray-400">Same buyer</span>
                         </td>
                         <td className="px-4 py-3 text-gray-500">
                           {c.funnelStep ? (

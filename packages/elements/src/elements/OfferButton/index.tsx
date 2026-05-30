@@ -12,8 +12,7 @@ import { ElementWrapper } from "../common/ElementWrapper";
 import { ElementDrag } from "../common/ElementDrag";
 import { DelayedRender } from "../common/DelayedRender";
 import { useDraggableElement } from "../common/useDraggableElement";
-import { UpsellPayPalModal } from "./UpsellPayPalModal";
-import { UpsellAddressModal, type ShippingAddress } from "./UpsellAddressModal";
+import { UpsellCheckoutModal } from "./UpsellCheckoutModal";
 import { useSafePayment } from "../../contexts/PaymentContext";
 
 // Offer buttons for UPSELL / DOWNSELL steps. They reuse the regular Button's
@@ -130,14 +129,13 @@ function OfferButtonView({ props, kind, indicatorName }: {
   const payment = useSafePayment();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPayPal, setShowPayPal] = useState(false);
-  // PHYSICAL upsell on a digital-main checkout: server returns `requiresShipping`
-  // and we collect the address inline before re-POSTing the charge. We hold
-  // onto it so a downstream PayPal "pay again" fallback can use it too.
-  const [showAddress, setShowAddress] = useState(false);
-  const [addressBusy, setAddressBusy] = useState(false);
-  const [addressError, setAddressError] = useState<string | null>(null);
-  const [inlineShipTo, setInlineShipTo] = useState<ShippingAddress | null>(null);
+  // Single fallback modal — shows address form + Stripe-confirm + PayPal as
+  // needed. `modal` is null when no modal is open; the boolean fields decide
+  // which sections render. Modal owns its own form state + API calls.
+  const [modal, setModal] = useState<
+    | null
+    | { needsAddress: boolean; showStripe: boolean; showPayPal: boolean }
+  >(null);
 
   const rp = {
     delay: props.delay,
@@ -171,94 +169,10 @@ function OfferButtonView({ props, kind, indicatorName }: {
     hover: props.hover || {},
   };
 
-  // The Accept POST is extracted into a thunk so the address modal can re-run
-  // it with the just-collected `inlineShipTo` without duplicating any of the
-  // response handling (success / requiresShipping / requiresPayment / decline).
-  async function performAccept(inlineShipToArg?: ShippingAddress) {
-    const data = (window as any).data ?? {};
-    const upsell = data.upsell ?? null;
-    if (!upsell || !data.funnelStepId) {
-      setError("This offer is not configured. Please contact support.");
-      return;
-    }
-
-    // Snapshot any freshly-collected address into state so the PayPal "pay
-    // again" fallback below can re-use it without prompting the buyer twice.
-    if (inlineShipToArg) setInlineShipTo(inlineShipToArg);
-    const effectiveShipTo = inlineShipToArg ?? inlineShipTo;
-
-    // Body shape depends on offer kind:
-    //   digital  → { funnelStepId, pricePlanId }
-    //   physical → { funnelStepId, physicalProductId, variantId, quantity, inlineShipTo? }
-    // physicalSelection comes from PaymentContext (PhysicalProduct element writes
-    // variantId + qty there as the visitor picks options on this page).
-    let body: Record<string, unknown>;
-    if (upsell.kind === "physical") {
-      if (!upsell.physicalProductId) {
-        setError("This offer is not configured. Please contact support.");
-        return;
-      }
-      body = {
-        funnelStepId:      data.funnelStepId,
-        physicalProductId: upsell.physicalProductId,
-        variantId:         payment.physicalSelection.variantId,
-        quantity:          payment.physicalSelection.quantity,
-        ...(effectiveShipTo ? { inlineShipTo: effectiveShipTo } : {}),
-      };
-    } else {
-      if (!upsell.pricePlanId) {
-        setError("This offer is not configured. Please contact support.");
-        return;
-      }
-      body = { funnelStepId: data.funnelStepId, pricePlanId: upsell.pricePlanId };
-    }
-
-    setError(null);
-    setAddressError(null);
-    if (inlineShipToArg) setAddressBusy(true); else setLoading(true);
-
-    try {
-      const res = await fetch("/api/checkout/upsell", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (json?.success && json.nextStepUrl) {
-        redirect(json.nextStepUrl);
-        return;
-      }
-      // PHYSICAL on a digital-main checkout — server has no shippingAddress
-      // to reuse. Open the inline modal; modal submit calls back into this
-      // function with the collected address.
-      if (json?.requiresShipping) {
-        setShowAddress(true);
-        setLoading(false);
-        setAddressBusy(false);
-        return;
-      }
-      // One-click not possible (PayPal main purchase / no saved card / SCA fail).
-      // If PayPal is configured, open the "pay again" modal; otherwise route to
-      // decline so the funnel is never blocked.
-      if (json?.requiresPayment && upsell?.paypalClientId) {
-        setShowPayPal(true);
-        setLoading(false);
-        setAddressBusy(false);
-        return;
-      }
-      redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
-    } catch {
-      const msg = "Something went wrong. Please try again.";
-      if (inlineShipToArg) setAddressError(msg); else setError(msg);
-      setLoading(false);
-      setAddressBusy(false);
-    }
-  }
-
   async function handleClick(e: React.MouseEvent) {
     if (enabled) { e.preventDefault(); return; } // editor mode — no action
     e.preventDefault();
-    if (loading || showPayPal || showAddress) return;
+    if (loading || modal) return;
 
     const data = (window as any).data ?? {};
     const upsell = data.upsell ?? null;
@@ -267,7 +181,67 @@ function OfferButtonView({ props, kind, indicatorName }: {
       redirect(upsell?.declineUrl ?? data.nextStepUrl);
       return;
     }
-    await performAccept();
+
+    if (!upsell || !data.funnelStepId) {
+      setError("This offer is not configured. Please contact support.");
+      return;
+    }
+
+    // First-try one-click via Stripe. Response tells us which fallback modal
+    // sections to surface (address form / Stripe-confirm / PayPal buttons).
+    const body = upsell.kind === "physical"
+      ? (upsell.physicalProductId ? {
+          funnelStepId:      data.funnelStepId,
+          physicalProductId: upsell.physicalProductId,
+          variantId:         payment.physicalSelection.variantId,
+          quantity:          payment.physicalSelection.quantity,
+        } : null)
+      : (upsell.pricePlanId ? { funnelStepId: data.funnelStepId, pricePlanId: upsell.pricePlanId } : null);
+    if (!body) {
+      setError("This offer is not configured. Please contact support.");
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      const res  = await fetch("/api/checkout/upsell", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body:   JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (json?.success && json.nextStepUrl) { redirect(json.nextStepUrl); return; }
+      // Open the unified fallback modal. Which sections it shows depends on
+      // what the server flagged + which payment paths are actually usable:
+      //   requiresShipping → address form. "Confirm with card" only when the
+      //                      main checkout used Stripe (server tells us via
+      //                      canUseStripe). PayPal section if workspace has
+      //                      paypalClientId.
+      //   requiresPayment  → PayPal only (Stripe one-click already failed).
+      // If neither payment path is usable on a requiresShipping/Payment
+      // response we route to decline — opening a modal with no buttons is
+      // worse than just continuing the funnel.
+      const hasPayPal = !!upsell?.paypalClientId;
+      if (json?.requiresShipping) {
+        const showStripe = !!json.canUseStripe;
+        if (!showStripe && !hasPayPal) {
+          redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
+          return;
+        }
+        setModal({ needsAddress: true, showStripe, showPayPal: hasPayPal });
+        setLoading(false);
+        return;
+      }
+      if (json?.requiresPayment && hasPayPal) {
+        setModal({ needsAddress: false, showStripe: false, showPayPal: true });
+        setLoading(false);
+        return;
+      }
+      redirect(json?.declineUrl ?? upsell.declineUrl ?? data.nextStepUrl);
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setLoading(false);
+    }
   }
 
   return (
@@ -324,13 +298,12 @@ function OfferButtonView({ props, kind, indicatorName }: {
         </ElementWrapper>
       </ElementDrag>
     </DelayedRender>
-    {showPayPal && <UpsellPayPalModal inlineShipTo={inlineShipTo} onClose={() => setShowPayPal(false)} />}
-    {showAddress && (
-      <UpsellAddressModal
-        busy={addressBusy}
-        error={addressError}
-        onSubmit={(addr) => performAccept(addr)}
-        onClose={() => { setShowAddress(false); setAddressBusy(false); setAddressError(null); }}
+    {modal && (
+      <UpsellCheckoutModal
+        needsAddress={modal.needsAddress}
+        showStripe={modal.showStripe}
+        showPayPal={modal.showPayPal}
+        onClose={() => setModal(null)}
       />
     )}
     </>

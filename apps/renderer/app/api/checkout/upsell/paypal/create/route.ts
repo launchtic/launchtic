@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       const physicalProductId: string = body.physicalProductId;
       const variantId: string | null  = body.variantId ?? null;
       const quantity: number = Math.max(1, Number.isFinite(Number(body.quantity)) ? Math.floor(Number(body.quantity)) : 1);
+      console.log("[paypal/create/physical] incoming", { sid, funnelStepId, physicalProductId, variantId, quantity, hasInlineShipTo: !!body.inlineShipTo });
 
       // Inline-collected address when main Order has none. Same shape + validation
       // as the Stripe upsell route — keep them in sync.
@@ -81,21 +82,36 @@ export async function POST(req: NextRequest) {
       } : null;
 
       if (step.offerType !== "PHYSICAL" || !step.physicalProductId) {
+        console.log("[paypal/create/physical] step not configured for physical", { offerType: step.offerType, physicalProductId: step.physicalProductId });
         return fail("Step is not configured for a physical offer", 400);
       }
       if (step.physicalProductId !== physicalProductId) {
+        console.log("[paypal/create/physical] offer mismatch", { stepProductId: step.physicalProductId, bodyProductId: physicalProductId });
         return fail("Offer mismatch — refresh the page and try again", 400);
       }
-      if (!session.mainOrderId) return fail("missing_main_order", 400);
+      if (!session.mainOrderId) {
+        console.log("[paypal/create/physical] session has no mainOrderId");
+        return fail("missing_main_order", 400);
+      }
 
       const mainOrder = await db.order.findUnique({
         where: { id: session.mainOrderId },
         select: { shippingAddress: true, currency: true },
       });
-      if (!mainOrder) return fail("missing_main_order", 400);
+      if (!mainOrder) {
+        console.log("[paypal/create/physical] mainOrder not found", { mainOrderId: session.mainOrderId });
+        return fail("missing_main_order", 400);
+      }
 
       const shippingAddress = inlineShipTo ?? (mainOrder.shippingAddress as any);
-      if (!shippingAddress) return ok({ requiresShipping: true });
+      if (!shippingAddress) {
+        // After the upsell route fix this shouldn't happen — that route now
+        // checks shipping before the provider gate, so OfferButton collects
+        // the address before falling back to PayPal. Keep a clear error in
+        // case some flow slips past.
+        console.error("[paypal/create/physical] no shipping address — upsell flow shouldn't have reached PayPal create without one");
+        return fail("Shipping address required for this offer", 400);
+      }
 
       const product = await db.physicalProduct.findUnique({
         where: { id: physicalProductId },

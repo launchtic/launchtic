@@ -96,18 +96,21 @@ export async function POST(req: NextRequest) {
       const declineUrl = await getBranchUrl(step, "decline", host);
 
       const session = await readPurchaseSession(sid);
+      console.log("[upsell/physical] incoming", { sid, funnelStepId, physicalProductId, variantId, quantity, hasInlineShipTo: !!inlineShipTo, sessionProvider: session?.provider, mainOrderId: session?.mainOrderId });
       // Direct access / expired — can't charge silently → route to decline.
-      if (!session) return ok({ requiresPayment: false, declineUrl });
-      // One-click physical requires Stripe (off-session). PayPal main purchase
-      // would need an interactive "pay again" modal — left for a follow-up.
-      if (session.provider !== "stripe") {
-        return ok({ requiresPayment: true, declineUrl });
+      if (!session) {
+        console.log("[upsell/physical] no purchase session → decline");
+        return ok({ requiresPayment: false, declineUrl });
       }
 
-      // Need a shipping address — reuse from the main Order, OR accept the
-      // inline-collected one when the buyer filled the modal. Missing both →
-      // signal `requiresShipping` so the front-end opens the modal.
+      // Shipping address resolution runs BEFORE the provider gate. Otherwise
+      // a PayPal-main buyer would be routed to the PayPal "pay again" modal
+      // first, which then calls /paypal/create with no address and throws
+      // "Failed to start PayPal". This ordering ensures the address modal
+      // always opens first when needed — and by the time PayPal fallback
+      // fires, OfferButton already has `inlineShipTo` in state to forward.
       if (!session.mainOrderId) {
+        console.log("[upsell/physical] session has no mainOrderId → decline");
         return ok({ requiresPayment: false, declineUrl, error: "missing_main_order" });
       }
       const mainOrder = await db.order.findUnique({
@@ -115,14 +118,30 @@ export async function POST(req: NextRequest) {
         select: { shippingAddress: true, currency: true },
       });
       if (!mainOrder) {
+        console.log("[upsell/physical] mainOrder not found → decline", { mainOrderId: session.mainOrderId });
         return ok({ requiresPayment: false, declineUrl, error: "missing_main_order" });
       }
       const shippingAddress: Prisma.InputJsonValue | null = inlineShipTo
         ? (inlineShipTo as unknown as Prisma.InputJsonValue)
         : (mainOrder.shippingAddress as Prisma.InputJsonValue | null);
       if (!shippingAddress) {
-        return ok({ requiresShipping: true, declineUrl });
+        // canUseStripe tells the client whether to show the "Confirm with card"
+        // button (Stripe one-click). Only true when the main checkout went
+        // through Stripe — otherwise there's no saved card to charge.
+        // canUsePayPal is decided client-side from `upsell.paypalClientId`.
+        const canUseStripe = session.provider === "stripe";
+        console.log("[upsell/physical] no shipping address → requiresShipping", { hasMainAddress: !!mainOrder.shippingAddress, hasInline: !!inlineShipTo, canUseStripe });
+        return ok({ requiresShipping: true, canUseStripe, declineUrl });
       }
+
+      // Provider gate — needs Stripe for one-click off-session. If main was
+      // PayPal/free, the PayPal "pay again" modal handles the rest (now safely,
+      // because shipping is already in hand via inlineShipTo or mainOrder).
+      if (session.provider !== "stripe") {
+        console.log("[upsell/physical] non-stripe session → PayPal modal", { provider: session.provider });
+        return ok({ requiresPayment: true, declineUrl });
+      }
+
       const currency = (step.funnel.currency || mainOrder.currency).toLowerCase();
       if (session.currency.toLowerCase() !== currency) {
         return ok({ requiresPayment: true, declineUrl });
