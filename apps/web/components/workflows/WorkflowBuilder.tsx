@@ -22,7 +22,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
 import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
-  GitBranch, Split as SplitIcon, Square, Loader2, Save, History, Zap, X,
+  GitBranch, Square, Loader2, Save, History, Zap, X,
   Undo2, Redo2, Trash2,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
@@ -37,7 +37,7 @@ import {
 
 type NodeType =
   | "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK"
-  | "DELAY" | "CONDITION" | "SPLIT" | "END";
+  | "DELAY" | "CONDITION" | "END";
 type Status = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
 
 type WorkflowNode = {
@@ -189,7 +189,6 @@ const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: str
   WEBHOOK:    { label: "Webhook",       Icon: Globe,       color: "#8b5cf6", defaultConfig: { url: "", method: "POST" } },
   DELAY:      { label: "Wait",          Icon: Clock,       color: "#6b7280", defaultConfig: { hours: 1 } },
   CONDITION:  { label: "If / else",     Icon: GitBranch,   color: "#f97316", defaultConfig: { kind: "contact_has_tag" } },
-  SPLIT:      { label: "Split (A/B)",   Icon: SplitIcon,   color: "#ec4899", defaultConfig: {} },
   END:        { label: "End",           Icon: Square,      color: "#dc2626", defaultConfig: {} },
 };
 
@@ -198,6 +197,37 @@ const TRIGGER_TYPES = [
   "FORM_SUBMIT", "TAG_ADDED", "TAG_REMOVED", "EMAIL_LINK_CLICKED",
   "CHECKOUT_STARTED",
 ];
+
+// Triggers whose underlying events carry a funnel + step reference, so the
+// "scope to funnel X / step Y" filter is meaningful. Tag changes,
+// subscription billing events, and email clicks aren't funnel-scoped — they
+// hide the funnel dropdown to avoid confusing the operator.
+const FUNNEL_SCOPED_TRIGGERS = new Set([
+  "NEW_SALE", "SALE_CANCELED", "FORM_SUBMIT", "CHECKOUT_STARTED",
+]);
+
+// Which step types can fire each trigger. Used to filter the Step picker so
+// the operator only sees steps that actually emit the chosen trigger event
+// (e.g. NEW_SALE only fires from CHECKOUT/UPSELL/DOWNSELL steps).
+const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
+  NEW_SALE:         ["CHECKOUT", "UPSELL", "DOWNSELL"],
+  SALE_CANCELED:    ["CHECKOUT", "UPSELL", "DOWNSELL"],
+  FORM_SUBMIT:      ["OPTIN", "SALES", "CHECKOUT", "CUSTOM"],
+  CHECKOUT_STARTED: ["CHECKOUT"],
+};
+
+// One-line plain-English description shown under the trigger dropdown so the
+// operator knows exactly when the workflow will start firing.
+const TRIGGER_DESCRIPTIONS: Record<string, string> = {
+  NEW_SALE:                    "When an order is marked PAID. Scope to one funnel below — e.g. only fire for the main checkout, not upsells.",
+  SALE_CANCELED:               "When an order is refunded or canceled.",
+  SUBSCRIPTION_PAYMENT_FAILED: "When Stripe fails to charge a recurring subscription.",
+  FORM_SUBMIT:                 "When a contact submits an opt-in form on a funnel step.",
+  CHECKOUT_STARTED:            "When a visitor enters the checkout page and fills in their email — before paying. Use for cart abandonment recovery.",
+  TAG_ADDED:                   "When the tag below gets added to a contact (manually, by another workflow, by API, etc).",
+  TAG_REMOVED:                 "When the tag below gets removed from a contact.",
+  EMAIL_LINK_CLICKED:          "When a contact clicks any link in an email previously sent by this workspace.",
+};
 
 function triggerHumanLabel(t: string): string {
   return t.replace(/_/g, " ").toLowerCase();
@@ -249,25 +279,64 @@ function NextStepButton({ onClick, accent }: { onClick: () => void; accent?: str
 //   • TRIGGER       → 1 outgoing edge
 //   • END           → terminal, never adds
 //   • CONDITION     → 2 outgoing (true / false branches)
-//   • GOAL          → 1 outgoing (continuation path when goal not met;
-//                     `true` exits the run, no "true edge" needed)
-//   • SPLIT         → unbounded (weighted random routes)
 //   • everything    → 1 outgoing (linear chain)
 function useCanAddNext(nodeId: string, nodeType: NodeType | "TRIGGER"): boolean {
   return useStore((s) => {
     const outgoingCount = s.edges.reduce((n, e) => e.source === nodeId ? n + 1 : n, 0);
     if (nodeType === "TRIGGER")  return outgoingCount < 1;
     if (nodeType === "END")      return false;
-    if (nodeType === "SPLIT")    return true;
     if (nodeType === "CONDITION") return outgoingCount < 2;
     return outgoingCount < 1;
   });
 }
 
 function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtitle?: string }; id: string }) {
-  const def = NODE_DEFS[data.type];
-  const Icon = def.Icon;
   const { openPicker, deleteNode, issuesByNode } = useBuilder();
+  const def = NODE_DEFS[data.type];
+
+  // Legacy / deprecated node type (e.g. SPLIT, GOAL from older workflows).
+  // Render a clearly broken card so the operator can delete + replace it
+  // instead of crashing the editor.
+  if (!def) {
+    return (
+      <div
+        className="group/node"
+        style={{
+          background: "#fef2f2",
+          borderRadius: 10,
+          border: "1.5px dashed #ef4444",
+          padding: "10px 12px",
+          width: 220,
+          position: "relative",
+          color: "#7f1d1d",
+        }}
+      >
+        <Handle type="target" position={Position.Top} style={handleStyle} />
+        <button
+          onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
+          title="Delete this deprecated node"
+          style={{
+            position: "absolute", top: -8, right: -8,
+            width: 20, height: 20, borderRadius: 999,
+            border: "1.5px solid white", background: "#ef4444", color: "white",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", zIndex: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+          }}
+        >
+          <Trash2 size={10} />
+        </button>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          Deprecated
+        </div>
+        <div style={{ fontSize: 12, marginTop: 2 }}>
+          Type "{data.type}" no longer supported — delete and replace.
+        </div>
+        <Handle type="source" position={Position.Bottom} style={handleStyle} />
+      </div>
+    );
+  }
+
+  const Icon = def.Icon;
   const canAddNext = useCanAddNext(id, data.type);
   const myIssues = issuesByNode.get(id) ?? [];
   const isInvalid = myIssues.length > 0;
@@ -514,7 +583,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
         position: { x: 0, y: 0 },
         data: {
           type: n.type,
-          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags),
+          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels),
         },
       } as Node)),
     ];
@@ -664,7 +733,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
     setConfigMap((prev) => ({ ...prev, [id]: newCfg }));
     setRfNodes((prev) => prev.concat({
       id, type: "workflowNode", position,
-      data: { type, subtitle: nodeSubtitle(type, newCfg, tags) },
+      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, funnels) },
     }));
 
     if (sourceId === TRIGGER_ID) {
@@ -895,7 +964,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
       // Update the subtitle in node data so the canvas reflects changes.
       setRfNodes((nodes) => nodes.map((n) => n.id === selectedNodeId ? {
         ...n,
-        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags) },
+        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, funnels) },
       } : n));
       return next;
     });
@@ -1026,12 +1095,13 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
               triggerType={triggerType}
               triggerConfig={triggerConfig}
               funnels={funnels}
+              tags={tags}
               onTypeChange={setTriggerType}
               onConfigChange={setTriggerConfig}
             />
           </div>
         )}
-        {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && (
+        {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && NODE_DEFS[selectedType] && (
           <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -1043,6 +1113,24 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
               </div>
             </div>
             <NodeConfigForm type={selectedType} config={selectedConfig} onChange={patchConfig} tags={tags} senders={senders} />
+          </div>
+        )}
+        {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && !NODE_DEFS[selectedType] && (
+          <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-red-700">Deprecated node</h3>
+              <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
+            </div>
+            <p className="text-xs text-gray-600 mb-3">
+              Type <code className="bg-gray-100 px-1 py-0.5 rounded">{selectedType}</code> is no longer supported.
+              Delete this node and replace with a supported step.
+            </p>
+            <button
+              onClick={deleteSelected}
+              className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg"
+            >
+              Delete this node
+            </button>
           </div>
         )}
       </div>
@@ -1094,8 +1182,7 @@ function AddNodePicker({
     REMOVE_TAG: "Remove a tag from the contact",
     WEBHOOK:    "Call any HTTP endpoint (Slack, CRM, custom)",
     DELAY:      "Wait minutes / hours / days before next step",
-    CONDITION:  "Rẽ nhánh true / false (use true → End for early exit)",
-    SPLIT:      "A/B split by weighted random",
+    CONDITION:  "Branch true / false (wire true → End for early exit)",
     END:        "Mark this branch completed",
   };
 
@@ -1219,11 +1306,12 @@ function ValidationIssuesModal({
 // ─── Trigger config form (right panel when trigger node selected) ──────────
 
 function TriggerConfigForm({
-  triggerType, triggerConfig, funnels, onTypeChange, onConfigChange,
+  triggerType, triggerConfig, funnels, tags, onTypeChange, onConfigChange,
 }: {
   triggerType: string;
   triggerConfig: Record<string, unknown>;
   funnels: Props["funnels"];
+  tags: Props["tags"];
   onTypeChange: (t: string) => void;
   onConfigChange: (c: Record<string, unknown>) => void;
 }) {
@@ -1231,41 +1319,105 @@ function TriggerConfigForm({
   const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
   const funnelId = (triggerConfig.funnelId as string | undefined) ?? "";
   const funnel = funnels.find((f) => f.id === funnelId);
+  const isTagTrigger    = triggerType === "TAG_ADDED" || triggerType === "TAG_REMOVED";
+  const isFunnelScoped  = FUNNEL_SCOPED_TRIGGERS.has(triggerType);
+  const description     = TRIGGER_DESCRIPTIONS[triggerType];
+  const eligibleStepTypes = STEP_TYPES_PER_TRIGGER[triggerType] ?? [];
+
+  // Steps in the chosen funnel that this trigger can actually fire on. E.g.
+  // for NEW_SALE we only show CHECKOUT / UPSELL / DOWNSELL steps — there's no
+  // point letting the operator pick an OPTIN step because no sale event will
+  // ever come from it.
+  const eligibleSteps = funnel
+    ? (eligibleStepTypes.length > 0
+        ? funnel.steps.filter((s) => eligibleStepTypes.includes(s.type))
+        : funnel.steps)
+    : [];
+
+  // Switching trigger types: clear filters that don't apply to the new type
+  // so stale funnelId / tagId / stepType don't silently restrict matching.
+  function handleTypeChange(next: string) {
+    const nextIsTag    = next === "TAG_ADDED" || next === "TAG_REMOVED";
+    const nextIsFunnel = FUNNEL_SCOPED_TRIGGERS.has(next);
+    const cleaned: Record<string, unknown> = { ...triggerConfig };
+    if (!nextIsTag)    { delete cleaned.tagId; }
+    if (!nextIsFunnel) { delete cleaned.funnelId; delete cleaned.funnelStepId; }
+    // Legacy stepType field from earlier UI iteration — strip on any switch
+    // so it doesn't silently restrict matching. Server-side matcher still
+    // honors it for any workflow rows that still have it persisted.
+    delete cleaned.stepType;
+    onTypeChange(next);
+    onConfigChange(cleaned);
+  }
+
   return (
     <div className="space-y-3">
       <div>
         <label className={lbl}>When</label>
-        <select className={inp} value={triggerType} onChange={(e) => onTypeChange(e.target.value)}>
+        <select className={inp} value={triggerType} onChange={(e) => handleTypeChange(e.target.value)}>
           {TRIGGER_TYPES.map((t) => <option key={t} value={t}>{triggerHumanLabel(t)}</option>)}
         </select>
+        {description && (
+          <p className="text-[11px] text-gray-500 mt-1.5 leading-snug">{description}</p>
+        )}
       </div>
-      <div>
-        <label className={lbl}>Funnel filter</label>
-        <select
-          className={inp}
-          value={funnelId}
-          onChange={(e) => onConfigChange({ ...triggerConfig, funnelId: e.target.value || undefined, funnelStepId: undefined })}
-        >
-          <option value="">— any funnel —</option>
-          {funnels.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-        </select>
-      </div>
-      {funnel && (
+
+      {/* TAG_ADDED / TAG_REMOVED need the specific tag wired here so the
+          executor knows which tag firing triggers this workflow. Without it,
+          the trigger would fire for ANY tag change — almost never what the
+          operator wants. */}
+      {isTagTrigger && (
         <div>
-          <label className={lbl}>Step filter</label>
+          <label className={lbl}>Tag</label>
           <select
             className={inp}
-            value={(triggerConfig.funnelStepId as string | undefined) ?? ""}
-            onChange={(e) => onConfigChange({ ...triggerConfig, funnelStepId: e.target.value || undefined })}
+            value={(triggerConfig.tagId as string | undefined) ?? ""}
+            onChange={(e) => onConfigChange({ ...triggerConfig, tagId: e.target.value || undefined })}
           >
-            <option value="">— any step —</option>
-            {funnel.steps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
+            <option value="">— pick a tag —</option>
+            {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
       )}
-      <p className="text-[10px] text-gray-400 leading-snug">
-        Only events matching this trigger type + filter will start a run for this workflow.
-      </p>
+
+      {/* Funnel + Step filters — sequential. User picks a funnel first, then
+          the Step dropdown lists only steps from that funnel that can
+          actually emit this trigger (e.g. NEW_SALE → only CHECKOUT/UPSELL/
+          DOWNSELL steps, not OPTIN). Each step shows its type in the label
+          so the operator can pick the right one at a glance. */}
+      {isFunnelScoped && (
+        <>
+          <div>
+            <label className={lbl}>Funnel</label>
+            <select
+              className={inp}
+              value={funnelId}
+              onChange={(e) => onConfigChange({ ...triggerConfig, funnelId: e.target.value || undefined, funnelStepId: undefined })}
+            >
+              <option value="">— any funnel —</option>
+              {funnels.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </div>
+          {funnel && (
+            <div>
+              <label className={lbl}>Step</label>
+              <select
+                className={inp}
+                value={(triggerConfig.funnelStepId as string | undefined) ?? ""}
+                onChange={(e) => onConfigChange({ ...triggerConfig, funnelStepId: e.target.value || undefined })}
+              >
+                <option value="">— any step —</option>
+                {eligibleSteps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.type.toLowerCase()})</option>)}
+              </select>
+              {eligibleSteps.length === 0 && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  No steps in this funnel can emit a {triggerHumanLabel(triggerType)} event.
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1273,13 +1425,14 @@ function TriggerConfigForm({
 // ─── Per-node-type config form ─────────────────────────────────────────────
 
 function NodeConfigForm({
-  type, config, onChange, tags, senders,
+  type, config, onChange, tags, senders, funnels,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
   tags: Props["tags"];
   senders: Props["senders"];
+  funnels: Props["funnels"];
 }) {
   const inp  = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl  = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
@@ -1411,10 +1564,6 @@ function NodeConfigForm({
     );
   }
 
-  if (type === "SPLIT") {
-    return <p className="text-xs text-gray-500">Connect multiple outgoing edges. Pick by random weight (each edge weight defaults to 1).</p>;
-  }
-
   if (type === "END") {
     return (
       <div className="space-y-3">
@@ -1500,7 +1649,12 @@ function styleTriggerEdge(e: { id: string; source: string; target: string }): Ed
   };
 }
 
-function nodeSubtitle(type: NodeType, config: Record<string, unknown>, tags: Props["tags"]): string | undefined {
+function nodeSubtitle(
+  type: NodeType,
+  config: Record<string, unknown>,
+  tags: Props["tags"],
+  funnels: Props["funnels"],
+): string | undefined {
   if (type === "SEND_EMAIL") return (config.subject as string) || undefined;
   if (type === "ADD_TAG" || type === "REMOVE_TAG") {
     const id = config.tagId as string | undefined;
@@ -1509,8 +1663,70 @@ function nodeSubtitle(type: NodeType, config: Record<string, unknown>, tags: Pro
   }
   if (type === "WEBHOOK") return (config.url as string) || undefined;
   if (type === "DELAY")   return totalDelayLabel(config);
-  if (type === "CONDITION") return (config.kind as string) || undefined;
+  if (type === "CONDITION") return conditionSubtitle(config, tags, funnels);
+  if (type === "END")     return (config.reason as string) || undefined;
   return undefined;
+}
+
+// Human-readable one-liner for the CONDITION card subtitle. Falls back to a
+// "configure me" hint when the kind is set but its required fields aren't.
+function conditionSubtitle(
+  config: Record<string, unknown>,
+  tags: Props["tags"],
+  funnels: Props["funnels"],
+): string | undefined {
+  const kind = config.kind as string | undefined;
+  if (!kind) return undefined;
+  switch (kind) {
+    case "contact_has_tag": {
+      const tagId = config.tagId as string | undefined;
+      if (!tagId) return "if has tag …";
+      const tag = tags.find((t) => t.id === tagId);
+      return tag ? `if has tag "${tag.name}"` : "if has tag …";
+    }
+    case "contact_completed_purchase":
+      return "if contact completed purchase";
+    case "contact_field": {
+      const field    = config.field    as string | undefined;
+      const operator = config.operator as string | undefined;
+      const value    = config.value;
+      if (!field || !operator) return "if contact field …";
+      if (operator === "empty" || operator === "not_empty") {
+        return `if ${field} ${operatorLabel(operator)}`;
+      }
+      const valStr = value == null || value === "" ? "…" : String(value);
+      return `if ${field} ${operatorLabel(operator)} "${valStr}"`;
+    }
+    case "trigger_amount": {
+      const operator = config.operator as string | undefined;
+      const value    = config.value;
+      if (!operator || value == null || value === "") return "if order amount …";
+      return `if order amount ${operatorLabel(operator)} ${value}`;
+    }
+    case "trigger_funnel": {
+      const funnelId = config.funnelId as string | undefined;
+      if (!funnelId) return "if from funnel …";
+      const f = funnels.find((x) => x.id === funnelId);
+      return f ? `if from funnel "${f.name}"` : "if from funnel …";
+    }
+    default:
+      return kind;
+  }
+}
+
+function operatorLabel(op: string): string {
+  switch (op) {
+    case "eq":        return "is";
+    case "neq":       return "is not";
+    case "gt":        return ">";
+    case "gte":       return "≥";
+    case "lt":        return "<";
+    case "lte":       return "≤";
+    case "contains":  return "contains";
+    case "empty":     return "is empty";
+    case "not_empty": return "is not empty";
+    default:          return op;
+  }
 }
 
 function describeTriggerScope(triggerConfig: Record<string, unknown>, funnels: Props["funnels"]): string | null {

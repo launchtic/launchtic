@@ -78,9 +78,24 @@ export async function fireTrigger(
     });
     if (workflows.length === 0) return;
 
+    // If any workflow filters by stepType, resolve the step's type once
+    // (the context carries funnelStepId, not type).
+    const needsStepType = workflows.some((wf) => {
+      const cfg = wf.triggerConfig as Record<string, unknown> | null;
+      return cfg != null && typeof cfg.stepType === "string" && cfg.stepType.length > 0;
+    });
+    let stepType: string | null = null;
+    if (needsStepType && context.funnelStepId) {
+      const step = await db.funnelStep.findUnique({
+        where:  { id: context.funnelStepId },
+        select: { type: true },
+      });
+      stepType = step?.type ?? null;
+    }
+
     const queue = getQueue();
     for (const wf of workflows) {
-      if (!matchesFilter(wf.triggerConfig as Record<string, unknown> | null, context)) continue;
+      if (!matchesFilter(wf.triggerConfig as Record<string, unknown> | null, context, stepType)) continue;
       if (!wf.startNodeId) continue;
 
       if (context.contactId) {
@@ -127,10 +142,15 @@ export async function fireTrigger(
   }
 }
 
-function matchesFilter(config: Record<string, unknown> | null, context: TriggerContext): boolean {
+function matchesFilter(
+  config:   Record<string, unknown> | null,
+  context:  TriggerContext,
+  stepType: string | null,
+): boolean {
   if (!config) return true;
   if (config.funnelId     && context.funnelId     !== config.funnelId)     return false;
   if (config.tagId        && context.tagId        !== config.tagId)        return false;
   if (config.funnelStepId && context.funnelStepId !== config.funnelStepId) return false;
+  if (config.stepType     && stepType             !== config.stepType)     return false;
   return true;
 }

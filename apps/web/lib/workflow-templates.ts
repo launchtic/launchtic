@@ -8,7 +8,7 @@
 
 export type TemplateNode = {
   id:       string;
-  type:     "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK" | "DELAY" | "CONDITION" | "SPLIT" | "END";
+  type:     "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK" | "DELAY" | "CONDITION" | "END";
   position?: { x: number; y: number };
   config?:  Record<string, unknown>;
 };

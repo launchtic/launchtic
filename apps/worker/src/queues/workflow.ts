@@ -8,7 +8,7 @@
 // ─── Graph shape ────────────────────────────────────────────────────────────
 //   workflow.nodes : [
 //     { id, type: "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK"
-//                  | "DELAY"   | "CONDITION" | "SPLIT"  | "END",
+//                  | "DELAY"   | "CONDITION" | "END",
 //       position: { x, y }, config: {...} }
 //   ]
 //
@@ -284,7 +284,7 @@ function pickNextEdge(fromNodeId: string, edges: WorkflowEdge[], preferredLabel:
 
 // ─── Node executor dispatcher ───────────────────────────────────────────────
 
-async function executeNode(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[]): Promise<void> {
+async function executeNode(node: WorkflowNode, ctx: RunCtx, _edges: WorkflowEdge[]): Promise<void> {
   switch (node.type) {
     case "SEND_EMAIL":   return execSendEmail(node, ctx);
     case "ADD_TAG":      return execAddTag(node, ctx);
@@ -292,7 +292,6 @@ async function executeNode(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[
     case "WEBHOOK":      return execWebhook(node, ctx);
     case "DELAY":        return execDelay(node, ctx);
     case "CONDITION":    return execCondition(node, ctx);
-    case "SPLIT":        return execSplit(node, ctx, edges);
     case "END":          return execEnd(node, ctx);
     default:
       throw new Error(`Unknown node type: ${node.type}`);
@@ -568,33 +567,6 @@ function compare(actual: unknown, operator: string, value: unknown): boolean {
     case "not_empty": return actual != null && actual !== "";
     default: return false;
   }
-}
-
-// ─── SPLIT ──────────────────────────────────────────────────────────────────
-//
-// Weighted random branching. Each outgoing edge from the split node carries
-// a `weight` field; we pick one in proportion and set preferredLabel to the
-// edge's label so pickNextEdge routes correctly.
-//
-// Used for A/B subject testing or any kind of test arm allocation.
-
-async function execSplit(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[]): Promise<void> {
-  const outgoing = edges.filter((e) => e.source === node.id);
-  if (outgoing.length === 0) return;
-  const total = outgoing.reduce((sum, e) => sum + (e.weight ?? 1), 0);
-  let pick = Math.random() * total;
-  for (const e of outgoing) {
-    pick -= (e.weight ?? 1);
-    if (pick <= 0) {
-      ctx.preferredLabel = e.label ?? null;
-      ctx.nodeOutput     = { picked: e.id };
-      return;
-    }
-  }
-  // Floating-point fallthrough — last edge wins.
-  const last = outgoing[outgoing.length - 1];
-  ctx.preferredLabel = last.label ?? null;
-  ctx.nodeOutput     = { picked: last.id };
 }
 
 // ─── END ────────────────────────────────────────────────────────────────────

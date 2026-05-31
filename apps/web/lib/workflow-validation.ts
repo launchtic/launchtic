@@ -65,19 +65,43 @@ export function validateWorkflow(wf: WorkflowToValidate): ValidationIssue[] {
 
 // ─── Per-node rules ────────────────────────────────────────────────────────
 
+// Funnel-scoped triggers: events that carry funnelId + funnelStepId. When the
+// operator picks a funnel filter, they must also pick a specific step — a
+// dangling "Course Premium / — any step —" filter is almost always an
+// oversight rather than an intentional broad scope. (Operators who want
+// "any funnel" can leave both fields blank.)
+const FUNNEL_SCOPED_TRIGGER_TYPES = new Set([
+  "NEW_SALE", "SALE_CANCELED", "FORM_SUBMIT", "CHECKOUT_STARTED",
+]);
+
 export function validateTrigger(type: string, config: Record<string, unknown>): string[] {
   const out: string[] = [];
   if (!type) { out.push("Pick a trigger type."); return out; }
   if (type === "TAG_ADDED" || type === "TAG_REMOVED") {
     if (!nonEmpty(config.tagId)) out.push("Pick which tag this trigger watches for.");
   }
-  // CHECKOUT_STARTED / NEW_SALE / FORM_SUBMIT can run scoped to any funnel —
-  // not picking a funnel is intentional, not an error. Don't block.
+  if (FUNNEL_SCOPED_TRIGGER_TYPES.has(type)) {
+    if (nonEmpty(config.funnelId) && !nonEmpty(config.funnelStepId)) {
+      out.push("Pick a specific step in this funnel, or remove the funnel filter to match all funnels.");
+    }
+  }
   return out;
 }
 
+// Node types this version of the system supports. Anything else (legacy
+// SPLIT / GOAL from older workflows) gets a clear "deprecated" validation
+// message + the canvas renders it as a deletable broken card.
+const SUPPORTED_NODE_TYPES = new Set([
+  "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END",
+]);
+
 export function validateNode(type: string, config: Record<string, unknown>): string[] {
   const out: string[] = [];
+
+  if (!SUPPORTED_NODE_TYPES.has(type)) {
+    out.push(`Node type "${type}" is no longer supported. Delete this node and add a supported step in its place.`);
+    return out;
+  }
 
   switch (type) {
     case "SEND_EMAIL": {
@@ -138,10 +162,6 @@ export function validateNode(type: string, config: Record<string, unknown>): str
       break;
     }
 
-    case "SPLIT":
-      // Branch count requirement is enforced at the graph level.
-      break;
-
     case "END":
       break;
   }
@@ -193,9 +213,6 @@ export function validateGraph(
         out.push("If/else needs both a true and a false branch.");
       }
     }
-    if (n.type === "SPLIT" && outs.length < 2) {
-      out.push("Split needs at least 2 outgoing branches.");
-    }
     // Non-END, non-terminal node with no outgoing edge → dead end.
     if (n.type !== "END" && outs.length === 0) {
       out.push(`Step "${nodeLabel(n)}" has no next step. Add one or connect it to End.`);
@@ -223,7 +240,6 @@ export function nodeLabel(n: WorkflowNode): string {
     case "WEBHOOK":    return "Webhook";
     case "DELAY":      return "Wait";
     case "CONDITION":  return "If / else";
-    case "SPLIT":      return "Split";
     case "END":        return "End";
     default:           return n.type;
   }
