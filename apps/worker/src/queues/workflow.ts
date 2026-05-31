@@ -479,11 +479,9 @@ async function execDelay(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 // ctx.preferredLabel = "true" | "false" for edge routing.
 //
 // Supported kinds:
-//   "contact_has_tag"             → { tagId }
-//   "contact_field"               → { field, operator, value }
-//   "contact_completed_purchase"  → { funnelStepId? }  — checks Order.PAID since run started
-//   "trigger_amount"              → { operator, value } — compared against triggerData.orderTotal
-//   "trigger_funnel"              → { funnelId }
+//   "contact_tag"        → { tagId, operator: "has"|"does_not_have" }
+//   "contact_field"      → { field, operator, value }
+//   "contact_purchased"  → { funnelStepId? }  — checks Order.PAID since run started
 
 async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const cfg  = (node.config ?? {}) as Record<string, unknown>;
@@ -491,7 +489,7 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   let result = false;
 
   switch (kind) {
-    case "contact_completed_purchase": {
+    case "contact_purchased": {
       // True if the contact has a PAID Order at the trigger's funnelStepId
       // created AFTER this run started. Used by cart-abandonment GOAL nodes
       // to exit when the buyer completes their order during the recovery
@@ -515,35 +513,27 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       result = !!order;
       break;
     }
-    case "contact_has_tag": {
+    case "contact_tag": {
       if (!ctx.contact) { result = false; break; }
-      const tagId = cfg.tagId as string | undefined;
+      const tagId    = cfg.tagId    as string | undefined;
+      const operator = (cfg.operator as string | undefined) ?? "has";
       if (!tagId) { result = false; break; }
       const ct = await db.contactTag.findUnique({
         where: { contactId_tagId: { contactId: ctx.contact.id, tagId } },
       });
-      result = !!ct;
+      // "has"          → true if tag present.
+      // "does_not_have" → true if tag absent. Lets workflows route a "false"
+      //                   branch as "true" without flipping edge labels.
+      result = operator === "does_not_have" ? !ct : !!ct;
       break;
     }
     case "contact_field": {
       if (!ctx.contact) { result = false; break; }
       const field    = cfg.field as string | undefined;
-      const operator = (cfg.operator as string | undefined) ?? "eq";
+      const operator = (cfg.operator as string | undefined) ?? "equals";
       const value    = cfg.value;
       const actual   = field ? (ctx.contact as any)[field] : undefined;
-      result = compare(actual, operator, value);
-      break;
-    }
-    case "trigger_amount": {
-      const operator = (cfg.operator as string | undefined) ?? "gte";
-      const value    = Number(cfg.value ?? 0);
-      const amount   = Number(ctx.triggerData.orderTotal ?? 0);
-      result = compare(amount, operator, value);
-      break;
-    }
-    case "trigger_funnel": {
-      const funnelId = cfg.funnelId as string | undefined;
-      result = !!funnelId && ctx.triggerData.funnelId === funnelId;
+      result = compareString(actual, operator, value);
       break;
     }
     default:
@@ -554,18 +544,18 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   ctx.nodeOutput     = { evaluated: result, kind };
 }
 
-function compare(actual: unknown, operator: string, value: unknown): boolean {
+// String-only comparison for `contact_field`. Profile fields in launchtic are
+// all strings (email, firstName, lastName, phone, country, company) so 4
+// operators cover the realistic use cases — matching Systeme.io's UX.
+function compareString(actual: unknown, operator: string, value: unknown): boolean {
+  const a = String(actual ?? "").toLowerCase();
+  const b = String(value  ?? "").toLowerCase();
   switch (operator) {
-    case "eq":   return actual === value;
-    case "neq":  return actual !== value;
-    case "gt":   return Number(actual) >  Number(value);
-    case "gte":  return Number(actual) >= Number(value);
-    case "lt":   return Number(actual) <  Number(value);
-    case "lte":  return Number(actual) <= Number(value);
-    case "contains": return String(actual ?? "").toLowerCase().includes(String(value ?? "").toLowerCase());
-    case "empty":    return actual == null || actual === "";
-    case "not_empty": return actual != null && actual !== "";
-    default: return false;
+    case "equals":   return a === b;
+    case "begins":   return a.startsWith(b);
+    case "contains": return a.includes(b);
+    case "ends":     return a.endsWith(b);
+    default:         return false;
   }
 }
 

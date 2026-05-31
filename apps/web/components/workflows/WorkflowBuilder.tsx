@@ -188,7 +188,7 @@ const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: str
   REMOVE_TAG: { label: "Remove tag",    Icon: TagOff,      color: "#f59e0b", defaultConfig: { tagId: "" } },
   WEBHOOK:    { label: "Webhook",       Icon: Globe,       color: "#8b5cf6", defaultConfig: { url: "", method: "POST" } },
   DELAY:      { label: "Wait",          Icon: Clock,       color: "#6b7280", defaultConfig: { hours: 1 } },
-  CONDITION:  { label: "If / else",     Icon: GitBranch,   color: "#f97316", defaultConfig: { kind: "contact_has_tag" } },
+  CONDITION:  { label: "If / else",     Icon: GitBranch,   color: "#f97316", defaultConfig: { kind: "contact_tag" } },
   END:        { label: "End",           Icon: Square,      color: "#dc2626", defaultConfig: {} },
 };
 
@@ -1112,7 +1112,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
                 <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
               </div>
             </div>
-            <NodeConfigForm type={selectedType} config={selectedConfig} onChange={patchConfig} tags={tags} senders={senders} />
+            <NodeConfigForm type={selectedType} config={selectedConfig} onChange={patchConfig} tags={tags} senders={senders} funnels={funnels} />
           </div>
         )}
         {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && !NODE_DEFS[selectedType] && (
@@ -1528,21 +1528,32 @@ function NodeConfigForm({
         <div>
           <label className={lbl}>Kind</label>
           <select className={inp} value={kind} onChange={(e) => onChange({ kind: e.target.value })}>
-            <option value="contact_has_tag">Contact has tag</option>
-            <option value="contact_completed_purchase">Contact completed purchase</option>
+            <option value="contact_tag">Contact tag</option>
             <option value="contact_field">Contact field</option>
-            <option value="trigger_amount">Trigger amount</option>
-            <option value="trigger_funnel">Trigger funnel</option>
+            <option value="contact_purchased">Contact purchased</option>
           </select>
         </div>
-        {kind === "contact_has_tag" && (
-          <div>
-            <label className={lbl}>Tag</label>
-            <select className={inp} value={(config.tagId as string) ?? ""} onChange={(e) => onChange({ tagId: e.target.value })}>
-              <option value="">— pick tag —</option>
-              {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
+        {kind === "contact_tag" && (
+          <>
+            <div>
+              <label className={lbl}>Operator</label>
+              <select
+                className={inp}
+                value={(config.operator as string) ?? "has"}
+                onChange={(e) => onChange({ operator: e.target.value })}
+              >
+                <option value="has">Has tag</option>
+                <option value="does_not_have">Does not have tag</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Tag</label>
+              <select className={inp} value={(config.tagId as string) ?? ""} onChange={(e) => onChange({ tagId: e.target.value })}>
+                <option value="">— pick tag —</option>
+                {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          </>
         )}
         {kind === "contact_field" && (
           <>
@@ -1555,9 +1566,11 @@ function NodeConfigForm({
             <CompareFields config={config} onChange={onChange} />
           </>
         )}
-        {kind === "trigger_amount" && <CompareFields config={config} onChange={onChange} numericOnly />}
-        {kind === "trigger_funnel" && (
-          <input className={inp} placeholder="funnelId" value={(config.funnelId as string) ?? ""} onChange={(e) => onChange({ funnelId: e.target.value })} />
+        {kind === "contact_purchased" && (
+          <p className="text-[10px] text-gray-500 leading-snug">
+            Returns true if the contact placed a PAID order after this run started.
+            By default scopes to the trigger&apos;s funnel step.
+          </p>
         )}
         <p className="text-[10px] text-gray-500">Connect two outgoing edges — they'll be labeled <b>true</b> and <b>false</b> automatically. For "exit when goal met" patterns, wire the <b>true</b> branch to an End node.</p>
       </div>
@@ -1585,32 +1598,29 @@ function NodeConfigForm({
   return null;
 }
 
-function CompareFields({ config, onChange, numericOnly }: { config: Record<string, unknown>; onChange: (p: Record<string, unknown>) => void; numericOnly?: boolean }) {
+// Compact 4-operator picker matching Systeme.io's Decision UX. Strings only —
+// profile fields in launchtic are all strings (email, firstName, etc.).
+function CompareFields({ config, onChange }: { config: Record<string, unknown>; onChange: (p: Record<string, unknown>) => void }) {
   const inp = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
   return (
     <>
       <div>
         <label className={lbl}>Operator</label>
-        <select className={inp} value={(config.operator as string) ?? "eq"} onChange={(e) => onChange({ operator: e.target.value })}>
-          <option value="eq">equals</option>
-          <option value="neq">not equals</option>
-          <option value="gt">greater than</option>
-          <option value="gte">≥</option>
-          <option value="lt">less than</option>
-          <option value="lte">≤</option>
-          {!numericOnly && <option value="contains">contains</option>}
-          {!numericOnly && <option value="empty">is empty</option>}
-          {!numericOnly && <option value="not_empty">not empty</option>}
+        <select className={inp} value={(config.operator as string) ?? "equals"} onChange={(e) => onChange({ operator: e.target.value })}>
+          <option value="equals">Equals</option>
+          <option value="begins">Begins with</option>
+          <option value="contains">Contains</option>
+          <option value="ends">Ends with</option>
         </select>
       </div>
       <div>
         <label className={lbl}>Value</label>
         <input
-          type={numericOnly ? "number" : "text"}
+          type="text"
           className={inp}
-          value={(config.value as string | number) ?? ""}
-          onChange={(e) => onChange({ value: numericOnly ? Number(e.target.value) : e.target.value })}
+          value={(config.value as string) ?? ""}
+          onChange={(e) => onChange({ value: e.target.value })}
         />
       </div>
     </>
@@ -1678,54 +1688,39 @@ function conditionSubtitle(
   const kind = config.kind as string | undefined;
   if (!kind) return undefined;
   switch (kind) {
-    case "contact_has_tag": {
-      const tagId = config.tagId as string | undefined;
-      if (!tagId) return "if has tag …";
+    case "contact_tag": {
+      const tagId    = config.tagId    as string | undefined;
+      const operator = (config.operator as string | undefined) ?? "has";
+      const verb     = operator === "does_not_have" ? "does not have tag" : "has tag";
+      if (!tagId) return `if ${verb} …`;
       const tag = tags.find((t) => t.id === tagId);
-      return tag ? `if has tag "${tag.name}"` : "if has tag …";
+      return tag ? `if ${verb} "${tag.name}"` : `if ${verb} …`;
     }
-    case "contact_completed_purchase":
-      return "if contact completed purchase";
+    case "contact_purchased":
+      return "if contact purchased";
     case "contact_field": {
       const field    = config.field    as string | undefined;
       const operator = config.operator as string | undefined;
       const value    = config.value;
       if (!field || !operator) return "if contact field …";
-      if (operator === "empty" || operator === "not_empty") {
-        return `if ${field} ${operatorLabel(operator)}`;
-      }
       const valStr = value == null || value === "" ? "…" : String(value);
       return `if ${field} ${operatorLabel(operator)} "${valStr}"`;
-    }
-    case "trigger_amount": {
-      const operator = config.operator as string | undefined;
-      const value    = config.value;
-      if (!operator || value == null || value === "") return "if order amount …";
-      return `if order amount ${operatorLabel(operator)} ${value}`;
-    }
-    case "trigger_funnel": {
-      const funnelId = config.funnelId as string | undefined;
-      if (!funnelId) return "if from funnel …";
-      const f = funnels.find((x) => x.id === funnelId);
-      return f ? `if from funnel "${f.name}"` : "if from funnel …";
     }
     default:
       return kind;
   }
+  // funnels arg kept in signature so we don't ripple call-site changes if we
+  // re-add trigger_funnel kind later. Currently unused.
+  void funnels;
 }
 
 function operatorLabel(op: string): string {
   switch (op) {
-    case "eq":        return "is";
-    case "neq":       return "is not";
-    case "gt":        return ">";
-    case "gte":       return "≥";
-    case "lt":        return "<";
-    case "lte":       return "≤";
-    case "contains":  return "contains";
-    case "empty":     return "is empty";
-    case "not_empty": return "is not empty";
-    default:          return op;
+    case "equals":   return "equals";
+    case "begins":   return "begins with";
+    case "contains": return "contains";
+    case "ends":     return "ends with";
+    default:         return op;
   }
 }
 

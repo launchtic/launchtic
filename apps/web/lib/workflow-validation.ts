@@ -140,23 +140,30 @@ export function validateNode(type: string, config: Record<string, unknown>): str
     case "CONDITION": {
       const kind = config.kind as string | undefined;
       if (!kind) { out.push("Condition kind not picked."); break; }
-      if (kind === "contact_has_tag") {
+      if (kind === "contact_tag") {
         if (!nonEmpty(config.tagId)) out.push("Pick a tag to check.");
+        const op = config.operator as string | undefined;
+        if (op && op !== "has" && op !== "does_not_have") {
+          out.push(`Tag operator "${op}" isn't supported.`);
+        }
       } else if (kind === "contact_field") {
         if (!nonEmpty(config.field))    out.push("Pick a contact field.");
         if (!nonEmpty(config.operator)) out.push("Pick an operator.");
         const op = String(config.operator ?? "");
-        if (op !== "empty" && op !== "not_empty" && !nonEmpty(config.value)) {
+        const allowed = ["equals", "begins", "contains", "ends"];
+        if (op && !allowed.includes(op)) {
+          out.push(`Operator "${op}" isn't supported. Use one of: ${allowed.join(", ")}.`);
+        }
+        if (!nonEmpty(config.value)) {
           out.push("Set a value to compare against.");
         }
-      } else if (kind === "trigger_amount") {
-        if (!nonEmpty(config.operator)) out.push("Pick an operator.");
-        if (config.value == null || String(config.value).trim() === "") out.push("Set an amount.");
-      } else if (kind === "trigger_funnel") {
-        if (!nonEmpty(config.funnelId)) out.push("Pick a funnel.");
+      } else if (kind === "contact_purchased") {
+        // No required fields — falls back to trigger's funnelStepId when not
+        // explicitly scoped. Documented for clarity.
       } else {
-        // Unknown kind — `always_true` and `context_key` were dropped, anything
-        // else is a typo or stale data from a deleted template.
+        // Unknown kind — `trigger_amount`, `trigger_funnel`, `always_true`,
+        // `context_key`, and the old verbose names were dropped/renamed.
+        // Anything else is stale data.
         out.push(`Condition kind "${kind}" isn't supported.`);
       }
       break;

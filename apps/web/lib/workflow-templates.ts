@@ -69,15 +69,12 @@ function tagNode(id: string, idx: number, kind: "ADD_TAG" | "REMOVE_TAG", col = 
   return { id, type: kind, position: { x: x(col), y: y(idx) }, config: { tagId: "" } };
 }
 function condTag(id: string, idx: number, col = 0): TemplateNode {
-  return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "contact_has_tag", tagId: "" } };
+  return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "contact_tag", operator: "has", tagId: "" } };
 }
-function condAmount(id: string, idx: number, gte: number, col = 0): TemplateNode {
-  return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "trigger_amount", operator: "gte", value: gte } };
-}
-// Early-exit pattern: CONDITION (kind: contact_completed_purchase) → true branch
+// Early-exit pattern: CONDITION (kind: contact_purchased) → true branch
 // → End node with config.reason. Replaces the old Goal node.
 function condPurchase(id: string, idx: number, col = 0): TemplateNode {
-  return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "contact_completed_purchase" } };
+  return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "contact_purchased" } };
 }
 function endNode(id: string, idx: number, col = 0, reason?: string): TemplateNode {
   return {
@@ -244,45 +241,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       edge("e3", "email2", "delay2"),
       edge("e4", "delay2", "email3"),
       edge("e5", "email3", "end"),
-    ],
-  },
-
-  // ─── 4. VIP Customer Track ───────────────────────────────────────────────
-  // CONDITION node: if order total ≥ $500 → tag + special thanks. Otherwise normal flow.
-  {
-    id: "vip_customer_track",
-    name: "VIP Customer Track",
-    description: "Tag high-value buyers ($500+) and send a personal note. Smaller orders get a standard thanks.",
-    category: "Sales",
-    icon: "Crown",
-    triggerType: "NEW_SALE",
-    triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
-    startNodeId: "cond1",
-    nodes: [
-      condAmount("cond1", 0, 50000), // $500.00 in cents — center column
-      // TRUE branch (left): VIP tag → personal email → end
-      tagNode("tag_vip", 1, "ADD_TAG", -1),
-      emailNode("email_vip", 2,
-        "{{contact.firstName}}, welcome to the VIP list",
-        `<p>Hi {{contact.firstName}},</p>
-<p>I wanted to thank you personally — your order is one of our biggest this week, and that means a lot.</p>
-<p>I've added you to a small list of best customers we'll keep in the loop with early access and special perks.</p>
-<p>If there's ever anything you need, my email is right here. Reply anytime.</p>`, -1),
-      endNode("end_vip", 3, -1),
-      // FALSE branch (right): standard thanks → end
-      emailNode("email_std", 1,
-        "Thanks for your order!",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Thanks for your order — confirmation details coming soon.</p>`, 1),
-      endNode("end_std", 2, 1),
-    ],
-    edges: [
-      edge("e1", "cond1", "tag_vip",   "true"),
-      edge("e2", "cond1", "email_std", "false"),
-      edge("e3", "tag_vip", "email_vip"),
-      edge("e4", "email_vip", "end_vip"),
-      edge("e5", "email_std", "end_std"),
     ],
   },
 
@@ -525,31 +483,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     ],
   },
 
-  // ─── 12. Quick Rule: Webhook alert on high-value sale ────────────────────
-  {
-    id: "rule_webhook_big_sale",
-    name: "Quick Rule — Slack/CRM alert on $500+ sale",
-    description: "Ping any HTTP endpoint (Slack incoming webhook, Zapier, custom CRM) when a sale ≥ $500 closes.",
-    category: "Rules",
-    icon: "Bell",
-    badge: "New",
-    triggerType: "NEW_SALE",
-    triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
-    startNodeId: "cond1",
-    nodes: [
-      condAmount("cond1", 0, 50000), // $500.00 in cents
-      webhookNode("webhook1", 1, "https://hooks.slack.com/services/REPLACE_ME", -1),
-      endNode("end_hit", 2, -1),
-      endNode("end_skip", 1, 1),
-    ],
-    edges: [
-      edge("e1", "cond1", "webhook1", "true"),
-      edge("e2", "cond1", "end_skip", "false"),
-      edge("e3", "webhook1", "end_hit"),
-    ],
-  },
-
   // ─── 13. Quick Rule: Trial → Paid tag swap ───────────────────────────────
   {
     id: "rule_upgrade_tag_swap",
@@ -594,29 +527,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     ],
   },
 
-  // ─── 15. Quick Rule: VIP threshold tagger ────────────────────────────────
-  {
-    id: "rule_vip_threshold",
-    name: "Quick Rule — Tag VIP buyers",
-    description: "Any order ≥ $500 → contact gets a `vip` tag. Combine with broadcast segments for VIP-only offers.",
-    category: "Rules",
-    icon: "Crown",
-    triggerType: "NEW_SALE",
-    triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
-    startNodeId: "cond1",
-    nodes: [
-      condAmount("cond1", 0, 50000),
-      tagNode("tag_vip", 1, "ADD_TAG", -1),
-      endNode("end_yes", 2, -1),
-      endNode("end_no", 1, 1),
-    ],
-    edges: [
-      edge("e1", "cond1", "tag_vip", "true"),
-      edge("e2", "cond1", "end_no",  "false"),
-      edge("e3", "tag_vip", "end_yes"),
-    ],
-  },
 ];
 
 export function findTemplate(id: string): WorkflowTemplate | undefined {
