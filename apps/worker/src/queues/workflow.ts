@@ -8,9 +8,13 @@
 // ─── Graph shape ────────────────────────────────────────────────────────────
 //   workflow.nodes : [
 //     { id, type: "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK"
-//                  | "DELAY"   | "CONDITION" | "SPLIT"  | "GOAL" | "END",
+//                  | "DELAY"   | "CONDITION" | "SPLIT"  | "END",
 //       position: { x, y }, config: {...} }
 //   ]
+//
+// Early-exit pattern: use CONDITION → END for "exit when goal met". The END
+// node accepts an optional `config.reason` string that surfaces in
+// run.exitReason for analytics (e.g. "purchased" vs natural completion).
 //   workflow.edges : [
 //     { id, source, target, label?, weight? }
 //     // CONDITION node fans out via edge.label === "true" | "false"
@@ -289,7 +293,6 @@ async function executeNode(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[
     case "DELAY":        return execDelay(node, ctx);
     case "CONDITION":    return execCondition(node, ctx);
     case "SPLIT":        return execSplit(node, ctx, edges);
-    case "GOAL":         return execGoal(node, ctx);
     case "END":          return execEnd(node, ctx);
     default:
       throw new Error(`Unknown node type: ${node.type}`);
@@ -476,24 +479,19 @@ async function execDelay(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 // Evaluates `node.config` against the run context + contact and sets
 // ctx.preferredLabel = "true" | "false" for edge routing.
 //
-// Supported kinds (Phase 1):
-//   "contact_has_tag"   → { tagId }
-//   "contact_field"     → { field: "email"|"firstName"|..., operator, value }
-//   "trigger_amount"    → { operator: "gt"|"gte"|"lt"|"lte"|"eq", value }
-//   "trigger_funnel"    → { funnelId }
-//   "context_key"       → { key, operator, value }
-//   "always_true"       → (used to wire static branches in builder)
+// Supported kinds:
+//   "contact_has_tag"             → { tagId }
+//   "contact_field"               → { field, operator, value }
+//   "contact_completed_purchase"  → { funnelStepId? }  — checks Order.PAID since run started
+//   "trigger_amount"              → { operator, value } — compared against triggerData.orderTotal
+//   "trigger_funnel"              → { funnelId }
 
 async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const cfg  = (node.config ?? {}) as Record<string, unknown>;
-  const kind = (cfg.kind as string | undefined) ?? "always_true";
+  const kind = cfg.kind as string | undefined;
   let result = false;
 
   switch (kind) {
-    case "always_true": {
-      result = true;
-      break;
-    }
     case "contact_completed_purchase": {
       // True if the contact has a PAID Order at the trigger's funnelStepId
       // created AFTER this run started. Used by cart-abandonment GOAL nodes
@@ -549,16 +547,8 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       result = !!funnelId && ctx.triggerData.funnelId === funnelId;
       break;
     }
-    case "context_key": {
-      const key      = cfg.key as string | undefined;
-      const operator = (cfg.operator as string | undefined) ?? "eq";
-      const value    = cfg.value;
-      const actual   = key ? (ctx.context as any)[key] : undefined;
-      result = compare(actual, operator, value);
-      break;
-    }
     default:
-      throw new Error(`CONDITION: unsupported kind "${kind}"`);
+      throw new Error(`CONDITION: unsupported kind "${kind ?? "(unset)"}"`);
   }
 
   ctx.preferredLabel = result ? "true" : "false";
@@ -607,27 +597,16 @@ async function execSplit(node: WorkflowNode, ctx: RunCtx, edges: WorkflowEdge[])
   ctx.nodeOutput     = { picked: last.id };
 }
 
-// ─── GOAL ───────────────────────────────────────────────────────────────────
-//
-// Optional early-exit gate. Evaluates `config.kind` similarly to CONDITION;
-// if the goal is met → terminate the run with status=EXITED, reason="goal".
-// Otherwise continues to the next node.
-
-async function execGoal(node: WorkflowNode, ctx: RunCtx): Promise<void> {
-  const cfg = (node.config ?? {}) as Record<string, unknown>;
-  // Reuse the condition evaluator.
-  await execCondition({ ...node, type: "CONDITION", config: cfg }, ctx);
-  if (ctx.preferredLabel === "true") {
-    ctx.terminate = { status: "EXITED", reason: "goal" };
-  }
-  // Goal didn't fire → reset preferred label so it doesn't pollute routing.
-  ctx.preferredLabel = null;
-}
-
 // ─── END ────────────────────────────────────────────────────────────────────
+//
+// Terminates the run with status=COMPLETED. The optional `config.reason`
+// string is surfaced as `run.exitReason` so analytics can distinguish between
+// natural completion ("end_node") and early-exit branches like "purchased"
+// or "subscribed" wired off a CONDITION's true edge.
 
-async function execEnd(_node: WorkflowNode, ctx: RunCtx): Promise<void> {
-  ctx.terminate = { status: "COMPLETED", reason: "end_node" };
+async function execEnd(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  const reason = (node.config?.reason as string | undefined)?.trim() || "end_node";
+  ctx.terminate = { status: "COMPLETED", reason };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

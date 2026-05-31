@@ -22,18 +22,22 @@ import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
 import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
-  GitBranch, Split as SplitIcon, Target, Square, Loader2, Save, History, Zap, X,
+  GitBranch, Split as SplitIcon, Square, Loader2, Save, History, Zap, X,
   Undo2, Redo2, Trash2,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
 import WorkflowRunHistory from "./WorkflowRunHistory";
+import {
+  validateWorkflow,
+  type ValidationIssue,
+} from "../../lib/workflow-validation";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type NodeType =
   | "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK"
-  | "DELAY" | "CONDITION" | "SPLIT" | "GOAL" | "END";
+  | "DELAY" | "CONDITION" | "SPLIT" | "END";
 type Status = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
 
 type WorkflowNode = {
@@ -103,7 +107,7 @@ const LAYOUT_NODESEP = 120;
 // Gap between the trigger card bottom and the first-step card top. Smaller
 // than the regular ranksep so the trigger reads as a "header" attached to the
 // flow rather than a separate floating node.
-const TRIGGER_FIRST_GAP = 30;
+const TRIGGER_FIRST_GAP = 40;
 
 function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
   if (nodes.length === 0) return nodes;
@@ -165,6 +169,9 @@ function structuralKey(nodes: Node[], edges: Edge[]): string {
 const BuilderContext = createContext<{
   openPicker: (sourceNodeId: string) => void;
   deleteNode: (nodeId: string) => void;
+  // Per-node issue list — empty means valid. Used by NodeCard to render the
+  // small red badge in the top-left and tooltip the messages on hover.
+  issuesByNode: Map<string, string[]>;
 } | null>(null);
 
 function useBuilder() {
@@ -183,7 +190,6 @@ const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: str
   DELAY:      { label: "Wait",          Icon: Clock,       color: "#6b7280", defaultConfig: { hours: 1 } },
   CONDITION:  { label: "If / else",     Icon: GitBranch,   color: "#f97316", defaultConfig: { kind: "contact_has_tag" } },
   SPLIT:      { label: "Split (A/B)",   Icon: SplitIcon,   color: "#ec4899", defaultConfig: {} },
-  GOAL:       { label: "Goal",          Icon: Target,      color: "#059669", defaultConfig: { kind: "contact_has_tag" } },
   END:        { label: "End",           Icon: Square,      color: "#dc2626", defaultConfig: {} },
 };
 
@@ -240,18 +246,20 @@ function NextStepButton({ onClick, accent }: { onClick: () => void; accent?: str
 // into node.data on every edges update.
 //
 // Rules per node type:
-//   • TRIGGER             → only one outgoing edge allowed
-//   • END                 → terminal, never adds
-//   • CONDITION / GOAL    → at most 2 outgoing (true / false branches)
-//   • SPLIT               → unbounded (weighted random routes)
-//   • everything else     → at most 1 outgoing (linear chain)
+//   • TRIGGER       → 1 outgoing edge
+//   • END           → terminal, never adds
+//   • CONDITION     → 2 outgoing (true / false branches)
+//   • GOAL          → 1 outgoing (continuation path when goal not met;
+//                     `true` exits the run, no "true edge" needed)
+//   • SPLIT         → unbounded (weighted random routes)
+//   • everything    → 1 outgoing (linear chain)
 function useCanAddNext(nodeId: string, nodeType: NodeType | "TRIGGER"): boolean {
   return useStore((s) => {
     const outgoingCount = s.edges.reduce((n, e) => e.source === nodeId ? n + 1 : n, 0);
     if (nodeType === "TRIGGER")  return outgoingCount < 1;
     if (nodeType === "END")      return false;
     if (nodeType === "SPLIT")    return true;
-    if (nodeType === "CONDITION" || nodeType === "GOAL") return outgoingCount < 2;
+    if (nodeType === "CONDITION") return outgoingCount < 2;
     return outgoingCount < 1;
   });
 }
@@ -259,8 +267,10 @@ function useCanAddNext(nodeId: string, nodeType: NodeType | "TRIGGER"): boolean 
 function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtitle?: string }; id: string }) {
   const def = NODE_DEFS[data.type];
   const Icon = def.Icon;
-  const { openPicker, deleteNode } = useBuilder();
+  const { openPicker, deleteNode, issuesByNode } = useBuilder();
   const canAddNext = useCanAddNext(id, data.type);
+  const myIssues = issuesByNode.get(id) ?? [];
+  const isInvalid = myIssues.length > 0;
   return (
     <div
       className="group/node"
@@ -278,6 +288,36 @@ function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtit
       }}
     >
       <Handle type="target" position={Position.Top} style={handleStyle} />
+      {/* Validation badge — top-left, always visible when invalid. Hover for
+          a tooltip with the issue list. Click also opens the properties panel
+          (via the natural onNodeClick) so user can fix immediately. */}
+      {isInvalid && (
+        <div
+          title={myIssues.join("\n")}
+          style={{
+            position: "absolute",
+            top: -6,
+            left: -6,
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            background: "#ef4444",
+            color: "white",
+            border: "2px solid white",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            zIndex: 11,
+            pointerEvents: "auto",
+            cursor: "help",
+          }}
+        >
+          !
+        </div>
+      )}
       {/* Hover-revealed delete button. Stopping propagation so the click
           doesn't also fire react-flow's onNodeClick. */}
       <button
@@ -334,8 +374,12 @@ function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtit
 }
 
 function TriggerNodeCard({ data, id }: { data: { triggerType: string; triggerSubtitle: string | null }; id: string }) {
-  const { openPicker } = useBuilder();
+  const { openPicker, issuesByNode } = useBuilder();
   const canAddNext = useCanAddNext(id, "TRIGGER");
+  // Trigger-level issues are keyed by the reserved "__trigger" id in the
+  // issuesByNode map (see InnerBuilder's issue-mapping useMemo).
+  const myIssues = issuesByNode.get(TRIGGER_ID) ?? [];
+  const isInvalid = myIssues.length > 0;
   return (
     <div
       style={{
@@ -350,6 +394,32 @@ function TriggerNodeCard({ data, id }: { data: { triggerType: string; triggerSub
         position: "relative",
       }}
     >
+      {isInvalid && (
+        <div
+          title={myIssues.join("\n")}
+          style={{
+            position: "absolute",
+            top: -6,
+            left: -6,
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            background: "#ef4444",
+            color: "white",
+            border: "2px solid white",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            zIndex: 11,
+            cursor: "help",
+          }}
+        >
+          !
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", color: "white", flexShrink: 0 }}>
           <Zap size={13} fill="white" />
@@ -541,14 +611,36 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
   }
 
   async function activate() {
+    const goingActive = status !== "ACTIVE";
+
+    // Client-side pre-flight: if there's anything broken, open the modal
+    // instead of round-tripping to the server. Pause → Active still
+    // validates; Active → Pause skips validation (always allowed).
+    if (goingActive && issues.length > 0) {
+      // Ensure the latest debounced save lands before activation, so the
+      // server validates the same graph the user sees.
+      await save();
+      setActivationIssues(issues);
+      return;
+    }
+
     setBusy("activating");
     const res = await apiFetch(`/api/workflows/${initial.id}/status`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: status === "ACTIVE" ? "PAUSED" : "ACTIVE" }),
+      body: JSON.stringify({ status: goingActive ? "ACTIVE" : "PAUSED" }),
     });
     const json = await res.json();
     setBusy(null);
-    if (!json.success) { toast.error(json.error ?? "Activation failed"); return; }
+    if (!json.success) {
+      // Server may return an issues[] array (same shape as validateWorkflow)
+      // when validation failed there too — re-render the modal with those.
+      if (Array.isArray(json.issues) && json.issues.length) {
+        setActivationIssues(json.issues as ValidationIssue[]);
+      } else {
+        toast.error(json.error ?? "Activation failed");
+      }
+      return;
+    }
     setStatus(json.data.status);
   }
 
@@ -581,8 +673,10 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
         .concat(styleTriggerEdge({ id: TRIGGER_EDGE_ID, source: TRIGGER_ID, target: id })));
     } else {
       const sourceType = (sourceNode?.data as any)?.type as NodeType | undefined;
+      // Only CONDITION needs true/false labels. GOAL exits on true (no edge)
+      // and falls through to the single outgoing edge on false (no label).
       let label: string | undefined;
-      if (sourceType === "CONDITION" || sourceType === "GOAL") {
+      if (sourceType === "CONDITION") {
         const has = rfEdges.filter((e) => e.source === sourceId);
         label = has.some((e) => e.label === "true") ? "false" : "true";
       }
@@ -618,9 +712,48 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
     [onNodesChange],
   );
 
+  // ─── Live validation ────────────────────────────────────────────────────
+  // Runs on every render so the red badges + pre-flight modal stay in sync.
+  // Same rules as the server's status endpoint (shared lib).
+  const issues = useMemo(() => validateWorkflow({
+    triggerType,
+    triggerConfig,
+    startNodeId: derivedStartNodeId,
+    nodes: rfNodes
+      .filter((n) => n.id !== TRIGGER_ID)
+      .map((n) => ({
+        id:     n.id,
+        type:   (n.data as any).type as string,
+        config: configMap[n.id] ?? {},
+      })),
+    edges: rfEdges
+      .filter((e) => e.source !== TRIGGER_ID && e.target !== TRIGGER_ID)
+      .map((e) => ({ id: e.id, source: e.source, target: e.target, label: e.label as string | undefined })),
+  }), [triggerType, triggerConfig, derivedStartNodeId, rfNodes, rfEdges, configMap]);
+
+  // Mapped per-node for the NodeCard badge. Trigger-level + graph-level
+  // issues (nodeId === null) live under the reserved TRIGGER_ID key so the
+  // trigger card surfaces them visually.
+  const issuesByNode = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const i of issues) {
+      const key = i.nodeId ?? TRIGGER_ID;
+      const existing = m.get(key) ?? [];
+      m.set(key, [...existing, ...i.messages]);
+    }
+    return m;
+  }, [issues]);
+
+  // Pre-flight modal state. Opened by Activate click when issues exist;
+  // server-returned issues also populate this (defense in depth).
+  const [activationIssues, setActivationIssues] = useState<ValidationIssue[] | null>(null);
+
   // Builder context value — provided AFTER deleteNode is in scope. Stable
   // reference so custom node/edge components don't re-render on every change.
-  const builderCtxValue = useMemo(() => ({ openPicker, deleteNode }), [openPicker, deleteNode]);
+  const builderCtxValue = useMemo(
+    () => ({ openPicker, deleteNode, issuesByNode }),
+    [openPicker, deleteNode, issuesByNode],
+  );
 
   // ─── Undo / Redo ────────────────────────────────────────────────────────
   // Snapshot-based history: every debounced change pushes a deep-clone of the
@@ -736,10 +869,11 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
         return;
       }
 
-      // CONDITION + GOAL fan out via labeled edges. SPLIT uses labeled edges
-      // for weighted random. Default label for sane wiring.
+      // CONDITION fans out via labeled true/false edges so the executor can
+      // route either evaluation. GOAL terminates on true (no edge needed) and
+      // takes the single outgoing edge on false — no label.
       let label: string | undefined;
-      if (sourceType === "CONDITION" || sourceType === "GOAL") {
+      if (sourceType === "CONDITION") {
         const existing = rfEdges.filter((e) => e.source === conn.source);
         label = existing.some((e) => e.label === "true") ? "false" : "true";
       }
@@ -834,6 +968,11 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
         >
           {busy === "activating" ? <Loader2 size={12} className="animate-spin" /> : (status === "ACTIVE" ? <Pause size={12} /> : <Play size={12} />)}
           {status === "ACTIVE" ? "Pause" : "Activate"}
+          {status !== "ACTIVE" && issues.length > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-white/25 text-[10px] font-bold">
+              {issues.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -919,6 +1058,18 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
           onClose={() => setPickerSourceId(null)}
         />
       )}
+
+      {activationIssues && (
+        <ValidationIssuesModal
+          issues={activationIssues}
+          onJumpToNode={(nodeId) => {
+            // null means trigger or workflow-level — select trigger.
+            setSelectedNodeId(nodeId ?? TRIGGER_ID);
+            setActivationIssues(null);
+          }}
+          onClose={() => setActivationIssues(null)}
+        />
+      )}
     </div>
     </BuilderContext.Provider>
   );
@@ -943,9 +1094,8 @@ function AddNodePicker({
     REMOVE_TAG: "Remove a tag from the contact",
     WEBHOOK:    "Call any HTTP endpoint (Slack, CRM, custom)",
     DELAY:      "Wait minutes / hours / days before next step",
-    CONDITION:  "Rẽ nhánh true / false",
+    CONDITION:  "Rẽ nhánh true / false (use true → End for early exit)",
     SPLIT:      "A/B split by weighted random",
-    GOAL:       "Exit run early if condition is met",
     END:        "Mark this branch completed",
   };
 
@@ -992,6 +1142,74 @@ function AddNodePicker({
               </button>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pre-flight validation modal ───────────────────────────────────────────
+// Shown when Activate is clicked but the workflow has issues. Lists every
+// invalid node with its messages; "Fix this" jumps to that node so the
+// properties panel opens with the right form. Also re-rendered if the server
+// returns issues (defense-in-depth — client and server share the validator).
+
+function ValidationIssuesModal({
+  issues, onJumpToNode, onClose,
+}: {
+  issues: ValidationIssue[];
+  onJumpToNode: (nodeId: string | null) => void;
+  onClose: () => void;
+}) {
+  const total = issues.reduce((n, i) => n + i.messages.length, 0);
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+      >
+        <div className="px-5 py-3 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Almost there — {total} thing{total === 1 ? "" : "s"} to fix</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Resolve these before activating the workflow.</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:bg-gray-100 rounded shrink-0">
+            <X size={14} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {issues.map((iss, idx) => (
+            <div key={idx} className="border border-gray-200 rounded-lg p-3">
+              <div className="flex items-start justify-between gap-3 mb-1.5">
+                <h3 className="text-sm font-semibold text-gray-900 truncate">{iss.nodeLabel}</h3>
+                <button
+                  onClick={() => onJumpToNode(iss.nodeId)}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline shrink-0"
+                >
+                  Fix this →
+                </button>
+              </div>
+              <ul className="space-y-0.5">
+                {iss.messages.map((m, i) => (
+                  <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                    <span className="text-red-500 mt-0.5">•</span>
+                    <span>{m}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -1150,7 +1368,7 @@ function NodeConfigForm({
     );
   }
 
-  if (type === "CONDITION" || type === "GOAL") {
+  if (type === "CONDITION") {
     const kind = (config.kind as string) ?? "contact_has_tag";
     return (
       <div className="space-y-3">
@@ -1162,8 +1380,6 @@ function NodeConfigForm({
             <option value="contact_field">Contact field</option>
             <option value="trigger_amount">Trigger amount</option>
             <option value="trigger_funnel">Trigger funnel</option>
-            <option value="context_key">Context key</option>
-            <option value="always_true">Always true</option>
           </select>
         </div>
         {kind === "contact_has_tag" && (
@@ -1190,17 +1406,7 @@ function NodeConfigForm({
         {kind === "trigger_funnel" && (
           <input className={inp} placeholder="funnelId" value={(config.funnelId as string) ?? ""} onChange={(e) => onChange({ funnelId: e.target.value })} />
         )}
-        {kind === "context_key" && (
-          <>
-            <div>
-              <label className={lbl}>Key</label>
-              <input className={inp} value={(config.key as string) ?? ""} onChange={(e) => onChange({ key: e.target.value })} />
-            </div>
-            <CompareFields config={config} onChange={onChange} />
-          </>
-        )}
-        {type === "CONDITION" && <p className="text-[10px] text-gray-500">Connect two outgoing edges labeled <b>true</b> and <b>false</b>.</p>}
-        {type === "GOAL" && <p className="text-[10px] text-gray-500">If goal evaluates true, the run exits immediately.</p>}
+        <p className="text-[10px] text-gray-500">Connect two outgoing edges — they'll be labeled <b>true</b> and <b>false</b> automatically. For "exit when goal met" patterns, wire the <b>true</b> branch to an End node.</p>
       </div>
     );
   }
@@ -1210,7 +1416,21 @@ function NodeConfigForm({
   }
 
   if (type === "END") {
-    return <p className="text-xs text-gray-500">Terminates this branch. The run is marked COMPLETED.</p>;
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-gray-500">Terminates this branch. The run is marked COMPLETED.</p>
+        <div>
+          <label className={lbl}>Exit reason <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></label>
+          <input
+            className={inp}
+            value={(config.reason as string) ?? ""}
+            onChange={(e) => onChange({ reason: e.target.value })}
+            placeholder="e.g. purchased, subscribed"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Surfaces in run.exitReason for analytics. Use to distinguish early-exit branches (purchased) from natural completion.</p>
+        </div>
+      </div>
+    );
   }
 
   return null;
@@ -1289,7 +1509,7 @@ function nodeSubtitle(type: NodeType, config: Record<string, unknown>, tags: Pro
   }
   if (type === "WEBHOOK") return (config.url as string) || undefined;
   if (type === "DELAY")   return totalDelayLabel(config);
-  if (type === "CONDITION" || type === "GOAL") return (config.kind as string) || undefined;
+  if (type === "CONDITION") return (config.kind as string) || undefined;
   return undefined;
 }
 

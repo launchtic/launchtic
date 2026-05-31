@@ -23,7 +23,7 @@ const TRIGGER_TYPES = [
   "CHECKOUT_STARTED",
 ] as const;
 const STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"] as const;
-const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "SPLIT", "GOAL", "END"] as const;
+const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "SPLIT", "END"] as const;
 const RE_ENROLL_POLICIES = ["SINGLE_ACTIVE", "ALWAYS", "COOLDOWN"] as const;
 
 const nodeSchema = z.object({

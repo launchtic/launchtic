@@ -8,7 +8,7 @@
 
 export type TemplateNode = {
   id:       string;
-  type:     "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK" | "DELAY" | "CONDITION" | "SPLIT" | "GOAL" | "END";
+  type:     "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK" | "DELAY" | "CONDITION" | "SPLIT" | "END";
   position?: { x: number; y: number };
   config?:  Record<string, unknown>;
 };
@@ -65,9 +65,6 @@ function delayNode(id: string, idx: number, hours: number, col = 0): TemplateNod
 function delayDays(id: string, idx: number, days: number, col = 0): TemplateNode {
   return { id, type: "DELAY", position: { x: x(col), y: y(idx) }, config: { days } };
 }
-function goalCheckPurchase(id: string, idx: number, col = 0): TemplateNode {
-  return { id, type: "GOAL", position: { x: x(col), y: y(idx) }, config: { kind: "contact_completed_purchase" } };
-}
 function tagNode(id: string, idx: number, kind: "ADD_TAG" | "REMOVE_TAG", col = 0): TemplateNode {
   return { id, type: kind, position: { x: x(col), y: y(idx) }, config: { tagId: "" } };
 }
@@ -77,8 +74,16 @@ function condTag(id: string, idx: number, col = 0): TemplateNode {
 function condAmount(id: string, idx: number, gte: number, col = 0): TemplateNode {
   return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "trigger_amount", operator: "gte", value: gte } };
 }
-function endNode(id: string, idx: number, col = 0): TemplateNode {
-  return { id, type: "END", position: { x: x(col), y: y(idx) } };
+// Early-exit pattern: CONDITION (kind: contact_completed_purchase) → true branch
+// → End node with config.reason. Replaces the old Goal node.
+function condPurchase(id: string, idx: number, col = 0): TemplateNode {
+  return { id, type: "CONDITION", position: { x: x(col), y: y(idx) }, config: { kind: "contact_completed_purchase" } };
+}
+function endNode(id: string, idx: number, col = 0, reason?: string): TemplateNode {
+  return {
+    id, type: "END", position: { x: x(col), y: y(idx) },
+    ...(reason ? { config: { reason } } : {}),
+  };
 }
 function webhookNode(id: string, idx: number, url: string, col = 0): TemplateNode {
   return { id, type: "WEBHOOK", position: { x: x(col), y: y(idx) }, config: { url, method: "POST" } };
@@ -93,8 +98,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 
   // ─── 1. Cart Abandonment 3-step (Flagship) ───────────────────────────────
   // Industry standard: 1h gentle reminder → 24h urgency → 72h discount/last call.
-  // Each step is gated by a GOAL node that exits the run if the buyer has
-  // completed the purchase since the workflow started.
+  // Each step is gated by an If/else node checking `contact_completed_purchase`.
+  // When true → routed to an End node with reason="purchased" so the run exits
+  // (run.exitReason captures this for analytics) without sending the next email.
   {
     id: "cart_abandonment_3step",
     name: "Cart Abandonment Recovery (3-step)",
@@ -109,7 +115,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     startNodeId: "delay1",
     nodes: [
       delayNode("delay1", 0, 1),
-      goalCheckPurchase("goal1", 1),
+      condPurchase("cond1", 1),
+      endNode("end1", 2, -1, "purchased"),
       emailNode("email1", 2,
         "{{contact.firstName}}, did you forget something?",
         `<p>Hi {{contact.firstName}},</p>
@@ -118,7 +125,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 <p><a href="#" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Complete your order →</a></p>
 <p>Questions? Just hit reply.</p>`),
       delayNode("delay2", 3, 23),
-      goalCheckPurchase("goal2", 4),
+      condPurchase("cond2", 4),
+      endNode("end2", 5, -1, "purchased"),
       emailNode("email2", 5,
         "Still thinking it over, {{contact.firstName}}?",
         `<p>Hi {{contact.firstName}},</p>
@@ -126,25 +134,29 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 <p>If you've got questions about how it works, what's included, or whether it's the right fit, hit reply and a real human will get back to you within the hour.</p>
 <p><a href="#" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Pick up where you left off →</a></p>`),
       delayNode("delay3", 6, 48),
-      goalCheckPurchase("goal3", 7),
+      condPurchase("cond3", 7),
+      endNode("end3", 8, -1, "purchased"),
       emailNode("email3", 8,
         "Last chance — here's 10% off",
         `<p>{{contact.firstName}}, this is the last one of these emails — promise.</p>
 <p>If price was the holdup, here's <strong>10% off</strong> if you complete in the next 24 hours. Use code <code>COMEBACK10</code> at checkout:</p>
 <p><a href="#" style="display:inline-block;padding:12px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Claim 10% off →</a></p>
 <p>After today, no more nudges. Cart will expire.</p>`),
-      endNode("end", 9),
+      endNode("end_final", 9),
     ],
     edges: [
-      edge("e1", "delay1", "goal1"),
-      edge("e2", "goal1",  "email1"),
-      edge("e3", "email1", "delay2"),
-      edge("e4", "delay2", "goal2"),
-      edge("e5", "goal2",  "email2"),
-      edge("e6", "email2", "delay3"),
-      edge("e7", "delay3", "goal3"),
-      edge("e8", "goal3",  "email3"),
-      edge("e9", "email3", "end"),
+      edge("e1",  "delay1", "cond1"),
+      edge("e2",  "cond1",  "end1",   "true"),
+      edge("e3",  "cond1",  "email1", "false"),
+      edge("e4",  "email1", "delay2"),
+      edge("e5",  "delay2", "cond2"),
+      edge("e6",  "cond2",  "end2",   "true"),
+      edge("e7",  "cond2",  "email2", "false"),
+      edge("e8",  "email2", "delay3"),
+      edge("e9",  "delay3", "cond3"),
+      edge("e10", "cond3",  "end3",   "true"),
+      edge("e11", "cond3",  "email3", "false"),
+      edge("e12", "email3", "end_final"),
     ],
   },
 
