@@ -982,14 +982,45 @@ model EmailSend {
   sentAt   DateTime?
   failedAt DateTime?
 
+  // ─── Tracking ────────────────────────────────────────────────────────────
+  // Populated by the open pixel + click redirect endpoints in the renderer.
+  // openedAt/clickedAt capture the FIRST hit; *Count is total hits (a single
+  // recipient may open/click multiple times). Workflow conditions
+  // `email_opened` / `email_clicked` filter on `openedAt >= run.startedAt`.
+  openedAt   DateTime?
+  openCount  Int        @default(0)
+  clickedAt  DateTime?
+  clickCount Int        @default(0)
+
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact   Contact?       @relation(fields: [contactId],   references: [id], onDelete: SetNull)
   broadcast Broadcast?     @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
   template  EmailTemplate? @relation(fields: [templateId],  references: [id], onDelete: SetNull)
+  links     EmailSendLink[]
 
   @@index([workspaceId, status, queuedAt])
   @@index([contactId, queuedAt])
   @@index([broadcastId])
+  @@index([contactId, broadcastId, openedAt])
+  @@index([contactId, broadcastId, clickedAt])
+}
+
+// Per-link click tracking for outgoing emails. Each link in a rendered
+// EmailSend.bodyHtml is replaced with a tracking redirect URL containing the
+// `token` below; the renderer's click endpoint looks up the link, bumps
+// clickedAt/clickCount, and 302-redirects to `url`.
+model EmailSendLink {
+  id          String   @id @default(cuid())
+  emailSendId String
+  token       String   @unique
+  url         String   @db.Text
+
+  clickedAt   DateTime?
+  clickCount  Int      @default(0)
+
+  emailSend   EmailSend @relation(fields: [emailSendId], references: [id], onDelete: Cascade)
+
+  @@index([emailSendId])
 }
 
 // ─────────────────────────────────────────

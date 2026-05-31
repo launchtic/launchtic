@@ -482,6 +482,8 @@ async function execDelay(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 //   "contact_tag"        → { tagId, operator: "has"|"does_not_have" }
 //   "contact_field"      → { field, operator, value }
 //   "contact_purchased"  → { funnelStepId? }  — checks Order.PAID since run started
+//   "email_opened"       → { broadcastId } — checks EmailSend.openedAt >= run.startedAt
+//   "email_clicked"      → { broadcastId } — checks EmailSend.clickedAt >= run.startedAt
 
 async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const cfg  = (node.config ?? {}) as Record<string, unknown>;
@@ -534,6 +536,32 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       const value    = cfg.value;
       const actual   = field ? (ctx.contact as any)[field] : undefined;
       result = compareString(actual, operator, value);
+      break;
+    }
+    case "email_opened":
+    case "email_clicked": {
+      // True if the contact has opened/clicked the specified broadcast in
+      // any EmailSend made AFTER this run started. The broadcast scope is
+      // required by validation — without it the condition would match any
+      // open/click which is almost never what the operator wants.
+      if (!ctx.contact) { result = false; break; }
+      const broadcastId = cfg.broadcastId as string | undefined;
+      if (!broadcastId) { result = false; break; }
+      const run = await db.workflowRun.findUnique({
+        where:  { id: ctx.runId },
+        select: { startedAt: true },
+      });
+      const since = run?.startedAt ?? new Date(0);
+      const dateField = kind === "email_opened" ? "openedAt" : "clickedAt";
+      const send = await db.emailSend.findFirst({
+        where: {
+          contactId: ctx.contact.id,
+          broadcastId,
+          [dateField]: { gte: since },
+        },
+        select: { id: true },
+      });
+      result = !!send;
       break;
     }
     default:

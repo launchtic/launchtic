@@ -85,6 +85,11 @@ export function validateTrigger(type: string, config: Record<string, unknown>): 
       out.push("Pick a specific step in this funnel, or remove the funnel filter to match all funnels.");
     }
   }
+  if (BROADCAST_SCOPED_TRIGGER_TYPES.has(type)) {
+    if (!nonEmpty(config.broadcastId)) {
+      out.push("Pick which broadcast this trigger watches for (required).");
+    }
+  }
   return out;
 }
 
@@ -93,6 +98,12 @@ export function validateTrigger(type: string, config: Record<string, unknown>): 
 // message + the canvas renders it as a deletable broken card.
 const SUPPORTED_NODE_TYPES = new Set([
   "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END",
+]);
+
+// Triggers that require a specific broadcast scope. Without it they'd fire
+// for every open/click in the workspace, which floods workflow runs.
+const BROADCAST_SCOPED_TRIGGER_TYPES = new Set([
+  "EMAIL_OPENED", "EMAIL_LINK_CLICKED",
 ]);
 
 export function validateNode(type: string, config: Record<string, unknown>): string[] {
@@ -160,6 +171,10 @@ export function validateNode(type: string, config: Record<string, unknown>): str
       } else if (kind === "contact_purchased") {
         // No required fields — falls back to trigger's funnelStepId when not
         // explicitly scoped. Documented for clarity.
+      } else if (kind === "email_opened" || kind === "email_clicked") {
+        if (!nonEmpty(config.broadcastId)) {
+          out.push("Pick which broadcast to check for opens/clicks.");
+        }
       } else {
         // Unknown kind — `trigger_amount`, `trigger_funnel`, `always_true`,
         // `context_key`, and the old verbose names were dropped/renamed.

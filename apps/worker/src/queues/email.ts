@@ -1,8 +1,9 @@
 import { DelayedError, Queue, Worker, type Job } from "bullmq";
 import { db } from "@launchtic/database";
-import { sendEmail } from "@launchtic/email/server";
+import { sendEmail, injectTracking } from "@launchtic/email/server";
 import { createRedisConnection } from "../lib/redis";
 import { loadWorkspaceSmtp } from "../lib/smtp";
+import { getRendererUrl } from "../lib/system-config";
 import {
   isUnderDailyQuota,
   recordDailySend,
@@ -110,7 +111,29 @@ async function processEmailJob(job: Job<EmailJobData>, token?: string) {
   }
 
   try {
-    const result = await sendEmail(smtp, { to, subject, html, fromEmail, fromName });
+    // ─── Inject tracking right before send ─────────────────────────────────
+    // Open pixel + per-link click redirects. EmailSendLink rows persisted
+    // BEFORE send so a redirect hit can resolve immediately if the recipient
+    // is very fast. Failures here don't block send — fall back to untracked.
+    let finalHtml = html;
+    try {
+      const trackingBase = await getRendererUrl();
+      const tracked = injectTracking(html, emailSendId, trackingBase);
+      if (tracked.links.length > 0) {
+        await db.emailSendLink.createMany({
+          data: tracked.links.map((l) => ({
+            emailSendId,
+            token: l.token,
+            url:   l.url,
+          })),
+        });
+      }
+      finalHtml = tracked.html;
+    } catch (trackErr) {
+      console.error(`[email] tracking inject failed for ${emailSendId}, falling back to untracked:`, trackErr);
+    }
+
+    const result = await sendEmail(smtp, { to, subject, html: finalHtml, fromEmail, fromName });
     await db.emailSend.update({
       where: { id: emailSendId },
       data: {

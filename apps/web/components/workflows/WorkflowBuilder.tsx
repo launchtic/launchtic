@@ -74,6 +74,7 @@ type Props = {
   tags:     { id: string; name: string; color: string | null }[];
   senders:  { id: string; name: string; email: string; isDefault: boolean }[];
   funnels:  { id: string; name: string; steps: { id: string; name: string; type: string }[] }[];
+  broadcasts: { id: string; name: string; subject: string; status: string; sentAt: Date | null }[];
 };
 
 // Reserved IDs for the virtual trigger node + its outgoing edge. Filtered out
@@ -194,9 +195,14 @@ const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: str
 
 const TRIGGER_TYPES = [
   "NEW_SALE", "SALE_CANCELED", "SUBSCRIPTION_PAYMENT_FAILED",
-  "FORM_SUBMIT", "TAG_ADDED", "TAG_REMOVED", "EMAIL_LINK_CLICKED",
+  "FORM_SUBMIT", "TAG_ADDED", "TAG_REMOVED",
+  "EMAIL_OPENED", "EMAIL_LINK_CLICKED",
   "CHECKOUT_STARTED",
 ];
+
+// Triggers that scope by broadcast — i.e., the operator picks which broadcast
+// the trigger watches for opens/clicks.
+const BROADCAST_SCOPED_TRIGGERS = new Set(["EMAIL_OPENED", "EMAIL_LINK_CLICKED"]);
 
 // Triggers whose underlying events carry a funnel + step reference, so the
 // "scope to funnel X / step Y" filter is meaningful. Tag changes,
@@ -226,7 +232,8 @@ const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   CHECKOUT_STARTED:            "When a visitor enters the checkout page and fills in their email — before paying. Use for cart abandonment recovery.",
   TAG_ADDED:                   "When the tag below gets added to a contact (manually, by another workflow, by API, etc).",
   TAG_REMOVED:                 "When the tag below gets removed from a contact.",
-  EMAIL_LINK_CLICKED:          "When a contact clicks any link in an email previously sent by this workspace.",
+  EMAIL_OPENED:                "When a contact opens the broadcast below. Fires once per contact per email.",
+  EMAIL_LINK_CLICKED:          "When a contact clicks any link in the broadcast below. Fires once per contact per email.",
 };
 
 function triggerHumanLabel(t: string): string {
@@ -532,7 +539,7 @@ export default function WorkflowBuilder(props: Props) {
   );
 }
 
-function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
+function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }: Props) {
   const router  = useRouter();
   const params  = useParams();
   const slug    = params.workspaceSlug as string;
@@ -583,7 +590,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
         position: { x: 0, y: 0 },
         data: {
           type: n.type,
-          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels),
+          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels, broadcasts),
         },
       } as Node)),
     ];
@@ -733,7 +740,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
     setConfigMap((prev) => ({ ...prev, [id]: newCfg }));
     setRfNodes((prev) => prev.concat({
       id, type: "workflowNode", position,
-      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, funnels) },
+      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, funnels, broadcasts) },
     }));
 
     if (sourceId === TRIGGER_ID) {
@@ -964,7 +971,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
       // Update the subtitle in node data so the canvas reflects changes.
       setRfNodes((nodes) => nodes.map((n) => n.id === selectedNodeId ? {
         ...n,
-        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, funnels) },
+        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, funnels, broadcasts) },
       } : n));
       return next;
     });
@@ -1096,6 +1103,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
               triggerConfig={triggerConfig}
               funnels={funnels}
               tags={tags}
+              broadcasts={broadcasts}
               onTypeChange={setTriggerType}
               onConfigChange={setTriggerConfig}
             />
@@ -1112,7 +1120,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels }: Props) {
                 <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
               </div>
             </div>
-            <NodeConfigForm type={selectedType} config={selectedConfig} onChange={patchConfig} tags={tags} senders={senders} funnels={funnels} />
+            <NodeConfigForm type={selectedType} config={selectedConfig} onChange={patchConfig} tags={tags} senders={senders} funnels={funnels} broadcasts={broadcasts} />
           </div>
         )}
         {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && !NODE_DEFS[selectedType] && (
@@ -1306,12 +1314,13 @@ function ValidationIssuesModal({
 // ─── Trigger config form (right panel when trigger node selected) ──────────
 
 function TriggerConfigForm({
-  triggerType, triggerConfig, funnels, tags, onTypeChange, onConfigChange,
+  triggerType, triggerConfig, funnels, tags, broadcasts, onTypeChange, onConfigChange,
 }: {
   triggerType: string;
   triggerConfig: Record<string, unknown>;
   funnels: Props["funnels"];
   tags: Props["tags"];
+  broadcasts: Props["broadcasts"];
   onTypeChange: (t: string) => void;
   onConfigChange: (c: Record<string, unknown>) => void;
 }) {
@@ -1319,10 +1328,11 @@ function TriggerConfigForm({
   const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
   const funnelId = (triggerConfig.funnelId as string | undefined) ?? "";
   const funnel = funnels.find((f) => f.id === funnelId);
-  const isTagTrigger    = triggerType === "TAG_ADDED" || triggerType === "TAG_REMOVED";
-  const isFunnelScoped  = FUNNEL_SCOPED_TRIGGERS.has(triggerType);
-  const description     = TRIGGER_DESCRIPTIONS[triggerType];
-  const eligibleStepTypes = STEP_TYPES_PER_TRIGGER[triggerType] ?? [];
+  const isTagTrigger        = triggerType === "TAG_ADDED" || triggerType === "TAG_REMOVED";
+  const isFunnelScoped      = FUNNEL_SCOPED_TRIGGERS.has(triggerType);
+  const isBroadcastScoped   = BROADCAST_SCOPED_TRIGGERS.has(triggerType);
+  const description         = TRIGGER_DESCRIPTIONS[triggerType];
+  const eligibleStepTypes   = STEP_TYPES_PER_TRIGGER[triggerType] ?? [];
 
   // Steps in the chosen funnel that this trigger can actually fire on. E.g.
   // for NEW_SALE we only show CHECKOUT / UPSELL / DOWNSELL steps — there's no
@@ -1335,13 +1345,15 @@ function TriggerConfigForm({
     : [];
 
   // Switching trigger types: clear filters that don't apply to the new type
-  // so stale funnelId / tagId / stepType don't silently restrict matching.
+  // so stale funnelId / tagId / broadcastId don't silently restrict matching.
   function handleTypeChange(next: string) {
-    const nextIsTag    = next === "TAG_ADDED" || next === "TAG_REMOVED";
-    const nextIsFunnel = FUNNEL_SCOPED_TRIGGERS.has(next);
+    const nextIsTag       = next === "TAG_ADDED" || next === "TAG_REMOVED";
+    const nextIsFunnel    = FUNNEL_SCOPED_TRIGGERS.has(next);
+    const nextIsBroadcast = BROADCAST_SCOPED_TRIGGERS.has(next);
     const cleaned: Record<string, unknown> = { ...triggerConfig };
-    if (!nextIsTag)    { delete cleaned.tagId; }
-    if (!nextIsFunnel) { delete cleaned.funnelId; delete cleaned.funnelStepId; }
+    if (!nextIsTag)       { delete cleaned.tagId; }
+    if (!nextIsFunnel)    { delete cleaned.funnelId; delete cleaned.funnelStepId; }
+    if (!nextIsBroadcast) { delete cleaned.broadcastId; }
     // Legacy stepType field from earlier UI iteration — strip on any switch
     // so it doesn't silently restrict matching. Server-side matcher still
     // honors it for any workflow rows that still have it persisted.
@@ -1377,6 +1389,32 @@ function TriggerConfigForm({
             <option value="">— pick a tag —</option>
             {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+        </div>
+      )}
+
+      {/* EMAIL_OPENED / EMAIL_LINK_CLICKED require a specific broadcast so
+          the trigger fires only for the campaign the operator targeted —
+          not every email the workspace ever sends. */}
+      {isBroadcastScoped && (
+        <div>
+          <label className={lbl}>Broadcast</label>
+          <select
+            className={inp}
+            value={(triggerConfig.broadcastId as string | undefined) ?? ""}
+            onChange={(e) => onConfigChange({ ...triggerConfig, broadcastId: e.target.value || undefined })}
+          >
+            <option value="">— pick a broadcast —</option>
+            {broadcasts.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}{b.sentAt ? "" : " (draft)"}
+              </option>
+            ))}
+          </select>
+          {broadcasts.length === 0 && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              No broadcasts in this workspace yet — create one first.
+            </p>
+          )}
         </div>
       )}
 
@@ -1425,7 +1463,7 @@ function TriggerConfigForm({
 // ─── Per-node-type config form ─────────────────────────────────────────────
 
 function NodeConfigForm({
-  type, config, onChange, tags, senders, funnels,
+  type, config, onChange, tags, senders, funnels, broadcasts,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
@@ -1433,6 +1471,7 @@ function NodeConfigForm({
   tags: Props["tags"];
   senders: Props["senders"];
   funnels: Props["funnels"];
+  broadcasts: Props["broadcasts"];
 }) {
   const inp  = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl  = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
@@ -1531,6 +1570,8 @@ function NodeConfigForm({
             <option value="contact_tag">Contact tag</option>
             <option value="contact_field">Contact field</option>
             <option value="contact_purchased">Contact purchased</option>
+            <option value="email_opened">Email opened</option>
+            <option value="email_clicked">Email clicked</option>
           </select>
         </div>
         {kind === "contact_tag" && (
@@ -1571,6 +1612,34 @@ function NodeConfigForm({
             Returns true if the contact placed a PAID order after this run started.
             By default scopes to the trigger&apos;s funnel step.
           </p>
+        )}
+        {(kind === "email_opened" || kind === "email_clicked") && (
+          <>
+            <div>
+              <label className={lbl}>Broadcast</label>
+              <select
+                className={inp}
+                value={(config.broadcastId as string) ?? ""}
+                onChange={(e) => onChange({ broadcastId: e.target.value || undefined })}
+              >
+                <option value="">— pick a broadcast —</option>
+                {broadcasts.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}{b.sentAt ? "" : " (draft)"}
+                  </option>
+                ))}
+              </select>
+              {broadcasts.length === 0 && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  No broadcasts in this workspace yet.
+                </p>
+              )}
+            </div>
+            <p className="text-[10px] text-gray-500 leading-snug">
+              Returns true if the contact {kind === "email_opened" ? "opened" : "clicked any link in"} the
+              picked broadcast after this run started.
+            </p>
+          </>
         )}
         <p className="text-[10px] text-gray-500">Connect two outgoing edges — they'll be labeled <b>true</b> and <b>false</b> automatically. For "exit when goal met" patterns, wire the <b>true</b> branch to an End node.</p>
       </div>
@@ -1664,6 +1733,7 @@ function nodeSubtitle(
   config: Record<string, unknown>,
   tags: Props["tags"],
   funnels: Props["funnels"],
+  broadcasts: Props["broadcasts"],
 ): string | undefined {
   if (type === "SEND_EMAIL") return (config.subject as string) || undefined;
   if (type === "ADD_TAG" || type === "REMOVE_TAG") {
@@ -1673,7 +1743,7 @@ function nodeSubtitle(
   }
   if (type === "WEBHOOK") return (config.url as string) || undefined;
   if (type === "DELAY")   return totalDelayLabel(config);
-  if (type === "CONDITION") return conditionSubtitle(config, tags, funnels);
+  if (type === "CONDITION") return conditionSubtitle(config, tags, funnels, broadcasts);
   if (type === "END")     return (config.reason as string) || undefined;
   return undefined;
 }
@@ -1684,6 +1754,7 @@ function conditionSubtitle(
   config: Record<string, unknown>,
   tags: Props["tags"],
   funnels: Props["funnels"],
+  broadcasts: Props["broadcasts"],
 ): string | undefined {
   const kind = config.kind as string | undefined;
   if (!kind) return undefined;
@@ -1698,6 +1769,14 @@ function conditionSubtitle(
     }
     case "contact_purchased":
       return "if contact purchased";
+    case "email_opened":
+    case "email_clicked": {
+      const broadcastId = config.broadcastId as string | undefined;
+      const verb = kind === "email_opened" ? "opened" : "clicked";
+      if (!broadcastId) return `if ${verb} email …`;
+      const b = broadcasts.find((x) => x.id === broadcastId);
+      return b ? `if ${verb} "${b.name}"` : `if ${verb} email …`;
+    }
     case "contact_field": {
       const field    = config.field    as string | undefined;
       const operator = config.operator as string | undefined;

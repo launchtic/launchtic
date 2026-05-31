@@ -24,3 +24,8 @@ export {
   verifyUnsubscribeToken,
   buildUnsubscribeUrl,
 } from "./unsubscribe";
+export {
+  injectTracking,
+  type ExtractedLink,
+  type TrackingResult,
+} from "./tracking";

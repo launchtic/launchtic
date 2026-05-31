@@ -17,7 +17,8 @@ import TemplateGallery from "./TemplateGallery";
 type Status = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
 type TriggerType =
   | "NEW_SALE" | "SALE_CANCELED" | "SUBSCRIPTION_PAYMENT_FAILED"
-  | "FORM_SUBMIT" | "TAG_ADDED" | "TAG_REMOVED" | "EMAIL_LINK_CLICKED";
+  | "FORM_SUBMIT" | "TAG_ADDED" | "TAG_REMOVED"
+  | "EMAIL_OPENED" | "EMAIL_LINK_CLICKED";
 
 type Row = {
   id: string;
@@ -42,6 +43,7 @@ const TRIGGER_LABELS: Record<string, { label: string; Icon: typeof Workflow }> =
   FORM_SUBMIT:                 { label: "Form submitted",              Icon: FormInput          },
   TAG_ADDED:                   { label: "Tag added",                   Icon: TagIcon            },
   TAG_REMOVED:                 { label: "Tag removed",                 Icon: TagOff             },
+  EMAIL_OPENED:                { label: "Email opened",                Icon: MousePointerClick  },
   EMAIL_LINK_CLICKED:          { label: "Email link clicked",          Icon: MousePointerClick  },
   CHECKOUT_STARTED:            { label: "Checkout started",            Icon: ShoppingCart       },
 };

@@ -14,6 +14,7 @@ export type TriggerType =
   | "FORM_SUBMIT"
   | "TAG_ADDED"
   | "TAG_REMOVED"
+  | "EMAIL_OPENED"
   | "EMAIL_LINK_CLICKED"
   | "CHECKOUT_STARTED";
 
@@ -27,6 +28,8 @@ export type TriggerContext = {
   funnelId?:     string;
   funnelStepId?: string;
   emailSendId?:  string;
+  broadcastId?:  string;
+  linkUrl?:      string;
   [key: string]: unknown;
 };
 
@@ -123,5 +126,6 @@ function matchesFilter(
   if (config.tagId        && context.tagId        !== config.tagId)        return false;
   if (config.funnelStepId && context.funnelStepId !== config.funnelStepId) return false;
   if (config.stepType     && stepType             !== config.stepType)     return false;
+  if (config.broadcastId  && context.broadcastId  !== config.broadcastId)  return false;
   return true;
 }

@@ -19,8 +19,10 @@ export default async function WorkflowEditorPage({
   if (!wf) notFound();
 
   // Load tags for the ADD_TAG / REMOVE_TAG node pickers, sender identities
-  // for SEND_EMAIL, funnels for trigger scope. Cheap one-shot at editor open.
-  const [tags, senders, funnels] = await Promise.all([
+  // for SEND_EMAIL, funnels for trigger scope, broadcasts for EMAIL_OPENED /
+  // EMAIL_LINK_CLICKED triggers + email_opened / email_clicked conditions.
+  // Cheap one-shot at editor open.
+  const [tags, senders, funnels, broadcasts] = await Promise.all([
     db.tag.findMany({
       where: { workspaceId }, orderBy: { name: "asc" },
       select: { id: true, name: true, color: true },
@@ -35,6 +37,11 @@ export default async function WorkflowEditorPage({
         id: true, name: true,
         steps: { select: { id: true, name: true, type: true }, orderBy: { order: "asc" } },
       },
+    }),
+    db.broadcast.findMany({
+      where:   { workspaceId },
+      orderBy: [{ sentAt: "desc" }, { createdAt: "desc" }],
+      select:  { id: true, name: true, subject: true, status: true, sentAt: true },
     }),
   ]);
 
@@ -57,6 +64,7 @@ export default async function WorkflowEditorPage({
       tags={tags}
       senders={senders}
       funnels={funnels}
+      broadcasts={broadcasts}
     />
   );
 }
