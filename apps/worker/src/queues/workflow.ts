@@ -303,13 +303,31 @@ async function executeNode(node: WorkflowNode, ctx: RunCtx, _edges: WorkflowEdge
 async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   if (!ctx.contact) throw new Error("SEND_EMAIL requires a contact in the run context");
 
+  // Content lives in WorkflowEmail (separate table). The node's config only
+  // carries an `emailId` reference. Pre-flight validation should have caught
+  // a missing id; throw here as a safety net so the step lands FAILED with
+  // a clear reason instead of silently sending blank content.
   const cfg = (node.config ?? {}) as Record<string, unknown>;
-  const subject    = cfg.subject    as string | undefined;
-  const bodyHtml   = cfg.bodyHtml   as string | undefined;
-  const fromEmail  = cfg.fromEmail  as string | undefined;
-  const fromName   = cfg.fromName   as string | undefined;
+  const emailId = cfg.emailId as string | undefined;
+  if (!emailId) {
+    throw new Error("SEND_EMAIL missing emailId — pick or create an email for this step");
+  }
+
+  const email = await db.workflowEmail.findUnique({
+    where: { id: emailId },
+    select: {
+      workflowId: true,
+      subject:    true, bodyHtml: true,
+      fromName:   true, fromEmail: true,
+    },
+  });
+  if (!email) throw new Error(`SEND_EMAIL email ${emailId} not found`);
+  if (email.workflowId !== ctx.workflowId) {
+    throw new Error(`SEND_EMAIL email ${emailId} doesn't belong to this workflow`);
+  }
+  const { subject, bodyHtml, fromName, fromEmail } = email;
   if (!subject || !bodyHtml || !fromEmail || !fromName) {
-    throw new Error("SEND_EMAIL missing subject / bodyHtml / fromEmail / fromName");
+    throw new Error("SEND_EMAIL: linked WorkflowEmail is missing subject / body / sender");
   }
 
   const c = ctx.contact;
@@ -331,19 +349,26 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const renderedHtml    = await renderEmailContent(bodyHtml, vars, renderOpts);
 
   // Persist EmailSend FIRST then enqueue — if enqueue fails we mark the
-  // send FAILED so it's not stuck QUEUED forever (bug #1 from the audit).
-  // EmailSend has no workflow-link columns yet (Phase 1B will add them);
-  // for now the back-reference is via WorkflowRunStep.output.emailSendId.
+  // send FAILED so it's not stuck QUEUED forever. workflowEmailId links the
+  // send back to its source for analytics + source-scoped conditions.
   const send = await db.emailSend.create({
     data: {
-      workspaceId: ctx.workspaceId,
-      contactId:   c.id,
-      toEmail:     c.email,
-      subject:     renderedSubject,
-      bodyHtml:    renderedHtml,
-      status:      "QUEUED",
+      workspaceId:     ctx.workspaceId,
+      contactId:       c.id,
+      toEmail:         c.email,
+      subject:         renderedSubject,
+      bodyHtml:        renderedHtml,
+      status:          "QUEUED",
+      workflowEmailId: emailId,
     },
   });
+
+  // Bump the WorkflowEmail's denormalized sent counter — best-effort, never
+  // fail the send if the counter update errors.
+  await db.workflowEmail.update({
+    where: { id: emailId },
+    data:  { sentCount: { increment: 1 } },
+  }).catch(() => {});
 
   try {
     await emailQueue().add("send", {
@@ -540,27 +565,50 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     }
     case "email_opened":
     case "email_clicked": {
-      // True if the contact has opened/clicked the specified broadcast in
-      // any EmailSend made AFTER this run started. The broadcast scope is
-      // required by validation — without it the condition would match any
-      // open/click which is almost never what the operator wants.
+      // True if the contact has opened/clicked an email matching the chosen
+      // source, after this run started. Source picker:
+      //   "any"            → no further scope
+      //   "broadcast"      → broadcastId
+      //   "workflow_email" → workflowEmailId (a WorkflowEmail in this workflow)
+      //
+      // Backward compat: legacy configs with broadcastId only default to
+      // source="broadcast".
       if (!ctx.contact) { result = false; break; }
-      const broadcastId = cfg.broadcastId as string | undefined;
-      if (!broadcastId) { result = false; break; }
       const run = await db.workflowRun.findUnique({
         where:  { id: ctx.runId },
         select: { startedAt: true },
       });
-      const since = run?.startedAt ?? new Date(0);
+      const since     = run?.startedAt ?? new Date(0);
       const dateField = kind === "email_opened" ? "openedAt" : "clickedAt";
-      const send = await db.emailSend.findFirst({
-        where: {
-          contactId: ctx.contact.id,
-          broadcastId,
-          [dateField]: { gte: since },
-        },
-        select: { id: true },
-      });
+      const where: Record<string, unknown> = {
+        contactId:   ctx.contact.id,
+        [dateField]: { gte: since },
+      };
+      const source =
+        (cfg.source as string | undefined) ??
+        (cfg.broadcastId ? "broadcast" : undefined);
+      let valid = true;
+      switch (source) {
+        case undefined:
+        case "any":
+          break;
+        case "broadcast": {
+          const id = cfg.broadcastId as string | undefined;
+          if (!id) { valid = false; break; }
+          where.broadcastId = id;
+          break;
+        }
+        case "workflow_email": {
+          const id = cfg.workflowEmailId as string | undefined;
+          if (!id) { valid = false; break; }
+          where.workflowEmailId = id;
+          break;
+        }
+        default:
+          valid = false;
+      }
+      if (!valid) { result = false; break; }
+      const send = await db.emailSend.findFirst({ where, select: { id: true } });
       result = !!send;
       break;
     }

@@ -18,11 +18,15 @@ export default async function WorkflowEditorPage({
   });
   if (!wf) notFound();
 
-  // Load tags for the ADD_TAG / REMOVE_TAG node pickers, sender identities
-  // for SEND_EMAIL, funnels for trigger scope, broadcasts for EMAIL_OPENED /
-  // EMAIL_LINK_CLICKED triggers + email_opened / email_clicked conditions.
-  // Cheap one-shot at editor open.
-  const [tags, senders, funnels, broadcasts] = await Promise.all([
+  // Load editor dependencies in one shot:
+  // - tags: ADD_TAG / REMOVE_TAG node pickers + contact_tag condition
+  // - senders: SEND_EMAIL "from" picker
+  // - funnels: trigger scope (NEW_SALE / FORM_SUBMIT / etc.)
+  // - broadcasts: EMAIL_OPENED / EMAIL_LINK_CLICKED triggers + email_opened
+  //               source="broadcast" condition
+  // - workflowEmails: SEND_EMAIL content (split out from node JSON), plus
+  //                   email_opened source="workflow_email" picker
+  const [tags, senders, funnels, broadcasts, workflowEmails] = await Promise.all([
     db.tag.findMany({
       where: { workspaceId }, orderBy: { name: "asc" },
       select: { id: true, name: true, color: true },
@@ -42,6 +46,15 @@ export default async function WorkflowEditorPage({
       where:   { workspaceId },
       orderBy: [{ sentAt: "desc" }, { createdAt: "desc" }],
       select:  { id: true, name: true, subject: true, status: true, sentAt: true },
+    }),
+    db.workflowEmail.findMany({
+      where:   { workflowId: id },
+      orderBy: { createdAt: "asc" },
+      select:  {
+        id: true, name: true, subject: true, bodyHtml: true,
+        fromName: true, fromEmail: true, senderId: true,
+        sentCount: true, openedCount: true, clickedCount: true,
+      },
     }),
   ]);
 
@@ -65,6 +78,7 @@ export default async function WorkflowEditorPage({
       senders={senders}
       funnels={funnels}
       broadcasts={broadcasts}
+      workflowEmails={workflowEmails}
     />
   );
 }

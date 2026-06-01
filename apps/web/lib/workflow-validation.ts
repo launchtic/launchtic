@@ -26,12 +26,23 @@ export type WorkflowEdge = {
   label?: string;
 };
 
+export type WorkflowEmailMini = {
+  id:        string;
+  name?:     string | null;
+  subject:   string;
+  bodyHtml:  string;
+  fromName:  string;
+  fromEmail: string;
+  senderId?: string | null;
+};
+
 export type WorkflowToValidate = {
   triggerType: string;
   triggerConfig: Record<string, unknown>;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   startNodeId: string | null;
+  emails?: WorkflowEmailMini[];
 };
 
 export type ValidationIssue = {
@@ -50,9 +61,25 @@ export function validateWorkflow(wf: WorkflowToValidate): ValidationIssue[] {
     out.push({ nodeId: null, nodeLabel: "Trigger", messages: triggerMsgs });
   }
 
+  const emailMap = new Map<string, WorkflowEmailMini>();
+  for (const e of wf.emails ?? []) emailMap.set(e.id, e);
+
   for (const n of wf.nodes) {
     const msgs = validateNode(n.type, n.config ?? {});
-    if (msgs.length) out.push({ nodeId: n.id, nodeLabel: nodeLabel(n), messages: msgs });
+    // SEND_EMAIL has an extra check: if config.emailId is set, the linked
+    // WorkflowEmail's content must itself be complete (subject, body, sender).
+    if (n.type === "SEND_EMAIL") {
+      const emailId = (n.config?.emailId as string | undefined) ?? undefined;
+      if (emailId) {
+        const email = emailMap.get(emailId);
+        if (!email) {
+          msgs.push("Linked email no longer exists. Pick or create a new one.");
+        } else {
+          msgs.push(...validateWorkflowEmail(email));
+        }
+      }
+    }
+    if (msgs.length) out.push({ nodeId: n.id, nodeLabel: nodeLabel(n, emailMap), messages: msgs });
   }
 
   const graphMsgs = validateGraph(wf.nodes, wf.edges, wf.startNodeId);
@@ -60,6 +87,17 @@ export function validateWorkflow(wf: WorkflowToValidate): ValidationIssue[] {
     out.push({ nodeId: null, nodeLabel: "Workflow structure", messages: graphMsgs });
   }
 
+  return out;
+}
+
+// Content check for a WorkflowEmail — used by validateWorkflow + can be
+// called standalone (e.g., from a PATCH route's pre-flight).
+export function validateWorkflowEmail(email: WorkflowEmailMini): string[] {
+  const out: string[] = [];
+  const senderOk = nonEmpty(email.senderId) || (nonEmpty(email.fromEmail) && nonEmpty(email.fromName));
+  if (!senderOk)                   out.push("Email sender is not picked.");
+  if (!nonEmpty(email.subject))    out.push("Email subject is empty.");
+  if (!nonEmpty(email.bodyHtml))   out.push("Email body is empty.");
   return out;
 }
 
@@ -116,10 +154,12 @@ export function validateNode(type: string, config: Record<string, unknown>): str
 
   switch (type) {
     case "SEND_EMAIL": {
-      const senderOk = nonEmpty(config.senderId) || (nonEmpty(config.fromEmail) && nonEmpty(config.fromName));
-      if (!senderOk) out.push("Sender is not picked.");
-      if (!nonEmpty(config.subject))  out.push("Subject is empty.");
-      if (!nonEmpty(config.bodyHtml)) out.push("Email body is empty.");
+      // Content lives in a linked WorkflowEmail row, validated separately
+      // by validateWorkflowEmail() — the only node-level check is that the
+      // operator actually picked / created one.
+      if (!nonEmpty(config.emailId)) {
+        out.push("Pick or create an email for this step.");
+      }
       break;
     }
 
@@ -172,8 +212,21 @@ export function validateNode(type: string, config: Record<string, unknown>): str
         // No required fields — falls back to trigger's funnelStepId when not
         // explicitly scoped. Documented for clarity.
       } else if (kind === "email_opened" || kind === "email_clicked") {
-        if (!nonEmpty(config.broadcastId)) {
-          out.push("Pick which broadcast to check for opens/clicks.");
+        // Source picker — see executor for the matching switch. Each non-any
+        // source requires its own identifier.
+        const source =
+          (config.source as string | undefined) ??
+          (nonEmpty(config.broadcastId) ? "broadcast" : undefined);
+        if (!source) {
+          out.push("Pick which email source this checks (broadcast, workflow step, or any).");
+        } else if (source === "any") {
+          // ok — broad check.
+        } else if (source === "broadcast") {
+          if (!nonEmpty(config.broadcastId)) out.push("Pick which broadcast to check.");
+        } else if (source === "workflow_email") {
+          if (!nonEmpty(config.workflowEmailId)) out.push("Pick which workflow email to check.");
+        } else {
+          out.push(`Email source "${source}" isn't supported.`);
         }
       } else {
         // Unknown kind — `trigger_amount`, `trigger_funnel`, `always_true`,
@@ -250,11 +303,13 @@ function nonEmpty(v: unknown): boolean {
   return v != null && String(v).trim().length > 0;
 }
 
-export function nodeLabel(n: WorkflowNode): string {
+export function nodeLabel(n: WorkflowNode, emails?: Map<string, WorkflowEmailMini>): string {
   const cfg = n.config ?? {};
   switch (n.type) {
     case "SEND_EMAIL": {
-      const subj = String(cfg.subject ?? "").trim();
+      const emailId = cfg.emailId as string | undefined;
+      const linked  = emailId ? emails?.get(emailId) : undefined;
+      const subj    = String(linked?.subject ?? cfg.subject ?? "").trim();
       return subj ? `Send email — ${truncate(subj, 40)}` : "Send email";
     }
     case "ADD_TAG":    return "Add tag";

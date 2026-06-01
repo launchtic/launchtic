@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       emailSend: {
         select: {
           id: true, workspaceId: true, contactId: true,
-          broadcastId: true, clickedAt: true,
+          broadcastId: true, workflowEmailId: true, clickedAt: true,
         },
       },
     },
@@ -48,6 +48,7 @@ async function recordClick(link: {
     workspaceId: string;
     contactId: string | null;
     broadcastId: string | null;
+    workflowEmailId: string | null;
     clickedAt: Date | null;
   };
 }): Promise<void> {
@@ -71,14 +72,24 @@ async function recordClick(link: {
     },
   });
 
+  // Bump WorkflowEmail clickedCount only on first email-level click so the
+  // dashboard "click rate" stat reflects unique clickers.
+  if (isFirstEmailClick && link.emailSend.workflowEmailId) {
+    await db.workflowEmail.update({
+      where: { id: link.emailSend.workflowEmailId },
+      data:  { clickedCount: { increment: 1 } },
+    }).catch(() => {});
+  }
+
   // Fire the trigger only on the first click for this email — repeat clicks
   // on the same email shouldn't start a new workflow run.
   if (isFirstEmailClick && link.emailSend.contactId) {
     await fireTrigger(link.emailSend.workspaceId, "EMAIL_LINK_CLICKED", {
-      contactId:   link.emailSend.contactId,
-      emailSendId: link.emailSend.id,
-      broadcastId: link.emailSend.broadcastId ?? undefined,
-      linkUrl:     link.url,
+      contactId:       link.emailSend.contactId,
+      emailSendId:     link.emailSend.id,
+      broadcastId:     link.emailSend.broadcastId     ?? undefined,
+      workflowEmailId: link.emailSend.workflowEmailId ?? undefined,
+      linkUrl:         link.url,
     }).catch((err: unknown) => {
       console.error(`[email-track] EMAIL_LINK_CLICKED trigger failed:`, err);
     });

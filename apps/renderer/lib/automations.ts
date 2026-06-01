@@ -30,6 +30,7 @@ export type TriggerContext = {
   funnelStepId?:  string;
   emailSendId?:   string;
   broadcastId?:   string;
+  workflowEmailId?: string;
   linkUrl?:       string;
   [key: string]:  unknown;
 };

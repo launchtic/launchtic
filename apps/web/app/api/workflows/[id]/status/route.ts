@@ -31,12 +31,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { status } = bodySchema.parse(await req.json());
 
     if (status === "ACTIVE" && wf.status !== "ACTIVE") {
+      // Fetch linked emails so content checks (subject/body/sender) run
+      // alongside the node config checks.
+      const emails = await db.workflowEmail.findMany({
+        where:  { workflowId: id },
+        select: { id: true, name: true, subject: true, bodyHtml: true,
+                  fromName: true, fromEmail: true, senderId: true },
+      });
       const issues = validateWorkflow({
         triggerType:   wf.triggerType,
         triggerConfig: (wf.triggerConfig as unknown as Record<string, unknown>) ?? {},
         nodes:         (wf.nodes as unknown as WorkflowNode[]) ?? [],
         edges:         (wf.edges as unknown as WorkflowEdge[]) ?? [],
         startNodeId:   wf.startNodeId,
+        emails,
       });
       if (issues.length) {
         return NextResponse.json(

@@ -69,12 +69,26 @@ type Workflow = {
   maxDurationDays: number | null;
 };
 
+type WorkflowEmailMini = {
+  id:        string;
+  name:      string | null;
+  subject:   string;
+  bodyHtml:  string;
+  fromName:  string;
+  fromEmail: string;
+  senderId:  string | null;
+  sentCount:    number;
+  openedCount:  number;
+  clickedCount: number;
+};
+
 type Props = {
   workflow: Workflow;
   tags:     { id: string; name: string; color: string | null }[];
   senders:  { id: string; name: string; email: string; isDefault: boolean }[];
   funnels:  { id: string; name: string; steps: { id: string; name: string; type: string }[] }[];
   broadcasts: { id: string; name: string; subject: string; status: string; sentAt: Date | null }[];
+  workflowEmails: WorkflowEmailMini[];
 };
 
 // Reserved IDs for the virtual trigger node + its outgoing edge. Filtered out
@@ -539,7 +553,7 @@ export default function WorkflowBuilder(props: Props) {
   );
 }
 
-function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }: Props) {
+function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, workflowEmails: initialEmails }: Props) {
   const router  = useRouter();
   const params  = useParams();
   const slug    = params.workspaceSlug as string;
@@ -590,7 +604,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
         position: { x: 0, y: 0 },
         data: {
           type: n.type,
-          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels, broadcasts),
+          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels, broadcasts, workflowEmails),
         },
       } as Node)),
     ];
@@ -609,6 +623,47 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
   // Holds the source node id; null when closed.
   const [pickerSourceId, setPickerSourceId] = useState<string | null>(null);
   const openPicker = useCallback((sourceId: string) => setPickerSourceId(sourceId), []);
+
+  // ─── Workflow emails state ──────────────────────────────────────────────
+  // SEND_EMAIL nodes reference WorkflowEmail rows by id. Edits are routed to
+  // a per-email PATCH endpoint (debounced) instead of the workflow JSON, so
+  // long bodies don't trigger workflow-graph re-saves on every keystroke.
+  const [workflowEmails, setWorkflowEmails] = useState<WorkflowEmailMini[]>(initialEmails);
+  const emailSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const updateWorkflowEmail = useCallback((emailId: string, patch: Partial<WorkflowEmailMini>) => {
+    setWorkflowEmails((prev) => prev.map((e) => e.id === emailId ? { ...e, ...patch } : e));
+    const existing = emailSaveTimers.current.get(emailId);
+    if (existing) clearTimeout(existing);
+    emailSaveTimers.current.set(emailId, setTimeout(async () => {
+      emailSaveTimers.current.delete(emailId);
+      await apiFetch(`/api/workflows/${initial.id}/emails/${emailId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }).catch(() => {});
+    }, 800));
+  }, [initial.id]);
+
+  const createWorkflowEmail = useCallback(async (seed?: Partial<WorkflowEmailMini>): Promise<WorkflowEmailMini | null> => {
+    const res = await apiFetch(`/api/workflows/${initial.id}/emails`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(seed ?? {}),
+    });
+    const json = await res.json();
+    if (!json.success || !json.data) return null;
+    const created = json.data as WorkflowEmailMini;
+    setWorkflowEmails((prev) => [...prev, created]);
+    return created;
+  }, [initial.id]);
+
+  const deleteWorkflowEmail = useCallback(async (emailId: string) => {
+    setWorkflowEmails((prev) => prev.filter((e) => e.id !== emailId));
+    await apiFetch(`/api/workflows/${initial.id}/emails/${emailId}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }, [initial.id]);
 
   // Reflect trigger type / scope changes into the trigger node's visible data.
   useEffect(() => {
@@ -727,10 +782,25 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
   // any existing one (only one outgoing edge from trigger is permitted).
   // For CONDITION/GOAL, the second outgoing edge gets the auto-derived
   // true/false label.
-  function addNodeFrom(sourceId: string, type: NodeType) {
+  async function addNodeFrom(sourceId: string, type: NodeType) {
     const id  = `n_${Math.random().toString(36).slice(2, 10)}`;
     const def = NODE_DEFS[type];
-    const newCfg = { ...def.defaultConfig };
+    let newCfg: Record<string, unknown> = { ...def.defaultConfig };
+
+    // SEND_EMAIL: spin up a blank WorkflowEmail row up front so the operator
+    // can start composing immediately. config holds just the emailId — the
+    // editor renders the WorkflowEmail's fields inline.
+    if (type === "SEND_EMAIL") {
+      const defaultSender = senders.find((s) => s.isDefault) ?? senders[0];
+      const created = await createWorkflowEmail({
+        subject:   "",
+        bodyHtml:  "",
+        fromName:  defaultSender?.name  ?? "",
+        fromEmail: defaultSender?.email ?? "",
+        senderId:  defaultSender?.id    ?? null,
+      });
+      newCfg = { emailId: created?.id ?? null };
+    }
 
     const sourceNode = rfNodes.find((n) => n.id === sourceId);
     // Position is a placeholder — the structural-change effect below will
@@ -740,7 +810,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
     setConfigMap((prev) => ({ ...prev, [id]: newCfg }));
     setRfNodes((prev) => prev.concat({
       id, type: "workflowNode", position,
-      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, funnels, broadcasts) },
+      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, funnels, broadcasts, workflowEmails) },
     }));
 
     if (sourceId === TRIGGER_ID) {
@@ -764,16 +834,32 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
     setPickerSourceId(null);
   }
 
+  // Refs mirroring rfNodes + configMap so deleteNode keeps a stable callback
+  // identity (passed via BuilderContext to NodeCards — changing each render
+  // would force every node card to re-render).
+  const rfNodesRef   = useRef<Node[]>(rfNodes);
+  const configMapRef = useRef(configMap);
+  useEffect(() => { rfNodesRef.current   = rfNodes;   }, [rfNodes]);
+  useEffect(() => { configMapRef.current = configMap; }, [configMap]);
+
   // Delete a node (and any edges touching it) by id. Used both by the hover
   // X on the node card and the keyboard Backspace shortcut. Trigger node is
   // protected at the top of the function and via onNodesChangeGuarded.
+  // For SEND_EMAIL, the linked WorkflowEmail row is also deleted so we don't
+  // leave orphan content behind.
   const deleteNode = useCallback((nodeId: string) => {
     if (nodeId === TRIGGER_ID) return;
+    const node     = rfNodesRef.current.find((n) => n.id === nodeId);
+    const nodeType = (node?.data as any)?.type as NodeType | undefined;
+    const emailId  = configMapRef.current[nodeId]?.emailId as string | undefined;
+    if (nodeType === "SEND_EMAIL" && emailId) {
+      void deleteWorkflowEmail(emailId);
+    }
     setRfNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setRfEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
     setConfigMap((prev) => { const next = { ...prev }; delete next[nodeId]; return next; });
     setSelectedNodeId((sel) => sel === nodeId ? null : sel);
-  }, [setRfNodes, setRfEdges]);
+  }, [setRfNodes, setRfEdges, deleteWorkflowEmail]);
 
   function deleteSelected() {
     if (selectedNodeId) deleteNode(selectedNodeId);
@@ -805,7 +891,8 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
     edges: rfEdges
       .filter((e) => e.source !== TRIGGER_ID && e.target !== TRIGGER_ID)
       .map((e) => ({ id: e.id, source: e.source, target: e.target, label: e.label as string | undefined })),
-  }), [triggerType, triggerConfig, derivedStartNodeId, rfNodes, rfEdges, configMap]);
+    emails: workflowEmails,
+  }), [triggerType, triggerConfig, derivedStartNodeId, rfNodes, rfEdges, configMap, workflowEmails]);
 
   // Mapped per-node for the NodeCard badge. Trigger-level + graph-level
   // issues (nodeId === null) live under the reserved TRIGGER_ID key so the
@@ -971,7 +1058,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
       // Update the subtitle in node data so the canvas reflects changes.
       setRfNodes((nodes) => nodes.map((n) => n.id === selectedNodeId ? {
         ...n,
-        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, funnels, broadcasts) },
+        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, funnels, broadcasts, workflowEmails) },
       } : n));
       return next;
     });
@@ -1120,7 +1207,18 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts }:
                 <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
               </div>
             </div>
-            <NodeConfigForm type={selectedType} config={selectedConfig} onChange={patchConfig} tags={tags} senders={senders} funnels={funnels} broadcasts={broadcasts} />
+            <NodeConfigForm
+              type={selectedType}
+              config={selectedConfig}
+              onChange={patchConfig}
+              tags={tags}
+              senders={senders}
+              funnels={funnels}
+              broadcasts={broadcasts}
+              workflowEmails={workflowEmails}
+              updateWorkflowEmail={updateWorkflowEmail}
+              createWorkflowEmail={createWorkflowEmail}
+            />
           </div>
         )}
         {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && !NODE_DEFS[selectedType] && (
@@ -1464,6 +1562,7 @@ function TriggerConfigForm({
 
 function NodeConfigForm({
   type, config, onChange, tags, senders, funnels, broadcasts,
+  workflowEmails, updateWorkflowEmail, createWorkflowEmail,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
@@ -1472,35 +1571,72 @@ function NodeConfigForm({
   senders: Props["senders"];
   funnels: Props["funnels"];
   broadcasts: Props["broadcasts"];
+  workflowEmails:        WorkflowEmailMini[];
+  updateWorkflowEmail:   (emailId: string, patch: Partial<WorkflowEmailMini>) => void;
+  createWorkflowEmail:   (seed?: Partial<WorkflowEmailMini>) => Promise<WorkflowEmailMini | null>;
 }) {
   const inp  = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl  = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
 
   if (type === "SEND_EMAIL") {
-    const senderId = (config.senderId as string | undefined) ?? "";
+    const emailId = config.emailId as string | undefined;
+    const email   = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
+
+    // No linked email (orphan node from a stale clone, or async create still
+    // in flight). Show a "Create email" affordance.
+    if (!emailId || !email) {
+      return (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500">No email linked to this step yet.</p>
+          <button
+            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+            onClick={async () => {
+              const created = await createWorkflowEmail({ subject: "", bodyHtml: "", fromName: "", fromEmail: "" });
+              if (created) onChange({ emailId: created.id });
+            }}
+          >
+            Create new email
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-3">
         <div>
           <label className={lbl}>From</label>
-          <select className={inp} value={senderId} onChange={(e) => {
-            const id = e.target.value;
-            const s  = senders.find((x) => x.id === id);
-            onChange({ senderId: id, fromName: s?.name, fromEmail: s?.email });
-          }}>
+          <select
+            className={inp}
+            value={email.senderId ?? ""}
+            onChange={(e) => {
+              const senderId = e.target.value;
+              const s = senders.find((x) => x.id === senderId);
+              updateWorkflowEmail(emailId, {
+                senderId,
+                fromName:  s?.name  ?? email.fromName,
+                fromEmail: s?.email ?? email.fromEmail,
+              });
+            }}
+          >
             <option value="">— pick sender —</option>
             {senders.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
           </select>
         </div>
         <div>
           <label className={lbl}>Subject</label>
-          <input className={inp} value={(config.subject as string) ?? ""} onChange={(e) => onChange({ subject: e.target.value })} placeholder="Hi {{contact.firstName}}…" />
+          <input
+            className={inp}
+            value={email.subject}
+            onChange={(e) => updateWorkflowEmail(emailId, { subject: e.target.value })}
+            placeholder="Hi {{contact.firstName}}…"
+          />
         </div>
         <div>
           <label className={lbl}>HTML body</label>
           <textarea
             className={`${inp} font-mono`} rows={8}
-            value={(config.bodyHtml as string) ?? ""}
-            onChange={(e) => onChange({ bodyHtml: e.target.value })}
+            value={email.bodyHtml}
+            onChange={(e) => updateWorkflowEmail(emailId, { bodyHtml: e.target.value })}
             placeholder="<p>Hello {{contact.firstName}},</p>…"
           />
           <p className="text-[10px] text-gray-400 mt-1">Mustache vars: contact, workspace, trigger data.</p>
@@ -1613,34 +1749,80 @@ function NodeConfigForm({
             By default scopes to the trigger&apos;s funnel step.
           </p>
         )}
-        {(kind === "email_opened" || kind === "email_clicked") && (
-          <>
-            <div>
-              <label className={lbl}>Broadcast</label>
-              <select
-                className={inp}
-                value={(config.broadcastId as string) ?? ""}
-                onChange={(e) => onChange({ broadcastId: e.target.value || undefined })}
-              >
-                <option value="">— pick a broadcast —</option>
-                {broadcasts.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}{b.sentAt ? "" : " (draft)"}
-                  </option>
-                ))}
-              </select>
-              {broadcasts.length === 0 && (
-                <p className="text-[10px] text-amber-600 mt-1">
-                  No broadcasts in this workspace yet.
-                </p>
+        {(kind === "email_opened" || kind === "email_clicked") && (() => {
+          const source = (config.source as string | undefined)
+                      ?? (config.broadcastId ? "broadcast" : "any");
+          const verb   = kind === "email_opened" ? "opened" : "clicked any link in";
+
+          // Switching source clears sibling identifiers so stale references
+          // don't silently leak into a different source's matcher.
+          const setSource = (next: string) => onChange({
+            source: next,
+            broadcastId:     undefined,
+            workflowEmailId: undefined,
+          });
+
+          return (
+            <>
+              <div>
+                <label className={lbl}>Email source</label>
+                <select className={inp} value={source} onChange={(e) => setSource(e.target.value)}>
+                  <option value="any">Any email</option>
+                  <option value="broadcast">Specific broadcast</option>
+                  <option value="workflow_email">Workflow email (in this flow)</option>
+                </select>
+              </div>
+
+              {source === "broadcast" && (
+                <div>
+                  <label className={lbl}>Broadcast</label>
+                  <select
+                    className={inp}
+                    value={(config.broadcastId as string) ?? ""}
+                    onChange={(e) => onChange({ broadcastId: e.target.value || undefined })}
+                  >
+                    <option value="">— pick a broadcast —</option>
+                    {broadcasts.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}{b.sentAt ? "" : " (draft)"}
+                      </option>
+                    ))}
+                  </select>
+                  {broadcasts.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">No broadcasts in this workspace yet.</p>
+                  )}
+                </div>
               )}
-            </div>
-            <p className="text-[10px] text-gray-500 leading-snug">
-              Returns true if the contact {kind === "email_opened" ? "opened" : "clicked any link in"} the
-              picked broadcast after this run started.
-            </p>
-          </>
-        )}
+
+              {source === "workflow_email" && (
+                <div>
+                  <label className={lbl}>Workflow email</label>
+                  <select
+                    className={inp}
+                    value={(config.workflowEmailId as string) ?? ""}
+                    onChange={(e) => onChange({ workflowEmailId: e.target.value || undefined })}
+                  >
+                    <option value="">— pick a workflow email —</option>
+                    {workflowEmails.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name || e.subject || "(untitled)"}
+                      </option>
+                    ))}
+                  </select>
+                  {workflowEmails.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      No Send email steps in this workflow yet — add one first.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <p className="text-[10px] text-gray-500 leading-snug">
+                Returns true if the contact {verb} {source === "any" ? "any email" : "the selected email"} after this run started.
+              </p>
+            </>
+          );
+        })()}
         <p className="text-[10px] text-gray-500">Connect two outgoing edges — they'll be labeled <b>true</b> and <b>false</b> automatically. For "exit when goal met" patterns, wire the <b>true</b> branch to an End node.</p>
       </div>
     );
@@ -1734,8 +1916,13 @@ function nodeSubtitle(
   tags: Props["tags"],
   funnels: Props["funnels"],
   broadcasts: Props["broadcasts"],
+  workflowEmails: WorkflowEmailMini[],
 ): string | undefined {
-  if (type === "SEND_EMAIL") return (config.subject as string) || undefined;
+  if (type === "SEND_EMAIL") {
+    const emailId = config.emailId as string | undefined;
+    const email = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
+    return email?.subject || undefined;
+  }
   if (type === "ADD_TAG" || type === "REMOVE_TAG") {
     const id = config.tagId as string | undefined;
     const tag = tags.find((t) => t.id === id);
@@ -1743,7 +1930,7 @@ function nodeSubtitle(
   }
   if (type === "WEBHOOK") return (config.url as string) || undefined;
   if (type === "DELAY")   return totalDelayLabel(config);
-  if (type === "CONDITION") return conditionSubtitle(config, tags, funnels, broadcasts);
+  if (type === "CONDITION") return conditionSubtitle(config, tags, funnels, broadcasts, workflowEmails);
   if (type === "END")     return (config.reason as string) || undefined;
   return undefined;
 }
@@ -1755,6 +1942,7 @@ function conditionSubtitle(
   tags: Props["tags"],
   funnels: Props["funnels"],
   broadcasts: Props["broadcasts"],
+  workflowEmails: WorkflowEmailMini[],
 ): string | undefined {
   const kind = config.kind as string | undefined;
   if (!kind) return undefined;
@@ -1771,11 +1959,21 @@ function conditionSubtitle(
       return "if contact purchased";
     case "email_opened":
     case "email_clicked": {
-      const broadcastId = config.broadcastId as string | undefined;
-      const verb = kind === "email_opened" ? "opened" : "clicked";
-      if (!broadcastId) return `if ${verb} email …`;
-      const b = broadcasts.find((x) => x.id === broadcastId);
-      return b ? `if ${verb} "${b.name}"` : `if ${verb} email …`;
+      const verb   = kind === "email_opened" ? "opened" : "clicked";
+      const source = (config.source as string | undefined)
+                  ?? (config.broadcastId ? "broadcast" : undefined);
+      if (!source || source === "any") return `if ${verb} any email`;
+      if (source === "broadcast") {
+        const id = config.broadcastId as string | undefined;
+        const b = broadcasts.find((x) => x.id === id);
+        return b ? `if ${verb} "${b.name}"` : `if ${verb} broadcast …`;
+      }
+      if (source === "workflow_email") {
+        const id = config.workflowEmailId as string | undefined;
+        const e  = workflowEmails.find((x) => x.id === id);
+        return e ? `if ${verb} "${e.name || e.subject || "(untitled)"}"` : `if ${verb} workflow email …`;
+      }
+      return `if ${verb} email …`;
     }
     case "contact_field": {
       const field    = config.field    as string | undefined;

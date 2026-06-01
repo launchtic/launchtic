@@ -167,14 +167,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
 
-      // ── Workflows (graph clone) ─────────────────────────────────────
-      // Always cloned as DRAFT. Nodes/edges JSON carried as-is — tag IDs
-      // and other resource refs in node configs point at the source
-      // workspace's resources, so operator re-wires after clone.
+      // ── Workflows (graph clone + WorkflowEmail copy) ────────────────
+      // Always cloned as DRAFT. Nodes/edges JSON carried as-is. SEND_EMAIL
+      // node configs reference WorkflowEmail rows by id — we duplicate
+      // those rows into the new workflow and remap config.emailId before
+      // writing the workflow row, so the cloned workflow is self-contained
+      // (operator gets a working copy with all email content, ready to
+      // re-brand for the client).
       if (inc.sequences || inc.automations) {
-        const workflows = await tx.workflow.findMany({ where: { workspaceId: sourceId } });
+        const workflows = await tx.workflow.findMany({
+          where:   { workspaceId: sourceId },
+          include: { emails: true },
+        });
         for (const wf of workflows) {
-          await tx.workflow.create({
+          const newWf = await tx.workflow.create({
             data: {
               workspaceId:          newWsId,
               name:                 wf.name,
@@ -182,12 +188,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               status:               "DRAFT",
               triggerType:          wf.triggerType,
               triggerConfig:        {},
-              nodes:                wf.nodes as any,
+              nodes:                [] as any, // patched after email remap
               edges:                wf.edges as any,
-              startNodeId:          wf.startNodeId,
+              startNodeId:          null,
               reEnrollPolicy:       wf.reEnrollPolicy,
               reEnrollCooldownDays: wf.reEnrollCooldownDays,
               maxDurationDays:      wf.maxDurationDays,
+            },
+            select: { id: true },
+          });
+
+          // Clone each WorkflowEmail into the new workflow, building a
+          // remap table old emailId → new emailId.
+          const idMap = new Map<string, string>();
+          for (const em of wf.emails) {
+            const dup = await tx.workflowEmail.create({
+              data: {
+                workspaceId: newWsId,
+                workflowId:  newWf.id,
+                name:        em.name,
+                subject:     em.subject,
+                bodyHtml:    em.bodyHtml,
+                fromName:    em.fromName,
+                fromEmail:   em.fromEmail,
+                senderId:    null, // sender ids are workspace-scoped → drop
+              },
+              select: { id: true },
+            });
+            idMap.set(em.id, dup.id);
+          }
+
+          // Rewrite SEND_EMAIL config.emailId using the remap table. Any
+          // emailId that's missing from the map (orphan) becomes null so the
+          // operator sees a validation error rather than a stale reference.
+          const sourceNodes = (wf.nodes as any[]) ?? [];
+          const remappedNodes = sourceNodes.map((n) => {
+            if (n?.type !== "SEND_EMAIL") return n;
+            const cfg = (n.config ?? {}) as Record<string, unknown>;
+            const oldId = cfg.emailId as string | undefined;
+            const newId = oldId ? idMap.get(oldId) ?? null : null;
+            return { ...n, config: { ...cfg, emailId: newId } };
+          });
+
+          await tx.workflow.update({
+            where: { id: newWf.id },
+            data:  {
+              nodes:       remappedNodes as any,
+              startNodeId: wf.startNodeId, // safe — node ids are unchanged
             },
           });
         }

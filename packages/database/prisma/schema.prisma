@@ -992,17 +992,26 @@ model EmailSend {
   clickedAt  DateTime?
   clickCount Int        @default(0)
 
-  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact   Contact?       @relation(fields: [contactId],   references: [id], onDelete: SetNull)
-  broadcast Broadcast?     @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
-  template  EmailTemplate? @relation(fields: [templateId],  references: [id], onDelete: SetNull)
-  links     EmailSendLink[]
+  // Link back to the WorkflowEmail that produced this send. Lets workflow
+  // conditions (email_opened / email_clicked with source="workflow_email")
+  // scope their query, and feeds per-email analytics back into the
+  // WorkflowEmail row's counters.
+  workflowEmailId String?
+
+  workspace     Workspace      @relation(fields: [workspaceId],     references: [id], onDelete: Cascade)
+  contact       Contact?       @relation(fields: [contactId],       references: [id], onDelete: SetNull)
+  broadcast     Broadcast?     @relation(fields: [broadcastId],     references: [id], onDelete: SetNull)
+  template      EmailTemplate? @relation(fields: [templateId],      references: [id], onDelete: SetNull)
+  workflowEmail WorkflowEmail? @relation(fields: [workflowEmailId], references: [id], onDelete: SetNull)
+  links         EmailSendLink[]
 
   @@index([workspaceId, status, queuedAt])
   @@index([contactId, queuedAt])
   @@index([broadcastId])
   @@index([contactId, broadcastId, openedAt])
   @@index([contactId, broadcastId, clickedAt])
+  @@index([contactId, workflowEmailId, openedAt])
+  @@index([contactId, workflowEmailId, clickedAt])
 }
 
 // Per-link click tracking for outgoing emails. Each link in a rendered
@@ -1236,11 +1245,64 @@ model Workflow {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   runs      WorkflowRun[]
+  emails    WorkflowEmail[]
 
   @@index([workspaceId, status, triggerType])
   @@index([workspaceId, createdAt])
+}
+
+// ─────────────────────────────────────────
+// WORKFLOW EMAIL — first-class content for SEND_EMAIL nodes
+// ─────────────────────────────────────────
+//
+// Each SEND_EMAIL node in workflow.nodes JSON references a WorkflowEmail by
+// `config.emailId`. The content (subject / body / sender) lives in this row
+// instead of inline in the workflow JSON. Benefits:
+//   - Per-email analytics: open/click rates aggregated cleanly per row
+//   - Source-scoped conditions: `email_opened` can target a specific
+//     WorkflowEmail via EmailSend.workflowEmailId
+//   - Reusable across nodes in the same workflow (1 email can be wired
+//     into multiple SEND_EMAIL nodes if the operator wants)
+//   - Independent edit lifecycle: tweak copy without bumping the workflow
+//     graph version
+//
+// Each WorkflowEmail is scoped to a single Workflow (workflowId required).
+// Cross-workflow sharing would require promoting to workspace-scoped — a
+// Phase 3+ feature when there's demand.
+
+model WorkflowEmail {
+  id          String  @id @default(cuid())
+  workspaceId String
+  workflowId  String
+
+  // Internal label for the operator's email list view. Falls back to
+  // subject when empty in the UI.
+  name        String?
+
+  // Content snapshot. Mustache vars resolved at send time by the worker.
+  subject     String
+  bodyHtml    String  @db.Text
+  fromName    String
+  fromEmail   String
+  senderId    String?
+
+  // Denormalized counters bumped by the email worker / tracking endpoints.
+  // Source of truth still EmailSend queries; these are for dashboard reads.
+  sentCount    Int @default(0)
+  openedCount  Int @default(0)
+  clickedCount Int @default(0)
+  failedCount  Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workflow Workflow    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  sends    EmailSend[]
+
+  @@index([workspaceId])
+  @@index([workflowId])
 }
 
 model WorkflowRun {

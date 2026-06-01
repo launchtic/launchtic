@@ -46,7 +46,7 @@ async function recordOpen(emailSendId: string): Promise<void> {
     where:  { id: emailSendId },
     select: {
       id: true, workspaceId: true, contactId: true,
-      broadcastId: true, openedAt: true,
+      broadcastId: true, workflowEmailId: true, openedAt: true,
     },
   });
   if (!send) return;
@@ -60,13 +60,23 @@ async function recordOpen(emailSendId: string): Promise<void> {
     },
   });
 
+  // Bump the WorkflowEmail's openedCount only on first open per send, so the
+  // dashboard "open rate" stat reflects unique opens not total hits.
+  if (isFirstOpen && send.workflowEmailId) {
+    await db.workflowEmail.update({
+      where: { id: send.workflowEmailId },
+      data:  { openedCount: { increment: 1 } },
+    }).catch(() => {});
+  }
+
   // Fire the trigger only on the FIRST open — subsequent re-opens don't
   // start new workflow runs (cap via re-enroll policy on the workflow).
   if (isFirstOpen && send.contactId) {
     await fireTrigger(send.workspaceId, "EMAIL_OPENED", {
-      contactId:   send.contactId,
-      emailSendId: send.id,
-      broadcastId: send.broadcastId ?? undefined,
+      contactId:       send.contactId,
+      emailSendId:     send.id,
+      broadcastId:     send.broadcastId     ?? undefined,
+      workflowEmailId: send.workflowEmailId ?? undefined,
     }).catch((err: unknown) => {
       console.error(`[email-track] EMAIL_OPENED trigger failed for ${emailSendId}:`, err);
     });
