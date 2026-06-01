@@ -23,7 +23,7 @@ import dagre from "@dagrejs/dagre";
 import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
   GitBranch, Square, Loader2, Save, History, Zap, X,
-  Undo2, Redo2, Trash2,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
@@ -224,16 +224,21 @@ const BROADCAST_SCOPED_TRIGGERS = new Set(["EMAIL_OPENED", "EMAIL_LINK_CLICKED"]
 // hide the funnel dropdown to avoid confusing the operator.
 const FUNNEL_SCOPED_TRIGGERS = new Set([
   "NEW_SALE", "SALE_CANCELED", "FORM_SUBMIT", "CHECKOUT_STARTED",
+  "SUBSCRIPTION_PAYMENT_FAILED",
 ]);
 
 // Which step types can fire each trigger. Used to filter the Step picker so
 // the operator only sees steps that actually emit the chosen trigger event
 // (e.g. NEW_SALE only fires from CHECKOUT/UPSELL/DOWNSELL steps).
 const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
-  NEW_SALE:         ["CHECKOUT", "UPSELL", "DOWNSELL"],
-  SALE_CANCELED:    ["CHECKOUT", "UPSELL", "DOWNSELL"],
-  FORM_SUBMIT:      ["OPTIN", "SALES", "CHECKOUT", "CUSTOM"],
-  CHECKOUT_STARTED: ["CHECKOUT"],
+  NEW_SALE:                    ["CHECKOUT", "UPSELL", "DOWNSELL"],
+  SALE_CANCELED:               ["CHECKOUT", "UPSELL", "DOWNSELL"],
+  FORM_SUBMIT:                 ["OPTIN", "SALES", "CHECKOUT", "CUSTOM"],
+  CHECKOUT_STARTED:            ["CHECKOUT"],
+  // Subscriptions are only created from steps that process recurring
+  // payment — typically CHECKOUT, occasionally UPSELL/DOWNSELL with a
+  // recurring price plan.
+  SUBSCRIPTION_PAYMENT_FAILED: ["CHECKOUT", "UPSELL", "DOWNSELL"],
 };
 
 // One-line plain-English description shown under the trigger dropdown so the
@@ -241,7 +246,7 @@ const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
 const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   NEW_SALE:                    "When an order is marked PAID. Scope to one funnel below — e.g. only fire for the main checkout, not upsells.",
   SALE_CANCELED:               "When an order is refunded or canceled.",
-  SUBSCRIPTION_PAYMENT_FAILED: "When Stripe fails to charge a recurring subscription.",
+  SUBSCRIPTION_PAYMENT_FAILED: "When Stripe/PayPal fails to charge a recurring subscription. Scope to the funnel + checkout step that created the subscription.",
   FORM_SUBMIT:                 "When a contact submits an opt-in form on a funnel step.",
   CHECKOUT_STARTED:            "When a visitor enters the checkout page and fills in their email — before paying. Use for cart abandonment recovery.",
   TAG_ADDED:                   "When the tag below gets added to a contact (manually, by another workflow, by API, etc).",
@@ -604,7 +609,10 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
         position: { x: 0, y: 0 },
         data: {
           type: n.type,
-          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels, broadcasts, workflowEmails),
+          // initialEmails (prop) here — workflowEmails state isn't declared
+          // yet at this point in the function. Subsequent renders pick up
+          // the state via the patchConfig path.
+          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels, broadcasts, initialEmails),
         },
       } as Node)),
     ];
@@ -623,6 +631,15 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
   // Holds the source node id; null when closed.
   const [pickerSourceId, setPickerSourceId] = useState<string | null>(null);
   const openPicker = useCallback((sourceId: string) => setPickerSourceId(sourceId), []);
+
+  // Type-switch confirm modal — set when user picks a new type for a node
+  // whose current config has non-default content, so they confirm the
+  // discard before we wipe.
+  const [switchTarget, setSwitchTarget] = useState<{
+    nodeId:      string;
+    currentType: NodeType;
+    newType:     NodeType;
+  } | null>(null);
 
   // ─── Workflow emails state ──────────────────────────────────────────────
   // SEND_EMAIL nodes reference WorkflowEmail rows by id. Edits are routed to
@@ -834,35 +851,177 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
     setPickerSourceId(null);
   }
 
-  // Refs mirroring rfNodes + configMap so deleteNode keeps a stable callback
-  // identity (passed via BuilderContext to NodeCards — changing each render
-  // would force every node card to re-render).
+  // Refs mirroring rfNodes + rfEdges + configMap so deleteNode + cascade
+  // helpers keep stable callback identity (passed via BuilderContext to
+  // NodeCards — a changing ref would force every card to re-render).
   const rfNodesRef   = useRef<Node[]>(rfNodes);
+  const rfEdgesRef   = useRef<Edge[]>(rfEdges);
   const configMapRef = useRef(configMap);
   useEffect(() => { rfNodesRef.current   = rfNodes;   }, [rfNodes]);
+  useEffect(() => { rfEdgesRef.current   = rfEdges;   }, [rfEdges]);
   useEffect(() => { configMapRef.current = configMap; }, [configMap]);
 
-  // Delete a node (and any edges touching it) by id. Used both by the hover
-  // X on the node card and the keyboard Backspace shortcut. Trigger node is
-  // protected at the top of the function and via onNodesChangeGuarded.
-  // For SEND_EMAIL, the linked WorkflowEmail row is also deleted so we don't
-  // leave orphan content behind.
+  // Delete-confirm state. The hover X and keyboard Delete both route through
+  // this — we open the modal first and only perform the destructive action
+  // after the operator confirms.
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Open the confirm modal for a node delete. Called from the hover X via
+  // BuilderContext.
   const deleteNode = useCallback((nodeId: string) => {
     if (nodeId === TRIGGER_ID) return;
-    const node     = rfNodesRef.current.find((n) => n.id === nodeId);
-    const nodeType = (node?.data as any)?.type as NodeType | undefined;
-    const emailId  = configMapRef.current[nodeId]?.emailId as string | undefined;
-    if (nodeType === "SEND_EMAIL" && emailId) {
-      void deleteWorkflowEmail(emailId);
+    setDeleteConfirmId(nodeId);
+  }, []);
+
+  // Perform the actual delete after confirm. Cascade behaviour: this node
+  // + every node reachable downstream (via outgoing edges) is removed in one
+  // go. Avoids leaving orphan subtrees that float disconnected from the
+  // trigger — operator picked Option B (cascade) so this matches the
+  // confirm-dialog message they accepted.
+  //
+  // SEND_EMAIL nodes in the cascade set get their linked WorkflowEmail row
+  // deleted alongside.
+  const performDeleteNode = useCallback((nodeId: string) => {
+    if (nodeId === TRIGGER_ID) return;
+
+    const downstream = getDownstreamNodeIds(nodeId, rfEdgesRef.current);
+    const toDelete   = new Set<string>([nodeId, ...downstream]);
+
+    // Clean up any WorkflowEmail rows owned by SEND_EMAIL nodes in the set.
+    for (const id of toDelete) {
+      const node = rfNodesRef.current.find((n) => n.id === id);
+      const type = (node?.data as any)?.type as NodeType | undefined;
+      if (type === "SEND_EMAIL") {
+        const emailId = configMapRef.current[id]?.emailId as string | undefined;
+        if (emailId) void deleteWorkflowEmail(emailId);
+      }
     }
-    setRfNodes((prev) => prev.filter((n) => n.id !== nodeId));
-    setRfEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId));
-    setConfigMap((prev) => { const next = { ...prev }; delete next[nodeId]; return next; });
-    setSelectedNodeId((sel) => sel === nodeId ? null : sel);
+
+    setRfNodes((prev) => prev.filter((n) => !toDelete.has(n.id)));
+    setRfEdges((prev) => prev.filter((e) => !toDelete.has(e.source) && !toDelete.has(e.target)));
+    setConfigMap((prev) => {
+      const next = { ...prev };
+      for (const id of toDelete) delete next[id];
+      return next;
+    });
+    setSelectedNodeId((sel) => sel && toDelete.has(sel) ? null : sel);
+    setDeleteConfirmId(null);
   }, [setRfNodes, setRfEdges, deleteWorkflowEmail]);
 
   function deleteSelected() {
     if (selectedNodeId) deleteNode(selectedNodeId);
+  }
+
+  // Discard helper for the delete confirm modal. Computes the cascade set —
+  // this node + every downstream node — so the operator sees exactly what's
+  // about to disappear (truncated to the first 5 with a "+N more" tail).
+  function nodeDeleteSummary(nodeId: string): {
+    label:             string;
+    lostItems:         string[];
+    downstreamCount:   number;
+    downstreamLabels:  string[];
+    downstreamMore:    number;
+  } | null {
+    const node = rfNodes.find((n) => n.id === nodeId);
+    if (!node) return null;
+    const type = (node.data as any).type as NodeType | undefined;
+    if (!type) return null;
+    const cfg = configMap[nodeId] ?? {};
+    const lostItems = getDiscardSummary(type, cfg, workflowEmails);
+
+    const downstream = getDownstreamNodeIds(nodeId, rfEdges);
+    const downstreamLabels = [...downstream]
+      .slice(0, 5)
+      .map((id) => {
+        const n = rfNodes.find((nn) => nn.id === id);
+        const t = (n?.data as any)?.type as NodeType | undefined;
+        return t && NODE_DEFS[t] ? NODE_DEFS[t].label : "Unknown step";
+      });
+    const downstreamMore = Math.max(0, downstream.size - downstreamLabels.length);
+
+    return {
+      label:            NODE_DEFS[type].label,
+      lostItems,
+      downstreamCount:  downstream.size,
+      downstreamLabels,
+      downstreamMore,
+    };
+  }
+
+  // ─── Switch node type ────────────────────────────────────────────────────
+  // Resets config to the new type's defaults, cleans up type-specific
+  // resources (WorkflowEmail for SEND_EMAIL, fan-out edge labels for
+  // CONDITION), and auto-creates type-specific resources for the new type
+  // (blank WorkflowEmail for SEND_EMAIL).
+  //
+  // The node id + position + edges to/from it are preserved — operator
+  // doesn't lose their graph topology when fixing a wrong type pick.
+  const switchNodeType = useCallback(async (nodeId: string, newType: NodeType) => {
+    const node = rfNodesRef.current.find((n) => n.id === nodeId);
+    if (!node) return;
+    const currentType = (node.data as any).type as NodeType | undefined;
+    if (!currentType || currentType === newType) return;
+
+    // Cleanup current type. SEND_EMAIL deletes its linked WorkflowEmail —
+    // the type-switch confirm modal already warned the operator that the
+    // email + content will be discarded.
+    if (currentType === "SEND_EMAIL") {
+      const emailId = configMapRef.current[nodeId]?.emailId as string | undefined;
+      if (emailId) void deleteWorkflowEmail(emailId);
+    }
+    if (currentType === "CONDITION") {
+      // CONDITION fans out via labeled true/false edges. Other types are
+      // linear → drop the extras so the new node has at most one outgoing
+      // edge (or unbounded for SPLIT-like types, but we don't have those).
+      setRfEdges((prev) => {
+        const outs = prev.filter((e) => e.source === nodeId);
+        if (outs.length <= 1) return prev;
+        const keep = outs[0];
+        return prev.filter((e) => e.source !== nodeId || e.id === keep.id);
+      });
+    }
+
+    // Build new config — type defaults, plus type-specific side effects.
+    let newConfig: Record<string, unknown> = { ...NODE_DEFS[newType].defaultConfig };
+    if (newType === "SEND_EMAIL") {
+      const defaultSender = senders.find((s) => s.isDefault) ?? senders[0];
+      const created = await createWorkflowEmail({
+        subject:   "",
+        bodyHtml:  "",
+        fromName:  defaultSender?.name  ?? "",
+        fromEmail: defaultSender?.email ?? "",
+        senderId:  defaultSender?.id    ?? null,
+      });
+      newConfig = { emailId: created?.id ?? null };
+    }
+
+    setConfigMap((prev) => ({ ...prev, [nodeId]: newConfig }));
+    setRfNodes((prev) => prev.map((n) => n.id === nodeId ? {
+      ...n,
+      data: {
+        ...n.data,
+        type:     newType,
+        subtitle: nodeSubtitle(newType, newConfig, tags, funnels, broadcasts, workflowEmails),
+      },
+    } : n));
+    setSwitchTarget(null);
+  }, [
+    deleteWorkflowEmail, createWorkflowEmail, senders, tags, funnels, broadcasts,
+    workflowEmails, setRfNodes, setRfEdges,
+  ]);
+
+  // Decide whether to swap silently or open the confirm modal.
+  function handleTypeSwitch(nodeId: string, newType: NodeType) {
+    const node = rfNodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const currentType = (node.data as any).type as NodeType | undefined;
+    if (!currentType || currentType === newType) return;
+    const currentConfig = configMap[nodeId] ?? {};
+    if (hasNodeContent(currentType, currentConfig, workflowEmails)) {
+      setSwitchTarget({ nodeId, currentType, newType });
+    } else {
+      void switchNodeType(nodeId, newType);
+    }
   }
 
   // Block deletion of the trigger node via keyboard / programmatic changes.
@@ -918,102 +1077,6 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
     [openPicker, deleteNode, issuesByNode],
   );
 
-  // ─── Undo / Redo ────────────────────────────────────────────────────────
-  // Snapshot-based history: every debounced change pushes a deep-clone of the
-  // current state onto undoStack and clears redoStack. Ctrl/Cmd+Z restores the
-  // previous snapshot; Ctrl/Cmd+Shift+Z (or Ctrl+Y) redoes.
-  type Snapshot = {
-    rfNodes:       Node[];
-    rfEdges:       Edge[];
-    configMap:     Record<string, Record<string, unknown>>;
-    name:          string;
-    triggerType:   string;
-    triggerConfig: Record<string, unknown>;
-    reEnrollPolicy: string;
-  };
-  const makeSnapshot = useCallback((): Snapshot => ({
-    rfNodes:       JSON.parse(JSON.stringify(rfNodes)),
-    rfEdges:       JSON.parse(JSON.stringify(rfEdges)),
-    configMap:     JSON.parse(JSON.stringify(configMap)),
-    name, triggerType,
-    triggerConfig: JSON.parse(JSON.stringify(triggerConfig)),
-    reEnrollPolicy,
-  }), [rfNodes, rfEdges, configMap, name, triggerType, triggerConfig, reEnrollPolicy]);
-
-  const [undoStack, setUndoStack] = useState<Snapshot[]>(() => [{
-    rfNodes:       JSON.parse(JSON.stringify(initialNodes)),
-    rfEdges:       JSON.parse(JSON.stringify(initialEdges)),
-    configMap:     (() => { const m: Record<string, Record<string, unknown>> = {}; for (const n of initial.nodes) m[n.id] = { ...(n.config ?? {}) }; return m; })(),
-    name:          initial.name,
-    triggerType:   initial.triggerType,
-    triggerConfig: JSON.parse(JSON.stringify(initial.triggerConfig)),
-    reEnrollPolicy: initial.reEnrollPolicy,
-  }]);
-  const [redoStack, setRedoStack] = useState<Snapshot[]>([]);
-  const isRestoring = useRef(false);
-
-  // Debounced snapshot push. Skips when the current state equals the top of
-  // the undo stack (no real change — e.g. selection-only react-flow updates).
-  useEffect(() => {
-    if (isRestoring.current) { isRestoring.current = false; return; }
-    const t = setTimeout(() => {
-      const snap = makeSnapshot();
-      const key  = JSON.stringify(snap);
-      setUndoStack((u) => {
-        const top = u[u.length - 1];
-        if (top && JSON.stringify(top) === key) return u; // no-op change
-        return [...u.slice(-49), snap];
-      });
-      setRedoStack([]);
-    }, 800);
-    return () => clearTimeout(t);
-  }, [makeSnapshot]);
-
-  const restoreSnapshot = useCallback((s: Snapshot) => {
-    isRestoring.current = true;
-    setRfNodes(JSON.parse(JSON.stringify(s.rfNodes)));
-    setRfEdges(JSON.parse(JSON.stringify(s.rfEdges)));
-    setConfigMap(JSON.parse(JSON.stringify(s.configMap)));
-    setName(s.name);
-    setTriggerType(s.triggerType);
-    setTriggerConfig(JSON.parse(JSON.stringify(s.triggerConfig)));
-    setReEnrollPolicy(s.reEnrollPolicy);
-  }, [setRfNodes, setRfEdges]);
-
-  const canUndo = undoStack.length > 1;
-  const canRedo = redoStack.length > 0;
-
-  const undo = useCallback(() => {
-    if (undoStack.length < 2) return;
-    const current  = undoStack[undoStack.length - 1];
-    const previous = undoStack[undoStack.length - 2];
-    setRedoStack((r) => [...r, current]);
-    setUndoStack((u) => u.slice(0, -1));
-    restoreSnapshot(previous);
-  }, [undoStack, restoreSnapshot]);
-
-  const redo = useCallback(() => {
-    if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
-    setRedoStack((r) => r.slice(0, -1));
-    setUndoStack((u) => [...u, next]);
-    restoreSnapshot(next);
-  }, [redoStack, restoreSnapshot]);
-
-  // Keyboard: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl+Y = redo. Skip if
-  // focus is in a text input/textarea (those handle their own undo natively).
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
-      const t = e.target as HTMLElement;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
-      else if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(); }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
 
   const onConnect = useCallback(
     (conn: Connection) => {
@@ -1087,27 +1150,6 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
           "bg-gray-100 text-gray-600"
         }`}>{status.toLowerCase()}</span>
         {busy === "saving" && <span className="text-xs text-gray-400 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> saving…</span>}
-        {/* Undo / Redo. Disabled state mirrors stack emptiness. Ctrl/Cmd+Z and
-            Ctrl/Cmd+Shift+Z (or Ctrl+Y) also work via the document key listener. */}
-        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-          <button
-            onClick={undo}
-            disabled={!canUndo}
-            title="Undo (Ctrl/Cmd+Z)"
-            className="p-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
-          >
-            <Undo2 size={13} />
-          </button>
-          <div className="w-px h-4 bg-gray-200" />
-          <button
-            onClick={redo}
-            disabled={!canRedo}
-            title="Redo (Ctrl/Cmd+Shift+Z)"
-            className="p-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent"
-          >
-            <Redo2 size={13} />
-          </button>
-        </div>
         <button
           onClick={() => setShowHistory(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -1198,14 +1240,22 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
         )}
         {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && NODE_DEFS[selectedType] && (
           <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                {(() => { const I = NODE_DEFS[selectedType].Icon; return <I size={14} />; })()}
-                {NODE_DEFS[selectedType].label}
-              </h3>
-              <div className="flex gap-1">
-                <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
-              </div>
+            {/* Type switcher header. Operator can swap the action type
+                without losing the node's id, position, or edges — handy when
+                they pick the wrong type from the "+" picker.
+                Delete lives on the node card itself (hover X) — no second
+                delete affordance here to avoid duplication. */}
+            <div className="mb-3 flex items-center gap-2 px-2 py-1 border border-gray-200 rounded-lg bg-gray-50">
+              {(() => { const I = NODE_DEFS[selectedType].Icon; return <I size={14} className="shrink-0" style={{ color: NODE_DEFS[selectedType].color }} />; })()}
+              <select
+                value={selectedType}
+                onChange={(e) => handleTypeSwitch(selectedNodeId!, e.target.value as NodeType)}
+                className="flex-1 bg-transparent border-none outline-none text-sm font-semibold text-gray-900 cursor-pointer"
+              >
+                {(Object.keys(NODE_DEFS) as NodeType[]).map((t) => (
+                  <option key={t} value={t}>{NODE_DEFS[t].label}</option>
+                ))}
+              </select>
             </div>
             <NodeConfigForm
               type={selectedType}
@@ -1264,6 +1314,125 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
           onClose={() => setActivationIssues(null)}
         />
       )}
+
+      {deleteConfirmId && (() => {
+        const summary = nodeDeleteSummary(deleteConfirmId);
+        if (!summary) {
+          // Stale id — close modal silently.
+          setTimeout(() => setDeleteConfirmId(null), 0);
+          return null;
+        }
+        return (
+          <div
+            onClick={() => setDeleteConfirmId(null)}
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            >
+              <div className="px-5 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">Delete this step?</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Removing &ldquo;{summary.label}&rdquo;:
+                </p>
+              </div>
+              <div className="px-5 py-3 space-y-1.5">
+                {summary.lostItems.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                    <span className="text-red-500 mt-0.5">•</span>
+                    <span>{s}</span>
+                  </div>
+                ))}
+                {summary.downstreamCount > 0 && (
+                  <div className="flex items-start gap-2 text-xs text-gray-700">
+                    <span className="text-red-500 mt-0.5">•</span>
+                    <div className="flex-1">
+                      <div>
+                        {summary.downstreamCount} downstream {summary.downstreamCount === 1 ? "step" : "steps"} will also be deleted:
+                      </div>
+                      <ul className="mt-1 ml-2 space-y-0.5">
+                        {summary.downstreamLabels.map((label, i) => (
+                          <li key={i} className="text-gray-600">– {label}</li>
+                        ))}
+                        {summary.downstreamMore > 0 && (
+                          <li className="text-gray-500">+ {summary.downstreamMore} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-400 leading-snug mt-3 pt-2 border-t border-gray-100">
+                  This can&apos;t be undone.
+                </p>
+              </div>
+              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => performDeleteNode(deleteConfirmId)}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {switchTarget && (() => {
+        const curr = configMap[switchTarget.nodeId] ?? {};
+        const summary = getDiscardSummary(switchTarget.currentType, curr, workflowEmails);
+        return (
+          <div
+            onClick={() => setSwitchTarget(null)}
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            >
+              <div className="px-5 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-900">Change action type?</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Switching from {NODE_DEFS[switchTarget.currentType].label} to{" "}
+                  {NODE_DEFS[switchTarget.newType].label} will discard:
+                </p>
+              </div>
+              <div className="px-5 py-3 space-y-1.5">
+                {summary.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                    <span className="text-red-500 mt-0.5">•</span>
+                    <span>{s}</span>
+                  </div>
+                ))}
+                <p className="text-[11px] text-gray-400 leading-snug mt-3 pt-2 border-t border-gray-100">
+                  Edges to/from this step are kept. The node id and position don&apos;t change.
+                </p>
+              </div>
+              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setSwitchTarget(null)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void switchNodeType(switchTarget.nodeId, switchTarget.newType)}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+                >
+                  Switch to {NODE_DEFS[switchTarget.newType].label}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
     </BuilderContext.Provider>
   );
@@ -2010,6 +2179,108 @@ function describeTriggerScope(triggerConfig: Record<string, unknown>, funnels: P
   if (!stepId) return funnel.name;
   const step = funnel.steps.find((s) => s.id === stepId);
   return step ? `${funnel.name} · ${step.name}` : funnel.name;
+}
+
+// Returns true if the node's current config carries non-default content
+// the operator might not want to silently discard. Drives the confirm modal
+// in the type-switcher header.
+function hasNodeContent(
+  type: NodeType,
+  config: Record<string, unknown>,
+  workflowEmails: WorkflowEmailMini[],
+): boolean {
+  switch (type) {
+    case "SEND_EMAIL": {
+      const emailId = config.emailId as string | undefined;
+      if (!emailId) return false;
+      const email = workflowEmails.find((e) => e.id === emailId);
+      if (!email) return false;
+      return !!(email.subject.trim() || email.bodyHtml.trim());
+    }
+    case "ADD_TAG":
+    case "REMOVE_TAG":
+      return !!(config.tagId && String(config.tagId).trim());
+    case "WEBHOOK":
+      return !!(config.url && String(config.url).trim());
+    case "DELAY":
+      return Number(config.days ?? 0) > 0
+          || Number(config.hours ?? 0) > 0
+          || Number(config.minutes ?? 0) > 0;
+    case "CONDITION":
+      // Any sub-field beyond the default kind hint counts as content.
+      return !!(
+        config.tagId         ||
+        config.field         ||
+        config.value         ||
+        config.operator      ||
+        config.broadcastId   ||
+        config.workflowEmailId
+      );
+    case "END":
+      return !!(config.reason && String(config.reason).trim());
+    default:
+      return false;
+  }
+}
+
+// Bullet list shown in the confirm modal — what the operator loses by
+// switching type. Keep the strings short and concrete.
+function getDiscardSummary(
+  type: NodeType,
+  config: Record<string, unknown>,
+  workflowEmails: WorkflowEmailMini[],
+): string[] {
+  switch (type) {
+    case "SEND_EMAIL": {
+      const emailId = config.emailId as string | undefined;
+      const email   = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
+      const out: string[] = [];
+      if (email?.subject?.trim())  out.push(`Email subject "${truncate(email.subject, 36)}"`);
+      if (email?.bodyHtml?.trim()) out.push("Email body content");
+      if (email?.senderId)         out.push("Sender pick");
+      return out.length ? out : ["The linked email and its content"];
+    }
+    case "ADD_TAG":
+    case "REMOVE_TAG":
+      return ["Tag selection"];
+    case "WEBHOOK": {
+      const url = String(config.url ?? "");
+      return [url ? `URL ${truncate(url, 36)}` : "Webhook config"];
+    }
+    case "DELAY": {
+      const t = totalDelayLabel(config);
+      return [`Delay ${t}`];
+    }
+    case "CONDITION":
+      return ["Condition kind + sub-fields", "Outgoing true/false branch labels"];
+    case "END":
+      return [`Exit reason "${truncate(String(config.reason ?? ""), 36)}"`];
+    default:
+      return ["Current config"];
+  }
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+// BFS from `startNodeId` over outgoing edges. Returns every node reachable
+// downstream — used by the delete cascade to compute the set that will be
+// removed alongside the operator's target. The start node itself is NOT in
+// the result (callers add it explicitly).
+function getDownstreamNodeIds(startNodeId: string, edges: Edge[]): Set<string> {
+  const visited = new Set<string>();
+  const queue: string[] = [startNodeId];
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    for (const e of edges) {
+      if (e.source !== curr) continue;
+      if (visited.has(e.target)) continue;
+      visited.add(e.target);
+      queue.push(e.target);
+    }
+  }
+  return visited;
 }
 
 function totalDelayLabel(config: Record<string, unknown>): string {

@@ -103,13 +103,16 @@ export function validateWorkflowEmail(email: WorkflowEmailMini): string[] {
 
 // ─── Per-node rules ────────────────────────────────────────────────────────
 
-// Funnel-scoped triggers: events that carry funnelId + funnelStepId. When the
-// operator picks a funnel filter, they must also pick a specific step — a
-// dangling "Course Premium / — any step —" filter is almost always an
-// oversight rather than an intentional broad scope. (Operators who want
-// "any funnel" can leave both fields blank.)
+// Funnel-scoped triggers: events that carry funnelId + funnelStepId. The
+// operator must pick BOTH — a workflow firing for "any checkout in the
+// workspace" is almost never the real intent, and silently passing on a
+// fresh template clone has burned users (e.g. Cart Abandonment fires for
+// upsells in a different funnel they didn't intend to track). Force explicit
+// scope; for the rare "all funnels" case, the operator can create one
+// workflow per funnel.
 const FUNNEL_SCOPED_TRIGGER_TYPES = new Set([
   "NEW_SALE", "SALE_CANCELED", "FORM_SUBMIT", "CHECKOUT_STARTED",
+  "SUBSCRIPTION_PAYMENT_FAILED",
 ]);
 
 export function validateTrigger(type: string, config: Record<string, unknown>): string[] {
@@ -119,9 +122,8 @@ export function validateTrigger(type: string, config: Record<string, unknown>): 
     if (!nonEmpty(config.tagId)) out.push("Pick which tag this trigger watches for.");
   }
   if (FUNNEL_SCOPED_TRIGGER_TYPES.has(type)) {
-    if (nonEmpty(config.funnelId) && !nonEmpty(config.funnelStepId)) {
-      out.push("Pick a specific step in this funnel, or remove the funnel filter to match all funnels.");
-    }
+    if (!nonEmpty(config.funnelId))     out.push("Pick which funnel this trigger watches.");
+    if (!nonEmpty(config.funnelStepId)) out.push("Pick which step in that funnel triggers the workflow.");
   }
   if (BROADCAST_SCOPED_TRIGGER_TYPES.has(type)) {
     if (!nonEmpty(config.broadcastId)) {
