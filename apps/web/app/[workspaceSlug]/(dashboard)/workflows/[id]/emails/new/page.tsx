@@ -23,7 +23,7 @@ export default async function NewWorkflowEmailPage({
   const [workflow, senders, templates] = await Promise.all([
     db.workflow.findFirst({
       where:  { id, workspaceId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, status: true },
     }),
     db.senderIdentity.findMany({
       where:   { workspaceId },

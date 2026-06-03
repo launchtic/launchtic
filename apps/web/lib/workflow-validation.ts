@@ -269,15 +269,13 @@ export function validateNode(type: string, config: Record<string, unknown>): str
         // explicitly scoped. Documented for clarity.
       } else if (kind === "email_opened" || kind === "email_clicked") {
         // Source discriminator:
-        //   "any"            → no scope, fires if contact opened/clicked any
-        //                      tracked email since this run started.
         //   "broadcast"      → broadcastId required.
         //   "workflow_email" → workflowEmailId required (any workflow's email).
+        // (An earlier "any" option that matched any tracked send was removed
+        //  — too easy to accidentally route on unrelated engagement.)
         const source = config.source as string | undefined;
         if (!source) {
-          out.push("Pick an email source (any, broadcast, or workflow email).");
-        } else if (source === "any") {
-          // No further fields required.
+          out.push("Pick an email source (broadcast or workflow email).");
         } else if (source === "broadcast") {
           if (!nonEmpty(config.broadcastId)) out.push("Pick which broadcast to check.");
         } else if (source === "workflow_email") {

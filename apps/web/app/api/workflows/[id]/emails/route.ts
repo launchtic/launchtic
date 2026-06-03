@@ -55,9 +55,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const wf = await db.workflow.findFirst({
       where:  { id, workspaceId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!wf) return err("Workflow not found", 404);
+    if (wf.status === "ACTIVE") {
+      return err("Parent workflow is active — pause it to add or edit emails.", 409);
+    }
 
     const data = createSchema.parse(await req.json().catch(() => ({})));
     const email = await db.workflowEmail.create({

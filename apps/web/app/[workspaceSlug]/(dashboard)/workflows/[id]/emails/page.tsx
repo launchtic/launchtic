@@ -27,7 +27,7 @@ export default async function WorkflowEmailListPage({
   const [workflow, emails] = await Promise.all([
     db.workflow.findFirst({
       where:  { id, workspaceId },
-      select: { id: true, name: true, nodes: true },
+      select: { id: true, name: true, nodes: true, status: true },
     }),
     db.workflowEmail.findMany({
       where:   { workflowId: id },
@@ -56,7 +56,7 @@ export default async function WorkflowEmailListPage({
   return (
     <WorkflowEmailList
       workspaceSlug={workspaceSlug}
-      workflow={{ id: workflow.id, name: workflow.name }}
+      workflow={{ id: workflow.id, name: workflow.name, status: workflow.status }}
       emails={emails.map((e) => ({
         id:           e.id,
         subject:      e.subject,

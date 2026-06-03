@@ -127,8 +127,9 @@ for (const kind of ["email_opened", "email_clicked"] as const) {
       .some((m) => m.includes("Pick an email source")),
   );
   check(
-    `${kind}: source=any → ok`,
-    validateNode("CONDITION", { kind, source: "any" }).length === 0,
+    `${kind}: source=any → rejected (option removed)`,
+    validateNode("CONDITION", { kind, source: "any" })
+      .some((m) => m.includes("isn't supported")),
   );
   check(
     `${kind}: source=broadcast no id → error`,

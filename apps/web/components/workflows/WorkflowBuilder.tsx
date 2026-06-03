@@ -199,6 +199,9 @@ const BuilderContext = createContext<{
   // Per-node issue list — empty means valid. Used by NodeCard to render the
   // small red badge in the top-left and tooltip the messages on hover.
   issuesByNode: Map<string, string[]>;
+  // True when the workflow is ACTIVE (Klaviyo-style strict lock). Nodes
+  // read this to hide their delete X and the "+" add-next affordance.
+  isLocked: boolean;
 } | null>(null);
 
 function useBuilder() {
@@ -243,10 +246,19 @@ const FUNNEL_SCOPED_TRIGGERS = new Set([
 // Which step types can fire each trigger. Used to filter the Step picker so
 // the operator only sees steps that actually emit the chosen trigger event
 // (e.g. NEW_SALE only fires from CHECKOUT/UPSELL/DOWNSELL steps).
+//
+// Separation of concerns:
+//   • Pages WITHOUT payment → FORM_SUBMIT (lead capture / opt-in forms).
+//     OPTIN, CUSTOM, THANKYOU. The form may sit on a thank-you page (e.g.
+//     post-purchase survey) — still a form, still belongs here.
+//   • Pages WITH payment → NEW_SALE / SALE_CANCELED / CHECKOUT_STARTED /
+//     SUBSCRIPTION_PAYMENT_FAILED. Those triggers fire on the payment
+//     event, not on the form embedded in the page, so the operator should
+//     pick the matching purchase trigger instead of FORM_SUBMIT.
 const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
   NEW_SALE:                    ["CHECKOUT", "UPSELL", "DOWNSELL"],
   SALE_CANCELED:               ["CHECKOUT", "UPSELL", "DOWNSELL"],
-  FORM_SUBMIT:                 ["OPTIN", "SALES", "CHECKOUT", "CUSTOM"],
+  FORM_SUBMIT:                 ["OPTIN", "SALES", "CUSTOM", "THANKYOU"],
   CHECKOUT_STARTED:            ["CHECKOUT"],
   // Subscriptions are only created from steps that process recurring
   // payment — typically CHECKOUT, occasionally UPSELL/DOWNSELL with a
@@ -330,7 +342,7 @@ function useCanAddNext(nodeId: string, nodeType: NodeType | "TRIGGER"): boolean 
 }
 
 function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtitle?: string }; id: string }) {
-  const { openPicker, deleteNode, issuesByNode } = useBuilder();
+  const { openPicker, deleteNode, issuesByNode, isLocked } = useBuilder();
   const def = NODE_DEFS[data.type];
 
   // Legacy / deprecated node type (e.g. SPLIT, GOAL from older workflows).
@@ -351,19 +363,21 @@ function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtit
         }}
       >
         <Handle type="target" position={Position.Top} style={handleStyle} />
-        <button
-          onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-          title="Delete this deprecated node"
-          style={{
-            position: "absolute", top: -8, right: -8,
-            width: 20, height: 20, borderRadius: 999,
-            border: "1.5px solid white", background: "#ef4444", color: "white",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", zIndex: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-          }}
-        >
-          <Trash2 size={10} />
-        </button>
+        {!isLocked && (
+          <button
+            onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
+            title="Delete this deprecated node"
+            style={{
+              position: "absolute", top: -8, right: -8,
+              width: 20, height: 20, borderRadius: 999,
+              border: "1.5px solid white", background: "#ef4444", color: "white",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", zIndex: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+            }}
+          >
+            <Trash2 size={10} />
+          </button>
+        )}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
           Deprecated
         </div>
@@ -427,31 +441,34 @@ function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtit
         </div>
       )}
       {/* Hover-revealed delete button. Stopping propagation so the click
-          doesn't also fire react-flow's onNodeClick. */}
-      <button
-        onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-        title="Delete node"
-        className="opacity-0 group-hover/node:opacity-100 transition-opacity"
-        style={{
-          position: "absolute",
-          top: -8,
-          right: -8,
-          width: 20,
-          height: 20,
-          borderRadius: 999,
-          border: "1.5px solid white",
-          background: "#ef4444",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          zIndex: 10,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-        }}
-      >
-        <Trash2 size={10} />
-      </button>
+          doesn't also fire react-flow's onNodeClick. Hidden when the
+          workflow is ACTIVE (Klaviyo lock). */}
+      {!isLocked && (
+        <button
+          onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
+          title="Delete node"
+          className="opacity-0 group-hover/node:opacity-100 transition-opacity"
+          style={{
+            position: "absolute",
+            top: -8,
+            right: -8,
+            width: 20,
+            height: 20,
+            borderRadius: 999,
+            border: "1.5px solid white",
+            background: "#ef4444",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            zIndex: 10,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+          }}
+        >
+          <Trash2 size={10} />
+        </button>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: data.subtitle ? 2 : 0 }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: `${def.color}15`, display: "flex", alignItems: "center", justifyContent: "center", color: def.color, flexShrink: 0 }}>
           <Icon size={13} />
@@ -476,13 +493,13 @@ function NodeCard({ data, id }: { data: { type: NodeType; label?: string; subtit
         </div>
       )}
       {data.type !== "END" && <Handle type="source" position={Position.Bottom} style={handleStyle} />}
-      {canAddNext && <NextStepButton onClick={() => openPicker(id)} />}
+      {canAddNext && !isLocked && <NextStepButton onClick={() => openPicker(id)} />}
     </div>
   );
 }
 
 function TriggerNodeCard({ data, id }: { data: { triggerType: string; triggerSubtitle: string | null }; id: string }) {
-  const { openPicker, issuesByNode } = useBuilder();
+  const { openPicker, issuesByNode, isLocked } = useBuilder();
   const canAddNext = useCanAddNext(id, "TRIGGER");
   // Trigger-level issues are keyed by the reserved "__trigger" id in the
   // issuesByNode map (see InnerBuilder's issue-mapping useMemo).
@@ -554,7 +571,7 @@ function TriggerNodeCard({ data, id }: { data: { triggerType: string; triggerSub
         </div>
       )}
       <Handle type="source" position={Position.Bottom} style={{ ...handleStyle, background: "#2563eb" }} />
-      {canAddNext && <NextStepButton onClick={() => openPicker(id)} accent="#2563eb" />}
+      {canAddNext && !isLocked && <NextStepButton onClick={() => openPicker(id)} accent="#2563eb" />}
     </div>
   );
 }
@@ -579,6 +596,12 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
 
   const [name, setName]           = useState(initial.name);
   const [status, setStatus]       = useState<Status>(initial.status);
+  // Klaviyo-style strict lock: an ACTIVE workflow is immutable from the
+  // builder. Threading isLocked through to: canvas affordances (delete /
+  // "+" / drag), node-config modal (form inputs + type switcher + delete),
+  // top-bar Save (hidden), name input (readonly), re-enroll selector
+  // (disabled). Server PATCH also rejects with 409 as a defense in depth.
+  const isLocked = status === "ACTIVE";
   const [triggerType, setTriggerType]     = useState<string>(initial.triggerType);
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(initial.triggerConfig);
   const [reEnrollPolicy, setReEnrollPolicy] = useState<string>(initial.reEnrollPolicy);
@@ -992,10 +1015,16 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
   // Block deletion of the trigger node via keyboard / programmatic changes.
   const onNodesChangeGuarded = useCallback(
     (changes: Parameters<typeof onNodesChange>[0]) => {
-      const safe = changes.filter((c) => !(c.type === "remove" && c.id === TRIGGER_ID));
+      // Trigger node can't be removed; ACTIVE workflows ignore removes too
+      // (Klaviyo lock) — including keyboard Delete/Backspace.
+      const safe = changes.filter((c) => {
+        if (c.type === "remove" && c.id === TRIGGER_ID) return false;
+        if (c.type === "remove" && isLocked) return false;
+        return true;
+      });
       onNodesChange(safe);
     },
-    [onNodesChange],
+    [onNodesChange, isLocked],
   );
 
   // ─── Live validation ────────────────────────────────────────────────────
@@ -1038,8 +1067,8 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
   // Builder context value — provided AFTER deleteNode is in scope. Stable
   // reference so custom node/edge components don't re-render on every change.
   const builderCtxValue = useMemo(
-    () => ({ openPicker, deleteNode, issuesByNode }),
-    [openPicker, deleteNode, issuesByNode],
+    () => ({ openPicker, deleteNode, issuesByNode, isLocked }),
+    [openPicker, deleteNode, issuesByNode, isLocked],
   );
 
 
@@ -1107,7 +1136,10 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="flex-1 text-sm font-semibold text-gray-900 bg-transparent border-none outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 -ml-1"
+          readOnly={isLocked}
+          className={`flex-1 text-sm font-semibold text-gray-900 bg-transparent border-none outline-none rounded px-2 py-1 -ml-1 ${
+            isLocked ? "cursor-not-allowed" : "focus:ring-2 focus:ring-blue-500"
+          }`}
         />
         <span className={`text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded ${
           status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" :
@@ -1121,14 +1153,18 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
         >
           <History size={13} /> Runs
         </button>
-        <button
-          onClick={() => save()}
-          disabled={!!busy}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg disabled:opacity-50"
-        >
-          {busy === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-          Save
-        </button>
+        {/* Save hidden when locked — the server PATCH would 409 anyway, and
+            the button reading "Save" on a read-only canvas is misleading. */}
+        {!isLocked && (
+          <button
+            onClick={() => save()}
+            disabled={!!busy}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg disabled:opacity-50"
+          >
+            {busy === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+            Save
+          </button>
+        )}
         <button
           onClick={activate}
           disabled={!!busy}
@@ -1145,6 +1181,26 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           )}
         </button>
       </div>
+
+      {/* Live-workflow lock banner. Klaviyo-style: an ACTIVE workflow is
+          immutable from this canvas. Pause to edit. Click Pause is a
+          one-step affordance via the top-bar Activate button (which reads
+          "Pause" when ACTIVE). */}
+      {isLocked && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 flex items-center gap-2 shrink-0">
+          <Pause size={13} className="text-amber-600 shrink-0" />
+          <p className="text-[12px] text-amber-800 flex-1">
+            Workflow is active — edits are locked. Click <strong>Pause</strong> to make changes.
+          </p>
+          <button
+            onClick={activate}
+            disabled={!!busy}
+            className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 hover:underline disabled:opacity-50"
+          >
+            Pause workflow
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0">
         {/* Canvas */}
@@ -1174,7 +1230,8 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
             <select
               value={reEnrollPolicy}
               onChange={(e) => setReEnrollPolicy(e.target.value)}
-              className="text-xs border-none outline-none bg-transparent text-gray-700 focus:ring-0 cursor-pointer"
+              disabled={isLocked}
+              className="text-xs border-none outline-none bg-transparent text-gray-700 focus:ring-0 cursor-pointer disabled:cursor-not-allowed disabled:text-gray-400"
             >
               <option value="SINGLE_ACTIVE">Single active</option>
               <option value="ALWAYS">Always</option>
@@ -1215,6 +1272,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           workflowEmails={workflowEmails}
           workflowId={initial.id}
           workspaceSlug={slug}
+          isLocked={isLocked}
         />
       )}
 
@@ -1451,7 +1509,7 @@ function NodeConfigModal({
   onClose, onTypeSwitch, onConfigChange, onDelete,
   triggerType, triggerConfig, onTriggerTypeChange, onTriggerConfigChange,
   tags, funnels, broadcasts, workspaceEmails, workflowEmails,
-  workflowId, workspaceSlug,
+  workflowId, workspaceSlug, isLocked,
 }: {
   isTrigger:        boolean;
   selectedNodeId:   string;
@@ -1472,6 +1530,8 @@ function NodeConfigModal({
   workflowEmails:   WorkflowEmailMini[];
   workflowId:       string;
   workspaceSlug:    string;
+  /** True when the parent workflow is ACTIVE; renders the modal read-only. */
+  isLocked:         boolean;
 }) {
   // ESC closes the modal — matches the AddNodePicker + ValidationIssuesModal
   // behavior so all overlays share one mental model.
@@ -1534,8 +1594,9 @@ function NodeConfigModal({
                   <select
                     value={selectedType}
                     onChange={(e) => onTypeSwitch(e.target.value as NodeType)}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-md py-1 pl-2 pr-7 text-sm font-semibold text-gray-900 cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    title="Change step type"
+                    disabled={isLocked}
+                    className="w-full appearance-none bg-white border border-gray-300 rounded-md py-1 pl-2 pr-7 text-sm font-semibold text-gray-900 cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+                    title={isLocked ? "Pause the workflow to change step type" : "Change step type"}
                   >
                     {(Object.keys(NODE_DEFS) as NodeType[]).map((t) => (
                       <option key={t} value={t}>{NODE_DEFS[t].label}</option>
@@ -1569,49 +1630,59 @@ function NodeConfigModal({
           </button>
         </div>
 
-        {/* Body — scrolls if the form exceeds the modal max-height. */}
-        <div className="p-4 overflow-y-auto">
-          {isTrigger && (
-            <TriggerConfigForm
-              triggerType={triggerType}
-              triggerConfig={triggerConfig}
-              funnels={funnels}
-              tags={tags}
-              broadcasts={broadcasts}
-              workspaceEmails={workspaceEmails}
-              workflowId={workflowId}
-              onTypeChange={onTriggerTypeChange}
-              onConfigChange={onTriggerConfigChange}
-            />
-          )}
-          {isSupportedAction && selectedType && (
-            <NodeConfigForm
-              type={selectedType}
-              config={selectedConfig}
-              onChange={onConfigChange}
-              tags={tags}
-              funnels={funnels}
-              broadcasts={broadcasts}
-              workflowEmails={workflowEmails}
-              workspaceSlug={workspaceSlug}
-              workflowId={workflowId}
-            />
-          )}
-          {isDeprecated && selectedType && (
-            <div className="space-y-3">
-              <p className="text-xs text-gray-600">
-                Type <code className="bg-gray-100 px-1 py-0.5 rounded">{selectedType}</code> is no
-                longer supported. Delete this node and replace with a supported step.
-              </p>
-              <button
-                onClick={onDelete}
-                className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg"
-              >
-                Delete this node
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Body — scrolls if the form exceeds the modal max-height. When
+            isLocked, the wrapping fieldset disables every nested form
+            control (inputs, selects, textareas, button submits) in one
+            shot. Anchor <a> tags don't honor fieldset disabled, so we gate
+            them inline (Create-new buttons hidden, navigation links still
+            available so the operator can read the linked content). */}
+        <fieldset disabled={isLocked} className="contents">
+          <div className="p-4 overflow-y-auto">
+            {isTrigger && (
+              <TriggerConfigForm
+                triggerType={triggerType}
+                triggerConfig={triggerConfig}
+                funnels={funnels}
+                tags={tags}
+                broadcasts={broadcasts}
+                workspaceEmails={workspaceEmails}
+                workflowId={workflowId}
+                onTypeChange={onTriggerTypeChange}
+                onConfigChange={onTriggerConfigChange}
+              />
+            )}
+            {isSupportedAction && selectedType && (
+              <NodeConfigForm
+                type={selectedType}
+                config={selectedConfig}
+                onChange={onConfigChange}
+                tags={tags}
+                funnels={funnels}
+                broadcasts={broadcasts}
+                workflowEmails={workflowEmails}
+                workspaceSlug={workspaceSlug}
+                workflowId={workflowId}
+                isLocked={isLocked}
+              />
+            )}
+            {isDeprecated && selectedType && (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-600">
+                  Type <code className="bg-gray-100 px-1 py-0.5 rounded">{selectedType}</code> is no
+                  longer supported. Delete this node and replace with a supported step.
+                </p>
+                {!isLocked && (
+                  <button
+                    onClick={onDelete}
+                    className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg"
+                  >
+                    Delete this node
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </fieldset>
 
         {/* Footer — single Done button. Autosave already wrote the changes
             so closing the modal is the same as "save & close". */}
@@ -2069,7 +2140,7 @@ function truncateMiddle(s: string, n: number): string {
 
 function NodeConfigForm({
   type, config, onChange, tags, funnels, broadcasts,
-  workflowEmails, workspaceSlug, workflowId,
+  workflowEmails, workspaceSlug, workflowId, isLocked,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
@@ -2080,6 +2151,9 @@ function NodeConfigForm({
   workflowEmails:        WorkflowEmailMini[];
   workspaceSlug:         string;
   workflowId:            string;
+  /** When true, hide write affordances (Create new email). Form controls
+      are already disabled by the wrapping modal fieldset. */
+  isLocked:              boolean;
 }) {
   const inp  = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl  = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
@@ -2161,15 +2235,18 @@ function NodeConfigForm({
             escape hatch and shouldn't read as paired with Edit. Navigates
             to the dedicated /emails/new page; no DB row is created until
             the operator clicks Save in the editor, so abandoning the page
-            doesn't leave an orphan email behind. */}
-        <div className="text-[11px] text-gray-500">
-          <a
-            href={`/${workspaceSlug}/workflows/${workflowId}/emails/new`}
-            className="font-medium text-gray-600 hover:text-gray-900 hover:underline"
-          >
-            + Create new email
-          </a>
-        </div>
+            doesn't leave an orphan email behind. Hidden when the workflow
+            is ACTIVE — the editor's Save would 409. */}
+        {!isLocked && (
+          <div className="text-[11px] text-gray-500">
+            <a
+              href={`/${workspaceSlug}/workflows/${workflowId}/emails/new`}
+              className="font-medium text-gray-600 hover:text-gray-900 hover:underline"
+            >
+              + Create new email
+            </a>
+          </div>
+        )}
       </div>
     );
   }
@@ -2282,7 +2359,6 @@ function NodeConfigForm({
           const verb     = kind === "email_opened" ? "opened" : "clicked any link in";
           const source   = (config.source as string | undefined) ?? "";
           // Source narrows what's checked since the run started:
-          //   "any"            → any tracked send (broadcast or workflow email)
           //   "broadcast"      → the picked broadcast specifically
           //   "workflow_email" → the picked workflow email (this workflow only,
           //                      to keep the picker tight and predictable)
@@ -2299,7 +2375,6 @@ function NodeConfigForm({
                 <label className={lbl}>Source</label>
                 <select className={inp} value={source} onChange={(e) => onSourceChange(e.target.value)}>
                   <option value="">— pick a source —</option>
-                  <option value="any">Any email</option>
                   <option value="broadcast">Specific broadcast</option>
                   <option value="workflow_email">Workflow email (this workflow)</option>
                 </select>
@@ -2493,7 +2568,6 @@ function conditionSubtitle(
       const verb   = kind === "email_opened" ? "opened" : "clicked";
       const source = config.source as string | undefined;
       if (!source) return `if ${verb} … (pick source)`;
-      if (source === "any") return `if ${verb} any email`;
       if (source === "broadcast") {
         const id = config.broadcastId as string | undefined;
         if (!id) return `if ${verb} broadcast …`;

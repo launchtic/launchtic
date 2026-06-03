@@ -27,9 +27,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // workflow. Server-side guard so a forged emailId can't be patched.
     const email = await db.workflowEmail.findFirst({
       where:  { id: emailId, workflowId: id, workspaceId },
-      select: { id: true },
+      select: { id: true, workflow: { select: { status: true } } },
     });
     if (!email) return err("WorkflowEmail not found", 404);
+    // Klaviyo-style lock: editing an email of an ACTIVE workflow is blocked.
+    if (email.workflow.status === "ACTIVE") {
+      return err("Parent workflow is active — pause it to edit emails.", 409);
+    }
 
     const patch = updateSchema.parse(await req.json());
     const updated = await db.workflowEmail.update({
@@ -57,9 +61,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     const email = await db.workflowEmail.findFirst({
       where:  { id: emailId, workflowId: id, workspaceId },
-      select: { id: true },
+      select: { id: true, workflow: { select: { status: true } } },
     });
     if (!email) return err("WorkflowEmail not found", 404);
+    if (email.workflow.status === "ACTIVE") {
+      return err("Parent workflow is active — pause it to delete emails.", 409);
+    }
 
     // Cascade EmailSend.workflowEmailId → SET NULL via FK; historical sends
     // keep their content snapshot in bodyHtml. Caller is responsible for

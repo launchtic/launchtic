@@ -508,7 +508,7 @@ async function execDelay(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 //   "contact_field"      → { field, operator, value }
 //   "contact_purchased"  → { funnelStepId? }  — checks Order.PAID since run started
 //   "email_opened"       → { source, broadcastId?, workflowEmailId? }
-//                          source = "any" | "broadcast" | "workflow_email"
+//                          source = "broadcast" | "workflow_email"
 //                          checks EmailSend.openedAt >= run.startedAt
 //   "email_clicked"      → same shape, checks EmailSend.clickedAt >= run.startedAt
 
@@ -569,14 +569,11 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     case "email_clicked": {
       // True if the contact opened/clicked an email matching the configured
       // source filter, with engagement timestamp >= run.startedAt.
-      //   source="any"            → no source filter; matches any tracked
-      //                             EmailSend for this contact.
       //   source="broadcast"      → matches sends with broadcastId=X.
       //   source="workflow_email" → matches sends with workflowEmailId=X
       //                             (any workflow's email in this workspace).
       if (!ctx.contact) { result = false; break; }
       const source = cfg.source as string | undefined;
-      if (!source) { result = false; break; }
       const where: Record<string, unknown> = { contactId: ctx.contact.id };
       if (source === "broadcast") {
         const broadcastId = cfg.broadcastId as string | undefined;
@@ -586,7 +583,9 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
         const workflowEmailId = cfg.workflowEmailId as string | undefined;
         if (!workflowEmailId) { result = false; break; }
         where.workflowEmailId = workflowEmailId;
-      } else if (source !== "any") {
+      } else {
+        // Missing or unsupported source — fail closed so a misconfigured
+        // condition routes to the "false" branch rather than ANY-emailing.
         result = false;
         break;
       }

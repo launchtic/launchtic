@@ -46,12 +46,19 @@ export default function WorkflowEmailEditor({
   workspaceSlug, workflow, email: initial, senders, templates,
 }: {
   workspaceSlug: string;
-  workflow:      { id: string; name: string };
+  workflow:      { id: string; name: string; status: string };
   /** Existing email when editing; null when creating a new one. */
   email:         EmailRow | null;
   senders:       Sender[];
   templates:     TemplateMini[];
 }) {
+  // Klaviyo-style strict lock: an ACTIVE parent workflow makes its emails
+  // read-only. The server PATCH already 409s; this disables UI affordances
+  // so the operator sees the lock before clicking Save and getting an
+  // error toast. Create flow (initial === null) is unreachable when the
+  // parent is ACTIVE since the modal hides the "Create new email" CTA —
+  // but we still respect isLocked here as defense-in-depth.
+  const isLocked = workflow.status === "ACTIVE";
   const router = useRouter();
   const toast  = useToast();
 
@@ -233,18 +240,33 @@ export default function WorkflowEmailEditor({
             ? <span className="italic text-gray-500 font-normal">New email</span>
             : subject.trim() || <span className="italic text-gray-400 font-normal">Untitled email</span>}
         </span>
-        {dirty && !busy && (
+        {dirty && !busy && !isLocked && (
           <span className="text-[11px] text-amber-600 shrink-0">Unsaved changes</span>
         )}
-        <button
-          onClick={onSave}
-          disabled={busy || (!isCreate && !dirty)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
-        >
-          {busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-          {isCreate ? "Create email" : "Save"}
-        </button>
+        {/* Save hidden when the parent workflow is ACTIVE — PATCH would
+            409. The lock banner directs the operator to pause to edit. */}
+        {!isLocked && (
+          <button
+            onClick={onSave}
+            disabled={busy || (!isCreate && !dirty)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+            {isCreate ? "Create email" : "Save"}
+          </button>
+        )}
       </div>
+
+      {/* Parent-workflow lock banner. Mirrors the workflow builder banner
+          so the operator gets the same explanation across surfaces. */}
+      {isLocked && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 flex items-center gap-2 shrink-0">
+          <AlertCircle size={13} className="text-amber-600 shrink-0" />
+          <p className="text-[12px] text-amber-800 flex-1">
+            Parent workflow is active — emails are read-only. Open the workflow and click <strong>Pause</strong> to edit.
+          </p>
+        </div>
+      )}
 
       {/* Validation error banner — surfaces every issue at once so the
           operator doesn't fix one only to hit the next on the second save. */}
@@ -257,7 +279,15 @@ export default function WorkflowEmailEditor({
         </div>
       )}
 
-      {/* Body — left: form fields (sender, subject). Right (flex-1): editor. */}
+      {/* Body — left: form fields (sender, subject). Right (flex-1): editor.
+          Wrapping fieldset disables every form control (selects, inputs,
+          variable chips) at once when the workflow is ACTIVE. `contents`
+          removes the fieldset's own box so flex layout below works
+          unchanged. (RichEmailEditor's TipTap surface isn't a form
+          control — its read-only state needs a separate path, but for MVP
+          the lock banner is clear enough; operators won't expect typing
+          into mly to persist when Save is hidden.) */}
+      <fieldset disabled={isLocked} className="contents">
       <div className="flex-1 min-h-0 flex flex-col">
         {/* Compact field row above the editor. Three columns on wide
             screens: From | Subject (stretchy) | Template (optional, only
@@ -368,6 +398,7 @@ export default function WorkflowEmailEditor({
           </div>
         </div>
       </div>
+      </fieldset>
     </div>
   );
 }

@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Mail, Plus, Pencil, Trash2, Loader2, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Mail, Plus, Pencil, Trash2, Loader2, X, AlertTriangle, AlertCircle } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useToast } from "../ui/Toast";
 
@@ -28,10 +28,14 @@ export default function WorkflowEmailList({
   workspaceSlug, workflow, emails: initial,
 }: {
   workspaceSlug: string;
-  workflow:      { id: string; name: string };
+  workflow:      { id: string; name: string; status: string };
   emails:        EmailRow[];
 }) {
   const toast = useToast();
+  // Klaviyo-style lock: ACTIVE parent → no New email / Delete affordances.
+  // Edit link still navigates to the editor (which itself goes read-only
+  // and surfaces the same lock banner there).
+  const isLocked = workflow.status === "ACTIVE";
 
   // Local mirror so we can drop a row on delete without a server round-trip.
   // (The page is a Server Component — a router.refresh() would also work
@@ -80,20 +84,31 @@ export default function WorkflowEmailList({
         </Link>
         <span className="text-gray-300">/</span>
         <h1 className="text-sm font-semibold text-gray-900 flex-1 min-w-0">Emails</h1>
-        <Link
-          href={newUrl}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-        >
-          <Plus size={12} />
-          New email
-        </Link>
+        {!isLocked && (
+          <Link
+            href={newUrl}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+          >
+            <Plus size={12} />
+            New email
+          </Link>
+        )}
       </div>
+
+      {isLocked && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 flex items-center gap-2 shrink-0">
+          <AlertCircle size={13} className="text-amber-600 shrink-0" />
+          <p className="text-[12px] text-amber-800 flex-1">
+            Parent workflow is active — emails are read-only. Open the workflow and click <strong>Pause</strong> to make changes.
+          </p>
+        </div>
+      )}
 
       {/* List body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 sm:px-5 py-6">
           {rows.length === 0 ? (
-            <EmptyState newUrl={newUrl} />
+            <EmptyState newUrl={newUrl} canCreate={!isLocked} />
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
@@ -113,6 +128,7 @@ export default function WorkflowEmailList({
                       key={r.id}
                       row={r}
                       editHref={editUrl(r.id)}
+                      canDelete={!isLocked}
                       onDelete={() => setPendingDelete(r)}
                     />
                   ))}
@@ -135,7 +151,7 @@ export default function WorkflowEmailList({
   );
 }
 
-function Row({ row, editHref, onDelete }: { row: EmailRow; editHref: string; onDelete: () => void }) {
+function Row({ row, editHref, canDelete, onDelete }: { row: EmailRow; editHref: string; canDelete: boolean; onDelete: () => void }) {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3 max-w-0">
@@ -172,24 +188,26 @@ function Row({ row, editHref, onDelete }: { row: EmailRow; editHref: string; onD
           <Link
             href={editHref}
             className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded"
-            title="Edit"
+            title={canDelete ? "Edit" : "View (locked — pause workflow to edit)"}
           >
             <Pencil size={13} />
           </Link>
-          <button
-            onClick={onDelete}
-            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-            title="Delete"
-          >
-            <Trash2 size={13} />
-          </button>
+          {canDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+              title="Delete"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </td>
     </tr>
   );
 }
 
-function EmptyState({ newUrl }: { newUrl: string }) {
+function EmptyState({ newUrl, canCreate }: { newUrl: string; canCreate: boolean }) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-10 text-center">
       <div className="w-12 h-12 mx-auto rounded-xl bg-blue-50 flex items-center justify-center mb-3">
@@ -199,13 +217,15 @@ function EmptyState({ newUrl }: { newUrl: string }) {
       <p className="text-xs text-gray-500 mb-4 max-w-sm mx-auto">
         Workflow emails are reusable across Send email steps in this workflow. Create one to get started.
       </p>
-      <Link
-        href={newUrl}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-      >
-        <Plus size={12} />
-        New email
-      </Link>
+      {canCreate && (
+        <Link
+          href={newUrl}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+        >
+          <Plus size={12} />
+          New email
+        </Link>
+      )}
     </div>
   );
 }

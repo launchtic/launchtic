@@ -64,6 +64,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const existing = await db.workflow.findFirst({ where: { id, workspaceId } });
     if (!existing) return err("Workflow not found", 404);
 
+    // Klaviyo-style strict lock: an ACTIVE workflow is immutable. The
+    // operator must Pause it first via the /status endpoint, edit, then
+    // re-Activate (which re-runs validation). This prevents in-flight runs
+    // from racing against config changes — running enrollments keep
+    // executing the graph they enrolled into.
+    if (existing.status === "ACTIVE") {
+      return err("Workflow is active — pause it to edit.", 409);
+    }
+
     const patch = updateSchema.parse(await req.json());
 
     const updated = await db.workflow.update({

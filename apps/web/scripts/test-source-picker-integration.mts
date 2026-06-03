@@ -68,7 +68,6 @@ if (typeof fireTrigger !== "function") {
 const PREFIX = "smoketest_src_picker";
 const NOW    = new Date();
 const PAST   = new Date(NOW.getTime() - 60 * 60 * 1000);     // 1h ago
-const FUTURE = new Date(NOW.getTime() + 60 * 60 * 1000);     // 1h ahead
 const FAR_PAST = new Date(NOW.getTime() - 24 * 60 * 60 * 1000); // 24h ago
 
 let pass = 0, fail = 0;
@@ -369,9 +368,11 @@ async function main() {
   created.emailSends.push(sendWorkflowEmail.id);
 
   // The query mirror — keep the WHERE shape EXACTLY as in execCondition.
+  // source="any" was removed; this mirror also drops it so the test exercises
+  // what the worker actually accepts.
   async function condQuery(
     kind: "email_opened" | "email_clicked",
-    cfg:  { source: "any" | "broadcast" | "workflow_email"; broadcastId?: string; workflowEmailId?: string },
+    cfg:  { source: "broadcast" | "workflow_email"; broadcastId?: string; workflowEmailId?: string },
     runStartedAt: Date,
   ): Promise<boolean> {
     const where: Record<string, unknown> = { contactId: contact.id };
@@ -381,7 +382,7 @@ async function main() {
     } else if (cfg.source === "workflow_email") {
       if (!cfg.workflowEmailId) return false;
       where.workflowEmailId = cfg.workflowEmailId;
-    } else if (cfg.source !== "any") {
+    } else {
       return false;
     }
     const dateField = kind === "email_opened" ? "openedAt" : "clickedAt";
@@ -390,42 +391,30 @@ async function main() {
     return !!send;
   }
 
-  // B1: source=any, run.startedAt=PAST → catches recent open
-  check("B1: email_opened source=any + recent open → true",
-    await condQuery("email_opened", { source: "any" }, PAST) === true);
-
-  // B2: source=any, run.startedAt=FUTURE → no opens since (nothing in future)
-  check("B2: email_opened source=any + nothing since future → false",
-    await condQuery("email_opened", { source: "any" }, FUTURE) === false);
-
-  // B3: source=broadcast match
-  check("B3: email_opened source=broadcast A + recent open on A → true",
+  // B1: source=broadcast match
+  check("B1: email_opened source=broadcast A + recent open on A → true",
     await condQuery("email_opened", { source: "broadcast", broadcastId: broadcastA.id }, PAST) === true);
 
-  // B4: source=broadcast but configured for B (only old open exists there)
-  check("B4: email_opened source=broadcast B (only old open) since PAST → false",
+  // B2: source=broadcast but configured for B (only old open exists there)
+  check("B2: email_opened source=broadcast B (only old open) since PAST → false",
     await condQuery("email_opened", { source: "broadcast", broadcastId: broadcastB.id }, PAST) === false);
 
-  // B5: source=workflow_email match
-  check("B5: email_opened source=workflow_email upstream + recent open → true",
+  // B3: source=workflow_email match
+  check("B3: email_opened source=workflow_email upstream + recent open → true",
     await condQuery("email_opened", { source: "workflow_email", workflowEmailId: upstreamEmail.id }, PAST) === true);
 
-  // B6: time window — open happened BEFORE run.startedAt
-  // halfway is 30m ago; future-30m would be 30m in the future, so a run
-  // that started 30m in the future would see no past opens.
+  // B4: time window — open happened BEFORE run.startedAt
+  // halfway is 30m ago; broadcastA's open is at halfway. A run that started
+  // 30m in the future sees no past opens (since=futurePoint > halfway).
   const futurePoint = new Date(NOW.getTime() + 30 * 60 * 1000);
-  check("B6: email_opened time window — open before run.startedAt → false",
-    await condQuery("email_opened", { source: "any" }, futurePoint) === false);
+  check("B4: email_opened time window — open before run.startedAt → false",
+    await condQuery("email_opened", { source: "broadcast", broadcastId: broadcastA.id }, futurePoint) === false);
 
-  // B7: email_clicked source=any catches recent click
-  check("B7: email_clicked source=any + recent click → true",
-    await condQuery("email_clicked", { source: "any" }, PAST) === true);
-
-  // B8: email_clicked source=broadcast A
-  check("B8: email_clicked source=broadcast A + recent click on A → true",
+  // B5: email_clicked source=broadcast A catches recent click
+  check("B5: email_clicked source=broadcast A + recent click on A → true",
     await condQuery("email_clicked", { source: "broadcast", broadcastId: broadcastA.id }, PAST) === true);
 
-  // B9: contact isolation — different contact must not match
+  // B6: contact isolation — different contact must not match
   const otherContact = await db.contact.create({
     data: {
       workspaceId: ws.id,
@@ -441,7 +430,7 @@ async function main() {
     },
     select: { id: true },
   });
-  check("B9: contact isolation — different contact has no engagement", otherContactQuery == null);
+  check("B6: contact isolation — different contact has no engagement", otherContactQuery == null);
 }
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────
