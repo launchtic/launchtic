@@ -17,7 +17,8 @@ export type TriggerType =
   | "TAG_REMOVED"
   | "EMAIL_OPENED"
   | "EMAIL_LINK_CLICKED"
-  | "CHECKOUT_STARTED";
+  | "CHECKOUT_STARTED"
+  | "PAGE_VISITED";
 
 export type TriggerContext = {
   contactId?:     string;

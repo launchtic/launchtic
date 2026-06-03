@@ -224,7 +224,7 @@ const TRIGGER_TYPES = [
   "NEW_SALE", "SALE_CANCELED", "SUBSCRIPTION_PAYMENT_FAILED",
   "FORM_SUBMIT", "TAG_ADDED", "TAG_REMOVED",
   "EMAIL_OPENED", "EMAIL_LINK_CLICKED",
-  "CHECKOUT_STARTED",
+  "CHECKOUT_STARTED", "PAGE_VISITED",
 ];
 
 // Triggers that scope to a specific email (broadcast OR workflow email).
@@ -238,7 +238,7 @@ const EMAIL_SCOPED_TRIGGERS = new Set(["EMAIL_OPENED", "EMAIL_LINK_CLICKED"]);
 // hide the funnel dropdown to avoid confusing the operator.
 const FUNNEL_SCOPED_TRIGGERS = new Set([
   "NEW_SALE", "SALE_CANCELED", "FORM_SUBMIT", "CHECKOUT_STARTED",
-  "SUBSCRIPTION_PAYMENT_FAILED",
+  "SUBSCRIPTION_PAYMENT_FAILED", "PAGE_VISITED",
 ]);
 
 // Which step types can fire each trigger. Used to filter the Step picker so
@@ -262,6 +262,11 @@ const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
   // payment — typically CHECKOUT, occasionally UPSELL/DOWNSELL with a
   // recurring price plan.
   SUBSCRIPTION_PAYMENT_FAILED: ["CHECKOUT", "UPSELL", "DOWNSELL"],
+  // PAGE_VISITED fires on any tracked page load — every step type is a
+  // valid target (operator scopes to a specific funnel + step in the
+  // dropdown). Identity comes from a cookie set when the contact clicks an
+  // email link; anonymous visitors don't trigger PAGE_VISITED.
+  PAGE_VISITED:                ["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"],
 };
 
 // One-line plain-English description shown under the trigger dropdown so the
@@ -276,6 +281,7 @@ const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   TAG_REMOVED:                 "When the tag below gets removed from a contact.",
   EMAIL_OPENED:                "When a contact opens a tracked email. Pick a source (broadcast or workflow email) below. Fires once per contact per email.",
   EMAIL_LINK_CLICKED:          "When a contact clicks a link in a tracked email. Pick a source below; optionally narrow to a specific link. Fires once per contact per email.",
+  PAGE_VISITED:                "When a known contact loads the funnel page below. Identity comes from a cookie set on email click — anonymous first-time visitors don't fire this trigger.",
 };
 
 function triggerHumanLabel(t: string): string {
@@ -1636,6 +1642,7 @@ function NodeConfigModal({
                 workflowEmails={workflowEmails}
                 workspaceSlug={workspaceSlug}
                 workflowId={workflowId}
+                workflowTriggerType={triggerType}
                 isLocked={isLocked}
               />
             )}
@@ -2114,7 +2121,7 @@ function truncateMiddle(s: string, n: number): string {
 
 function NodeConfigForm({
   type, config, onChange, tags, funnels, broadcasts,
-  workflowEmails, workspaceSlug, workflowId, isLocked,
+  workflowEmails, workspaceSlug, workflowId, workflowTriggerType, isLocked,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
@@ -2125,6 +2132,10 @@ function NodeConfigForm({
   workflowEmails:        WorkflowEmailMini[];
   workspaceSlug:         string;
   workflowId:            string;
+  /** The parent workflow's triggerType. WEBHOOK uses it to populate the
+      `type` field in the payload-preview JSON so the operator sees the
+      exact shape their receiver will get. */
+  workflowTriggerType:   string;
   /** When true, hide write affordances (Create new email). Form controls
       are already disabled by the wrapping modal fieldset. */
   isLocked:              boolean;
@@ -2239,18 +2250,13 @@ function NodeConfigForm({
 
   if (type === "WEBHOOK") {
     return (
-      <div className="space-y-3">
-        <div>
-          <label className={lbl}>URL</label>
-          <input className={inp} value={(config.url as string) ?? ""} onChange={(e) => onChange({ url: e.target.value })} placeholder="https://…" />
-        </div>
-        <div>
-          <label className={lbl}>Method</label>
-          <select className={inp} value={(config.method as string) ?? "POST"} onChange={(e) => onChange({ method: e.target.value })}>
-            <option>POST</option><option>GET</option><option>PUT</option><option>PATCH</option>
-          </select>
-        </div>
-      </div>
+      <WebhookForm
+        config={config}
+        onChange={onChange}
+        triggerType={workflowTriggerType}
+        inp={inp}
+        lbl={lbl}
+      />
     );
   }
 
@@ -2427,6 +2433,224 @@ function NodeConfigForm({
   }
 
   return null;
+}
+
+// WEBHOOK config form — URL + method + custom headers + payload preview.
+//
+// Headers are stored on disk as an array of [key, value] tuples so the
+// builder UI can preserve insertion order. The executor converts to an
+// object before spreading into the fetch() headers map.
+//
+// Values are NOT masked client-side beyond `type="password"`. Bearer
+// tokens / API keys end up in the workflow JSON in plaintext — see
+// SECURITY NOTE in execWebhook() about the planned secret vault.
+function WebhookForm({
+  config, onChange, triggerType, inp, lbl,
+}: {
+  config:      Record<string, unknown>;
+  onChange:    (patch: Record<string, unknown>) => void;
+  triggerType: string;
+  inp:         string;
+  lbl:         string;
+}) {
+  // Payload preview is reference material — most operators won't need it on
+  // every visit. Collapsed by default; expand to inspect or copy the JSON
+  // shape. Local state (not persisted) — purely a view preference.
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Normalize header storage to an array of [k,v] tuples regardless of how
+  // it was last saved (legacy object shape is still accepted by the
+  // executor; this normalizer means an old workflow opens cleanly).
+  const rawHeaders = config.headers as unknown;
+  const headers: Array<[string, string]> = Array.isArray(rawHeaders)
+    ? (rawHeaders.filter(
+        (e) => Array.isArray(e) && e.length === 2,
+      ) as Array<[string, string]>)
+    : rawHeaders && typeof rawHeaders === "object"
+      ? Object.entries(rawHeaders as Record<string, string>)
+      : [];
+
+  const updateHeaders = (next: Array<[string, string]>) => {
+    onChange({ headers: next });
+  };
+  const setKey   = (i: number, k: string) => updateHeaders(headers.map((row, idx) => idx === i ? [k, row[1]] : row));
+  const setValue = (i: number, v: string) => updateHeaders(headers.map((row, idx) => idx === i ? [row[0], v] : row));
+  const removeRow = (i: number)            => updateHeaders(headers.filter((_, idx) => idx !== i));
+  const addRow    = (k = "", v = "")       => updateHeaders([...headers, [k, v]]);
+
+  // Build the same payload shape execWebhook() sends, populated with sample
+  // values the operator can recognize. Anything that depends on workflow
+  // runtime (workspaceId, runId, etc.) is shown as a placeholder.
+  const sampleType = (triggerType || "").toLowerCase();
+  const preview = JSON.stringify({
+    type:        sampleType,
+    workspaceId: "ws_xxx",
+    data: {
+      workflowId: "wf_xxx",
+      runId:      "run_xxx",
+      nodeId:     "node_xxx",
+      contact: {
+        id:        "c_xxx",
+        email:     "alice@example.com",
+        firstName: "Alice",
+        lastName:  "Wonderland",
+      },
+      trigger: sampleTriggerData(triggerType),
+      context: {},
+    },
+    sentAt: "2026-06-03T12:34:56.000Z",
+  }, null, 2);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={lbl}>URL</label>
+        <input
+          className={inp}
+          value={(config.url as string) ?? ""}
+          onChange={(e) => onChange({ url: e.target.value })}
+          placeholder="https://…"
+        />
+      </div>
+      <div>
+        <label className={lbl}>Method</label>
+        <select
+          className={inp}
+          value={(config.method as string) ?? "POST"}
+          onChange={(e) => onChange({ method: e.target.value })}
+        >
+          <option>POST</option><option>GET</option><option>PUT</option><option>PATCH</option>
+        </select>
+      </div>
+
+      {/* Headers editor */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] uppercase font-semibold tracking-wider text-gray-500">Headers</span>
+          <button
+            type="button"
+            onClick={() => addRow("Authorization", "Bearer ")}
+            className="text-[11px] font-medium text-gray-500 hover:text-gray-900 hover:underline"
+            title="Insert an Authorization Bearer row"
+          >
+            + Bearer token
+          </button>
+        </div>
+        {headers.length === 0 ? (
+          <p className="text-[11px] text-gray-500 italic mb-1">
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {headers.map(([k, v], i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input
+                  className={`${inp} flex-1`}
+                  value={k}
+                  onChange={(e) => setKey(i, e.target.value)}
+                  placeholder="Header name"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <input
+                  className={`${inp} flex-[1.4] font-mono`}
+                  type="password"
+                  value={v}
+                  onChange={(e) => setValue(i, e.target.value)}
+                  placeholder="Value"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="p-1 text-gray-400 hover:text-red-600"
+                  title="Remove header"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => addRow()}
+          className="mt-1.5 text-[11px] font-medium text-gray-500 hover:text-gray-900 hover:underline"
+        >
+          + Add header
+        </button>
+        <p className="text-[10px] text-gray-400 mt-1.5 leading-snug">
+          Values are stored as part of this workflow. Don&apos;t share workflow exports that contain API keys.
+        </p>
+      </div>
+
+      {/* Payload preview — collapsed by default. The default-on body shape
+          is documented in the worker's execWebhook(); we only surface it in
+          UI when the operator asks. Keeps the WEBHOOK panel from being
+          overwhelmed by a wall of sample JSON. */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowPreview((v) => !v)}
+          className="flex items-center gap-1 group"
+          aria-expanded={showPreview}
+        >
+          <ChevronDown
+            size={11}
+            className={`text-gray-400 transition-transform ${showPreview ? "" : "-rotate-90"}`}
+          />
+          <span className="text-[11px] uppercase font-semibold tracking-wider text-gray-500 group-hover:text-gray-700">
+            Payload preview
+          </span>
+        </button>
+        {showPreview && (
+          <div className="mt-1.5">
+            <div className="flex items-center justify-end mb-1">
+              <button
+                type="button"
+                onClick={() => { void navigator.clipboard.writeText(preview).catch(() => {}); }}
+                className="text-[11px] font-medium text-gray-500 hover:text-gray-900 hover:underline"
+                title="Copy this JSON shape to clipboard"
+              >
+                Copy
+              </button>
+            </div>
+            <pre className="text-[10px] font-mono leading-snug bg-gray-50 border border-gray-200 rounded-lg p-2 max-h-56 overflow-auto whitespace-pre">
+{preview}
+            </pre>
+            <p className="text-[10px] text-gray-400 mt-1 leading-snug">
+              Receiver code should switch on <code className="bg-gray-100 px-1 rounded">type</code>; runtime values
+              (IDs, contact, trigger) replace the placeholders above.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Sample trigger context per type — picked so the operator sees fields they'll
+// actually receive at runtime. Keep keys aligned with what fireTrigger writes.
+function sampleTriggerData(triggerType: string): Record<string, unknown> {
+  switch (triggerType) {
+    case "NEW_SALE":
+    case "SALE_CANCELED":
+      return { orderId: "ord_xxx", orderTotal: 4900, orderCurrency: "usd", funnelId: "fnl_xxx", funnelStepId: "stp_xxx" };
+    case "SUBSCRIPTION_PAYMENT_FAILED":
+      return { subscriptionId: "sub_xxx", funnelId: "fnl_xxx", funnelStepId: "stp_xxx" };
+    case "FORM_SUBMIT":
+    case "CHECKOUT_STARTED":
+      return { funnelId: "fnl_xxx", funnelStepId: "stp_xxx" };
+    case "TAG_ADDED":
+    case "TAG_REMOVED":
+      return { tagId: "tag_xxx" };
+    case "EMAIL_OPENED":
+      return { emailSendId: "es_xxx", broadcastId: "bc_xxx" };
+    case "EMAIL_LINK_CLICKED":
+      return { emailSendId: "es_xxx", broadcastId: "bc_xxx", linkUrl: "https://app.example.com/cta" };
+    default:
+      return {};
+  }
 }
 
 // Compact 4-operator picker matching Systeme.io's Decision UX. Strings only —

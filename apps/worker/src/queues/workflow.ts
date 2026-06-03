@@ -94,6 +94,9 @@ type RunCtx = {
   workspaceId:  string;
   workflowId:   string;
   workspaceName: string;
+  // The workflow's trigger type (e.g. "NEW_SALE"). Exposed to WEBHOOK so
+  // outbound payloads carry a `type` discriminator the receiver can switch on.
+  triggerType:  string;
   contactId:    string | null;
   contact: {
     id:        string;
@@ -116,8 +119,13 @@ type RunCtx = {
 };
 
 // ─── Main job processor ─────────────────────────────────────────────────────
+//
+// Exported for integration tests that exercise the lifecycle gates (run /
+// workflow status checks + stale-node defense) without spinning up a real
+// BullMQ worker. Production code path is the BullMQ Worker created by
+// createWorkflowWorker() below.
 
-async function processWorkflowJob(job: Job<WorkflowJobData>) {
+export async function processWorkflowJob(job: Job<WorkflowJobData>) {
   const { runId, workspaceId, nodeId } = job.data;
 
   const run = await db.workflowRun.findFirst({
@@ -158,6 +166,7 @@ async function processWorkflowJob(job: Job<WorkflowJobData>) {
     runId, workspaceId,
     workflowId: run.workflowId,
     workspaceName: workspace?.name ?? "Your Workspace",
+    triggerType:  run.workflow.triggerType,
     contactId: run.contactId,
     contact:   run.contact,
     triggerData: (run.triggerData ?? {}) as Record<string, unknown>,
@@ -434,12 +443,44 @@ async function execRemoveTag(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 
 // ─── WEBHOOK ────────────────────────────────────────────────────────────────
 
+// Accepts the on-disk shape (array of [key, value]) used by the builder UI as
+// well as the legacy object form, so existing workflows that may have set
+// headers via API don't break. Invalid entries (non-string, empty key) are
+// dropped silently — they were rejected by the pre-flight validator anyway.
+function buildCustomHeadersObject(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (Array.isArray(raw)) {
+    for (const entry of raw) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const k = typeof entry[0] === "string" ? entry[0].trim() : "";
+      const v = typeof entry[1] === "string" ? entry[1] : "";
+      if (k && v) out[k] = v;
+    }
+  } else if (raw && typeof raw === "object") {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === "string" && k.trim()) out[k.trim()] = v;
+    }
+  }
+  return out;
+}
+
 async function execWebhook(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const cfg = (node.config ?? {}) as Record<string, unknown>;
   const url = cfg.url as string | undefined;
   if (!url) throw new Error("WEBHOOK missing url");
 
-  const method  = (cfg.method as string | undefined) ?? "POST";
+  const method = (cfg.method as string | undefined) ?? "POST";
+
+  // Headers are stored as an array of [key, value] tuples so the UI preserves
+  // insertion order; convert to the object shape that fetch() expects. Custom
+  // headers are spread LAST so the operator can override our X-Launchtic-*
+  // defaults if they need to (e.g. some receivers require a different
+  // User-Agent for allowlist reasons).
+  //
+  // SECURITY NOTE: header values are stored in plaintext inside the workflow's
+  // nodes JSON. Bearer tokens / API keys live unencrypted at-rest until we add
+  // a workspace-scoped secret vault. Track this when granting workspace access.
+  const customHeaders = buildCustomHeadersObject(cfg.headers);
   const headers: Record<string, string> = {
     "Content-Type":            "application/json",
     "User-Agent":              "Launchtic-Workflow/1.0",
@@ -447,18 +488,25 @@ async function execWebhook(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     "X-Launchtic-Workflow":    ctx.workflowId,
     "X-Launchtic-Run":         ctx.runId,
     "X-Launchtic-Node":        node.id,
-    ...((cfg.headers as Record<string, string> | undefined) ?? {}),
+    ...customHeaders,
   };
 
+  // Systeme-style envelope. The `type` discriminator lets the receiver switch
+  // on which trigger fired this webhook (e.g. "new_sale" vs "form_submit")
+  // when the same endpoint handles multiple workflows. The workflow's own
+  // identifiers live under `data` so the envelope stays stable across triggers.
   const payload = {
+    type:        ctx.triggerType.toLowerCase(),
     workspaceId: ctx.workspaceId,
-    workflowId:  ctx.workflowId,
-    runId:       ctx.runId,
-    nodeId:      node.id,
-    contact:     ctx.contact,
-    trigger:     ctx.triggerData,
-    context:     ctx.context,
-    sentAt:      new Date().toISOString(),
+    data: {
+      workflowId: ctx.workflowId,
+      runId:      ctx.runId,
+      nodeId:     node.id,
+      contact:    ctx.contact,
+      trigger:    ctx.triggerData,
+      context:    ctx.context,
+    },
+    sentAt: new Date().toISOString(),
   };
 
   const controller = new AbortController();

@@ -140,7 +140,7 @@ function isMailyDocEmpty(raw: string | null | undefined): boolean {
 // workflow per funnel.
 const FUNNEL_SCOPED_TRIGGER_TYPES = new Set([
   "NEW_SALE", "SALE_CANCELED", "FORM_SUBMIT", "CHECKOUT_STARTED",
-  "SUBSCRIPTION_PAYMENT_FAILED",
+  "SUBSCRIPTION_PAYMENT_FAILED", "PAGE_VISITED",
 ]);
 
 export function validateTrigger(type: string, config: Record<string, unknown>): string[] {
@@ -191,6 +191,11 @@ const SUPPORTED_NODE_TYPES = new Set([
   "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END",
 ]);
 
+// RFC 7230 §3.2.6 token charset for HTTP header names. Slightly stricter than
+// what some servers accept but matches what fetch() will let through without
+// throwing TypeError: invalid header name.
+const HTTP_TOKEN_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
 // Triggers that scope to a specific email (broadcast OR workflow email).
 // Without an explicit source they'd fire for every open/click in the
 // workspace, which floods workflow runs. The operator picks the source
@@ -230,6 +235,28 @@ export function validateNode(type: string, config: Record<string, unknown>): str
       else if (!/^https?:\/\//i.test(url)) out.push("URL must start with http:// or https://.");
       const method = String(config.method ?? "POST").toUpperCase();
       if (!["GET", "POST", "PUT", "PATCH"].includes(method)) out.push("Method must be GET, POST, PUT, or PATCH.");
+      // Optional headers — array of [key, value] tuples. Each row must have
+      // a header-name-shaped key (RFC 7230 token charset) + a non-empty value.
+      // Capped at 20 to keep the request reasonable and the UI scrollable.
+      if (config.headers !== undefined) {
+        if (!Array.isArray(config.headers)) {
+          out.push("Headers must be a list of key / value rows.");
+        } else {
+          if (config.headers.length > 20) out.push("Too many headers (max 20).");
+          for (let i = 0; i < config.headers.length; i++) {
+            const row = config.headers[i] as unknown;
+            if (!Array.isArray(row) || row.length !== 2) {
+              out.push(`Header row ${i + 1} is malformed.`);
+              continue;
+            }
+            const k = typeof row[0] === "string" ? row[0].trim() : "";
+            const v = typeof row[1] === "string" ? row[1] : "";
+            if (!k) out.push(`Header row ${i + 1}: name is empty.`);
+            else if (!HTTP_TOKEN_RE.test(k)) out.push(`Header row ${i + 1}: "${k}" is not a valid header name.`);
+            if (k && !v) out.push(`Header row ${i + 1}: "${k}" has no value.`);
+          }
+        }
+      }
       break;
     }
 
