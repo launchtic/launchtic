@@ -675,19 +675,6 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
     }, 800));
   }, [initial.id]);
 
-  const createWorkflowEmail = useCallback(async (seed?: Partial<WorkflowEmailMini>): Promise<WorkflowEmailMini | null> => {
-    const res = await apiFetch(`/api/workflows/${initial.id}/emails`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(seed ?? {}),
-    });
-    const json = await res.json();
-    if (!json.success || !json.data) return null;
-    const created = json.data as WorkflowEmailMini;
-    setWorkflowEmails((prev) => [...prev, created]);
-    return created;
-  }, [initial.id]);
-
   // Reflect trigger type / scope changes into the trigger node's visible data.
   useEffect(() => {
     setRfNodes((prev) => prev.map((n) => n.id === TRIGGER_ID
@@ -1228,7 +1215,6 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           workflowEmails={workflowEmails}
           workflowId={initial.id}
           workspaceSlug={slug}
-          createWorkflowEmail={createWorkflowEmail}
         />
       )}
 
@@ -1465,7 +1451,7 @@ function NodeConfigModal({
   onClose, onTypeSwitch, onConfigChange, onDelete,
   triggerType, triggerConfig, onTriggerTypeChange, onTriggerConfigChange,
   tags, funnels, broadcasts, workspaceEmails, workflowEmails,
-  workflowId, workspaceSlug, createWorkflowEmail,
+  workflowId, workspaceSlug,
 }: {
   isTrigger:        boolean;
   selectedNodeId:   string;
@@ -1486,7 +1472,6 @@ function NodeConfigModal({
   workflowEmails:   WorkflowEmailMini[];
   workflowId:       string;
   workspaceSlug:    string;
-  createWorkflowEmail:   (seed?: Partial<WorkflowEmailMini>) => Promise<WorkflowEmailMini | null>;
 }) {
   // ESC closes the modal — matches the AddNodePicker + ValidationIssuesModal
   // behavior so all overlays share one mental model.
@@ -1608,7 +1593,6 @@ function NodeConfigModal({
               funnels={funnels}
               broadcasts={broadcasts}
               workflowEmails={workflowEmails}
-              createWorkflowEmail={createWorkflowEmail}
               workspaceSlug={workspaceSlug}
               workflowId={workflowId}
             />
@@ -2085,7 +2069,7 @@ function truncateMiddle(s: string, n: number): string {
 
 function NodeConfigForm({
   type, config, onChange, tags, funnels, broadcasts,
-  workflowEmails, createWorkflowEmail, workspaceSlug, workflowId,
+  workflowEmails, workspaceSlug, workflowId,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
@@ -2094,7 +2078,6 @@ function NodeConfigForm({
   funnels: Props["funnels"];
   broadcasts: Props["broadcasts"];
   workflowEmails:        WorkflowEmailMini[];
-  createWorkflowEmail:   (seed?: Partial<WorkflowEmailMini>) => Promise<WorkflowEmailMini | null>;
   workspaceSlug:         string;
   workflowId:            string;
 }) {
@@ -2109,11 +2092,26 @@ function NodeConfigForm({
     const emailId = config.emailId as string | undefined;
     const email   = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
     const editUrl = (id: string) => `/${workspaceSlug}/workflows/${workflowId}/emails/${id}/edit`;
+    const manageUrl = `/${workspaceSlug}/workflows/${workflowId}/emails`;
 
     return (
       <div className="space-y-3">
         <div>
-          <label className={lbl}>Email</label>
+          {/* Header row: the field label sits on the left, a small "Manage
+              emails" link on the right gives access to the listing page (the
+              only place to find + delete orphan emails). Replaces the
+              workflow-editor top bar entry that used to live next to Runs —
+              this is the contextually right home for it. */}
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] uppercase font-semibold tracking-wider text-gray-500">Email</span>
+            <a
+              href={manageUrl}
+              className="text-[11px] font-medium text-gray-500 hover:text-gray-900 hover:underline"
+              title="View, edit, or delete all emails of this workflow"
+            >
+              Manage emails{workflowEmails.length > 0 ? ` (${workflowEmails.length})` : ""}
+            </a>
+          </div>
           {workflowEmails.length > 0 ? (
             <select
               className={inp}
@@ -2160,22 +2158,17 @@ function NodeConfigForm({
         )}
 
         {/* Create stays on its own row — it's the "I want a fresh email"
-            escape hatch and shouldn't read as paired with Edit. We don't
-            auto-rebind the node's emailId on create since the operator
-            might be authoring a reusable email separately and will pick it
-            from the dropdown afterwards. */}
+            escape hatch and shouldn't read as paired with Edit. Navigates
+            to the dedicated /emails/new page; no DB row is created until
+            the operator clicks Save in the editor, so abandoning the page
+            doesn't leave an orphan email behind. */}
         <div className="text-[11px] text-gray-500">
-          <button
-            type="button"
-            onClick={async () => {
-              const created = await createWorkflowEmail({ subject: "", bodyHtml: "", fromName: "", fromEmail: "" });
-              if (!created) return;
-              window.location.href = editUrl(created.id);
-            }}
+          <a
+            href={`/${workspaceSlug}/workflows/${workflowId}/emails/new`}
             className="font-medium text-gray-600 hover:text-gray-900 hover:underline"
           >
             + Create new email
-          </button>
+          </a>
         </div>
       </div>
     );

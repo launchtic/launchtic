@@ -20,7 +20,9 @@ export default async function WorkflowEmailEditorPage({
 
   // Ownership chain — workflow must belong to the workspace + email must
   // belong to that workflow. Either miss = 404 to avoid id-probe leaks.
-  const [workflow, email, senders] = await Promise.all([
+  // Templates are workspace-scoped (mirrors broadcast) so the operator can
+  // start a workflow email from any saved template.
+  const [workflow, email, senders, templates] = await Promise.all([
     db.workflow.findFirst({
       where:  { id, workspaceId },
       select: { id: true, name: true },
@@ -37,6 +39,11 @@ export default async function WorkflowEmailEditorPage({
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
       select:  { id: true, name: true, email: true, isDefault: true },
     }),
+    db.emailTemplate.findMany({
+      where:   { workspaceId },
+      orderBy: [{ isSystem: "desc" }, { updatedAt: "desc" }],
+      select:  { id: true, name: true, category: true },
+    }),
   ]);
   if (!workflow || !email) notFound();
 
@@ -46,6 +53,7 @@ export default async function WorkflowEmailEditorPage({
       workflow={workflow}
       email={email}
       senders={senders}
+      templates={templates}
     />
   );
 }

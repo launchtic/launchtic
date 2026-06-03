@@ -2,23 +2,32 @@
 
 // Fullscreen editor for a single WorkflowEmail (the maily.to surface).
 // Mirrors BroadcastDetail's edit pane but strips out the broadcast-only
-// surfaces (audience picker, schedule/send, preview/test send). Workflow
-// emails don't need any of that — they're sent by the workflow runner when a
-// contact reaches the SEND_EMAIL step, with vars resolved per-recipient at
-// send time. Autosaves on every change with a short debounce, same pattern
-// as the workflow builder's autosave.
+// surfaces (audience picker, schedule/send, preview/test send).
+//
+// Two modes:
+//   • "edit"   — initial email loaded from DB. Save → PATCH the existing row.
+//   • "create" — initial=null (route /emails/new). Save → POST a new row,
+//                then redirect to /emails/<newId>/edit so refresh / back
+//                buttons land somewhere coherent.
+//
+// Explicitly NO autosave. The operator picks a sender, fills subject + body,
+// validation runs on Save click. Until Save succeeds, the create-mode row
+// does not exist in the database — no orphan rows from abandoned drafts.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Check } from "lucide-react";
+import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react";
 import RichEmailEditor from "../emails/RichEmailEditor";
 import { apiFetch } from "../../lib/api-client";
 import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useToast } from "../ui/Toast";
+import { validateWorkflowEmail } from "../../lib/workflow-validation";
 import type { Editor as TiptapEditor } from "@tiptap/core";
 
 type Sender = { id: string; name: string; email: string; isDefault: boolean };
+
+type TemplateMini = { id: string; name: string; category: string };
 
 type EmailRow = {
   id:        string;
@@ -29,66 +38,120 @@ type EmailRow = {
   senderId:  string | null;
 };
 
+const EMPTY_DOC = JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] });
+
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300 transition-colors";
 
 export default function WorkflowEmailEditor({
-  workspaceSlug, workflow, email: initial, senders,
+  workspaceSlug, workflow, email: initial, senders, templates,
 }: {
   workspaceSlug: string;
   workflow:      { id: string; name: string };
-  email:         EmailRow;
+  /** Existing email when editing; null when creating a new one. */
+  email:         EmailRow | null;
   senders:       Sender[];
+  templates:     TemplateMini[];
 }) {
   const router = useRouter();
   const toast  = useToast();
 
-  const [subject,   setSubject]   = useState(initial.subject);
-  const [bodyHtml,  setBodyHtml]  = useState(initial.bodyHtml);
-  const [senderId,  setSenderId]  = useState<string | null>(initial.senderId);
-  const [fromName,  setFromName]  = useState(initial.fromName);
-  const [fromEmail, setFromEmail] = useState(initial.fromEmail);
+  // Seed sender for create-mode: default sender if available, else first.
+  // The operator can still change it before Save. Edit-mode reads from row.
+  const seedSender = useMemo(
+    () => senders.find((s) => s.isDefault) ?? senders[0] ?? null,
+    [senders],
+  );
+
+  const isCreate = initial === null;
+
+  const [subject,   setSubject]   = useState(initial?.subject   ?? "");
+  const [bodyHtml,  setBodyHtml]  = useState(initial?.bodyHtml  || EMPTY_DOC);
+  const [senderId,  setSenderId]  = useState<string | null>(
+    initial?.senderId ?? seedSender?.id ?? null,
+  );
+  const [fromName,  setFromName]  = useState(
+    initial?.fromName  ?? seedSender?.name  ?? "",
+  );
+  const [fromEmail, setFromEmail] = useState(
+    initial?.fromEmail ?? seedSender?.email ?? "",
+  );
 
   const editorRef    = useRef<TiptapEditor | null>(null);
   const lastFocused  = useRef<"subject" | "body">("body");
   const subjectRef   = useRef<HTMLInputElement>(null);
 
-  // Autosave: debounce 700ms after the last change, then PATCH the row. We
-  // never block typing on the network; "Saved" indicator switches to a spin
-  // while in-flight so the operator knows their work persists.
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Validation errors — keyed list. Empty = valid.
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // Dirty tracking — used to enable Save in edit mode (Save is always
+  // active in create mode since we want first-write to land).
   const dirty = useMemo(
-    () => subject   !== initial.subject
-       || bodyHtml  !== initial.bodyHtml
-       || senderId  !== initial.senderId
-       || fromName  !== initial.fromName
-       || fromEmail !== initial.fromEmail,
-    [subject, bodyHtml, senderId, fromName, fromEmail, initial],
+    () => {
+      if (isCreate) return true; // first save always allowed
+      return subject   !== (initial?.subject   ?? "")
+          || bodyHtml  !== (initial?.bodyHtml  ?? "")
+          || senderId  !== (initial?.senderId  ?? null)
+          || fromName  !== (initial?.fromName  ?? "")
+          || fromEmail !== (initial?.fromEmail ?? "");
+    },
+    [isCreate, subject, bodyHtml, senderId, fromName, fromEmail, initial],
   );
 
-  useEffect(() => {
-    if (!dirty) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      setSaveState("saving");
-      try {
-        const res = await apiFetch(`/api/workflows/${workflow.id}/emails/${initial.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subject, bodyHtml,
-            senderId, fromName, fromEmail,
-          }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setSaveState("saved");
-      } catch {
-        setSaveState("error");
-        toast.error("Save failed — retry in a moment.");
+  // Validation mirrors the server-side validateWorkflowEmail rule so the
+  // Save attempt won't be rejected by the workflow activate endpoint.
+  function runValidation(): string[] {
+    return validateWorkflowEmail({
+      id:        initial?.id ?? "new",
+      subject,
+      bodyHtml,
+      fromName,
+      fromEmail,
+      senderId,
+    });
+  }
+
+  async function onSave() {
+    const issues = runValidation();
+    setErrors(issues);
+    if (issues.length > 0) {
+      toast.error(issues[0]);
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = { subject, bodyHtml, senderId, fromName, fromEmail };
+      const url = isCreate
+        ? `/api/workflows/${workflow.id}/emails`
+        : `/api/workflows/${workflow.id}/emails/${initial!.id}`;
+      const res = await apiFetch(url, {
+        method: isCreate ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
       }
-    }, 700);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [dirty, subject, bodyHtml, senderId, fromName, fromEmail, workflow.id, initial.id, toast]);
+      toast.success(isCreate ? "Email created." : "Email saved.");
+      if (isCreate) {
+        // Replace the URL so back-button doesn't land on /emails/new.
+        const newId = json?.data?.id;
+        if (typeof newId === "string") {
+          router.replace(`/${workspaceSlug}/workflows/${workflow.id}/emails/${newId}/edit`);
+        } else {
+          router.push(`/${workspaceSlug}/workflows/${workflow.id}/emails`);
+        }
+      } else {
+        // Refresh server state so the next navigation shows the saved row.
+        router.refresh();
+      }
+    } catch {
+      toast.error("Save failed — retry in a moment.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Refocus the last-focused editable surface so cursor doesn't jump back to
   // subject after typing in body (or vice versa) when a re-render happens.
@@ -126,10 +189,36 @@ export default function WorkflowEmailEditor({
     }
   }
 
+  // Apply a template: fetches its full payload, seeds subject + bodyHtml.
+  // The dropdown immediately resets to "— None —" so the template act reads
+  // as a one-shot "load these defaults" rather than persistent state
+  // (mirrors the BroadcastDetail pattern). Operator's local edits aren't
+  // saved yet — they're just staged in component state — so this overwrite
+  // is recoverable by Cancel-ing without Save.
+  const [templateBusy, setTemplateBusy] = useState(false);
+  async function applyTemplate(templateId: string) {
+    if (!templateId) return;
+    setTemplateBusy(true);
+    try {
+      const res = await apiFetch(`/api/email-templates/${templateId}`);
+      const json = await res.json();
+      if (!res.ok || !json?.success || !json?.data) {
+        throw new Error(json?.error ?? `HTTP ${res.status}`);
+      }
+      setSubject(json.data.subject ?? "");
+      setBodyHtml(json.data.htmlBody ?? EMPTY_DOC);
+      toast.success("Template applied — review and Save when ready.");
+    } catch {
+      toast.error("Couldn't load template.");
+    } finally {
+      setTemplateBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* Top bar — back link + save indicator. Mirrors the workflow builder
-          top bar shape but slimmer since this surface only has one job. */}
+      {/* Top bar — back link + Save button. No autosave indicator since
+          saves are explicit; busy state surfaces inside the Save button. */}
       <div className="border-b border-gray-200 bg-white px-4 py-2.5 flex items-center gap-3 shrink-0">
         <Link
           href={`/${workspaceSlug}/workflows/${workflow.id}`}
@@ -139,24 +228,45 @@ export default function WorkflowEmailEditor({
           <span>{workflow.name}</span>
         </Link>
         <span className="text-gray-300">/</span>
-        {/* Subject doubles as the email's title — keeps the top bar useful
-            (you can see which email you're editing at a glance) without a
-            separate "name" field. Live-bound so it follows the subject
-            input below. */}
         <span className="text-sm font-semibold text-gray-900 truncate flex-1 min-w-0">
-          {subject.trim() || <span className="italic text-gray-400 font-normal">Untitled email</span>}
+          {isCreate
+            ? <span className="italic text-gray-500 font-normal">New email</span>
+            : subject.trim() || <span className="italic text-gray-400 font-normal">Untitled email</span>}
         </span>
-        <div className="text-[11px] text-gray-500 flex items-center gap-1.5 shrink-0">
-          {saveState === "saving" && (<><Loader2 size={11} className="animate-spin" /> Saving…</>)}
-          {saveState === "saved"  && (<><Check    size={11} className="text-green-600" /> Saved</>)}
-          {saveState === "error"  && (<span className="text-red-600">Save failed</span>)}
-        </div>
+        {dirty && !busy && (
+          <span className="text-[11px] text-amber-600 shrink-0">Unsaved changes</span>
+        )}
+        <button
+          onClick={onSave}
+          disabled={busy || (!isCreate && !dirty)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+        >
+          {busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+          {isCreate ? "Create email" : "Save"}
+        </button>
       </div>
+
+      {/* Validation error banner — surfaces every issue at once so the
+          operator doesn't fix one only to hit the next on the second save. */}
+      {errors.length > 0 && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2 flex items-start gap-2 shrink-0">
+          <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+          <ul className="text-[12px] text-red-700 space-y-0.5">
+            {errors.map((e, i) => <li key={i}>{e}</li>)}
+          </ul>
+        </div>
+      )}
 
       {/* Body — left: form fields (sender, subject). Right (flex-1): editor. */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Compact field row above the editor */}
-        <div className="bg-white border-b border-gray-200 px-4 sm:px-5 py-3 grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
+        {/* Compact field row above the editor. Three columns on wide
+            screens: From | Subject (stretchy) | Template (optional, only
+            when templates exist). Stacks on narrow screens. */}
+        <div className={`bg-white border-b border-gray-200 px-4 sm:px-5 py-3 grid grid-cols-1 gap-3 shrink-0 ${
+          templates.length > 0
+            ? "lg:grid-cols-[200px_1fr_200px]"
+            : "sm:grid-cols-[200px_1fr]"
+        }`}>
           <div>
             <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">From</label>
             <select
@@ -182,13 +292,44 @@ export default function WorkflowEmailEditor({
               className={inputCls}
             />
           </div>
+          {templates.length > 0 && (
+            <div>
+              <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Template</label>
+              <select
+                defaultValue=""
+                value=""
+                disabled={templateBusy}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  // Reset to "" so the next pick re-fires (otherwise the
+                  // operator would have to first switch back to "— None —").
+                  e.target.value = "";
+                  applyTemplate(id);
+                }}
+                className={inputCls}
+                title="Start from a saved email template"
+              >
+                <option value="">— None —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Editor pane — scrollable, fills remaining height. Container has
             no overflow-hidden so maily's floating "+ / drag-handle" controls
-            aren't clipped (see RichEmailEditor's wrapper comment). */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-white">
-          <div className="max-w-3xl mx-auto px-4 sm:px-5 py-6 h-full flex flex-col">
+            aren't clipped (see RichEmailEditor's wrapper comment).
+            • pt-16 (64px): reserves vertical room above the first block so
+              maily's floating element toolbar (the bubble that pops above
+              an image/button when selected) isn't clipped by the
+              sender/subject row when the block is at the top of the scroll
+              viewport.
+            • scroll-pt-16: same idea but for keyboard / programmatic
+              scrollIntoView — leaves the same gap above the active block. */}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-white scroll-pt-16">
+          <div className="max-w-3xl mx-auto px-4 sm:px-5 pt-16 pb-6 h-full flex flex-col">
             <div className="flex-1 min-h-0">
               <RichEmailEditor
                 value={bodyHtml}
