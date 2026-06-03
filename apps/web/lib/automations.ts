@@ -123,10 +123,20 @@ function matchesFilter(
   stepType: string | null,
 ): boolean {
   if (!config) return true;
-  if (config.funnelId     && context.funnelId     !== config.funnelId)     return false;
-  if (config.tagId        && context.tagId        !== config.tagId)        return false;
-  if (config.funnelStepId && context.funnelStepId !== config.funnelStepId) return false;
-  if (config.stepType     && stepType             !== config.stepType)     return false;
-  if (config.broadcastId  && context.broadcastId  !== config.broadcastId)  return false;
+  if (config.funnelId        && context.funnelId        !== config.funnelId)        return false;
+  if (config.tagId           && context.tagId           !== config.tagId)           return false;
+  if (config.funnelStepId    && context.funnelStepId    !== config.funnelStepId)    return false;
+  if (config.stepType        && stepType                !== config.stepType)        return false;
+  if (config.broadcastId     && context.broadcastId     !== config.broadcastId)     return false;
+  if (config.workflowEmailId && context.workflowEmailId !== config.workflowEmailId) return false;
+  // linkUrl: contains-match. Editor stores the URL as the operator picked
+  // it (typically origin+path); runtime URL may have extra query params
+  // (utm tags, per-recipient substitutions) so we substring-match to stay
+  // forgiving.
+  if (config.linkUrl) {
+    const ctxUrl = context.linkUrl;
+    if (!ctxUrl) return false;
+    if (!String(ctxUrl).includes(String(config.linkUrl))) return false;
+  }
   return true;
 }

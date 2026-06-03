@@ -125,9 +125,32 @@ export function validateTrigger(type: string, config: Record<string, unknown>): 
     if (!nonEmpty(config.funnelId))     out.push("Pick which funnel this trigger watches.");
     if (!nonEmpty(config.funnelStepId)) out.push("Pick which step in that funnel triggers the workflow.");
   }
-  if (BROADCAST_SCOPED_TRIGGER_TYPES.has(type)) {
-    if (!nonEmpty(config.broadcastId)) {
-      out.push("Pick which broadcast this trigger watches for (required).");
+  if (EMAIL_SCOPED_TRIGGER_TYPES.has(type)) {
+    // Source discriminator: "broadcast" → broadcastId required;
+    // "workflow_email" → workflowEmailId required. Without a source we'd
+    // fire for every open/click in the workspace, flooding workflow runs.
+    const source = config.source as string | undefined;
+    if (!source) {
+      out.push("Pick an email source (broadcast or workflow email).");
+    } else if (source === "broadcast") {
+      if (!nonEmpty(config.broadcastId)) out.push("Pick which broadcast this trigger watches for.");
+    } else if (source === "workflow_email") {
+      if (!nonEmpty(config.workflowEmailId)) out.push("Pick which workflow email this trigger watches for.");
+    } else {
+      out.push(`Email source "${source}" isn't supported.`);
+    }
+    // linkUrl is optional (omit = any link), but if set, must be non-empty
+    // and a recognizable URL fragment. Stored as substring; runtime matcher
+    // uses contains-match.
+    if (type === "EMAIL_LINK_CLICKED" && config.linkUrl !== undefined) {
+      const url = String(config.linkUrl).trim();
+      if (!url) {
+        out.push("Link filter is empty — clear it or pick a link.");
+      } else if (!/^https?:\/\//i.test(url) && !url.includes("/")) {
+        // Loose check: either a full http(s) URL or at least path-like.
+        // Allows partial matches like "/welcome" or "checkout".
+        out.push("Link filter must be a URL or URL substring (e.g. https://… or /path).");
+      }
     }
   }
   return out;
@@ -140,9 +163,12 @@ const SUPPORTED_NODE_TYPES = new Set([
   "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END",
 ]);
 
-// Triggers that require a specific broadcast scope. Without it they'd fire
-// for every open/click in the workspace, which floods workflow runs.
-const BROADCAST_SCOPED_TRIGGER_TYPES = new Set([
+// Triggers that scope to a specific email (broadcast OR workflow email).
+// Without an explicit source they'd fire for every open/click in the
+// workspace, which floods workflow runs. The operator picks the source
+// type + the specific email; EMAIL_LINK_CLICKED also takes an optional
+// linkUrl filter to narrow to a single CTA.
+const EMAIL_SCOPED_TRIGGER_TYPES = new Set([
   "EMAIL_OPENED", "EMAIL_LINK_CLICKED",
 ]);
 
@@ -214,15 +240,16 @@ export function validateNode(type: string, config: Record<string, unknown>): str
         // No required fields — falls back to trigger's funnelStepId when not
         // explicitly scoped. Documented for clarity.
       } else if (kind === "email_opened" || kind === "email_clicked") {
-        // Source picker — see executor for the matching switch. Each non-any
-        // source requires its own identifier.
-        const source =
-          (config.source as string | undefined) ??
-          (nonEmpty(config.broadcastId) ? "broadcast" : undefined);
+        // Source discriminator:
+        //   "any"            → no scope, fires if contact opened/clicked any
+        //                      tracked email since this run started.
+        //   "broadcast"      → broadcastId required.
+        //   "workflow_email" → workflowEmailId required (any workflow's email).
+        const source = config.source as string | undefined;
         if (!source) {
-          out.push("Pick which email source this checks (broadcast, workflow step, or any).");
+          out.push("Pick an email source (any, broadcast, or workflow email).");
         } else if (source === "any") {
-          // ok — broad check.
+          // No further fields required.
         } else if (source === "broadcast") {
           if (!nonEmpty(config.broadcastId)) out.push("Pick which broadcast to check.");
         } else if (source === "workflow_email") {

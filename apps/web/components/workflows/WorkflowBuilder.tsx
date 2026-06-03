@@ -82,13 +82,25 @@ type WorkflowEmailMini = {
   clickedCount: number;
 };
 
+// Cross-workflow email metadata shown in the trigger source="workflow_email"
+// picker. Body is NOT included — the link-filter picker fetches bodyHtml on
+// demand via /api/workflows/[id]/email-links to keep the editor load light.
+type WorkspaceEmailMini = {
+  id:           string;
+  name:         string | null;
+  subject:      string;
+  workflowId:   string;
+  workflowName: string;
+};
+
 type Props = {
   workflow: Workflow;
   tags:     { id: string; name: string; color: string | null }[];
   senders:  { id: string; name: string; email: string; isDefault: boolean }[];
   funnels:  { id: string; name: string; steps: { id: string; name: string; type: string }[] }[];
   broadcasts: { id: string; name: string; subject: string; status: string; sentAt: Date | null }[];
-  workflowEmails: WorkflowEmailMini[];
+  workflowEmails:  WorkflowEmailMini[];
+  workspaceEmails: WorkspaceEmailMini[];
 };
 
 // Reserved IDs for the virtual trigger node + its outgoing edge. Filtered out
@@ -214,9 +226,10 @@ const TRIGGER_TYPES = [
   "CHECKOUT_STARTED",
 ];
 
-// Triggers that scope by broadcast — i.e., the operator picks which broadcast
-// the trigger watches for opens/clicks.
-const BROADCAST_SCOPED_TRIGGERS = new Set(["EMAIL_OPENED", "EMAIL_LINK_CLICKED"]);
+// Triggers that scope to a specific email (broadcast OR workflow email).
+// The operator picks the source type then the specific email; for
+// EMAIL_LINK_CLICKED they can additionally narrow to a single link.
+const EMAIL_SCOPED_TRIGGERS = new Set(["EMAIL_OPENED", "EMAIL_LINK_CLICKED"]);
 
 // Triggers whose underlying events carry a funnel + step reference, so the
 // "scope to funnel X / step Y" filter is meaningful. Tag changes,
@@ -251,8 +264,8 @@ const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   CHECKOUT_STARTED:            "When a visitor enters the checkout page and fills in their email — before paying. Use for cart abandonment recovery.",
   TAG_ADDED:                   "When the tag below gets added to a contact (manually, by another workflow, by API, etc).",
   TAG_REMOVED:                 "When the tag below gets removed from a contact.",
-  EMAIL_OPENED:                "When a contact opens the broadcast below. Fires once per contact per email.",
-  EMAIL_LINK_CLICKED:          "When a contact clicks any link in the broadcast below. Fires once per contact per email.",
+  EMAIL_OPENED:                "When a contact opens a tracked email. Pick a source (broadcast or workflow email) below. Fires once per contact per email.",
+  EMAIL_LINK_CLICKED:          "When a contact clicks a link in a tracked email. Pick a source below; optionally narrow to a specific link. Fires once per contact per email.",
 };
 
 function triggerHumanLabel(t: string): string {
@@ -558,7 +571,7 @@ export default function WorkflowBuilder(props: Props) {
   );
 }
 
-function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, workflowEmails: initialEmails }: Props) {
+function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, workflowEmails: initialEmails, workspaceEmails }: Props) {
   const router  = useRouter();
   const params  = useParams();
   const slug    = params.workspaceSlug as string;
@@ -1233,6 +1246,8 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
               funnels={funnels}
               tags={tags}
               broadcasts={broadcasts}
+              workspaceEmails={workspaceEmails}
+              workflowId={initial.id}
               onTypeChange={setTriggerType}
               onConfigChange={setTriggerConfig}
             />
@@ -1581,13 +1596,16 @@ function ValidationIssuesModal({
 // ─── Trigger config form (right panel when trigger node selected) ──────────
 
 function TriggerConfigForm({
-  triggerType, triggerConfig, funnels, tags, broadcasts, onTypeChange, onConfigChange,
+  triggerType, triggerConfig, funnels, tags, broadcasts, workspaceEmails,
+  workflowId, onTypeChange, onConfigChange,
 }: {
   triggerType: string;
   triggerConfig: Record<string, unknown>;
   funnels: Props["funnels"];
   tags: Props["tags"];
   broadcasts: Props["broadcasts"];
+  workspaceEmails: WorkspaceEmailMini[];
+  workflowId: string;
   onTypeChange: (t: string) => void;
   onConfigChange: (c: Record<string, unknown>) => void;
 }) {
@@ -1597,7 +1615,8 @@ function TriggerConfigForm({
   const funnel = funnels.find((f) => f.id === funnelId);
   const isTagTrigger        = triggerType === "TAG_ADDED" || triggerType === "TAG_REMOVED";
   const isFunnelScoped      = FUNNEL_SCOPED_TRIGGERS.has(triggerType);
-  const isBroadcastScoped   = BROADCAST_SCOPED_TRIGGERS.has(triggerType);
+  const isEmailScoped       = EMAIL_SCOPED_TRIGGERS.has(triggerType);
+  const isLinkClickTrigger  = triggerType === "EMAIL_LINK_CLICKED";
   const description         = TRIGGER_DESCRIPTIONS[triggerType];
   const eligibleStepTypes   = STEP_TYPES_PER_TRIGGER[triggerType] ?? [];
 
@@ -1612,15 +1631,24 @@ function TriggerConfigForm({
     : [];
 
   // Switching trigger types: clear filters that don't apply to the new type
-  // so stale funnelId / tagId / broadcastId don't silently restrict matching.
+  // so stale ids don't silently restrict matching on the next save.
   function handleTypeChange(next: string) {
-    const nextIsTag       = next === "TAG_ADDED" || next === "TAG_REMOVED";
-    const nextIsFunnel    = FUNNEL_SCOPED_TRIGGERS.has(next);
-    const nextIsBroadcast = BROADCAST_SCOPED_TRIGGERS.has(next);
+    const nextIsTag    = next === "TAG_ADDED" || next === "TAG_REMOVED";
+    const nextIsFunnel = FUNNEL_SCOPED_TRIGGERS.has(next);
+    const nextIsEmail  = EMAIL_SCOPED_TRIGGERS.has(next);
     const cleaned: Record<string, unknown> = { ...triggerConfig };
-    if (!nextIsTag)       { delete cleaned.tagId; }
-    if (!nextIsFunnel)    { delete cleaned.funnelId; delete cleaned.funnelStepId; }
-    if (!nextIsBroadcast) { delete cleaned.broadcastId; }
+    if (!nextIsTag)    { delete cleaned.tagId; }
+    if (!nextIsFunnel) { delete cleaned.funnelId; delete cleaned.funnelStepId; }
+    if (!nextIsEmail)  {
+      delete cleaned.source;
+      delete cleaned.broadcastId;
+      delete cleaned.workflowEmailId;
+      delete cleaned.linkUrl;
+    }
+    // EMAIL_OPENED never takes linkUrl — only EMAIL_LINK_CLICKED does. Strip
+    // so switching trigger types within the email family doesn't leave a
+    // stale link filter behind.
+    if (next !== "EMAIL_LINK_CLICKED") delete cleaned.linkUrl;
     // Legacy stepType field from earlier UI iteration — strip on any switch
     // so it doesn't silently restrict matching. Server-side matcher still
     // honors it for any workflow rows that still have it persisted.
@@ -1659,30 +1687,21 @@ function TriggerConfigForm({
         </div>
       )}
 
-      {/* EMAIL_OPENED / EMAIL_LINK_CLICKED require a specific broadcast so
-          the trigger fires only for the campaign the operator targeted —
-          not every email the workspace ever sends. */}
-      {isBroadcastScoped && (
-        <div>
-          <label className={lbl}>Broadcast</label>
-          <select
-            className={inp}
-            value={(triggerConfig.broadcastId as string | undefined) ?? ""}
-            onChange={(e) => onConfigChange({ ...triggerConfig, broadcastId: e.target.value || undefined })}
-          >
-            <option value="">— pick a broadcast —</option>
-            {broadcasts.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}{b.sentAt ? "" : " (draft)"}
-              </option>
-            ))}
-          </select>
-          {broadcasts.length === 0 && (
-            <p className="text-[10px] text-amber-600 mt-1">
-              No broadcasts in this workspace yet — create one first.
-            </p>
-          )}
-        </div>
+      {/* EMAIL_OPENED / EMAIL_LINK_CLICKED scope to a specific email via a
+          source discriminator. "broadcast" lists workspace broadcasts;
+          "workflow_email" lists every workflow email across all workflows
+          in the workspace (cross-workflow chain pattern). Without a source
+          + concrete id the trigger would fire for every open/click in the
+          workspace, which we explicitly block in validation. */}
+      {isEmailScoped && (
+        <EmailTriggerSourcePicker
+          triggerConfig={triggerConfig}
+          broadcasts={broadcasts}
+          workspaceEmails={workspaceEmails}
+          workflowId={workflowId}
+          showLinkPicker={isLinkClickTrigger}
+          onConfigChange={onConfigChange}
+        />
       )}
 
       {/* Funnel + Step filters — sequential. User picks a funnel first, then
@@ -1725,6 +1744,218 @@ function TriggerConfigForm({
       )}
     </div>
   );
+}
+
+// Email source + optional link-filter picker for the EMAIL_OPENED /
+// EMAIL_LINK_CLICKED triggers. Two-step UX matching how operators think
+// about it: "which kind of email?" → "which specific one?" → (optional)
+// "which link?". The link options list is fetched on demand from the
+// email-links endpoint when source+id are set + showLinkPicker is true.
+function EmailTriggerSourcePicker({
+  triggerConfig, broadcasts, workspaceEmails, workflowId, showLinkPicker, onConfigChange,
+}: {
+  triggerConfig:    Record<string, unknown>;
+  broadcasts:       Props["broadcasts"];
+  workspaceEmails:  WorkspaceEmailMini[];
+  workflowId:       string;
+  showLinkPicker:   boolean;
+  onConfigChange:   (c: Record<string, unknown>) => void;
+}) {
+  const inp = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
+
+  const source          = (triggerConfig.source          as string | undefined) ?? "";
+  const broadcastId     = (triggerConfig.broadcastId     as string | undefined) ?? "";
+  const workflowEmailId = (triggerConfig.workflowEmailId as string | undefined) ?? "";
+  const linkUrl         = (triggerConfig.linkUrl         as string | undefined) ?? "";
+
+  const sourceId =
+    source === "broadcast"      ? broadcastId :
+    source === "workflow_email" ? workflowEmailId : "";
+
+  // Switching source kind clears the other side's id + the link filter so
+  // we never carry a stale broadcastId when the operator picks
+  // "workflow_email" (or vice versa).
+  function onSourceChange(next: string) {
+    const cleaned: Record<string, unknown> = { ...triggerConfig };
+    cleaned.source = next || undefined;
+    delete cleaned.broadcastId;
+    delete cleaned.workflowEmailId;
+    delete cleaned.linkUrl;
+    onConfigChange(cleaned);
+  }
+
+  function onSourceIdChange(next: string) {
+    const cleaned: Record<string, unknown> = { ...triggerConfig };
+    if (source === "broadcast")           cleaned.broadcastId     = next || undefined;
+    else if (source === "workflow_email") cleaned.workflowEmailId = next || undefined;
+    // Picking a different email invalidates the link-filter (its options
+    // came from the previous email's body).
+    delete cleaned.linkUrl;
+    onConfigChange(cleaned);
+  }
+
+  return (
+    <>
+      <div>
+        <label className={lbl}>Source</label>
+        <select className={inp} value={source} onChange={(e) => onSourceChange(e.target.value)}>
+          <option value="">— pick a source —</option>
+          <option value="broadcast">Broadcast</option>
+          <option value="workflow_email">Workflow email</option>
+        </select>
+      </div>
+
+      {source === "broadcast" && (
+        <div>
+          <label className={lbl}>Broadcast</label>
+          <select className={inp} value={broadcastId} onChange={(e) => onSourceIdChange(e.target.value)}>
+            <option value="">— pick a broadcast —</option>
+            {broadcasts.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}{b.sentAt ? "" : " (draft)"}
+              </option>
+            ))}
+          </select>
+          {broadcasts.length === 0 && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              No broadcasts in this workspace yet — create one first.
+            </p>
+          )}
+        </div>
+      )}
+
+      {source === "workflow_email" && (
+        <div>
+          <label className={lbl}>Workflow email</label>
+          <select className={inp} value={workflowEmailId} onChange={(e) => onSourceIdChange(e.target.value)}>
+            <option value="">— pick a workflow email —</option>
+            {workspaceEmails.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.workflowName} · {e.name || e.subject || "(untitled)"}
+              </option>
+            ))}
+          </select>
+          {workspaceEmails.length === 0 && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              No workflow emails in this workspace yet — add a Send email step in any workflow first.
+            </p>
+          )}
+        </div>
+      )}
+
+      {showLinkPicker && source && sourceId && (
+        <LinkFilterPicker
+          workflowId={workflowId}
+          source={source}
+          sourceId={sourceId}
+          linkUrl={linkUrl}
+          onChange={(next) => onConfigChange({ ...triggerConfig, linkUrl: next || undefined })}
+        />
+      )}
+    </>
+  );
+}
+
+// Loads the distinct hrefs found in the picked email's bodyHtml via
+// /api/workflows/[id]/email-links and renders them as a dropdown. "Any
+// link" leaves linkUrl undefined → trigger fires on any click in that
+// email. Custom URLs / substring filters can be typed in the free-text
+// fallback below for cases where the bodyHtml hasn't been finalized yet.
+function LinkFilterPicker({
+  workflowId, source, sourceId, linkUrl, onChange,
+}: {
+  workflowId: string;
+  source:     string;
+  sourceId:   string;
+  linkUrl:    string;
+  onChange:   (next: string) => void;
+}) {
+  const inp = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
+
+  const [urls, setUrls]     = useState<string[]>([]);
+  const [state, setState]   = useState<"idle" | "loading" | "loaded" | "error">("idle");
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    apiFetch(`/api/workflows/${workflowId}/email-links?source=${source}&sourceId=${sourceId}`)
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then((data) => {
+        if (cancelled) return;
+        const arr = Array.isArray(data?.data?.urls) ? (data.data.urls as string[]) : [];
+        setUrls(arr);
+        setState("loaded");
+      })
+      .catch(() => { if (!cancelled) setState("error"); });
+    return () => { cancelled = true; };
+  }, [workflowId, source, sourceId]);
+
+  // The picked linkUrl may be a substring (user can hand-edit) so the
+  // dropdown value falls back to "" (= "Any link") whenever the configured
+  // string isn't an exact match for one of the discovered URLs. That keeps
+  // the dropdown honest without erasing the saved value.
+  const matchesKnown = linkUrl && urls.includes(linkUrl);
+  const dropdownValue = matchesKnown ? linkUrl : (linkUrl ? "__custom__" : "");
+
+  return (
+    <div className="space-y-2 border-t border-gray-100 pt-2">
+      <div>
+        <label className={lbl}>Link filter <span className="text-gray-400 font-normal normal-case tracking-normal">(optional)</span></label>
+        <select
+          className={inp}
+          value={dropdownValue}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "")               onChange("");           // Any link
+            else if (v === "__custom__") return;                // keep custom URL as-is
+            else                        onChange(v);
+          }}
+          disabled={state === "loading"}
+        >
+          <option value="">Any link in this email</option>
+          {urls.map((u) => (
+            <option key={u} value={u}>{truncateMiddle(u, 50)}</option>
+          ))}
+          {linkUrl && !matchesKnown && (
+            <option value="__custom__">Custom: {truncateMiddle(linkUrl, 40)}</option>
+          )}
+        </select>
+        {state === "loading" && <p className="text-[10px] text-gray-400 mt-1">Loading links…</p>}
+        {state === "loaded" && urls.length === 0 && (
+          <p className="text-[10px] text-amber-600 mt-1">
+            No tracked links in this email's body yet. Type a URL or substring below to match by pattern.
+          </p>
+        )}
+        {state === "error" && (
+          <p className="text-[10px] text-amber-600 mt-1">
+            Couldn't load links — type a URL or substring below.
+          </p>
+        )}
+      </div>
+      <div>
+        <label className={lbl}>Or match URL substring</label>
+        <input
+          type="text"
+          className={inp}
+          value={linkUrl}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. /welcome or https://app.com/checkout"
+        />
+        <p className="text-[10px] text-gray-400 mt-1">
+          Matches if the clicked URL contains this text. Leave empty for any link.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function truncateMiddle(s: string, n: number): string {
+  if (s.length <= n) return s;
+  const head = Math.ceil((n - 1) / 2);
+  const tail = Math.floor((n - 1) / 2);
+  return s.slice(0, head) + "…" + s.slice(s.length - tail);
 }
 
 // ─── Per-node-type config form ─────────────────────────────────────────────
@@ -1919,29 +2150,31 @@ function NodeConfigForm({
           </p>
         )}
         {(kind === "email_opened" || kind === "email_clicked") && (() => {
-          const source = (config.source as string | undefined)
-                      ?? (config.broadcastId ? "broadcast" : "any");
-          const verb   = kind === "email_opened" ? "opened" : "clicked any link in";
-
-          // Switching source clears sibling identifiers so stale references
-          // don't silently leak into a different source's matcher.
-          const setSource = (next: string) => onChange({
-            source: next,
-            broadcastId:     undefined,
-            workflowEmailId: undefined,
-          });
-
+          const verb     = kind === "email_opened" ? "opened" : "clicked any link in";
+          const source   = (config.source as string | undefined) ?? "";
+          // Source narrows what's checked since the run started:
+          //   "any"            → any tracked send (broadcast or workflow email)
+          //   "broadcast"      → the picked broadcast specifically
+          //   "workflow_email" → the picked workflow email (this workflow only,
+          //                      to keep the picker tight and predictable)
+          function onSourceChange(next: string) {
+            const cleaned: Record<string, unknown> = { ...config };
+            cleaned.source = next || undefined;
+            delete cleaned.broadcastId;
+            delete cleaned.workflowEmailId;
+            onChange(cleaned);
+          }
           return (
             <>
               <div>
-                <label className={lbl}>Email source</label>
-                <select className={inp} value={source} onChange={(e) => setSource(e.target.value)}>
+                <label className={lbl}>Source</label>
+                <select className={inp} value={source} onChange={(e) => onSourceChange(e.target.value)}>
+                  <option value="">— pick a source —</option>
                   <option value="any">Any email</option>
                   <option value="broadcast">Specific broadcast</option>
-                  <option value="workflow_email">Workflow email (in this flow)</option>
+                  <option value="workflow_email">Workflow email (this workflow)</option>
                 </select>
               </div>
-
               {source === "broadcast" && (
                 <div>
                   <label className={lbl}>Broadcast</label>
@@ -1958,11 +2191,12 @@ function NodeConfigForm({
                     ))}
                   </select>
                   {broadcasts.length === 0 && (
-                    <p className="text-[10px] text-amber-600 mt-1">No broadcasts in this workspace yet.</p>
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      No broadcasts in this workspace yet.
+                    </p>
                   )}
                 </div>
               )}
-
               {source === "workflow_email" && (
                 <div>
                   <label className={lbl}>Workflow email</label>
@@ -1985,9 +2219,8 @@ function NodeConfigForm({
                   )}
                 </div>
               )}
-
               <p className="text-[10px] text-gray-500 leading-snug">
-                Returns true if the contact {verb} {source === "any" ? "any email" : "the selected email"} after this run started.
+                Returns true if the contact {verb} a matching email after this run started.
               </p>
             </>
           );
@@ -2129,20 +2362,22 @@ function conditionSubtitle(
     case "email_opened":
     case "email_clicked": {
       const verb   = kind === "email_opened" ? "opened" : "clicked";
-      const source = (config.source as string | undefined)
-                  ?? (config.broadcastId ? "broadcast" : undefined);
-      if (!source || source === "any") return `if ${verb} any email`;
+      const source = config.source as string | undefined;
+      if (!source) return `if ${verb} … (pick source)`;
+      if (source === "any") return `if ${verb} any email`;
       if (source === "broadcast") {
         const id = config.broadcastId as string | undefined;
+        if (!id) return `if ${verb} broadcast …`;
         const b = broadcasts.find((x) => x.id === id);
         return b ? `if ${verb} "${b.name}"` : `if ${verb} broadcast …`;
       }
       if (source === "workflow_email") {
         const id = config.workflowEmailId as string | undefined;
-        const e  = workflowEmails.find((x) => x.id === id);
+        if (!id) return `if ${verb} workflow email …`;
+        const e = workflowEmails.find((x) => x.id === id);
         return e ? `if ${verb} "${e.name || e.subject || "(untitled)"}"` : `if ${verb} workflow email …`;
       }
-      return `if ${verb} email …`;
+      return `if ${verb} …`;
     }
     case "contact_field": {
       const field    = config.field    as string | undefined;
@@ -2209,11 +2444,12 @@ function hasNodeContent(
     case "CONDITION":
       // Any sub-field beyond the default kind hint counts as content.
       return !!(
-        config.tagId         ||
-        config.field         ||
-        config.value         ||
-        config.operator      ||
-        config.broadcastId   ||
+        config.tagId           ||
+        config.field           ||
+        config.value           ||
+        config.operator        ||
+        config.source          ||
+        config.broadcastId     ||
         config.workflowEmailId
       );
     case "END":

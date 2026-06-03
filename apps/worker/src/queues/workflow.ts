@@ -507,8 +507,10 @@ async function execDelay(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 //   "contact_tag"        → { tagId, operator: "has"|"does_not_have" }
 //   "contact_field"      → { field, operator, value }
 //   "contact_purchased"  → { funnelStepId? }  — checks Order.PAID since run started
-//   "email_opened"       → { broadcastId } — checks EmailSend.openedAt >= run.startedAt
-//   "email_clicked"      → { broadcastId } — checks EmailSend.clickedAt >= run.startedAt
+//   "email_opened"       → { source, broadcastId?, workflowEmailId? }
+//                          source = "any" | "broadcast" | "workflow_email"
+//                          checks EmailSend.openedAt >= run.startedAt
+//   "email_clicked"      → same shape, checks EmailSend.clickedAt >= run.startedAt
 
 async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const cfg  = (node.config ?? {}) as Record<string, unknown>;
@@ -565,49 +567,36 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     }
     case "email_opened":
     case "email_clicked": {
-      // True if the contact has opened/clicked an email matching the chosen
-      // source, after this run started. Source picker:
-      //   "any"            → no further scope
-      //   "broadcast"      → broadcastId
-      //   "workflow_email" → workflowEmailId (a WorkflowEmail in this workflow)
-      //
-      // Backward compat: legacy configs with broadcastId only default to
-      // source="broadcast".
+      // True if the contact opened/clicked an email matching the configured
+      // source filter, with engagement timestamp >= run.startedAt.
+      //   source="any"            → no source filter; matches any tracked
+      //                             EmailSend for this contact.
+      //   source="broadcast"      → matches sends with broadcastId=X.
+      //   source="workflow_email" → matches sends with workflowEmailId=X
+      //                             (any workflow's email in this workspace).
       if (!ctx.contact) { result = false; break; }
+      const source = cfg.source as string | undefined;
+      if (!source) { result = false; break; }
+      const where: Record<string, unknown> = { contactId: ctx.contact.id };
+      if (source === "broadcast") {
+        const broadcastId = cfg.broadcastId as string | undefined;
+        if (!broadcastId) { result = false; break; }
+        where.broadcastId = broadcastId;
+      } else if (source === "workflow_email") {
+        const workflowEmailId = cfg.workflowEmailId as string | undefined;
+        if (!workflowEmailId) { result = false; break; }
+        where.workflowEmailId = workflowEmailId;
+      } else if (source !== "any") {
+        result = false;
+        break;
+      }
       const run = await db.workflowRun.findUnique({
         where:  { id: ctx.runId },
         select: { startedAt: true },
       });
-      const since     = run?.startedAt ?? new Date(0);
+      const since = run?.startedAt ?? new Date(0);
       const dateField = kind === "email_opened" ? "openedAt" : "clickedAt";
-      const where: Record<string, unknown> = {
-        contactId:   ctx.contact.id,
-        [dateField]: { gte: since },
-      };
-      const source =
-        (cfg.source as string | undefined) ??
-        (cfg.broadcastId ? "broadcast" : undefined);
-      let valid = true;
-      switch (source) {
-        case undefined:
-        case "any":
-          break;
-        case "broadcast": {
-          const id = cfg.broadcastId as string | undefined;
-          if (!id) { valid = false; break; }
-          where.broadcastId = id;
-          break;
-        }
-        case "workflow_email": {
-          const id = cfg.workflowEmailId as string | undefined;
-          if (!id) { valid = false; break; }
-          where.workflowEmailId = id;
-          break;
-        }
-        default:
-          valid = false;
-      }
-      if (!valid) { result = false; break; }
+      where[dateField] = { gte: since };
       const send = await db.emailSend.findFirst({ where, select: { id: true } });
       result = !!send;
       break;

@@ -23,10 +23,16 @@ export default async function WorkflowEditorPage({
   // - senders: SEND_EMAIL "from" picker
   // - funnels: trigger scope (NEW_SALE / FORM_SUBMIT / etc.)
   // - broadcasts: EMAIL_OPENED / EMAIL_LINK_CLICKED triggers + email_opened
-  //               source="broadcast" condition
+  //               source="broadcast" condition. bodyHtml NOT included here —
+  //               link picker fetches it on demand via /api/.../email-links.
   // - workflowEmails: SEND_EMAIL content (split out from node JSON), plus
-  //                   email_opened source="workflow_email" picker
-  const [tags, senders, funnels, broadcasts, workflowEmails] = await Promise.all([
+  //                   condition email_opened source="workflow_email" picker.
+  // - workspaceEmails: cross-workflow email list for the trigger
+  //                    source="workflow_email" picker (need workflow name to
+  //                    disambiguate emails with the same subject across
+  //                    workflows). bodyHtml omitted for the same reason as
+  //                    broadcasts above.
+  const [tags, senders, funnels, broadcasts, workflowEmails, workspaceEmails] = await Promise.all([
     db.tag.findMany({
       where: { workspaceId }, orderBy: { name: "asc" },
       select: { id: true, name: true, color: true },
@@ -56,6 +62,15 @@ export default async function WorkflowEditorPage({
         sentCount: true, openedCount: true, clickedCount: true,
       },
     }),
+    db.workflowEmail.findMany({
+      where:   { workflow: { workspaceId } },
+      orderBy: { createdAt: "desc" },
+      select:  {
+        id: true, name: true, subject: true,
+        workflowId: true,
+        workflow:   { select: { name: true } },
+      },
+    }),
   ]);
 
   return (
@@ -79,6 +94,13 @@ export default async function WorkflowEditorPage({
       funnels={funnels}
       broadcasts={broadcasts}
       workflowEmails={workflowEmails}
+      workspaceEmails={workspaceEmails.map((e) => ({
+        id:           e.id,
+        name:         e.name,
+        subject:      e.subject,
+        workflowId:   e.workflowId,
+        workflowName: e.workflow.name,
+      }))}
     />
   );
 }
