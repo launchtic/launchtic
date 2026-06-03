@@ -5,7 +5,6 @@ import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 
 const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END"] as const;
-const RE_ENROLL_POLICIES = ["SINGLE_ACTIVE", "ALWAYS", "COOLDOWN"] as const;
 
 const nodeSchema = z.object({
   id:       z.string().min(1),
@@ -31,8 +30,6 @@ const updateSchema = z.object({
   nodes:                z.array(nodeSchema).optional(),
   edges:                z.array(edgeSchema).optional(),
   startNodeId:          z.string().nullable().optional(),
-  reEnrollPolicy:       z.enum(RE_ENROLL_POLICIES).optional(),
-  reEnrollCooldownDays: z.number().int().positive().nullable().optional(),
   maxDurationDays:      z.number().int().positive().nullable().optional(),
 });
 

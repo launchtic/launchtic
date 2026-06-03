@@ -154,7 +154,6 @@ async function main() {
         nodes: nodes as any,
         edges: [] as any,
         startNodeId: "end",
-        reEnrollPolicy: "ALWAYS", // so re-enroll doesn't interfere with A1/A2/A3
       },
     });
     created.workflows.push(wf.id);
@@ -268,7 +267,7 @@ async function main() {
     check("A7: no linkUrl filter → any click fires (1 run)", n === 1, { count: n });
   }
 
-  // A8: re-enroll SINGLE_ACTIVE blocks 2nd fire while 1st run is ACTIVE
+  // A8: re-enroll is hardcoded SINGLE_ACTIVE — 2nd fire blocked while 1st run ACTIVE
   {
     const wf = await db.workflow.create({
       data: {
@@ -280,14 +279,13 @@ async function main() {
         nodes: [{ id: "end", type: "END", position: { x: 0, y: 0 }, config: {} }] as any,
         edges: [] as any,
         startNodeId: "end",
-        reEnrollPolicy: "SINGLE_ACTIVE",
       },
     });
     created.workflows.push(wf.id);
     await fireTrigger(ws.id, "EMAIL_OPENED", { contactId: contact.id, broadcastId: broadcastA.id });
     await fireTrigger(ws.id, "EMAIL_OPENED", { contactId: contact.id, broadcastId: broadcastA.id });
     const n = await countRuns(wf.id);
-    check("A8: SINGLE_ACTIVE re-enroll blocks 2nd fire → 1 run only", n === 1, { count: n });
+    check("A8: re-enroll blocks 2nd fire while 1st run is ACTIVE → 1 run only", n === 1, { count: n });
   }
 
   // ─── Group B: execCondition query against real DB ─────────────────────────

@@ -30,8 +30,6 @@ export type WorkflowTemplate = {
   badge?:       "Flagship" | "Popular" | "New";
   triggerType:  string;
   triggerConfig: Record<string, unknown>;
-  reEnrollPolicy: "SINGLE_ACTIVE" | "ALWAYS" | "COOLDOWN";
-  reEnrollCooldownDays?: number;
   nodes:        TemplateNode[];
   edges:        TemplateEdge[];
   startNodeId:  string;
@@ -175,8 +173,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     badge: "Flagship",
     triggerType: "CHECKOUT_STARTED",
     triggerConfig: {},
-    reEnrollPolicy: "COOLDOWN",
-    reEnrollCooldownDays: 7,
     startNodeId: "delay1",
     nodes: [
       delayNode("delay1", 0, 1),
@@ -247,7 +243,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     badge: "Popular",
     triggerType: "FORM_SUBMIT",
     triggerConfig: {},
-    reEnrollPolicy: "SINGLE_ACTIVE",
     startNodeId: "email1",
     nodes: [
       emailNode("email1", 0,
@@ -301,7 +296,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     badge: "Popular",
     triggerType: "NEW_SALE",
     triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
     startNodeId: "email1",
     nodes: [
       emailNode("email1", 0,
@@ -354,8 +348,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "Undo2",
     triggerType: "SALE_CANCELED",
     triggerConfig: {},
-    reEnrollPolicy: "COOLDOWN",
-    reEnrollCooldownDays: 30,
     startNodeId: "email1",
     nodes: [
       emailNode("email1", 0,
@@ -395,7 +387,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "AlertTriangle",
     triggerType: "SUBSCRIPTION_PAYMENT_FAILED",
     triggerConfig: {},
-    reEnrollPolicy: "SINGLE_ACTIVE",
     startNodeId: "email1",
     nodes: [
       emailNode("email1", 0,
@@ -444,8 +435,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "Heart",
     triggerType: "TAG_ADDED",
     triggerConfig: {},
-    reEnrollPolicy: "COOLDOWN",
-    reEnrollCooldownDays: 60,
     startNodeId: "email1",
     nodes: [
       emailNode("email1", 0,
@@ -499,7 +488,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "Split",
     triggerType: "TAG_ADDED",
     triggerConfig: {},
-    reEnrollPolicy: "SINGLE_ACTIVE",
     startNodeId: "cond1",
     nodes: [
       condTag("cond1", 0), // center column
@@ -538,7 +526,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "MousePointerClick",
     triggerType: "EMAIL_LINK_CLICKED",
     triggerConfig: {},
-    reEnrollPolicy: "SINGLE_ACTIVE",
     startNodeId: "tag1",
     nodes: [
       tagNode("tag1", 0, "ADD_TAG"),
@@ -569,7 +556,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     badge: "New",
     triggerType: "FORM_SUBMIT",
     triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
     startNodeId: "email1",
     nodes: [
       emailNode("email1", 0,
@@ -611,7 +597,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     badge: "New",
     triggerType: "FORM_SUBMIT",
     triggerConfig: {},
-    reEnrollPolicy: "SINGLE_ACTIVE",
     startNodeId: "tag1",
     nodes: [
       tagNode("tag1", 0, "ADD_TAG"),
@@ -631,7 +616,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "ArrowUpCircle",
     triggerType: "NEW_SALE",
     triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
     startNodeId: "remove1",
     nodes: [
       tagNode("remove1", 0, "REMOVE_TAG"),
@@ -653,7 +637,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "Eraser",
     triggerType: "SALE_CANCELED",
     triggerConfig: {},
-    reEnrollPolicy: "ALWAYS",
     startNodeId: "remove1",
     nodes: [
       tagNode("remove1", 0, "REMOVE_TAG"),

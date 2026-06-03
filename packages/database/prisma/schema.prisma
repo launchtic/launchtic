@@ -1228,9 +1228,9 @@ model Workflow {
   // Entry point — node id where every run starts. Validated on activate.
   startNodeId   String?
 
-  // Exit policy — industry standard re-enrollment + goal handling.
-  reEnrollPolicy        String  @default("SINGLE_ACTIVE") // SINGLE_ACTIVE | ALWAYS | COOLDOWN
-  reEnrollCooldownDays  Int?
+  // Re-enrollment is hardcoded SINGLE_ACTIVE: a contact with an in-flight run
+  // for this workflow is blocked from re-enrolling until that run ends.
+  // See lib/automations.ts (web + renderer).
   maxDurationDays       Int?
 
   // Denormalized stats (incremented at run creation / completion). Source of

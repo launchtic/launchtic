@@ -85,8 +85,6 @@ export default async function WorkflowEditorPage({
         nodes: (wf.nodes as unknown as { id: string; type: any; position?: { x: number; y: number }; config?: Record<string, unknown> }[]) ?? [],
         edges: (wf.edges as unknown as { id: string; source: string; target: string; label?: string; weight?: number }[]) ?? [],
         startNodeId: wf.startNodeId,
-        reEnrollPolicy: wf.reEnrollPolicy,
-        reEnrollCooldownDays: wf.reEnrollCooldownDays,
         maxDurationDays: wf.maxDurationDays,
       }}
       tags={tags}

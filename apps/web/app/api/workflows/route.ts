@@ -25,7 +25,6 @@ const TRIGGER_TYPES = [
 ] as const;
 const STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"] as const;
 const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END"] as const;
-const RE_ENROLL_POLICIES = ["SINGLE_ACTIVE", "ALWAYS", "COOLDOWN"] as const;
 
 const nodeSchema = z.object({
   id:       z.string().min(1),
@@ -50,8 +49,6 @@ const createSchema = z.object({
   nodes:                z.array(nodeSchema).default([]),
   edges:                z.array(edgeSchema).default([]),
   startNodeId:          z.string().nullable().optional(),
-  reEnrollPolicy:       z.enum(RE_ENROLL_POLICIES).default("SINGLE_ACTIVE"),
-  reEnrollCooldownDays: z.number().int().positive().nullable().optional(),
   maxDurationDays:      z.number().int().positive().nullable().optional(),
 });
 
@@ -107,8 +104,6 @@ export async function POST(req: NextRequest) {
         nodes:                data.nodes,
         edges:                data.edges,
         startNodeId:          data.startNodeId ?? null,
-        reEnrollPolicy:       data.reEnrollPolicy,
-        reEnrollCooldownDays: data.reEnrollCooldownDays ?? null,
         maxDurationDays:      data.maxDurationDays ?? null,
         status:               "DRAFT",
       },

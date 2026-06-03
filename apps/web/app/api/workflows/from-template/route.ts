@@ -53,8 +53,6 @@ export async function POST(req: NextRequest) {
           nodes:                [] as unknown as any, // filled in below
           edges:                tpl.edges as unknown as any,
           startNodeId:          tpl.startNodeId,
-          reEnrollPolicy:       tpl.reEnrollPolicy,
-          reEnrollCooldownDays: tpl.reEnrollCooldownDays ?? null,
         },
       });
 

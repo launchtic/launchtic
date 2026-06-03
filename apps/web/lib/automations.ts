@@ -44,7 +44,6 @@ export async function fireTrigger(
       where: { workspaceId, status: "ACTIVE", triggerType },
       select: {
         id: true, triggerConfig: true, startNodeId: true,
-        reEnrollPolicy: true, reEnrollCooldownDays: true,
       },
     });
     if (workflows.length === 0) return;
@@ -69,24 +68,14 @@ export async function fireTrigger(
       if (!matchesFilter(wf.triggerConfig as Record<string, unknown> | null, context, stepType)) continue;
       if (!wf.startNodeId) continue;
 
-      // Re-enrollment policy: SINGLE_ACTIVE (default) blocks concurrent runs
-      // for the same contact; COOLDOWN blocks if the contact was enrolled
-      // recently; ALWAYS lets every fire start a new run.
+      // Re-enrollment is always SINGLE_ACTIVE: a contact with an in-flight
+      // run for this workflow is blocked until that run ends.
       if (context.contactId) {
-        if (wf.reEnrollPolicy === "SINGLE_ACTIVE") {
-          const existing = await db.workflowRun.findFirst({
-            where: { workflowId: wf.id, contactId: context.contactId, status: "ACTIVE" },
-            select: { id: true },
-          });
-          if (existing) continue;
-        } else if (wf.reEnrollPolicy === "COOLDOWN" && wf.reEnrollCooldownDays) {
-          const cooldownAt = new Date(Date.now() - wf.reEnrollCooldownDays * 86_400_000);
-          const recent = await db.workflowRun.findFirst({
-            where: { workflowId: wf.id, contactId: context.contactId, startedAt: { gte: cooldownAt } },
-            select: { id: true },
-          });
-          if (recent) continue;
-        }
+        const existing = await db.workflowRun.findFirst({
+          where: { workflowId: wf.id, contactId: context.contactId, status: "ACTIVE" },
+          select: { id: true },
+        });
+        if (existing) continue;
       }
 
       const run = await db.workflowRun.create({

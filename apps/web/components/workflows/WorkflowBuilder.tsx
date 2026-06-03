@@ -64,8 +64,6 @@ type Workflow = {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   startNodeId: string | null;
-  reEnrollPolicy: string;
-  reEnrollCooldownDays: number | null;
   maxDurationDays: number | null;
 };
 
@@ -599,12 +597,11 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
   // Klaviyo-style strict lock: an ACTIVE workflow is immutable from the
   // builder. Threading isLocked through to: canvas affordances (delete /
   // "+" / drag), node-config modal (form inputs + type switcher + delete),
-  // top-bar Save (hidden), name input (readonly), re-enroll selector
-  // (disabled). Server PATCH also rejects with 409 as a defense in depth.
+  // top-bar Save (hidden), name input (readonly). Server PATCH also rejects
+  // with 409 as a defense in depth.
   const isLocked = status === "ACTIVE";
   const [triggerType, setTriggerType]     = useState<string>(initial.triggerType);
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(initial.triggerConfig);
-  const [reEnrollPolicy, setReEnrollPolicy] = useState<string>(initial.reEnrollPolicy);
   const [showHistory, setShowHistory] = useState(false);
 
   // The full canonical config map keyed by node id — keeps node.config out
@@ -726,27 +723,19 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
     [rfEdges],
   );
 
-  // ─── Auto-save (debounced) ──────────────────────────────────────────────
-  const lastSaved = useRef<string>("");
-  useEffect(() => {
-    const snap = JSON.stringify({ name, triggerType, triggerConfig, rfNodes, rfEdges, derivedStartNodeId, reEnrollPolicy, configMap });
-    if (snap === lastSaved.current) return;
-    const t = setTimeout(async () => {
-      lastSaved.current = snap;
-      await save();
-    }, 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, triggerType, triggerConfig, rfNodes, rfEdges, derivedStartNodeId, reEnrollPolicy, configMap]);
-
   // ─── Persistence ────────────────────────────────────────────────────────
+  // Manual Save only. The earlier debounced autosave fired a PATCH on every
+  // state change — including react-flow's auto-layout position writes on
+  // mount — which spammed 409 toasts when the workflow is ACTIVE (since the
+  // server-side Klaviyo lock rejects edits). Without autosave the operator
+  // owns the save lifecycle: click Save when ready, click Activate which
+  // does a final pre-save before flipping status.
   async function save() {
     setBusy("saving");
     const payload = {
       name,
       triggerConfig,
       startNodeId: derivedStartNodeId,
-      reEnrollPolicy,
       nodes: rfNodes
         .filter((n) => n.id !== TRIGGER_ID) // virtual — don't persist
         .map((n) => ({
@@ -1223,21 +1212,6 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
             <Controls showInteractive={false} />
             <MiniMap nodeStrokeWidth={2} pannable zoomable />
           </ReactFlow>
-
-          {/* Floating re-enroll selector (bottom-left of canvas) */}
-          <div className="absolute bottom-3 left-3 bg-white border border-gray-200 rounded-lg shadow-sm px-2 py-1.5 flex items-center gap-2 z-10">
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Re-enroll</span>
-            <select
-              value={reEnrollPolicy}
-              onChange={(e) => setReEnrollPolicy(e.target.value)}
-              disabled={isLocked}
-              className="text-xs border-none outline-none bg-transparent text-gray-700 focus:ring-0 cursor-pointer disabled:cursor-not-allowed disabled:text-gray-400"
-            >
-              <option value="SINGLE_ACTIVE">Single active</option>
-              <option value="ALWAYS">Always</option>
-              <option value="COOLDOWN">Cooldown</option>
-            </select>
-          </div>
         </div>
 
       </div>

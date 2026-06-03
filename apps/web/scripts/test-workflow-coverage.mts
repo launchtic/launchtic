@@ -5,7 +5,6 @@
 //             contact_purchased)
 //   Group D — Triggers other than email (NEW_SALE, TAG_ADDED, CHECKOUT_STARTED,
 //             FORM_SUBMIT, SUBSCRIPTION_PAYMENT_FAILED)
-//   Group E — Re-enroll policies (COOLDOWN + ALWAYS) beyond SINGLE_ACTIVE
 //   Group F — Graph validation rules (cycle-tolerant, dead-end, missing
 //             true/false branch, edges → missing nodes, no startNodeId)
 //   Group G — DELAY scheduling math + boundary conditions
@@ -195,14 +194,14 @@ async function main() {
   // ───────────────────────────────────────────────────────────────────────────
   section("D. fireTrigger — TAG_ADDED, NEW_SALE, FORM_SUBMIT, CHECKOUT_STARTED");
 
-  async function makeWf(triggerType: string, triggerConfig: any, reEnrollPolicy = "ALWAYS") {
+  async function makeWf(triggerType: string, triggerConfig: any) {
     const wf = await db.workflow.create({
       data: {
         workspaceId: ws.id,
         name: `${PREFIX}_${triggerType}_${Math.random().toString(36).slice(2, 7)}`,
         status: "ACTIVE", triggerType, triggerConfig,
         nodes: [{ id: "end", type: "END", position: { x: 0, y: 0 }, config: {} }] as any,
-        edges: [] as any, startNodeId: "end", reEnrollPolicy,
+        edges: [] as any, startNodeId: "end",
       },
     });
     created.workflows.push(wf.id);
@@ -266,63 +265,6 @@ async function main() {
       contactId: contact.id, funnelId: funnel.id, funnelStepId: step.id,
     });
     check("D7: FORM_SUBMIT match → 1 run", await countRuns(wfId) === 1);
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  //  GROUP E — Re-enroll policies
-  // ───────────────────────────────────────────────────────────────────────────
-  section("E. Re-enroll policies — COOLDOWN, ALWAYS");
-
-  // E1: ALWAYS — every fire creates a new run
-  {
-    const wfId = await makeWf("TAG_ADDED", { tagId: tagFoo.id }, "ALWAYS");
-    await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tagFoo.id });
-    await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tagFoo.id });
-    check("E1: ALWAYS → 2 fires create 2 runs", await countRuns(wfId) === 2);
-  }
-  // E2: COOLDOWN 7 days — second fire within cooldown blocked
-  {
-    const wf = await db.workflow.create({
-      data: {
-        workspaceId: ws.id, name: `${PREFIX}_cooldown_${Math.random().toString(36).slice(2, 7)}`,
-        status: "ACTIVE", triggerType: "TAG_ADDED",
-        triggerConfig: { tagId: tagFoo.id },
-        nodes: [{ id: "end", type: "END", position: { x: 0, y: 0 }, config: {} }] as any,
-        edges: [] as any, startNodeId: "end",
-        reEnrollPolicy: "COOLDOWN", reEnrollCooldownDays: 7,
-      },
-    });
-    created.workflows.push(wf.id);
-    await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tagFoo.id });
-    await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tagFoo.id });
-    check("E2: COOLDOWN 7d, 2 fires back-to-back → 1 run (2nd blocked)",
-      await countRuns(wf.id) === 1);
-  }
-  // E3: COOLDOWN expired — backdated WorkflowRun > cooldown lets next fire enroll
-  {
-    const wf = await db.workflow.create({
-      data: {
-        workspaceId: ws.id, name: `${PREFIX}_cooldown_expired_${Math.random().toString(36).slice(2, 7)}`,
-        status: "ACTIVE", triggerType: "TAG_ADDED",
-        triggerConfig: { tagId: tagFoo.id },
-        nodes: [{ id: "end", type: "END", position: { x: 0, y: 0 }, config: {} }] as any,
-        edges: [] as any, startNodeId: "end",
-        reEnrollPolicy: "COOLDOWN", reEnrollCooldownDays: 1, // 1 day cooldown
-      },
-    });
-    created.workflows.push(wf.id);
-    // Seed an old run from 5 days ago (outside cooldown window).
-    const oldRun = await db.workflowRun.create({
-      data: {
-        workflowId: wf.id, workspaceId: ws.id, contactId: contact.id,
-        status: "COMPLETED",
-        startedAt: new Date(Date.now() - 5 * 24 * 3600 * 1000),
-      },
-    });
-    created.workflowRuns.push(oldRun.id);
-    await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tagFoo.id });
-    check("E3: COOLDOWN 1d + last run 5d ago → next fire enrolls (2 total)",
-      await countRuns(wf.id) === 2);
   }
 
   // ───────────────────────────────────────────────────────────────────────────
