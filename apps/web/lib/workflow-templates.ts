@@ -53,6 +53,70 @@ const X_CENTER = 360;
 function y(i: number) { return 160 + i * Y_STEP; }
 function x(col: number = 0) { return X_CENTER + col * X_STEP; }
 
+// ─── maily.to JSON-doc DSL ──────────────────────────────────────────────────
+// Template emails ship as JSON-stringified TipTap docs (the format the email
+// worker's renderEmailContent expects + the mly editor opens for further
+// edits). The plain-HTML strings these templates used to carry would throw
+// at send time, so every email body now goes through this DSL.
+
+type Inline = { type: string; text?: string; marks?: unknown[] };
+type Block  = { type: string; content?: unknown[]; attrs?: Record<string, unknown> };
+
+function t(text: string): Inline {
+  return { type: "text", text };
+}
+function bold(text: string): Inline {
+  return { type: "text", text, marks: [{ type: "bold" }] };
+}
+function code(text: string): Inline {
+  return { type: "text", text, marks: [{ type: "code" }] };
+}
+function link(text: string, href: string): Inline {
+  return {
+    type: "text",
+    text,
+    marks: [{ type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer" } }],
+  };
+}
+function p(...inline: (string | Inline)[]): Block {
+  return {
+    type: "paragraph",
+    content: inline.map((i) => typeof i === "string" ? t(i) : i),
+  };
+}
+function listItem(content: string | Inline | (string | Inline)[]): Block {
+  const inline = Array.isArray(content) ? content : [content];
+  return { type: "listItem", content: [p(...inline)] };
+}
+function ul(...items: (string | Inline | (string | Inline)[])[]): Block {
+  return { type: "bulletList", content: items.map(listItem) };
+}
+function ol(...items: (string | Inline | (string | Inline)[])[]): Block {
+  return { type: "orderedList", content: items.map(listItem) };
+}
+function btn(text: string, href: string, opts: { danger?: boolean } = {}): Block {
+  // Defaults mirror the visual style the old plain-HTML CTAs had: filled
+  // pill button, dark or red background, white text, left-aligned (the
+  // editor surface defaults to centered which feels off for content emails).
+  return {
+    type: "button",
+    attrs: {
+      text,
+      url:          href,
+      alignment:    "left",
+      variant:      "filled",
+      borderRadius: "round",
+      buttonColor:  opts.danger ? "#dc2626" : "#111827",
+      textColor:    "#ffffff",
+    },
+  };
+}
+function doc(...blocks: Block[]): string {
+  return JSON.stringify({ type: "doc", content: blocks });
+}
+
+// ─── Node helpers ──────────────────────────────────────────────────────────
+
 function emailNode(id: string, idx: number, subject: string, bodyHtml: string, col = 0): TemplateNode {
   return {
     id, type: "SEND_EMAIL", position: { x: x(col), y: y(idx) },
@@ -79,12 +143,16 @@ function condPurchase(id: string, idx: number, col = 0): TemplateNode {
 function endNode(id: string, idx: number, col = 0, reason?: string): TemplateNode {
   return {
     id, type: "END", position: { x: x(col), y: y(idx) },
-    ...(reason ? { config: { reason } } : {}),
+    config: reason ? { reason } : {},
   };
 }
-function webhookNode(id: string, idx: number, url: string, col = 0): TemplateNode {
+// Kept for the (currently unused) webhook templates so a future "Slack ping"
+// or "CRM sync" template doesn't need this helper re-introduced.
+function _webhookNode(id: string, idx: number, url: string, col = 0): TemplateNode {
   return { id, type: "WEBHOOK", position: { x: x(col), y: y(idx) }, config: { url, method: "POST" } };
 }
+void _webhookNode;
+
 function edge(id: string, source: string, target: string, label?: string): TemplateEdge {
   return { id, source, target, label };
 }
@@ -116,29 +184,41 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       endNode("end1", 2, -1, "purchased"),
       emailNode("email1", 2,
         "{{contact.firstName}}, did you forget something?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>You were so close to grabbing something great — and then life got in the way. Totally understandable.</p>
-<p>Your cart is still here, waiting:</p>
-<p><a href="#" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Complete your order →</a></p>
-<p>Questions? Just hit reply.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("You were so close to grabbing something great — and then life got in the way. Totally understandable."),
+          p("Your cart is still here, waiting:"),
+          btn("Complete your order →", "#"),
+          p("Questions? Just hit reply."),
+        )),
       delayNode("delay2", 3, 23),
       condPurchase("cond2", 4),
       endNode("end2", 5, -1, "purchased"),
       emailNode("email2", 5,
         "Still thinking it over, {{contact.firstName}}?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>No pressure — just a heads up that hundreds of other folks grabbed theirs this week.</p>
-<p>If you've got questions about how it works, what's included, or whether it's the right fit, hit reply and a real human will get back to you within the hour.</p>
-<p><a href="#" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Pick up where you left off →</a></p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("No pressure — just a heads up that hundreds of other folks grabbed theirs this week."),
+          p("If you've got questions about how it works, what's included, or whether it's the right fit, hit reply and a real human will get back to you within the hour."),
+          btn("Pick up where you left off →", "#"),
+        )),
       delayNode("delay3", 6, 48),
       condPurchase("cond3", 7),
       endNode("end3", 8, -1, "purchased"),
       emailNode("email3", 8,
         "Last chance — here's 10% off",
-        `<p>{{contact.firstName}}, this is the last one of these emails — promise.</p>
-<p>If price was the holdup, here's <strong>10% off</strong> if you complete in the next 24 hours. Use code <code>COMEBACK10</code> at checkout:</p>
-<p><a href="#" style="display:inline-block;padding:12px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Claim 10% off →</a></p>
-<p>After today, no more nudges. Cart will expire.</p>`),
+        doc(
+          p("{{contact.firstName}}, this is the last one of these emails — promise."),
+          p(
+            "If price was the holdup, here's ",
+            bold("10% off"),
+            " if you complete in the next 24 hours. Use code ",
+            code("COMEBACK10"),
+            " at checkout:",
+          ),
+          btn("Claim 10% off →", "#", { danger: true }),
+          p("After today, no more nudges. Cart will expire."),
+        )),
       endNode("end_final", 9),
     ],
     edges: [
@@ -172,24 +252,34 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     nodes: [
       emailNode("email1", 0,
         "Welcome, {{contact.firstName}}! Here's what to expect…",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Glad you're here. Quick rundown of what I'll be sending your way:</p>
-<ul><li>Practical tips you can actually use</li><li>Behind-the-scenes from {{workspace.name}}</li><li>Occasional offers (always optional)</li></ul>
-<p>Reply with what you're hoping to get out of this — I read every email.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Glad you're here. Quick rundown of what I'll be sending your way:"),
+          ul(
+            "Practical tips you can actually use",
+            [t("Behind-the-scenes from "), bold("{{workspace.name}}")],
+            "Occasional offers (always optional)",
+          ),
+          p("Reply with what you're hoping to get out of this — I read every email."),
+        )),
       delayNode("delay1", 1, 48),
       emailNode("email2", 2,
         "The story behind {{workspace.name}}",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Quick story about why this exists…</p>
-<p>[Customize: why you started, who you're for, what problem you solve]</p>
-<p>Hit reply and tell me yours.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Quick story about why this exists…"),
+          p("[Customize: why you started, who you're for, what problem you solve]"),
+          p("Hit reply and tell me yours."),
+        )),
       delayDays("delay2", 3, 3),
       emailNode("email3", 4,
         "One simple action to get started today",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Knowing is half the battle — doing is the other half. Today's tiny action:</p>
-<p>[Customize: one concrete, 5-minute thing they can do]</p>
-<p>Let me know how it goes.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Knowing is half the battle — doing is the other half. Today's tiny action:"),
+          p("[Customize: one concrete, 5-minute thing they can do]"),
+          p("Let me know how it goes."),
+        )),
       endNode("end", 5),
     ],
     edges: [
@@ -216,23 +306,34 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     nodes: [
       emailNode("email1", 0,
         "Thanks for your order, {{contact.firstName}}!",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Just wanted to say thank you. Your order is confirmed and we'll be in touch shortly with next steps.</p>
-<p>If you've got any questions in the meantime, hit reply — we're here.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Just wanted to say thank you. Your order is confirmed and we'll be in touch shortly with next steps."),
+          p("If you've got any questions in the meantime, hit reply — we're here."),
+        )),
       delayNode("delay1", 1, 24),
       emailNode("email2", 2,
         "Getting started: 3 things to know",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Quick wins for your first day:</p>
-<ol><li>[Customize step 1]</li><li>[Customize step 2]</li><li>[Customize step 3]</li></ol>
-<p>Reply if you get stuck — happy to help.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Quick wins for your first day:"),
+          ol(
+            "[Customize step 1]",
+            "[Customize step 2]",
+            "[Customize step 3]",
+          ),
+          p("Reply if you get stuck — happy to help."),
+        )),
       delayDays("delay2", 3, 7),
       emailNode("email3", 4,
         "How's it going so far?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Been a week — how's it going?</p>
-<p>If you've had a good experience, a quick review would mean a lot: [review link]</p>
-<p>If something's off, reply and let me know.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Been a week — how's it going?"),
+          p("If you've had a good experience, a quick review would mean a lot:"),
+          btn("Leave a review →", "#"),
+          p("If something's off, reply and let me know."),
+        )),
       endNode("end", 5),
     ],
     edges: [
@@ -259,16 +360,23 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     nodes: [
       emailNode("email1", 0,
         "Your refund is processing, {{contact.firstName}}",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Your refund is on its way. You should see it in your account within 5-10 business days.</p>
-<p>If there's anything we could have done differently, I'd really appreciate hearing it — just hit reply.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Your refund is on its way. You should see it in your account within 5-10 business days."),
+          p("If there's anything we could have done differently, I'd really appreciate hearing it — just hit reply."),
+        )),
       delayDays("delay1", 1, 14),
       emailNode("email2", 2,
         "Open to giving us another shot?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>It's been two weeks — wanted to circle back.</p>
-<p>If timing or fit was the issue, we've shipped some improvements since. Here's 15% off if you'd like to try again: <code>SECONDCHANCE15</code></p>
-<p>If you'd rather not hear from us, just hit reply and I'll take you off the list myself.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("It's been two weeks — wanted to circle back."),
+          p(
+            "If timing or fit was the issue, we've shipped some improvements since. Here's 15% off if you'd like to try again: ",
+            code("SECONDCHANCE15"),
+          ),
+          p("If you'd rather not hear from us, just hit reply and I'll take you off the list myself."),
+        )),
       endNode("end", 3),
     ],
     edges: [
@@ -292,22 +400,30 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     nodes: [
       emailNode("email1", 0,
         "We couldn't process your payment",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Our payment processor couldn't charge your card on file — usually that means the card expired or the bank flagged it.</p>
-<p>Update payment in 2 minutes: <a href="#" style="color:#2563eb">Update card →</a></p>
-<p>We'll retry automatically once you update. No action needed beyond that.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Our payment processor couldn't charge your card on file — usually that means the card expired or the bank flagged it."),
+          p("Update payment in 2 minutes:"),
+          btn("Update card →", "#"),
+          p("We'll retry automatically once you update. No action needed beyond that."),
+        )),
       delayDays("delay1", 1, 2),
       emailNode("email2", 2,
         "Quick reminder: payment still pending",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Your subscription is paused while we sort out the payment. If you need a moment, no rush — just wanted to make sure this didn't slip through.</p>
-<p><a href="#" style="color:#2563eb">Update card →</a></p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Your subscription is paused while we sort out the payment. If you need a moment, no rush — just wanted to make sure this didn't slip through."),
+          btn("Update card →", "#"),
+        )),
       delayDays("delay2", 3, 3),
       emailNode("email3", 4,
         "Final notice: cancellation in 24h",
-        `<p>Hi {{contact.firstName}},</p>
-<p>If we can't process payment in the next 24 hours your subscription will be canceled. Once canceled, you'll lose access to everything you've built.</p>
-<p>One click to save it: <a href="#" style="color:#dc2626;font-weight:600">Update card now →</a></p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("If we can't process payment in the next 24 hours your subscription will be canceled. Once canceled, you'll lose access to everything you've built."),
+          p("One click to save it:"),
+          btn("Update card now →", "#", { danger: true }),
+        )),
       endNode("end", 5),
     ],
     edges: [
@@ -334,22 +450,35 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     nodes: [
       emailNode("email1", 0,
         "{{contact.firstName}}, still want to hear from us?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>It's been a while since you opened one of our emails — totally fine if your interests have changed.</p>
-<p>If you'd like to keep getting these, no action needed.</p>
-<p>If you'd rather not, no hard feelings: <a href="#">unsubscribe in one click →</a></p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("It's been a while since you opened one of our emails — totally fine if your interests have changed."),
+          p("If you'd like to keep getting these, no action needed."),
+          p(
+            "If you'd rather not, no hard feelings: ",
+            link("unsubscribe in one click →", "{{unsubscribeUrl}}"),
+          ),
+        )),
       delayDays("delay1", 1, 5),
       emailNode("email2", 2,
         "Here's what you've missed",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Quick recap of recent highlights:</p>
-<ul><li>[Customize: recent post / product / story]</li><li>[Customize: another one]</li><li>[Customize: third one]</li></ul>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Quick recap of recent highlights:"),
+          ul(
+            "[Customize: recent post / product / story]",
+            "[Customize: another one]",
+            "[Customize: third one]",
+          ),
+        )),
       delayDays("delay2", 3, 5),
       emailNode("email3", 4,
         "Last email if no reply",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Haven't heard back so I'll stop reaching out after this one.</p>
-<p>If we cross paths again — door's always open.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Haven't heard back so I'll stop reaching out after this one."),
+          p("If we cross paths again — door's always open."),
+        )),
       endNode("end", 5),
     ],
     edges: [
@@ -377,15 +506,19 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       // TRUE branch (left): has the tag → paid welcome
       emailNode("email_paid", 1,
         "Welcome to the paid plan!",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Your paid plan is active. Here's everything that's now unlocked: [customize]</p>`, -1),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Your paid plan is active. Here's everything that's now unlocked: [customize]"),
+        ), -1),
       endNode("end_paid", 2, -1),
       // FALSE branch (right): no tag → trial flow
       emailNode("email_trial", 1,
         "Your trial is rolling — here's how to get the most out of it",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Quick tour of trial features: [customize]</p>
-<p>If you have questions, hit reply.</p>`, 1),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Quick tour of trial features: [customize]"),
+          p("If you have questions, hit reply."),
+        ), 1),
       endNode("end_trial", 2, 1),
     ],
     edges: [
@@ -412,9 +545,11 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       delayNode("delay1", 1, 24),
       emailNode("email1", 2,
         "Saw you clicked — want to go deeper?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Noticed you clicked through to [customize]. Since you're interested, here's a related read that goes deeper: [customize link]</p>
-<p>Reply if you have questions.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Noticed you clicked through to [customize]. Since you're interested, here's a related read that goes deeper: [customize link]"),
+          p("Reply if you have questions."),
+        )),
       endNode("end", 3),
     ],
     edges: [
@@ -439,15 +574,19 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     nodes: [
       emailNode("email1", 0,
         "Here's your download, {{contact.firstName}}",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Here's the resource you signed up for:</p>
-<p><a href="#" style="display:inline-block;padding:12px 24px;background:#111827;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Download now →</a></p>
-<p>If you have trouble accessing it, just reply.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Here's the resource you signed up for:"),
+          btn("Download now →", "#"),
+          p("If you have trouble accessing it, just reply."),
+        )),
       delayDays("delay1", 1, 3),
       emailNode("email2", 2,
         "Got a chance to look through it?",
-        `<p>Hi {{contact.firstName}},</p>
-<p>Wanted to check in — did the [customize: resource name] land well? If something didn't click or you got stuck, hit reply and I'll point you in the right direction.</p>`),
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Wanted to check in — did the [customize: resource name] land well? If something didn't click or you got stuck, hit reply and I'll point you in the right direction."),
+        )),
       endNode("end", 3),
     ],
     edges: [

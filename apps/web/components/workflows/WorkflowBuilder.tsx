@@ -571,7 +571,7 @@ export default function WorkflowBuilder(props: Props) {
   );
 }
 
-function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, workflowEmails: initialEmails, workspaceEmails }: Props) {
+function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEmails: initialEmails, workspaceEmails }: Props) {
   const router  = useRouter();
   const params  = useParams();
   const slug    = params.workspaceSlug as string;
@@ -686,13 +686,6 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
     const created = json.data as WorkflowEmailMini;
     setWorkflowEmails((prev) => [...prev, created]);
     return created;
-  }, [initial.id]);
-
-  const deleteWorkflowEmail = useCallback(async (emailId: string) => {
-    setWorkflowEmails((prev) => prev.filter((e) => e.id !== emailId));
-    await apiFetch(`/api/workflows/${initial.id}/emails/${emailId}`, {
-      method: "DELETE",
-    }).catch(() => {});
   }, [initial.id]);
 
   // Reflect trigger type / scope changes into the trigger node's visible data.
@@ -815,22 +808,13 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
   async function addNodeFrom(sourceId: string, type: NodeType) {
     const id  = `n_${Math.random().toString(36).slice(2, 10)}`;
     const def = NODE_DEFS[type];
-    let newCfg: Record<string, unknown> = { ...def.defaultConfig };
+    const newCfg: Record<string, unknown> = { ...def.defaultConfig };
 
-    // SEND_EMAIL: spin up a blank WorkflowEmail row up front so the operator
-    // can start composing immediately. config holds just the emailId — the
-    // editor renders the WorkflowEmail's fields inline.
-    if (type === "SEND_EMAIL") {
-      const defaultSender = senders.find((s) => s.isDefault) ?? senders[0];
-      const created = await createWorkflowEmail({
-        subject:   "",
-        bodyHtml:  "",
-        fromName:  defaultSender?.name  ?? "",
-        fromEmail: defaultSender?.email ?? "",
-        senderId:  defaultSender?.id    ?? null,
-      });
-      newCfg = { emailId: created?.id ?? null };
-    }
+    // SEND_EMAIL no longer auto-creates a WorkflowEmail at add time. The
+    // node lands with no emailId set; the modal's picker prompts the
+    // operator to either pick an existing email or hit "Create new email"
+    // (which navigates to the fullscreen editor). Avoids littering the
+    // workflow with empty placeholder emails the operator may not want.
 
     const sourceNode = rfNodes.find((n) => n.id === sourceId);
     // Position is a placeholder — the structural-change effect below will
@@ -901,14 +885,11 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
     const toDelete   = new Set<string>([nodeId, ...downstream]);
 
     // Clean up any WorkflowEmail rows owned by SEND_EMAIL nodes in the set.
-    for (const id of toDelete) {
-      const node = rfNodesRef.current.find((n) => n.id === id);
-      const type = (node?.data as any)?.type as NodeType | undefined;
-      if (type === "SEND_EMAIL") {
-        const emailId = configMapRef.current[id]?.emailId as string | undefined;
-        if (emailId) void deleteWorkflowEmail(emailId);
-      }
-    }
+    // We deliberately DON'T delete the linked WorkflowEmail when a
+    // SEND_EMAIL node is removed. Emails are first-class entities now —
+    // multiple nodes may reference the same email, and the operator may
+    // want to keep authored content even if they restructure the graph.
+    // Stale emails can be cleaned up from a future email management page.
 
     setRfNodes((prev) => prev.filter((n) => !toDelete.has(n.id)));
     setRfEdges((prev) => prev.filter((e) => !toDelete.has(e.source) && !toDelete.has(e.target)));
@@ -919,7 +900,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
     });
     setSelectedNodeId((sel) => sel && toDelete.has(sel) ? null : sel);
     setDeleteConfirmId(null);
-  }, [setRfNodes, setRfEdges, deleteWorkflowEmail]);
+  }, [setRfNodes, setRfEdges]);
 
   function deleteSelected() {
     if (selectedNodeId) deleteNode(selectedNodeId);
@@ -962,30 +943,25 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
   }
 
   // ─── Switch node type ────────────────────────────────────────────────────
-  // Resets config to the new type's defaults, cleans up type-specific
-  // resources (WorkflowEmail for SEND_EMAIL, fan-out edge labels for
-  // CONDITION), and auto-creates type-specific resources for the new type
-  // (blank WorkflowEmail for SEND_EMAIL).
+  // Resets config to the new type's defaults and cleans up CONDITION's
+  // fan-out edge labels when switching away. The node id + position + edges
+  // to/from it are preserved — operator doesn't lose their graph topology
+  // when fixing a wrong type pick.
   //
-  // The node id + position + edges to/from it are preserved — operator
-  // doesn't lose their graph topology when fixing a wrong type pick.
+  // SEND_EMAIL never auto-creates or auto-deletes a WorkflowEmail across
+  // type switches — emails are first-class entities the operator owns
+  // separately. Switching FROM SEND_EMAIL leaves the email untouched (may
+  // be reused by another node or kept as a draft).
   const switchNodeType = useCallback(async (nodeId: string, newType: NodeType) => {
     const node = rfNodesRef.current.find((n) => n.id === nodeId);
     if (!node) return;
     const currentType = (node.data as any).type as NodeType | undefined;
     if (!currentType || currentType === newType) return;
 
-    // Cleanup current type. SEND_EMAIL deletes its linked WorkflowEmail —
-    // the type-switch confirm modal already warned the operator that the
-    // email + content will be discarded.
-    if (currentType === "SEND_EMAIL") {
-      const emailId = configMapRef.current[nodeId]?.emailId as string | undefined;
-      if (emailId) void deleteWorkflowEmail(emailId);
-    }
     if (currentType === "CONDITION") {
       // CONDITION fans out via labeled true/false edges. Other types are
       // linear → drop the extras so the new node has at most one outgoing
-      // edge (or unbounded for SPLIT-like types, but we don't have those).
+      // edge.
       setRfEdges((prev) => {
         const outs = prev.filter((e) => e.source === nodeId);
         if (outs.length <= 1) return prev;
@@ -994,19 +970,9 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
       });
     }
 
-    // Build new config — type defaults, plus type-specific side effects.
-    let newConfig: Record<string, unknown> = { ...NODE_DEFS[newType].defaultConfig };
-    if (newType === "SEND_EMAIL") {
-      const defaultSender = senders.find((s) => s.isDefault) ?? senders[0];
-      const created = await createWorkflowEmail({
-        subject:   "",
-        bodyHtml:  "",
-        fromName:  defaultSender?.name  ?? "",
-        fromEmail: defaultSender?.email ?? "",
-        senderId:  defaultSender?.id    ?? null,
-      });
-      newConfig = { emailId: created?.id ?? null };
-    }
+    // Build new config — type defaults only. SEND_EMAIL deliberately starts
+    // with no emailId; the operator picks or creates one via the modal.
+    const newConfig: Record<string, unknown> = { ...NODE_DEFS[newType].defaultConfig };
 
     setConfigMap((prev) => ({ ...prev, [nodeId]: newConfig }));
     setRfNodes((prev) => prev.map((n) => n.id === nodeId ? {
@@ -1019,8 +985,7 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
     } : n));
     setSwitchTarget(null);
   }, [
-    deleteWorkflowEmail, createWorkflowEmail, senders, tags, funnels, broadcasts,
-    workflowEmails, setRfNodes, setRfEdges,
+    tags, funnels, broadcasts, workflowEmails, setRfNodes, setRfEdges,
   ]);
 
   // Decide whether to swap silently or open the confirm modal.
@@ -1257,13 +1222,12 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
           onConfigChange={patchConfig}
           onDelete={deleteSelected}
           tags={tags}
-          senders={senders}
           funnels={funnels}
           broadcasts={broadcasts}
           workspaceEmails={workspaceEmails}
           workflowEmails={workflowEmails}
           workflowId={initial.id}
-          updateWorkflowEmail={updateWorkflowEmail}
+          workspaceSlug={slug}
           createWorkflowEmail={createWorkflowEmail}
         />
       )}
@@ -1500,8 +1464,8 @@ function NodeConfigModal({
   isTrigger, selectedNodeId, selectedType, selectedConfig,
   onClose, onTypeSwitch, onConfigChange, onDelete,
   triggerType, triggerConfig, onTriggerTypeChange, onTriggerConfigChange,
-  tags, senders, funnels, broadcasts, workspaceEmails, workflowEmails,
-  workflowId, updateWorkflowEmail, createWorkflowEmail,
+  tags, funnels, broadcasts, workspaceEmails, workflowEmails,
+  workflowId, workspaceSlug, createWorkflowEmail,
 }: {
   isTrigger:        boolean;
   selectedNodeId:   string;
@@ -1516,13 +1480,12 @@ function NodeConfigModal({
   onTriggerTypeChange:   (t: string) => void;
   onTriggerConfigChange: (c: Record<string, unknown>) => void;
   tags:             Props["tags"];
-  senders:          Props["senders"];
   funnels:          Props["funnels"];
   broadcasts:       Props["broadcasts"];
   workspaceEmails:  WorkspaceEmailMini[];
   workflowEmails:   WorkflowEmailMini[];
   workflowId:       string;
-  updateWorkflowEmail:   (emailId: string, patch: Partial<WorkflowEmailMini>) => void;
+  workspaceSlug:    string;
   createWorkflowEmail:   (seed?: Partial<WorkflowEmailMini>) => Promise<WorkflowEmailMini | null>;
 }) {
   // ESC closes the modal — matches the AddNodePicker + ValidationIssuesModal
@@ -1547,7 +1510,7 @@ function NodeConfigModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="bg-white rounded-2xl w-full max-w-xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col"
       >
         {/* Header — three shapes. For supported actions, the type switcher
             is rendered as an explicit labeled select with chevron + border so
@@ -1621,7 +1584,7 @@ function NodeConfigModal({
           </button>
         </div>
 
-        {/* Body */}
+        {/* Body — scrolls if the form exceeds the modal max-height. */}
         <div className="p-4 overflow-y-auto">
           {isTrigger && (
             <TriggerConfigForm
@@ -1642,12 +1605,12 @@ function NodeConfigModal({
               config={selectedConfig}
               onChange={onConfigChange}
               tags={tags}
-              senders={senders}
               funnels={funnels}
               broadcasts={broadcasts}
               workflowEmails={workflowEmails}
-              updateWorkflowEmail={updateWorkflowEmail}
               createWorkflowEmail={createWorkflowEmail}
+              workspaceSlug={workspaceSlug}
+              workflowId={workflowId}
             />
           )}
           {isDeprecated && selectedType && (
@@ -2121,85 +2084,98 @@ function truncateMiddle(s: string, n: number): string {
 // ─── Per-node-type config form ─────────────────────────────────────────────
 
 function NodeConfigForm({
-  type, config, onChange, tags, senders, funnels, broadcasts,
-  workflowEmails, updateWorkflowEmail, createWorkflowEmail,
+  type, config, onChange, tags, funnels, broadcasts,
+  workflowEmails, createWorkflowEmail, workspaceSlug, workflowId,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
   tags: Props["tags"];
-  senders: Props["senders"];
   funnels: Props["funnels"];
   broadcasts: Props["broadcasts"];
   workflowEmails:        WorkflowEmailMini[];
-  updateWorkflowEmail:   (emailId: string, patch: Partial<WorkflowEmailMini>) => void;
   createWorkflowEmail:   (seed?: Partial<WorkflowEmailMini>) => Promise<WorkflowEmailMini | null>;
+  workspaceSlug:         string;
+  workflowId:            string;
 }) {
   const inp  = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl  = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
 
   if (type === "SEND_EMAIL") {
+    // Compact picker: the workflow editor only links a node to a saved
+    // WorkflowEmail. All content editing (subject, sender, body) happens on
+    // the dedicated editor page reached via Edit / Create — same pattern as
+    // Broadcast where the listing links out to a fullscreen maily.to editor.
     const emailId = config.emailId as string | undefined;
     const email   = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
-
-    // No linked email (orphan node from a stale clone, or async create still
-    // in flight). Show a "Create email" affordance.
-    if (!emailId || !email) {
-      return (
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500">No email linked to this step yet.</p>
-          <button
-            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-            onClick={async () => {
-              const created = await createWorkflowEmail({ subject: "", bodyHtml: "", fromName: "", fromEmail: "" });
-              if (created) onChange({ emailId: created.id });
-            }}
-          >
-            Create new email
-          </button>
-        </div>
-      );
-    }
+    const editUrl = (id: string) => `/${workspaceSlug}/workflows/${workflowId}/emails/${id}/edit`;
 
     return (
       <div className="space-y-3">
         <div>
-          <label className={lbl}>From</label>
-          <select
-            className={inp}
-            value={email.senderId ?? ""}
-            onChange={(e) => {
-              const senderId = e.target.value;
-              const s = senders.find((x) => x.id === senderId);
-              updateWorkflowEmail(emailId, {
-                senderId,
-                fromName:  s?.name  ?? email.fromName,
-                fromEmail: s?.email ?? email.fromEmail,
-              });
+          <label className={lbl}>Email</label>
+          {workflowEmails.length > 0 ? (
+            <select
+              className={inp}
+              value={emailId ?? ""}
+              onChange={(e) => onChange({ emailId: e.target.value || null })}
+            >
+              <option value="">— pick an email —</option>
+              {workflowEmails.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name || e.subject || "(untitled)"}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-[11px] text-gray-500 italic">
+              No emails in this workflow yet. Create one below — come back and pick it from this dropdown.
+            </p>
+          )}
+        </div>
+
+        {/* Live summary of the picked email so the operator can verify they
+            wired the right one without opening the editor. "Edit this email"
+            sits inline with the Preview caption — same row, right side —
+            since editing the picked email is the natural follow-up action
+            when looking at its preview. */}
+        {email && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] uppercase font-semibold tracking-wider text-gray-500">Preview</div>
+              <a
+                href={editUrl(email.id)}
+                className="text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+              >
+                Edit this email
+              </a>
+            </div>
+            <div className="text-xs font-medium text-gray-900 truncate">
+              {email.subject || <span className="italic text-gray-400">No subject</span>}
+            </div>
+            <div className="text-[11px] text-gray-500 truncate">
+              From: {email.fromName ? `${email.fromName} <${email.fromEmail}>` : <span className="italic">No sender</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Create stays on its own row — it's the "I want a fresh email"
+            escape hatch and shouldn't read as paired with Edit. We don't
+            auto-rebind the node's emailId on create since the operator
+            might be authoring a reusable email separately and will pick it
+            from the dropdown afterwards. */}
+        <div className="text-[11px] text-gray-500">
+          <button
+            type="button"
+            onClick={async () => {
+              const created = await createWorkflowEmail({ subject: "", bodyHtml: "", fromName: "", fromEmail: "" });
+              if (!created) return;
+              window.location.href = editUrl(created.id);
             }}
+            className="font-medium text-gray-600 hover:text-gray-900 hover:underline"
           >
-            <option value="">— pick sender —</option>
-            {senders.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={lbl}>Subject</label>
-          <input
-            className={inp}
-            value={email.subject}
-            onChange={(e) => updateWorkflowEmail(emailId, { subject: e.target.value })}
-            placeholder="Hi {{contact.firstName}}…"
-          />
-        </div>
-        <div>
-          <label className={lbl}>HTML body</label>
-          <textarea
-            className={`${inp} font-mono`} rows={8}
-            value={email.bodyHtml}
-            onChange={(e) => updateWorkflowEmail(emailId, { bodyHtml: e.target.value })}
-            placeholder="<p>Hello {{contact.firstName}},</p>…"
-          />
-          <p className="text-[10px] text-gray-400 mt-1">Mustache vars: contact, workspace, trigger data.</p>
+            + Create new email
+          </button>
         </div>
       </div>
     );
