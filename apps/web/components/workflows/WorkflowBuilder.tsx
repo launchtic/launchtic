@@ -22,7 +22,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
 import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
-  GitBranch, Square, Loader2, Save, History, Zap, X,
+  GitBranch, Square, Loader2, Save, History, Zap, X, ChevronDown,
   Trash2,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
@@ -1231,80 +1231,42 @@ function InnerBuilder({ workflow: initial, tags, senders, funnels, broadcasts, w
           </div>
         </div>
 
-        {/* Right properties panel */}
-        {selectedNodeId === TRIGGER_ID && (
-          <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <Zap size={14} className="text-blue-600" />
-                Trigger
-              </h3>
-            </div>
-            <TriggerConfigForm
-              triggerType={triggerType}
-              triggerConfig={triggerConfig}
-              funnels={funnels}
-              tags={tags}
-              broadcasts={broadcasts}
-              workspaceEmails={workspaceEmails}
-              workflowId={initial.id}
-              onTypeChange={setTriggerType}
-              onConfigChange={setTriggerConfig}
-            />
-          </div>
-        )}
-        {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && NODE_DEFS[selectedType] && (
-          <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
-            {/* Type switcher header. Operator can swap the action type
-                without losing the node's id, position, or edges — handy when
-                they pick the wrong type from the "+" picker.
-                Delete lives on the node card itself (hover X) — no second
-                delete affordance here to avoid duplication. */}
-            <div className="mb-3 flex items-center gap-2 px-2 py-1 border border-gray-200 rounded-lg bg-gray-50">
-              {(() => { const I = NODE_DEFS[selectedType].Icon; return <I size={14} className="shrink-0" style={{ color: NODE_DEFS[selectedType].color }} />; })()}
-              <select
-                value={selectedType}
-                onChange={(e) => handleTypeSwitch(selectedNodeId!, e.target.value as NodeType)}
-                className="flex-1 bg-transparent border-none outline-none text-sm font-semibold text-gray-900 cursor-pointer"
-              >
-                {(Object.keys(NODE_DEFS) as NodeType[]).map((t) => (
-                  <option key={t} value={t}>{NODE_DEFS[t].label}</option>
-                ))}
-              </select>
-            </div>
-            <NodeConfigForm
-              type={selectedType}
-              config={selectedConfig}
-              onChange={patchConfig}
-              tags={tags}
-              senders={senders}
-              funnels={funnels}
-              broadcasts={broadcasts}
-              workflowEmails={workflowEmails}
-              updateWorkflowEmail={updateWorkflowEmail}
-              createWorkflowEmail={createWorkflowEmail}
-            />
-          </div>
-        )}
-        {selectedNode && selectedNodeId !== TRIGGER_ID && selectedType && !NODE_DEFS[selectedType] && (
-          <div className="w-72 border-l border-gray-200 bg-white p-3 overflow-y-auto shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-red-700">Deprecated node</h3>
-              <button onClick={deleteSelected} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete">×</button>
-            </div>
-            <p className="text-xs text-gray-600 mb-3">
-              Type <code className="bg-gray-100 px-1 py-0.5 rounded">{selectedType}</code> is no longer supported.
-              Delete this node and replace with a supported step.
-            </p>
-            <button
-              onClick={deleteSelected}
-              className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg"
-            >
-              Delete this node
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* Centered config modal — replaces the old right-side properties panel.
+          Opens whenever a node (trigger or action) is selected, and also fires
+          automatically after the operator picks a type from the "+" picker
+          (addNodeFrom calls setSelectedNodeId on the freshly-created node).
+          Three shapes: trigger / supported action / deprecated legacy.
+          Save flow unchanged — config writes are still debounced into the
+          workflow autosave; closing the modal does NOT need an explicit save. */}
+      {selectedNode && (
+        <NodeConfigModal
+          isTrigger={selectedNodeId === TRIGGER_ID}
+          selectedNodeId={selectedNodeId!}
+          selectedType={selectedType}
+          selectedConfig={selectedConfig}
+          onClose={() => setSelectedNodeId(null)}
+          // Trigger form deps
+          triggerType={triggerType}
+          triggerConfig={triggerConfig}
+          onTriggerTypeChange={setTriggerType}
+          onTriggerConfigChange={setTriggerConfig}
+          // Action form deps
+          onTypeSwitch={(t) => handleTypeSwitch(selectedNodeId!, t)}
+          onConfigChange={patchConfig}
+          onDelete={deleteSelected}
+          tags={tags}
+          senders={senders}
+          funnels={funnels}
+          broadcasts={broadcasts}
+          workspaceEmails={workspaceEmails}
+          workflowEmails={workflowEmails}
+          workflowId={initial.id}
+          updateWorkflowEmail={updateWorkflowEmail}
+          createWorkflowEmail={createWorkflowEmail}
+        />
+      )}
 
       {showHistory && (
         <WorkflowRunHistory workflowId={initial.id} onClose={() => setShowHistory(false)} />
@@ -1523,6 +1485,204 @@ function AddNodePicker({
       </div>
     </div>
   );
+}
+
+// ─── Centered config modal ─────────────────────────────────────────────────
+//
+// Replaces the right-side properties panel — same three shapes (trigger,
+// supported action, deprecated legacy) but mounted as a centered overlay so
+// the canvas underneath stays visible at full width when nothing is
+// selected. Backdrop click / ESC / Done button all close (just clears
+// selectedNodeId — config writes are debounced into the workflow autosave so
+// no explicit save is needed).
+
+function NodeConfigModal({
+  isTrigger, selectedNodeId, selectedType, selectedConfig,
+  onClose, onTypeSwitch, onConfigChange, onDelete,
+  triggerType, triggerConfig, onTriggerTypeChange, onTriggerConfigChange,
+  tags, senders, funnels, broadcasts, workspaceEmails, workflowEmails,
+  workflowId, updateWorkflowEmail, createWorkflowEmail,
+}: {
+  isTrigger:        boolean;
+  selectedNodeId:   string;
+  selectedType:     NodeType | undefined;
+  selectedConfig:   Record<string, unknown>;
+  onClose:          () => void;
+  onTypeSwitch:     (t: NodeType) => void;
+  onConfigChange:   (patch: Record<string, unknown>) => void;
+  onDelete:         () => void;
+  triggerType:      string;
+  triggerConfig:    Record<string, unknown>;
+  onTriggerTypeChange:   (t: string) => void;
+  onTriggerConfigChange: (c: Record<string, unknown>) => void;
+  tags:             Props["tags"];
+  senders:          Props["senders"];
+  funnels:          Props["funnels"];
+  broadcasts:       Props["broadcasts"];
+  workspaceEmails:  WorkspaceEmailMini[];
+  workflowEmails:   WorkflowEmailMini[];
+  workflowId:       string;
+  updateWorkflowEmail:   (emailId: string, patch: Partial<WorkflowEmailMini>) => void;
+  createWorkflowEmail:   (seed?: Partial<WorkflowEmailMini>) => Promise<WorkflowEmailMini | null>;
+}) {
+  // ESC closes the modal — matches the AddNodePicker + ValidationIssuesModal
+  // behavior so all overlays share one mental model.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Decide which body to render. Three branches mirror the old sidebar's
+  // three rendering paths exactly.
+  const isSupportedAction = !isTrigger && selectedType !== undefined && !!NODE_DEFS[selectedType];
+  const isDeprecated      = !isTrigger && selectedType !== undefined && !NODE_DEFS[selectedType];
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      >
+        {/* Header — three shapes. For supported actions, the type switcher
+            is rendered as an explicit labeled select with chevron + border so
+            the operator can see it's a dropdown (the earlier borderless inline
+            select read as plain text). Trigger and deprecated headers stay
+            text-only since they don't have a switchable type at this layer
+            (trigger type changes via the "When" select inside the body). */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
+          {isTrigger && (
+            <>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-blue-100">
+                <Zap size={16} className="text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] uppercase font-semibold tracking-wider text-gray-500">Trigger</div>
+                <h2 className="text-sm font-semibold text-gray-900 truncate">Edit trigger</h2>
+              </div>
+            </>
+          )}
+          {isSupportedAction && selectedType && (
+            <>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: `${NODE_DEFS[selectedType].color}1f` }}
+              >
+                {(() => {
+                  const I = NODE_DEFS[selectedType].Icon;
+                  return <I size={16} style={{ color: NODE_DEFS[selectedType].color }} />;
+                })()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="text-[10px] uppercase font-semibold tracking-wider text-gray-500 block">
+                  Step type
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedType}
+                    onChange={(e) => onTypeSwitch(e.target.value as NodeType)}
+                    className="w-full appearance-none bg-white border border-gray-300 rounded-md py-1 pl-2 pr-7 text-sm font-semibold text-gray-900 cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title="Change step type"
+                  >
+                    {(Object.keys(NODE_DEFS) as NodeType[]).map((t) => (
+                      <option key={t} value={t}>{NODE_DEFS[t].label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={12}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+          {isDeprecated && (
+            <>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-red-100">
+                <Trash2 size={14} className="text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] uppercase font-semibold tracking-wider text-red-500">Legacy</div>
+                <h2 className="text-sm font-semibold text-red-700 truncate">Deprecated node</h2>
+              </div>
+            </>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-400 hover:bg-gray-200 rounded shrink-0"
+            title="Close (Esc)"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-4 overflow-y-auto">
+          {isTrigger && (
+            <TriggerConfigForm
+              triggerType={triggerType}
+              triggerConfig={triggerConfig}
+              funnels={funnels}
+              tags={tags}
+              broadcasts={broadcasts}
+              workspaceEmails={workspaceEmails}
+              workflowId={workflowId}
+              onTypeChange={onTriggerTypeChange}
+              onConfigChange={onTriggerConfigChange}
+            />
+          )}
+          {isSupportedAction && selectedType && (
+            <NodeConfigForm
+              type={selectedType}
+              config={selectedConfig}
+              onChange={onConfigChange}
+              tags={tags}
+              senders={senders}
+              funnels={funnels}
+              broadcasts={broadcasts}
+              workflowEmails={workflowEmails}
+              updateWorkflowEmail={updateWorkflowEmail}
+              createWorkflowEmail={createWorkflowEmail}
+            />
+          )}
+          {isDeprecated && selectedType && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-600">
+                Type <code className="bg-gray-100 px-1 py-0.5 rounded">{selectedType}</code> is no
+                longer supported. Delete this node and replace with a supported step.
+              </p>
+              <button
+                onClick={onDelete}
+                className="w-full px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg"
+              >
+                Delete this node
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer — single Done button. Autosave already wrote the changes
+            so closing the modal is the same as "save & close". */}
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 rounded-lg"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+  // Acknowledge `selectedNodeId` for completeness — surfacing it in the
+  // signature keeps the parent's contract obvious even though the modal
+  // itself doesn't render the id.
+  void selectedNodeId;
 }
 
 // ─── Pre-flight validation modal ───────────────────────────────────────────
