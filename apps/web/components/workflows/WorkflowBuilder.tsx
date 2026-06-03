@@ -23,7 +23,8 @@ import dagre from "@dagrejs/dagre";
 import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
   GitBranch, Square, Loader2, Save, History, Zap, X, ChevronDown,
-  Trash2,
+  Trash2, ShoppingCart, ShoppingBag, CreditCard, Send, Undo2, MailOpen,
+  MousePointerClick, Eye, User,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
@@ -272,21 +273,91 @@ const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
 // One-line plain-English description shown under the trigger dropdown so the
 // operator knows exactly when the workflow will start firing.
 const TRIGGER_DESCRIPTIONS: Record<string, string> = {
-  NEW_SALE:                    "When an order is marked PAID. Scope to one funnel below — e.g. only fire for the main checkout, not upsells.",
-  SALE_CANCELED:               "When an order is refunded or canceled.",
-  SUBSCRIPTION_PAYMENT_FAILED: "When Stripe/PayPal fails to charge a recurring subscription. Scope to the funnel + checkout step that created the subscription.",
-  FORM_SUBMIT:                 "When a contact submits an opt-in form on a funnel step.",
-  CHECKOUT_STARTED:            "When a visitor enters the checkout page and fills in their email — before paying. Use for cart abandonment recovery.",
-  TAG_ADDED:                   "When the tag below gets added to a contact (manually, by another workflow, by API, etc).",
-  TAG_REMOVED:                 "When the tag below gets removed from a contact.",
-  EMAIL_OPENED:                "When a contact opens a tracked email. Pick a source (broadcast or workflow email) below. Fires once per contact per email.",
-  EMAIL_LINK_CLICKED:          "When a contact clicks a link in a tracked email. Pick a source below; optionally narrow to a specific link. Fires once per contact per email.",
-  PAGE_VISITED:                "When a known contact loads the funnel page below. Identity comes from a cookie set on email click — anonymous first-time visitors don't fire this trigger.",
+    NEW_SALE:                    "When a contact completes a paid order",
+    SALE_CANCELED:               "When an order is refunded or canceled",
+    SUBSCRIPTION_PAYMENT_FAILED: "When a recurring subscription charge fails",
+    FORM_SUBMIT:                 "When a contact submits a funnel opt-in form",
+    CHECKOUT_STARTED:            "When a visitor enters checkout with their email",
+    TAG_ADDED:                   "When a tag is assigned to a contact",
+    TAG_REMOVED:                 "When a tag is removed from a contact",
+    EMAIL_OPENED:                "When a contact opens a tracked email",
+    EMAIL_LINK_CLICKED:          "When a contact clicks a link in a tracked email",
+    PAGE_VISITED:                "When a known contact visits a funnel page",
 };
 
 function triggerHumanLabel(t: string): string {
   return t.replace(/_/g, " ").toLowerCase();
 }
+
+// Icon per trigger type for the rich dropdown. Falls back to Zap for legacy
+// values so the picker never renders an icon-less row. Kept next to
+// TRIGGER_DESCRIPTIONS so a new trigger only requires touching this file in
+// two spots (label/desc + icon).
+const TRIGGER_ICONS: Record<string, typeof Mail> = {
+  NEW_SALE:                    ShoppingCart,
+  SALE_CANCELED:               Undo2,
+  SUBSCRIPTION_PAYMENT_FAILED: CreditCard,
+  FORM_SUBMIT:                 Send,
+  TAG_ADDED:                   Tag,
+  TAG_REMOVED:                 TagOff,
+  EMAIL_OPENED:                MailOpen,
+  EMAIL_LINK_CLICKED:          MousePointerClick,
+  CHECKOUT_STARTED:            ShoppingBag,
+  PAGE_VISITED:                Eye,
+};
+
+// One-line description per node type — shared by the "+ add step" picker
+// (AddNodePicker grid) AND the Step type switcher in the NodeConfigModal
+// header. Hoisted to module scope so both surfaces stay in sync; updating
+// the copy once propagates to both.
+const NODE_TYPE_DESCRIPTIONS: Record<NodeType, string> = {
+  SEND_EMAIL: "Personalised email with Mustache vars",
+  ADD_TAG:    "Tag the contact",
+  REMOVE_TAG: "Remove a tag from the contact",
+  WEBHOOK:    "Call any HTTP endpoint (Slack, CRM, custom)",
+  DELAY:      "Wait minutes / hours / days before next step",
+  CONDITION:  "Branch true / false (wire true → End for early exit)",
+  END:        "Mark this branch completed",
+};
+
+// CONDITION node "Kind" options for the rich dropdown. Without descriptions
+// it's hard to tell "Contact purchased" from "Email opened" at first glance —
+// the inline description tells the operator what each kind evaluates so they
+// pick correctly. Order is stable across re-renders (constant array).
+const CONDITION_KIND_OPTIONS: Array<{
+  value: string; label: string; description: string; Icon: typeof Mail;
+}> = [
+  {
+    value:       "contact_tag",
+    label:       "Contact tag",
+    description: "True if the contact has (or doesn't have) a specific tag.",
+    Icon:        Tag,
+  },
+  {
+    value:       "contact_field",
+    label:       "Contact field",
+    description: "Compare a profile field (email, firstName, country…) against a value.",
+    Icon:        User,
+  },
+  {
+    value:       "contact_purchased",
+    label:       "Contact purchased",
+    description: "True if the contact placed a PAID order after this run started.",
+    Icon:        ShoppingCart,
+  },
+  {
+    value:       "email_opened",
+    label:       "Email opened",
+    description: "True if the contact opened a specific broadcast or workflow email.",
+    Icon:        MailOpen,
+  },
+  {
+    value:       "email_clicked",
+    label:       "Email clicked",
+    description: "True if the contact clicked a link in a specific email.",
+    Icon:        MousePointerClick,
+  },
+];
 
 // ─── Custom node renderers ──────────────────────────────────────────────────
 
@@ -1415,17 +1486,6 @@ function AddNodePicker({
   onPick: (type: NodeType) => void;
   onClose: () => void;
 }) {
-  // Hint copy per type — kept short so the grid stays scannable.
-  const HINTS: Record<NodeType, string> = {
-    SEND_EMAIL: "Personalised email with Mustache vars",
-    ADD_TAG:    "Tag the contact",
-    REMOVE_TAG: "Remove a tag from the contact",
-    WEBHOOK:    "Call any HTTP endpoint (Slack, CRM, custom)",
-    DELAY:      "Wait minutes / hours / days before next step",
-    CONDITION:  "Branch true / false (wire true → End for early exit)",
-    END:        "Mark this branch completed",
-  };
-
   // Hide END after the trigger — `trigger → end` with nothing between is
   // never a useful workflow. Allow everywhere else.
   const hideEnd = sourceId === TRIGGER_ID;
@@ -1464,7 +1524,7 @@ function AddNodePicker({
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900">{def.label}</div>
-                  <div className="text-[11px] text-gray-500 leading-snug">{HINTS[t]}</div>
+                  <div className="text-[11px] text-gray-500 leading-snug">{NODE_TYPE_DESCRIPTIONS[t]}</div>
                 </div>
               </button>
             );
@@ -1535,7 +1595,15 @@ function NodeConfigModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl w-full max-w-xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col"
+        // One size for every node-config shape (trigger / action / deprecated)
+        // so the canvas doesn't flicker between layouts as the operator clicks
+        // around. Sized for the trigger's rich "When" picker (max-w-2xl gives
+        // its 2-line descriptions room to breathe; min-h-[520px] lets the
+        // ~288px open panel expand in place instead of forcing body scroll).
+        // Smaller forms (ADD_TAG, REMOVE_TAG, deprecated) end up with empty
+        // space below — acceptable trade for consistency, and WEBHOOK's
+        // payload preview + SEND_EMAIL's picker block fill it well anyway.
+        className="bg-white rounded-2xl w-full max-w-2xl min-h-[520px] max-h-[85vh] shadow-2xl overflow-hidden flex flex-col"
       >
         {/* Header — three shapes. For supported actions, the type switcher
             is rendered as an explicit labeled select with chevron + border so
@@ -1567,26 +1635,25 @@ function NodeConfigModal({
                 })()}
               </div>
               <div className="flex-1 min-w-0">
-                <label className="text-[10px] uppercase font-semibold tracking-wider text-gray-500 block">
+                <label className="text-[10px] uppercase font-semibold tracking-wider text-gray-500 block mb-0.5">
                   Step type
                 </label>
-                <div className="relative">
-                  <select
-                    value={selectedType}
-                    onChange={(e) => onTypeSwitch(e.target.value as NodeType)}
-                    disabled={isLocked}
-                    className="w-full appearance-none bg-white border border-gray-300 rounded-md py-1 pl-2 pr-7 text-sm font-semibold text-gray-900 cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-                    title={isLocked ? "Pause the workflow to change step type" : "Change step type"}
-                  >
-                    {(Object.keys(NODE_DEFS) as NodeType[]).map((t) => (
-                      <option key={t} value={t}>{NODE_DEFS[t].label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={12}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500"
-                  />
-                </div>
+                {/* hideButtonIcon: the outer 8x8 type-colored icon box already
+                    signals the current type, so the closed dropdown stays
+                    text-only. Open panel still shows each option's icon to
+                    aid scanning. */}
+                <RichSelect
+                  value={selectedType}
+                  onChange={(v) => onTypeSwitch(v as NodeType)}
+                  disabled={isLocked}
+                  hideButtonIcon
+                  options={(Object.keys(NODE_DEFS) as NodeType[]).map((t) => ({
+                    value:       t,
+                    label:       NODE_DEFS[t].label,
+                    description: NODE_TYPE_DESCRIPTIONS[t] ?? "",
+                    Icon:        NODE_DEFS[t].Icon,
+                  }))}
+                />
               </div>
             </>
           )}
@@ -1617,7 +1684,10 @@ function NodeConfigModal({
             them inline (Create-new buttons hidden, navigation links still
             available so the operator can read the linked content). */}
         <fieldset disabled={isLocked} className="contents">
-          <div className="p-4 overflow-y-auto">
+          {/* flex-1 lets the body fill the modal vertically — paired with the
+              trigger modal's min-h above, the dropdown panel always has room
+              to expand in place instead of pushing the modal into scroll. */}
+          <div className="p-4 overflow-y-auto flex-1">
             {isTrigger && (
               <TriggerConfigForm
                 triggerType={triggerType}
@@ -1752,6 +1822,110 @@ function ValidationIssuesModal({
   );
 }
 
+// ─── Rich select (icon + label + description) ──────────────────────────────
+//
+// Generic dropdown that replaces a plain <select> when each option needs an
+// explanation. Used for the trigger "When" picker and CONDITION "Kind" —
+// any place where the label alone doesn't tell the operator what they're
+// picking. Closed state matches the chrome of our other form inputs so it
+// drops in without layout jitter. Click outside or ESC closes. Keyboard
+// arrow nav is intentionally skipped — option lists are short (~5–10) and
+// the original <select> didn't support arrow nav meaningfully either.
+function RichSelect({
+  value, onChange, options, disabled, hideButtonIcon,
+}: {
+  value:    string;
+  onChange: (v: string) => void;
+  options:  Array<{ value: string; label: string; description: string; Icon: typeof Mail }>;
+  disabled?: boolean;
+  /** Skip the icon inside the closed-state button. Useful when the caller
+      already renders the current selection's icon outside the dropdown
+      (e.g. the NodeConfigModal header shows a type-colored icon box next
+      to the Step type switcher). */
+  hideButtonIcon?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      // Cast via HTMLElement to dodge the react-flow `Node` type imported at
+      // the top of this file shadowing the DOM Node interface in scope.
+      if (ref.current && !ref.current.contains(e.target as HTMLElement)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`w-full flex items-center gap-2 text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled ? "cursor-not-allowed text-gray-400" : "hover:border-gray-300"
+        }`}
+      >
+        {current && !hideButtonIcon && <current.Icon size={14} className="text-gray-500 shrink-0" />}
+        <span className="flex-1 truncate">
+          {current?.label ?? "— pick a trigger —"}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div
+          className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-72 overflow-auto py-1"
+          role="listbox"
+        >
+          {options.map((o) => {
+            const isSelected = o.value === value;
+            return (
+              <button
+                type="button"
+                key={o.value}
+                onClick={() => { onChange(o.value); setOpen(false); }}
+                role="option"
+                aria-selected={isSelected}
+                className={`w-full flex items-start gap-2.5 px-2.5 py-2 text-left transition-colors ${
+                  isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                }`}
+              >
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                  isSelected ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+                }`}>
+                  <o.Icon size={14} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-medium ${isSelected ? "text-blue-900" : "text-gray-900"}`}>
+                    {o.label}
+                  </div>
+                  <div className="text-[11px] text-gray-500 leading-snug mt-0.5">
+                    {o.description}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Trigger config form (right panel when trigger node selected) ──────────
 
 function TriggerConfigForm({
@@ -1820,9 +1994,19 @@ function TriggerConfigForm({
     <div className="space-y-3">
       <div>
         <label className={lbl}>When</label>
-        <select className={inp} value={triggerType} onChange={(e) => handleTypeChange(e.target.value)}>
-          {TRIGGER_TYPES.map((t) => <option key={t} value={t}>{triggerHumanLabel(t)}</option>)}
-        </select>
+        <RichSelect
+          value={triggerType}
+          onChange={handleTypeChange}
+          options={TRIGGER_TYPES.map((t) => ({
+            value:       t,
+            label:       triggerHumanLabel(t),
+            description: TRIGGER_DESCRIPTIONS[t] ?? "",
+            Icon:        TRIGGER_ICONS[t] ?? Zap,
+          }))}
+        />
+        {/* Keep a persistent description under the closed picker — once
+            picked, the operator shouldn't need to reopen the dropdown to
+            recall what their selected trigger does. */}
         {description && (
           <p className="text-[11px] text-gray-500 mt-1.5 leading-snug">{description}</p>
         )}
@@ -1877,7 +2061,7 @@ function TriggerConfigForm({
               value={funnelId}
               onChange={(e) => onConfigChange({ ...triggerConfig, funnelId: e.target.value || undefined, funnelStepId: undefined })}
             >
-              <option value="">— any funnel —</option>
+              <option value="">— pick funnel —</option>
               {funnels.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </div>
@@ -1889,7 +2073,7 @@ function TriggerConfigForm({
                 value={(triggerConfig.funnelStepId as string | undefined) ?? ""}
                 onChange={(e) => onConfigChange({ ...triggerConfig, funnelStepId: e.target.value || undefined })}
               >
-                <option value="">— any step —</option>
+                <option value="">— pick step —</option>
                 {eligibleSteps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.type.toLowerCase()})</option>)}
               </select>
               {eligibleSteps.length === 0 && (
@@ -2283,18 +2467,16 @@ function NodeConfigForm({
   }
 
   if (type === "CONDITION") {
-    const kind = (config.kind as string) ?? "contact_has_tag";
+    const kind = (config.kind as string) ?? "contact_tag";
     return (
       <div className="space-y-3">
         <div>
           <label className={lbl}>Kind</label>
-          <select className={inp} value={kind} onChange={(e) => onChange({ kind: e.target.value })}>
-            <option value="contact_tag">Contact tag</option>
-            <option value="contact_field">Contact field</option>
-            <option value="contact_purchased">Contact purchased</option>
-            <option value="email_opened">Email opened</option>
-            <option value="email_clicked">Email clicked</option>
-          </select>
+          <RichSelect
+            value={kind}
+            onChange={(v) => onChange({ kind: v })}
+            options={CONDITION_KIND_OPTIONS}
+          />
         </div>
         {kind === "contact_tag" && (
           <>

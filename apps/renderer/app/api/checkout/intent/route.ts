@@ -5,6 +5,7 @@ import { getProvider } from "../../../../lib/payments/registry";
 import type { CheckoutInput, BumpPlanRow } from "../../../../lib/payments/types";
 import { isPaypalSupported } from "../../../../lib/payments/currency";
 import { fireTrigger } from "../../../../lib/automations";
+import { setLtContactCookie } from "../../../../lib/identity-cookie";
 
 function ok(data: Record<string, unknown>) {
   return NextResponse.json({ success: true, ...data });
@@ -278,7 +279,9 @@ export async function POST(req: NextRequest) {
       await redis.setex(`paypal:sub:${result.paypalSubscriptionId}`, 900, JSON.stringify({ input, planRow }));
     }
 
-    return ok(result);
+    // Identity cookie — set after upsert so subsequent funnel page visits
+    // fire PAGE_VISITED for this contact even if they bounce mid-checkout.
+    return setLtContactCookie(ok(result), contact.id);
   } catch (error) {
     console.error("[/api/checkout/intent]", error);
     return fail(error instanceof Error ? error.message : "Internal error", 500);

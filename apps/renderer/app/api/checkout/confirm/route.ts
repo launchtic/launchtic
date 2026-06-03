@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { fireTrigger } from "../../../../lib/automations";
+import { setLtContactCookie } from "../../../../lib/identity-cookie";
 import { grantOrderResources } from "../../../../lib/resources";
 import { recordCouponUsage } from "../../../../lib/coupons";
 import { recordFunnelEvent, SID_HEADER } from "../../../../lib/funnel-events";
@@ -177,7 +178,10 @@ export async function POST(req: NextRequest) {
     const host = req.headers.get("host") ?? "localhost:3001";
     const nextStepUrl = order.funnelStepId ? await getNextStepUrl(order.funnelStepId, host) : null;
 
-    return ok({ nextStepUrl });
+    // Identity cookie — defensive re-set. Intent endpoint already set it,
+    // but some PayPal flows can land here without going through intent on
+    // the same browser session (e.g. PayPal redirect on a new device).
+    return setLtContactCookie(ok({ nextStepUrl }), order.contactId);
   } catch (error) {
     console.error("[/api/checkout/confirm]", error);
     return fail(error instanceof Error ? error.message : "Internal error", 500);

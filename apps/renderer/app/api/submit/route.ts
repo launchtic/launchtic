@@ -4,6 +4,7 @@ import { redis } from "../../../lib/redis";
 import { fireTrigger } from "../../../lib/automations";
 import { recordFunnelEvent, SID_HEADER } from "../../../lib/funnel-events";
 import { getAssignedVariantId } from "../../../lib/ab-testing";
+import { setLtContactCookie } from "../../../lib/identity-cookie";
 
 function ok(data: unknown, status = 200) {
   return NextResponse.json({ success: true, data }, { status });
@@ -198,7 +199,11 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      return ok({ nextStepUrl });
+      // Set the lt_contact identity cookie so subsequent funnel page visits
+      // fire PAGE_VISITED. Set on EVERY submit (not just the first) so a
+      // returning lead within the dedupe window still re-establishes
+      // identity if their cookie expired or was cleared.
+      return setLtContactCookie(ok({ nextStepUrl }), contact.id);
     }
 
    

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { fireTrigger } from "../../../../../../lib/automations";
+import { setLtContactCookie } from "../../../../../../lib/identity-cookie";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -36,23 +37,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     console.error(`[email-track] click record failed for ${token}:`, err);
   });
 
-  // Set an identity cookie so subsequent funnel-page visits can fire the
-  // PAGE_VISITED trigger without re-prompting the contact for their email.
-  // 30-day window mirrors the typical "abandoned cart" follow-up horizon.
-  // HttpOnly: JS can't read it (defense against XSS exfiltration). SameSite
-  // Lax allows the cookie on top-level navigations (email click is a
-  // cross-origin nav from the mailbox → funnel domain).
-  const res = NextResponse.redirect(link.url, 302);
-  if (link.emailSend.contactId) {
-    res.cookies.set("lt_contact", link.emailSend.contactId, {
-      path:     "/",
-      maxAge:   60 * 60 * 24 * 30,
-      httpOnly: true,
-      sameSite: "lax",
-      secure:   process.env.NODE_ENV === "production",
-    });
-  }
-  return res;
+  // Set lt_contact identity cookie so subsequent funnel page visits fire
+  // PAGE_VISITED for this contact (see lib/identity-cookie.ts).
+  return setLtContactCookie(NextResponse.redirect(link.url, 302), link.emailSend.contactId);
 }
 
 async function recordClick(link: {
