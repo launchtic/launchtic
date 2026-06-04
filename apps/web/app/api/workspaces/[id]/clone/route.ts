@@ -21,12 +21,12 @@ import { cloneAssets, rewriteWorkspaceContentAssets } from "../../../../../lib/a
 //                   resources, productId, couponIds are dropped — agencies set
 //                   pricing fresh per client.
 //   - emailTemplates EmailTemplate (standalone, no FKs).
-//   - sequences     EmailSequence + SequenceStep. Steps keep their snapshot
-//                   subject/html so the sequence runs standalone; the FK link
-//                   back to EmailTemplate is dropped.
-//   - automations   Automation + AutomationAction, forced to DRAFT status with
-//                   triggerConfig / actionConfig cleared. User reconfigures
-//                   triggers + actions against the new workspace's resources.
+//   - workflows     Workflow + WorkflowEmail. Graph nodes/edges carried as-is;
+//                   SEND_EMAIL nodes have their config.emailId remapped to
+//                   freshly-duplicated WorkflowEmail rows. Cloned as DRAFT
+//                   with triggerConfig cleared — operator rebinds triggers
+//                   to the new workspace's funnels/tags before activating.
+//                   (Replaced legacy EmailSequence + Automation in Phase 1C.)
 //   - pageTemplates PageTemplate + SavedBlock.
 //   - roles         Role (permission preset).
 //   - settings      WorkspaceSettings (SMTP, AI, storage, payment credentials,
@@ -45,8 +45,7 @@ import { cloneAssets, rewriteWorkspaceContentAssets } from "../../../../../lib/a
 const includeSchema = z.object({
   funnels:        z.boolean().default(false),
   emailTemplates: z.boolean().default(false),
-  sequences:      z.boolean().default(false),
-  automations:    z.boolean().default(false),
+  workflows:      z.boolean().default(false),
   pageTemplates:  z.boolean().default(false),
   roles:          z.boolean().default(false),
   settings:       z.boolean().default(false),
@@ -174,7 +173,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // writing the workflow row, so the cloned workflow is self-contained
       // (operator gets a working copy with all email content, ready to
       // re-brand for the client).
-      if (inc.sequences || inc.automations) {
+      if (inc.workflows) {
         const workflows = await tx.workflow.findMany({
           where:   { workspaceId: sourceId },
           include: { emails: true },
@@ -342,8 +341,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // copy every source Asset to the new workspace and rewrite assetId + URL
     // references in cloned content. Failures here leave the workspace usable
     // but with stale source-side URLs — user can re-trigger or accept it.
+    // Workflows can carry image refs through WorkflowEmail.bodyHtml; include
+    // them in the asset-rewrite gate alongside the other content groups that
+    // may embed uploaded media.
     const mayReferenceAssets =
-      inc.funnels || inc.pageTemplates || inc.emailTemplates || inc.sequences;
+      inc.funnels || inc.pageTemplates || inc.emailTemplates || inc.workflows;
     if (mayReferenceAssets) {
       try {
         const refs = await cloneAssets(sourceId, newWorkspaceId);

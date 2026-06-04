@@ -102,18 +102,20 @@ export default function WorkspacePanel({
   }
 
   // ── Clone ──────────────────────────────────────────────────
+  // Sequences + Automations were consolidated into Workflows after the Phase
+  // 1C refactor — a single graph primitive replaces both. The clone modal
+  // exposes one "Workflows" toggle for both content kinds.
   type CloneInclude = {
     funnels:        boolean;
     emailTemplates: boolean;
-    sequences:      boolean;
-    automations:    boolean;
+    workflows:      boolean;
     pageTemplates:  boolean;
     roles:          boolean;
     settings:       boolean;
   };
   const DEFAULT_INCLUDE: CloneInclude = {
-    funnels: true, emailTemplates: true, sequences: true,
-    automations: true, pageTemplates: true, roles: true,
+    funnels: true, emailTemplates: true, workflows: true,
+    pageTemplates: true, roles: true,
     // Default OFF — credentials are sensitive; user opts in.
     settings: false,
   };
@@ -416,8 +418,7 @@ export default function WorkspacePanel({
             label: "Marketing",
             items: [
               { key: "emailTemplates", label: "Email templates", hint: "Reusable email designs" },
-              { key: "sequences",      label: "Email sequences", hint: "Drip campaigns with their step content" },
-              { key: "automations",    label: "Automations",     hint: "Triggers + actions — cloned as drafts for review" },
+              { key: "workflows",      label: "Workflows",       hint: "Trigger + action graphs (replaces sequences & automations) — cloned as drafts for review" },
             ],
           },
           {
@@ -588,7 +589,7 @@ export default function WorkspacePanel({
                   </div>
 
                   <p className="text-[11px] text-gray-400 mt-2 leading-snug">
-                    Products, tags, contacts, orders and send history are never cloned. Cloned automations come over as drafts — review and rewire them before activating. Uploaded images are copied to the new workspace's storage and references are rewritten — the clone is self-contained.
+                    Products, tags, contacts, orders and send history are never cloned. Cloned workflows come over as drafts — review and rewire them before activating. Uploaded images are copied to the new workspace's storage and references are rewritten — the clone is self-contained.
                   </p>
                 </div>
               </form>
