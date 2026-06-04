@@ -1,7 +1,6 @@
-// Asset import helper used by /api/templates/import-from-url and the
-// workspace clone flow. Takes a manifest of source-side assets, materializes
-// them in the target workspace's storage (dedup by sha256), and returns a
-// map for rewriting content references.
+// Asset import helper used by the workspace clone flow. Takes a manifest of
+// source-side assets, materializes them in the target workspace's storage
+// (dedup by sha256), and returns a map for rewriting content references.
 
 import { createHash } from "crypto";
 import { db } from "@launchtic/database";

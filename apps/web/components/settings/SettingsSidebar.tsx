@@ -9,7 +9,7 @@ import { useState } from "react";
 import {
   Globe, CreditCard, Mail, HardDrive, LayoutTemplate, Bot, Key,
   Building2, UserCircle, Settings2, ChevronRight, ChevronLeft, Users, Shield, Palette,
-  DownloadCloud, Image as ImageIcon,
+  Image as ImageIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { isAgencyPlan, isPaidPlan } from "../../lib/plan";
@@ -68,7 +68,6 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
       { segment: "email",          label: "Email Settings",   icon: Mail,                           requirePerm: "settings:email:read"            },
       { segment: "media",          label: "Media Library",    icon: ImageIcon,                      requirePerm: "media:read"                     },
       { segment: "page-templates", label: "Page Templates",   icon: LayoutTemplate,                 requirePerm: "settings:page_templates:read"   },
-      { segment: "gallery-import", label: "Template Gallery", icon: DownloadCloud,                  ownerOnly: true                               },
       { segment: "ai-assistant",   label: "AI Assistant",     icon: Bot,                            requirePerm: "settings:ai:read"               },
     ],
   },
