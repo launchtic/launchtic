@@ -103,17 +103,13 @@ export async function fireTrigger(
       if (!matchesFilter(wf.triggerConfig as Record<string, unknown> | null, context, stepType)) continue;
       if (!wf.startNodeId) continue;
 
-      // Re-fire policy: "every" = block ACTIVE (re-enroll after COMPLETED);
-      // "once" = block if ANY prior run exists. See web/lib/automations.ts
-      // for the canonical comment.
-      if (context.contactId) {
-        const shouldFireOnce = wf.reFirePolicy === "once";
+      // Re-fire policy: "every" = concurrent runs allowed (Klaviyo /
+      // Systeme.io semantic — each event spawns a new run); "once" = block
+      // if ANY prior run exists. See web/lib/automations.ts for the
+      // canonical comment.
+      if (context.contactId && wf.reFirePolicy === "once") {
         const existing = await db.workflowRun.findFirst({
-          where: {
-            workflowId: wf.id,
-            contactId:  context.contactId,
-            ...(shouldFireOnce ? {} : { status: "ACTIVE" }),
-          },
+          where: { workflowId: wf.id, contactId: context.contactId },
           select: { id: true },
         });
         if (existing) continue;

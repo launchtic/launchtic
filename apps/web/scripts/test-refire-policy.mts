@@ -1,9 +1,9 @@
 // Integration smoke test for the re-fire policy.
 //
 // Covers the runtime gate in fireTrigger (apps/web/lib/automations.ts +
-// renderer twin): "every" allows re-enrollment after a previous run reaches
-// COMPLETED; "once" blocks any subsequent enrollment for the same contact
-// regardless of the prior run's status.
+// renderer twin): "every" spawns a new run on every event (concurrent runs
+// allowed — Klaviyo / Mailchimp / Systeme.io semantic); "once" blocks any
+// subsequent enrollment for the same contact regardless of prior status.
 
 import * as fs from "node:fs";
 {
@@ -83,28 +83,36 @@ async function main() {
 
   const countRuns = (wfId: string) => db.workflowRun.count({ where: { workflowId: wfId } });
 
-  console.log("\nRe-fire policy = 'every' (default for transactional)");
+  console.log("\nRe-fire policy = 'every' (concurrent runs allowed)");
 
-  // every: blocks while ACTIVE, allows after COMPLETED.
+  // every: each event spawns a new run, no ACTIVE guard.
   const wfEvery = await makeWorkflow("every");
 
   // Fire #1 → new run created (status defaults to ACTIVE).
   await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tag.id });
   check("every: 1st fire → 1 run", await countRuns(wfEvery) === 1);
 
-  // Fire #2 immediately → blocked because prior run is still ACTIVE.
+  // Fire #2 immediately → ALSO creates a run (Klaviyo / Mailchimp behavior:
+  // a contact who buys twice while a 24h-delay run is pending gets the
+  // workflow twice). This is the post-purchase Thank You bug fix —
+  // previously this case returned 1, now returns 2.
   await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tag.id });
-  check("every: 2nd fire while ACTIVE → still 1 run (SINGLE_ACTIVE)",
-    await countRuns(wfEvery) === 1);
+  check("every: 2nd fire while 1st run ACTIVE → 2 runs (concurrent)",
+    await countRuns(wfEvery) === 2);
 
-  // Mark the prior run COMPLETED, fire again → new run allowed.
+  // Even a 3rd concurrent fire enrolls.
+  await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tag.id });
+  check("every: 3rd fire while runs ACTIVE → 3 runs (still concurrent)",
+    await countRuns(wfEvery) === 3);
+
+  // Mark runs COMPLETED, fire again → still creates a new run.
   await db.workflowRun.updateMany({
     where: { workflowId: wfEvery },
     data:  { status: "COMPLETED" },
   });
   await fireTrigger(ws.id, "TAG_ADDED", { contactId: contact.id, tagId: tag.id });
-  check("every: fire after COMPLETED → 2 runs (re-enroll allowed)",
-    await countRuns(wfEvery) === 2);
+  check("every: fire after COMPLETED → 4 runs (re-enroll allowed)",
+    await countRuns(wfEvery) === 4);
 
   console.log("\nRe-fire policy = 'once' (welcome / lead-magnet pattern)");
 

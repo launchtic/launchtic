@@ -1296,7 +1296,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
                 {
                   value:       "every",
                   label:       "Every event",
-                  description: "Re-enrolls after each run completes. For transactional flows.",
+                  description: "Each event spawns a new run, runs in parallel. For transactional flows.",
                   Icon:        Repeat,
                 },
                 {

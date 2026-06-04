@@ -71,20 +71,19 @@ export async function fireTrigger(
       if (!wf.startNodeId) continue;
 
       // Re-fire policy:
-      //   "every" → SINGLE_ACTIVE guard (block ACTIVE runs, allow after
-      //             COMPLETED). Suits transactional flows where every event
-      //             is a new intent signal.
-      //   "once"  → block if ANY prior run exists for this contact. Suits
-      //             welcome / lead-magnet flows where re-firing on a second
-      //             event would spam the recipient.
-      if (context.contactId) {
-        const shouldFireOnce = wf.reFirePolicy === "once";
+      //   "every" → every event spawns a new run, concurrent runs allowed.
+      //             Matches Klaviyo / Mailchimp / Systeme.io semantics:
+      //             a contact who buys twice while a 24h-delay run is
+      //             still pending gets the thank-you email for BOTH
+      //             purchases. Spam protection is handled at the trigger
+      //             source (FORM_SUBMIT 60s ContactEvent dedupe, EMAIL_*
+      //             first-only flags, PAGE_VISITED 1h Redis cooldown).
+      //   "once"  → fire once per contact ever. Block if ANY prior run
+      //             exists regardless of status. Suits welcome /
+      //             lead-magnet flows.
+      if (context.contactId && wf.reFirePolicy === "once") {
         const existing = await db.workflowRun.findFirst({
-          where: {
-            workflowId: wf.id,
-            contactId:  context.contactId,
-            ...(shouldFireOnce ? {} : { status: "ACTIVE" }),
-          },
+          where: { workflowId: wf.id, contactId: context.contactId },
           select: { id: true },
         });
         if (existing) continue;
