@@ -649,6 +649,109 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     ],
   },
 
+  // ─── PAGE_VISITED templates ──────────────────────────────────────────────
+  // These require an identified contact (lt_contact cookie set via email
+  // click, form opt-in, or checkout). Anonymous first-time visitors don't
+  // fire PAGE_VISITED — by design, since the workflow needs a contactId to
+  // enroll. Operator scopes each template to a specific funnel + step in
+  // the trigger picker after cloning.
+
+  // ─── 15. Browse Pricing Abandonment ──────────────────────────────────────
+  // The PAGE_VISITED equivalent of Cart Abandonment, but earlier in the
+  // funnel — fires when a known contact lands on the pricing/sales page
+  // without proceeding to checkout. 24h delay → if they bought meanwhile,
+  // exit clean; otherwise send a soft nudge.
+  {
+    id: "page_visit_browse_abandon",
+    name: "Browse Abandonment (PAGE_VISITED)",
+    description: "Soft nudge for known contacts who viewed your sales page but didn't buy. Auto-exits if they purchase within 24h.",
+    category: "Sales",
+    icon: "MousePointerClick",
+    badge: "New",
+    triggerType: "PAGE_VISITED",
+    triggerConfig: {},
+    startNodeId: "delay1",
+    nodes: [
+      delayNode("delay1", 0, 24),
+      condPurchase("cond1", 1),
+      endNode("end_purchased", 2, -1, "purchased"),
+      emailNode("email1", 2,
+        "{{contact.firstName}}, questions about our pricing?",
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Saw you checking out our pricing page yesterday — wanted to make sure you had everything you need to make a decision."),
+          p("If you have any questions about plans, pricing, or what's included, just hit reply and a real human will get back to you within the hour."),
+          p("No rush, no pressure — just here to help."),
+        )),
+      endNode("end", 3),
+    ],
+    edges: [
+      edge("e1", "delay1", "cond1"),
+      edge("e2", "cond1", "end_purchased", "true"),
+      edge("e3", "cond1", "email1",        "false"),
+      edge("e4", "email1", "end"),
+    ],
+  },
+
+  // ─── 16. High-Intent Page Tagger ─────────────────────────────────────────
+  // Lightweight rule: whenever a known contact lands on a high-intent page
+  // (pricing, demo, comparison), tag them for segmentation + retargeting.
+  // Tag once per contact (SINGLE_ACTIVE re-enroll prevents duplicates).
+  // Operator picks the tag in the ADD_TAG node after cloning.
+  {
+    id: "page_visit_intent_tagger",
+    name: "Page Visit — High Intent Tagger",
+    description: "Tag contacts who land on a high-intent page (pricing, demo, comparison). Use the tag for retargeting / segmentation.",
+    category: "Tagging",
+    icon: "TagPlus",
+    badge: "New",
+    triggerType: "PAGE_VISITED",
+    triggerConfig: {},
+    startNodeId: "tag1",
+    nodes: [
+      tagNode("tag1", 0, "ADD_TAG"),
+      endNode("end", 1),
+    ],
+    edges: [
+      edge("e1", "tag1", "end"),
+    ],
+  },
+
+  // ─── 17. FAQ Visit → Customer Support Outreach ───────────────────────────
+  // Customers visiting the FAQ / help page are often confused — proactively
+  // reach out before they churn or open a support ticket. Gated by the
+  // contact_purchased CONDITION so it only fires for paying customers
+  // (visiting FAQ as a tire-kicker shouldn't fire support outreach).
+  {
+    id: "page_visit_faq_outreach",
+    name: "FAQ Visit → Customer Support Outreach",
+    description: "When a paying customer lands on your FAQ / help page, proactively offer support before they churn or file a ticket.",
+    category: "Retention",
+    icon: "Bell",
+    badge: "New",
+    triggerType: "PAGE_VISITED",
+    triggerConfig: {},
+    startNodeId: "cond1",
+    nodes: [
+      condPurchase("cond1", 0),
+      emailNode("email_customer", 1,
+        "Need a hand, {{contact.firstName}}?",
+        doc(
+          p("Hi {{contact.firstName}},"),
+          p("Noticed you were poking around the FAQ — if something's not clicking, please don't struggle alone."),
+          p("Just hit reply with what you're trying to do and a real human will get back to you within the hour."),
+          p("We're here to help."),
+        ), -1),
+      endNode("end_customer", 2, -1),
+      endNode("end_visitor", 1, 1),
+    ],
+    edges: [
+      edge("e1", "cond1", "email_customer", "true"),
+      edge("e2", "cond1", "end_visitor",    "false"),
+      edge("e3", "email_customer", "end_customer"),
+    ],
+  },
+
 ];
 
 export function findTemplate(id: string): WorkflowTemplate | undefined {
