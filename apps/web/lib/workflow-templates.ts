@@ -30,6 +30,12 @@ export type WorkflowTemplate = {
   badge?:       "Flagship" | "Popular" | "New";
   triggerType:  string;
   triggerConfig: Record<string, unknown>;
+  /** Re-fire policy override. Omitted → use the per-trigger smart default
+   * (FORM_SUBMIT → "once", everything else → "every"). Templates set this
+   * explicitly only when the default doesn't match the template's intent —
+   * e.g. a FORM_SUBMIT-based newsletter signup that should re-fire vs the
+   * default "once" onboarding pattern. */
+  reFirePolicy?: "every" | "once";
   nodes:        TemplateNode[];
   edges:        TemplateEdge[];
   startNodeId:  string;

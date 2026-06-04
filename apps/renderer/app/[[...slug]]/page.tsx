@@ -6,6 +6,7 @@ import { loadPage } from "../../lib/page-loader";
 import { recordFunnelEvent, SID_HEADER } from "../../lib/funnel-events";
 import { pickVariantId } from "../../lib/ab-testing";
 import { fireTrigger } from "../../lib/automations";
+import { redis } from "../../lib/redis";
 import PageRenderClient from "../../components/PageRenderClient";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +89,15 @@ export default async function PublishedPage({ params }: Props) {
   );
 }
 
+// Dedupe window for PAGE_VISITED fires. Page reloads / quick re-visits
+// shouldn't re-enroll the same contact into the same workflow over and
+// over — that turns a single visit into an email-spam loop when the
+// workflow is `PAGE_VISITED → SEND_EMAIL → END` (run completes fast →
+// SINGLE_ACTIVE re-enroll guard no longer blocks → next reload fires
+// again). 1 hour matches the typical browse session length; daily
+// re-engagement still works (different hour = new fire).
+const PAGE_VISITED_DEDUPE_TTL_SECONDS = 60 * 60; // 1 hour
+
 // Verify the cookie's contact belongs to this funnel's workspace before
 // firing. A stale cookie pointing at a deleted / cross-workspace contact
 // would otherwise enroll the wrong account's workflows. Fire-and-forget so
@@ -98,6 +108,13 @@ async function firePageVisited(
   funnelStepId: string,
 ): Promise<void> {
   try {
+    // Redis SET NX (set-if-not-exists) with TTL = atomic dedupe lock. If
+    // the key already exists (recent visit), SET NX returns null → skip
+    // the fire. Otherwise the key is created and we proceed.
+    const dedupeKey = `pv:${contactId}:${funnelStepId}`;
+    const acquired  = await redis.set(dedupeKey, "1", "EX", PAGE_VISITED_DEDUPE_TTL_SECONDS, "NX");
+    if (acquired !== "OK") return; // already fired within window
+
     const funnel = await db.funnel.findUnique({
       where:  { id: funnelId },
       select: { workspaceId: true },

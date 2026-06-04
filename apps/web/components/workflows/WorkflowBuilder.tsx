@@ -31,6 +31,8 @@ import { apiFetch } from "../../lib/api-client";
 import WorkflowRunHistory from "./WorkflowRunHistory";
 import {
   validateWorkflow,
+  defaultReFirePolicy,
+  type ReFirePolicy,
   type ValidationIssue,
 } from "../../lib/workflow-validation";
 
@@ -65,6 +67,7 @@ type Workflow = {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   startNodeId: string | null;
+  reFirePolicy: "every" | "once";
   maxDurationDays: number | null;
 };
 
@@ -282,7 +285,7 @@ const TRIGGER_DESCRIPTIONS: Record<string, string> = {
     TAG_REMOVED:                 "When a tag is removed from a contact",
     EMAIL_OPENED:                "When a contact opens a tracked email",
     EMAIL_LINK_CLICKED:          "When a contact clicks a link in a tracked email",
-    PAGE_VISITED:                "When a known contact visits a funnel page",
+    PAGE_VISITED:                "When a known contact loads the funnel page below. Identity comes from a cookie set on email click / form submit / checkout. Reload-throttled: a contact can only re-fire after a 1-hour cooldown — prevents reload-spam re-enrollment when the workflow ends quickly.",
 };
 
 function triggerHumanLabel(t: string): string {
@@ -679,6 +682,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
   const isLocked = status === "ACTIVE";
   const [triggerType, setTriggerType]     = useState<string>(initial.triggerType);
   const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>(initial.triggerConfig);
+  const [reFirePolicy, setReFirePolicy]   = useState<ReFirePolicy>(initial.reFirePolicy);
   const [showHistory, setShowHistory] = useState(false);
 
   // The full canonical config map keyed by node id — keeps node.config out
@@ -816,7 +820,9 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
   const persistedSnap = useMemo(
     () => JSON.stringify({
       name,
+      triggerType,
       triggerConfig,
+      reFirePolicy,
       startNodeId: derivedStartNodeId,
       nodes: rfNodes
         .filter((n) => n.id !== TRIGGER_ID)
@@ -834,7 +840,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           weight: (e.data as any)?.weight as number | undefined,
         })),
     }),
-    [name, triggerConfig, derivedStartNodeId, rfNodes, rfEdges, configMap],
+    [name, triggerType, triggerConfig, reFirePolicy, derivedStartNodeId, rfNodes, rfEdges, configMap],
   );
 
   const lastSavedSnap = useRef<string | null>(null);
@@ -862,7 +868,9 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
     setBusy("saving");
     const payload = {
       name,
+      triggerType,
       triggerConfig,
+      reFirePolicy,
       startNodeId: derivedStartNodeId,
       nodes: rfNodes
         .filter((n) => n.id !== TRIGGER_ID) // virtual — don't persist
@@ -1361,8 +1369,16 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           // Trigger form deps
           triggerType={triggerType}
           triggerConfig={triggerConfig}
-          onTriggerTypeChange={setTriggerType}
+          reFirePolicy={reFirePolicy}
+          onTriggerTypeChange={(t) => {
+            setTriggerType(t);
+            // Reset re-fire policy to the smart default for the new trigger.
+            // FORM_SUBMIT defaults to "once" (welcome / lead magnet pattern);
+            // every other trigger defaults to "every".
+            setReFirePolicy(defaultReFirePolicy(t));
+          }}
           onTriggerConfigChange={setTriggerConfig}
+          onReFirePolicyChange={setReFirePolicy}
           // Action form deps
           onTypeSwitch={(t) => handleTypeSwitch(selectedNodeId!, t)}
           onConfigChange={patchConfig}
@@ -1598,7 +1614,8 @@ function AddNodePicker({
 function NodeConfigModal({
   isTrigger, selectedNodeId, selectedType, selectedConfig,
   onClose, onTypeSwitch, onConfigChange, onDelete,
-  triggerType, triggerConfig, onTriggerTypeChange, onTriggerConfigChange,
+  triggerType, triggerConfig, reFirePolicy,
+  onTriggerTypeChange, onTriggerConfigChange, onReFirePolicyChange,
   tags, funnels, broadcasts, workspaceEmails, workflowEmails,
   workflowId, workspaceSlug, isLocked,
 }: {
@@ -1612,8 +1629,10 @@ function NodeConfigModal({
   onDelete:         () => void;
   triggerType:      string;
   triggerConfig:    Record<string, unknown>;
+  reFirePolicy:     ReFirePolicy;
   onTriggerTypeChange:   (t: string) => void;
   onTriggerConfigChange: (c: Record<string, unknown>) => void;
+  onReFirePolicyChange:  (p: ReFirePolicy) => void;
   tags:             Props["tags"];
   funnels:          Props["funnels"];
   broadcasts:       Props["broadcasts"];
@@ -1743,6 +1762,7 @@ function NodeConfigModal({
               <TriggerConfigForm
                 triggerType={triggerType}
                 triggerConfig={triggerConfig}
+                reFirePolicy={reFirePolicy}
                 funnels={funnels}
                 tags={tags}
                 broadcasts={broadcasts}
@@ -1750,6 +1770,7 @@ function NodeConfigModal({
                 workflowId={workflowId}
                 onTypeChange={onTriggerTypeChange}
                 onConfigChange={onTriggerConfigChange}
+                onReFirePolicyChange={onReFirePolicyChange}
               />
             )}
             {isSupportedAction && selectedType && (
@@ -1980,11 +2001,12 @@ function RichSelect({
 // ─── Trigger config form (right panel when trigger node selected) ──────────
 
 function TriggerConfigForm({
-  triggerType, triggerConfig, funnels, tags, broadcasts, workspaceEmails,
-  workflowId, onTypeChange, onConfigChange,
+  triggerType, triggerConfig, reFirePolicy, funnels, tags, broadcasts, workspaceEmails,
+  workflowId, onTypeChange, onConfigChange, onReFirePolicyChange,
 }: {
   triggerType: string;
   triggerConfig: Record<string, unknown>;
+  reFirePolicy: ReFirePolicy;
   funnels: Props["funnels"];
   tags: Props["tags"];
   broadcasts: Props["broadcasts"];
@@ -1992,6 +2014,7 @@ function TriggerConfigForm({
   workflowId: string;
   onTypeChange: (t: string) => void;
   onConfigChange: (c: Record<string, unknown>) => void;
+  onReFirePolicyChange: (p: ReFirePolicy) => void;
 }) {
   const inp = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
@@ -2136,6 +2159,27 @@ function TriggerConfigForm({
           )}
         </>
       )}
+
+      {/* Re-fire policy — controls whether the workflow can enroll the same
+          contact more than once. The default is preset per trigger type
+          (FORM_SUBMIT → "once", everything else → "every") and snaps back
+          to that default whenever the operator switches trigger. */}
+      <div>
+        <label className={lbl}>Re-fire policy</label>
+        <select
+          className={inp}
+          value={reFirePolicy}
+          onChange={(e) => onReFirePolicyChange(e.target.value as ReFirePolicy)}
+        >
+          <option value="every">Every event — re-fire each time the trigger event happens (transactional / engagement)</option>
+          <option value="once">Once per contact — fire once and never re-enroll (welcome / lead magnet)</option>
+        </select>
+        <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+          {reFirePolicy === "once"
+            ? "After the first fire, this contact will never enroll again — even if the trigger event happens again later."
+            : "A contact can re-enroll after their previous run completes. Concurrent runs are still blocked."}
+        </p>
+      </div>
     </div>
   );
 }

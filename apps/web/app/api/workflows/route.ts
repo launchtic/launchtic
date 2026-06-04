@@ -8,6 +8,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { defaultReFirePolicy } from "../../../lib/workflow-validation";
 
 // Same trigger taxonomy as legacy automations for v1 compat. New trigger
 // types (CHECKOUT_STARTED, PAGE_VISITED, etc.) land in Phase 2 — the column
@@ -49,6 +50,7 @@ const createSchema = z.object({
   nodes:                z.array(nodeSchema).default([]),
   edges:                z.array(edgeSchema).default([]),
   startNodeId:          z.string().nullable().optional(),
+  reFirePolicy:         z.enum(["every", "once"]).optional(),
   maxDurationDays:      z.number().int().positive().nullable().optional(),
 });
 
@@ -104,6 +106,7 @@ export async function POST(req: NextRequest) {
         nodes:                data.nodes,
         edges:                data.edges,
         startNodeId:          data.startNodeId ?? null,
+        reFirePolicy:         data.reFirePolicy ?? defaultReFirePolicy(data.triggerType),
         maxDurationDays:      data.maxDurationDays ?? null,
         status:               "DRAFT",
       },

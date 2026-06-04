@@ -45,6 +45,7 @@ export async function fireTrigger(
       where: { workspaceId, status: "ACTIVE", triggerType },
       select: {
         id: true, triggerConfig: true, startNodeId: true,
+        reFirePolicy: true,
       },
     });
     if (workflows.length === 0) return;
@@ -69,11 +70,21 @@ export async function fireTrigger(
       if (!matchesFilter(wf.triggerConfig as Record<string, unknown> | null, context, stepType)) continue;
       if (!wf.startNodeId) continue;
 
-      // Re-enrollment is always SINGLE_ACTIVE: a contact with an in-flight
-      // run for this workflow is blocked until that run ends.
+      // Re-fire policy:
+      //   "every" → SINGLE_ACTIVE guard (block ACTIVE runs, allow after
+      //             COMPLETED). Suits transactional flows where every event
+      //             is a new intent signal.
+      //   "once"  → block if ANY prior run exists for this contact. Suits
+      //             welcome / lead-magnet flows where re-firing on a second
+      //             event would spam the recipient.
       if (context.contactId) {
+        const shouldFireOnce = wf.reFirePolicy === "once";
         const existing = await db.workflowRun.findFirst({
-          where: { workflowId: wf.id, contactId: context.contactId, status: "ACTIVE" },
+          where: {
+            workflowId: wf.id,
+            contactId:  context.contactId,
+            ...(shouldFireOnce ? {} : { status: "ACTIVE" }),
+          },
           select: { id: true },
         });
         if (existing) continue;

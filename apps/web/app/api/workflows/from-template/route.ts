@@ -12,6 +12,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { defaultReFirePolicy } from "../../../../lib/workflow-validation";
 import { findTemplate } from "../../../../lib/workflow-templates";
 
 const bodySchema = z.object({
@@ -53,6 +54,9 @@ export async function POST(req: NextRequest) {
           nodes:                [] as unknown as any, // filled in below
           edges:                tpl.edges as unknown as any,
           startNodeId:          tpl.startNodeId,
+          // Template explicit override OR fallback to the per-trigger smart
+          // default (FORM_SUBMIT → "once", everything else → "every").
+          reFirePolicy:         tpl.reFirePolicy ?? defaultReFirePolicy(tpl.triggerType),
         },
       });
 

@@ -191,6 +191,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               nodes:                [] as any, // patched after email remap
               edges:                wf.edges as any,
               startNodeId:          null,
+              reFirePolicy:         wf.reFirePolicy,
               maxDurationDays:      wf.maxDurationDays,
             },
             select: { id: true },

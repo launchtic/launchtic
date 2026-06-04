@@ -129,6 +129,35 @@ function isMailyDocEmpty(raw: string | null | undefined): boolean {
   return true;
 }
 
+// ─── Re-fire policy ────────────────────────────────────────────────────────
+
+export type ReFirePolicy = "every" | "once";
+
+export const RE_FIRE_POLICIES: readonly ReFirePolicy[] = ["every", "once"];
+
+// Smart default per trigger type. Most events are real new intent signals
+// (each NEW_SALE is a separate purchase, each EMAIL_OPENED a separate
+// engagement) so re-firing is correct. FORM_SUBMIT defaults to "once" since
+// the most common pattern is welcome / lead-magnet delivery — re-firing on
+// resubscribe / typo retry sends the same flow again, which the operator
+// almost never wants.
+export const TRIGGER_DEFAULT_REFIRE_POLICY: Record<string, ReFirePolicy> = {
+  NEW_SALE:                    "every",
+  SALE_CANCELED:               "every",
+  SUBSCRIPTION_PAYMENT_FAILED: "every",
+  CHECKOUT_STARTED:            "every",
+  EMAIL_OPENED:                "every",
+  EMAIL_LINK_CLICKED:          "every",
+  TAG_ADDED:                   "every",
+  TAG_REMOVED:                 "every",
+  PAGE_VISITED:                "every",   // already throttled via 1h Redis dedupe
+  FORM_SUBMIT:                 "once",    // welcome / lead-magnet default
+};
+
+export function defaultReFirePolicy(triggerType: string): ReFirePolicy {
+  return TRIGGER_DEFAULT_REFIRE_POLICY[triggerType] ?? "every";
+}
+
 // ─── Per-node rules ────────────────────────────────────────────────────────
 
 // Funnel-scoped triggers: events that carry funnelId + funnelStepId. The

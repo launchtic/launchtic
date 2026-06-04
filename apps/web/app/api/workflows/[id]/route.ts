@@ -26,10 +26,12 @@ const edgeSchema = z.object({
 const updateSchema = z.object({
   name:                 z.string().min(1).max(200).optional(),
   description:          z.string().max(2000).nullable().optional(),
+  triggerType:          z.string().optional(),
   triggerConfig:        z.record(z.string(), z.any()).optional(),
   nodes:                z.array(nodeSchema).optional(),
   edges:                z.array(edgeSchema).optional(),
   startNodeId:          z.string().nullable().optional(),
+  reFirePolicy:         z.enum(["every", "once"]).optional(),
   maxDurationDays:      z.number().int().positive().nullable().optional(),
 });
 

@@ -1228,9 +1228,19 @@ model Workflow {
   // Entry point — node id where every run starts. Validated on activate.
   startNodeId   String?
 
-  // Re-enrollment is hardcoded SINGLE_ACTIVE: a contact with an in-flight run
-  // for this workflow is blocked from re-enrolling until that run ends.
-  // See lib/automations.ts (web + renderer).
+  // Re-fire policy:
+  //   "every" → fire on every event (default for transactional triggers).
+  //             A SINGLE_ACTIVE guard still blocks concurrent runs (won't
+  //             enroll the same contact while their previous run is still
+  //             ACTIVE), but after COMPLETED the contact can re-enroll.
+  //   "once"  → fire ONCE per contact ever. Block enroll if ANY previous
+  //             run exists for this (workflow, contact) regardless of
+  //             status. Used for welcome / lead magnet flows where
+  //             re-firing on every event would spam the contact.
+  // Per-trigger smart defaults: FORM_SUBMIT → "once" (welcome / opt-in
+  // pattern), everything else → "every". See TRIGGER_DEFAULT_REFIRE_POLICY
+  // in apps/web/lib/workflow-validation.ts.
+  reFirePolicy          String @default("every")
   maxDurationDays       Int?
 
   // Denormalized stats (incremented at run creation / completion). Source of
