@@ -247,22 +247,6 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
                   </p>
                 </Link>
                 <div className="flex items-center gap-1 shrink-0">
-                  {w.status !== "DRAFT" && w.status !== "ARCHIVED" && (
-                    <button
-                      onClick={() => toggleStatus(w)}
-                      disabled={busy === w.id}
-                      className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
-                        w.status === "ACTIVE"
-                          ? "text-amber-600 hover:bg-amber-50"
-                          : "text-emerald-600 hover:bg-emerald-50"
-                      }`}
-                      title={w.status === "ACTIVE" ? "Pause" : "Activate"}
-                    >
-                      {busy === w.id
-                        ? <Loader2 size={14} className="animate-spin" />
-                        : w.status === "ACTIVE" ? <Pause size={14} /> : <Play size={14} />}
-                    </button>
-                  )}
                   <Link
                     href={`/${slug}/workflows/${w.id}`}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

@@ -326,15 +326,14 @@ export default function WorkflowEmailEditor({
             <div>
               <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Template</label>
               <select
-                defaultValue=""
                 value=""
                 disabled={templateBusy}
                 onChange={(e) => {
-                  const id = e.target.value;
-                  // Reset to "" so the next pick re-fires (otherwise the
-                  // operator would have to first switch back to "— None —").
-                  e.target.value = "";
-                  applyTemplate(id);
+                  // Controlled with value="" means React always snaps the
+                  // visible selection back to "— None —" after each pick, so
+                  // re-picking the same template re-fires onChange. No need
+                  // to manually reset e.target.value.
+                  applyTemplate(e.target.value);
                 }}
                 className={inputCls}
                 title="Start from a saved email template"

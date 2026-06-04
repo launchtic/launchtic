@@ -800,13 +800,64 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
     [rfEdges],
   );
 
+  // ─── Auto-save (debounced) ──────────────────────────────────────────────
+  // Captures the same shape save() PATCHes — so react-flow internals
+  // (selection, measured dims, hover state) don't trigger spurious autosaves
+  // even though they re-create the rfNodes array each tick. Only edits to
+  // PERSISTED fields (name, triggerConfig, startNodeId, node configs/types/
+  // positions, edges) make the snap string change.
+  //
+  // Skipped while the workflow is ACTIVE: server's Klaviyo lock returns 409
+  // and the Save button is hidden anyway. Pause re-enables autosave.
+  //
+  // First render seeds lastSavedSnap from the initial layout react-flow just
+  // computed on mount — that's not an operator edit, so we don't fire a
+  // PATCH for it.
+  const persistedSnap = useMemo(
+    () => JSON.stringify({
+      name,
+      triggerConfig,
+      startNodeId: derivedStartNodeId,
+      nodes: rfNodes
+        .filter((n) => n.id !== TRIGGER_ID)
+        .map((n) => ({
+          id:       n.id,
+          type:     (n.data as any).type as NodeType,
+          position: n.position,
+          config:   configMap[n.id] ?? {},
+        })),
+      edges: rfEdges
+        .filter((e) => e.source !== TRIGGER_ID && e.target !== TRIGGER_ID)
+        .map((e) => ({
+          id: e.id, source: e.source, target: e.target,
+          label:  e.label as string | undefined,
+          weight: (e.data as any)?.weight as number | undefined,
+        })),
+    }),
+    [name, triggerConfig, derivedStartNodeId, rfNodes, rfEdges, configMap],
+  );
+
+  const lastSavedSnap = useRef<string | null>(null);
+  useEffect(() => {
+    if (isLocked) return;
+    if (lastSavedSnap.current === null) {
+      lastSavedSnap.current = persistedSnap;
+      return;
+    }
+    if (persistedSnap === lastSavedSnap.current) return;
+
+    const t = setTimeout(async () => {
+      lastSavedSnap.current = persistedSnap;
+      await save();
+    }, 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocked, persistedSnap]);
+
   // ─── Persistence ────────────────────────────────────────────────────────
-  // Manual Save only. The earlier debounced autosave fired a PATCH on every
-  // state change — including react-flow's auto-layout position writes on
-  // mount — which spammed 409 toasts when the workflow is ACTIVE (since the
-  // server-side Klaviyo lock rejects edits). Without autosave the operator
-  // owns the save lifecycle: click Save when ready, click Activate which
-  // does a final pre-save before flipping status.
+  // Both the manual Save button and the autosave effect above call this.
+  // Builds the payload from current state — autosave's persistedSnap mirrors
+  // this exactly so the change-detection stays accurate.
   async function save() {
     setBusy("saving");
     const payload = {
