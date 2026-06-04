@@ -12,6 +12,7 @@
 // at the persistence layer: filtered out on save, re-injected on load.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import {
   ReactFlow, Background, Controls, MiniMap, ReactFlowProvider,
@@ -24,7 +25,7 @@ import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
   GitBranch, Square, Loader2, Save, History, Zap, X, ChevronDown,
   Trash2, ShoppingCart, ShoppingBag, CreditCard, Send, Undo2, MailOpen,
-  MousePointerClick, Eye, User,
+  MousePointerClick, Eye, User, Repeat, UserCheck,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
@@ -1250,8 +1251,12 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
   return (
     <BuilderContext.Provider value={builderCtxValue}>
     <div className="flex flex-col h-[calc(100vh-56px)] bg-gray-50">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 bg-white shrink-0">
+      {/* Top bar. Horizontally scrolls on narrow viewports so every control
+          (Re-fire selector, status badge, Save / Activate, etc.) stays
+          reachable. Every child has shrink-0 so they keep their intrinsic
+          size; the back arrow stays sticky at the left edge so the user
+          can always navigate away even after scrolling right. */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 bg-white shrink-0 overflow-x-auto">
         <button
           onClick={() => router.push(`/${slug}/workflows`)}
           className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
@@ -1262,21 +1267,55 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           value={name}
           onChange={(e) => setName(e.target.value)}
           readOnly={isLocked}
-          className={`flex-1 text-sm font-semibold text-gray-900 bg-transparent border-none outline-none rounded px-2 py-1 -ml-1 ${
+          className={`flex-1 min-w-[140px] text-sm font-semibold text-gray-900 bg-transparent border-none outline-none rounded px-2 py-1 -ml-1 ${
             isLocked ? "cursor-not-allowed" : "focus:ring-2 focus:ring-blue-500"
           }`}
         />
-        <span className={`text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded ${
+        <span className={`text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
           status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" :
           status === "PAUSED" ? "bg-amber-50 text-amber-700" :
           "bg-gray-100 text-gray-600"
         }`}>{status.toLowerCase()}</span>
-        {busy === "saving" && <span className="text-xs text-gray-400 flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> saving…</span>}
+
+        {/* Re-fire policy selector — workflow-level setting, so it lives in
+            the top bar (not nested inside the trigger config modal). Uses
+            the same RichSelect component as the trigger picker so the
+            option list shows icon + label + description per option. The
+            selector stays visible at every viewport — the top bar scrolls
+            horizontally on mobile rather than hiding controls. The
+            "RE-FIRE" caption only shows on lg+ so the selector stays
+            compact on narrower screens. */}
+        <div className="flex items-center gap-1.5 border-l border-gray-200 pl-3 ml-1 shrink-0">
+          <span className="hidden lg:inline text-[10px] uppercase font-semibold tracking-wider text-gray-400 shrink-0">Re-fire</span>
+          <div className="w-44 lg:w-52 shrink-0">
+            <RichSelect
+              value={reFirePolicy}
+              onChange={(v) => setReFirePolicy(v as ReFirePolicy)}
+              disabled={isLocked}
+              options={[
+                {
+                  value:       "every",
+                  label:       "Every event",
+                  description: "Re-enrolls after each run completes. For transactional flows.",
+                  Icon:        Repeat,
+                },
+                {
+                  value:       "once",
+                  label:       "Once per contact",
+                  description: "Fires once, never re-enrolls. For welcome / onboarding.",
+                  Icon:        UserCheck,
+                },
+              ]}
+            />
+          </div>
+        </div>
+
         <button
           onClick={() => setShowHistory(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-lg shrink-0"
+          title="Run history"
         >
-          <History size={13} /> Runs
+          <History size={13} /> <span className="hidden sm:inline">Runs</span>
         </button>
         {/* Save hidden when locked — the server PATCH would 409 anyway, and
             the button reading "Save" on a read-only canvas is misleading. */}
@@ -1284,21 +1323,22 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           <button
             onClick={() => save()}
             disabled={!!busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-lg disabled:opacity-50 shrink-0"
+            title={busy === "saving" ? "Saving…" : "Save changes"}
           >
             {busy === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            Save
+            <span className="hidden sm:inline">{busy === "saving" ? "Saving…" : "Save"}</span>
           </button>
         )}
         <button
           onClick={activate}
           disabled={!!busy}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-50 ${
+          className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-50 shrink-0 ${
             status === "ACTIVE" ? "text-amber-700 bg-amber-50 hover:bg-amber-100" : "text-white bg-emerald-600 hover:bg-emerald-700"
           }`}
         >
           {busy === "activating" ? <Loader2 size={12} className="animate-spin" /> : (status === "ACTIVE" ? <Pause size={12} /> : <Play size={12} />)}
-          {status === "ACTIVE" ? "Pause" : "Activate"}
+          <span className="hidden sm:inline">{status === "ACTIVE" ? "Pause" : "Activate"}</span>
           {status !== "ACTIVE" && issues.length > 0 && (
             <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-white/25 text-[10px] font-bold">
               {issues.length}
@@ -1369,16 +1409,14 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           // Trigger form deps
           triggerType={triggerType}
           triggerConfig={triggerConfig}
-          reFirePolicy={reFirePolicy}
           onTriggerTypeChange={(t) => {
             setTriggerType(t);
-            // Reset re-fire policy to the smart default for the new trigger.
-            // FORM_SUBMIT defaults to "once" (welcome / lead magnet pattern);
-            // every other trigger defaults to "every".
+            // Snap the top-bar Re-fire selector to the smart default for the
+            // new trigger (FORM_SUBMIT → "once", everything else → "every").
+            // Operator can still override it from the top bar afterwards.
             setReFirePolicy(defaultReFirePolicy(t));
           }}
           onTriggerConfigChange={setTriggerConfig}
-          onReFirePolicyChange={setReFirePolicy}
           // Action form deps
           onTypeSwitch={(t) => handleTypeSwitch(selectedNodeId!, t)}
           onConfigChange={patchConfig}
@@ -1614,8 +1652,8 @@ function AddNodePicker({
 function NodeConfigModal({
   isTrigger, selectedNodeId, selectedType, selectedConfig,
   onClose, onTypeSwitch, onConfigChange, onDelete,
-  triggerType, triggerConfig, reFirePolicy,
-  onTriggerTypeChange, onTriggerConfigChange, onReFirePolicyChange,
+  triggerType, triggerConfig,
+  onTriggerTypeChange, onTriggerConfigChange,
   tags, funnels, broadcasts, workspaceEmails, workflowEmails,
   workflowId, workspaceSlug, isLocked,
 }: {
@@ -1629,10 +1667,8 @@ function NodeConfigModal({
   onDelete:         () => void;
   triggerType:      string;
   triggerConfig:    Record<string, unknown>;
-  reFirePolicy:     ReFirePolicy;
   onTriggerTypeChange:   (t: string) => void;
   onTriggerConfigChange: (c: Record<string, unknown>) => void;
-  onReFirePolicyChange:  (p: ReFirePolicy) => void;
   tags:             Props["tags"];
   funnels:          Props["funnels"];
   broadcasts:       Props["broadcasts"];
@@ -1762,7 +1798,6 @@ function NodeConfigModal({
               <TriggerConfigForm
                 triggerType={triggerType}
                 triggerConfig={triggerConfig}
-                reFirePolicy={reFirePolicy}
                 funnels={funnels}
                 tags={tags}
                 broadcasts={broadcasts}
@@ -1770,7 +1805,6 @@ function NodeConfigModal({
                 workflowId={workflowId}
                 onTypeChange={onTriggerTypeChange}
                 onConfigChange={onTriggerConfigChange}
-                onReFirePolicyChange={onReFirePolicyChange}
               />
             )}
             {isSupportedAction && selectedType && (
@@ -1917,15 +1951,43 @@ function RichSelect({
   hideButtonIcon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value);
+
+  // Dropdown is rendered via portal to document.body so it doesn't get
+  // clipped by ancestors with `overflow: auto/hidden/clip` (e.g. the
+  // top-bar's horizontal scroll container, the trigger config modal, etc).
+  // The portal panel is positioned with `fixed` using the trigger button's
+  // bounding rect, recomputed each time the dropdown opens.
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const update = () => {
+      const r = btnRef.current!.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    // Reposition on scroll/resize so the dropdown follows the button when
+    // the container scrolls horizontally on mobile.
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       // Cast via HTMLElement to dodge the react-flow `Node` type imported at
       // the top of this file shadowing the DOM Node interface in scope.
-      if (ref.current && !ref.current.contains(e.target as HTMLElement)) setOpen(false);
+      const target = e.target as HTMLElement;
+      const inButton = btnRef.current?.contains(target);
+      const inPanel  = panelRef.current?.contains(target);
+      if (!inButton && !inPanel) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -1939,8 +2001,9 @@ function RichSelect({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={btnRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
@@ -1958,9 +2021,16 @@ function RichSelect({
           className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
-      {open && (
+      {open && pos && typeof document !== "undefined" && createPortal(
         <div
-          className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-72 overflow-auto py-1"
+          ref={panelRef}
+          style={{
+            position: "fixed",
+            top:      pos.top,
+            left:     pos.left,
+            width:    pos.width,
+          }}
+          className="bg-white border border-gray-200 rounded-lg shadow-lg z-[60] max-h-72 overflow-auto py-1"
           role="listbox"
         >
           {options.map((o) => {
@@ -1992,21 +2062,21 @@ function RichSelect({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
 // ─── Trigger config form (right panel when trigger node selected) ──────────
 
 function TriggerConfigForm({
-  triggerType, triggerConfig, reFirePolicy, funnels, tags, broadcasts, workspaceEmails,
-  workflowId, onTypeChange, onConfigChange, onReFirePolicyChange,
+  triggerType, triggerConfig, funnels, tags, broadcasts, workspaceEmails,
+  workflowId, onTypeChange, onConfigChange,
 }: {
   triggerType: string;
   triggerConfig: Record<string, unknown>;
-  reFirePolicy: ReFirePolicy;
   funnels: Props["funnels"];
   tags: Props["tags"];
   broadcasts: Props["broadcasts"];
@@ -2014,7 +2084,6 @@ function TriggerConfigForm({
   workflowId: string;
   onTypeChange: (t: string) => void;
   onConfigChange: (c: Record<string, unknown>) => void;
-  onReFirePolicyChange: (p: ReFirePolicy) => void;
 }) {
   const inp = "w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const lbl = "block text-[11px] uppercase font-semibold tracking-wider text-gray-500 mb-1";
@@ -2159,27 +2228,6 @@ function TriggerConfigForm({
           )}
         </>
       )}
-
-      {/* Re-fire policy — controls whether the workflow can enroll the same
-          contact more than once. The default is preset per trigger type
-          (FORM_SUBMIT → "once", everything else → "every") and snaps back
-          to that default whenever the operator switches trigger. */}
-      <div>
-        <label className={lbl}>Re-fire policy</label>
-        <select
-          className={inp}
-          value={reFirePolicy}
-          onChange={(e) => onReFirePolicyChange(e.target.value as ReFirePolicy)}
-        >
-          <option value="every">Every event — re-fire each time the trigger event happens (transactional / engagement)</option>
-          <option value="once">Once per contact — fire once and never re-enroll (welcome / lead magnet)</option>
-        </select>
-        <p className="text-[10px] text-gray-500 mt-1 leading-snug">
-          {reFirePolicy === "once"
-            ? "After the first fire, this contact will never enroll again — even if the trigger event happens again later."
-            : "A contact can re-enroll after their previous run completes. Concurrent runs are still blocked."}
-        </p>
-      </div>
     </div>
   );
 }
