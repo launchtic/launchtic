@@ -96,7 +96,7 @@ const NAV_ITEMS: NavItem[] = [
       { href: "/emails/logs",       label: "Email Logs",  icon: Inbox,     requirePerm: "email_logs:read"      },
     ],
   },
-  { href: "/workflows",   label: "Workflows",   icon: Workflow,  requirePerm: "automations:read" },
+  { href: "/workflows",   label: "Workflows",   icon: Workflow,  requirePerm: "workflows:read" },
   { href: "/settings",    label: "Settings",    icon: Settings                                   },
 ];
 

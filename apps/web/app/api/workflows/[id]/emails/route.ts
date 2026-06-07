@@ -19,7 +19,7 @@ const createSchema = z.object({
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:read");
+    const r = await requireAccess("workflows:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;
@@ -48,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;

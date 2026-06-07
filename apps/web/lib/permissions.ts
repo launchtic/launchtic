@@ -86,11 +86,6 @@ export type Permission =
   | "broadcasts:send"        // actually send to recipients (irreversible)
   | "broadcasts:delete"
 
-  // ── Emails: Sequences (drip campaigns) ──
-  | "sequences:read"
-  | "sequences:write"        // create + edit + enroll/exit contacts
-  | "sequences:delete"
-
   // ── Emails: Templates ──
   | "email_templates:read"
   | "email_templates:write"
@@ -100,10 +95,17 @@ export type Permission =
   | "email_logs:read"
   | "email_logs:resend"      // retry failed sends + clear log
 
-  // ── Automations ──
-  | "automations:read"
-  | "automations:write"
-  | "automations:delete"
+  // ── Workflows ──
+  // read  → view workflows + runs + emails
+  // write → create + edit + activate/pause + manage workflow emails
+  // delete → delete an entire workflow (irreversible — loses run history).
+  //          Deleting a single workflow email stays under workflows:write
+  //          (it's editing workflow content, not removing the workflow).
+  // (Renamed from the legacy automations:* permissions; the Automation /
+  // Sequence features were removed and replaced by Workflows.)
+  | "workflows:read"
+  | "workflows:write"
+  | "workflows:delete"
 
   // ── Media ──
   | "media:read"
@@ -176,10 +178,9 @@ export const ALL_PERMISSIONS: Permission[] = [
   "contacts:read", "contacts:write", "contacts:delete", "contacts:import", "contacts:export",
   "tags:read", "tags:write", "tags:delete",
   "broadcasts:read", "broadcasts:write", "broadcasts:send", "broadcasts:delete",
-  "sequences:read", "sequences:write", "sequences:delete",
   "email_templates:read", "email_templates:write", "email_templates:delete",
   "email_logs:read", "email_logs:resend",
-  "automations:read", "automations:write", "automations:delete",
+  "workflows:read", "workflows:write", "workflows:delete",
   "media:read", "media:upload", "media:delete",
   "settings:general:read", "settings:general:write",
   "settings:domains:read", "settings:domains:write",

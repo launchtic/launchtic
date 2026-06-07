@@ -22,7 +22,7 @@ const bodySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

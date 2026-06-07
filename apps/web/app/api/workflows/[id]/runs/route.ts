@@ -8,7 +8,7 @@ import { requireAccess } from "../../../../../lib/permissions";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:read");
+    const r = await requireAccess("workflows:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;

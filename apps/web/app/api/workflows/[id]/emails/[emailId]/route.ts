@@ -18,7 +18,7 @@ const updateSchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string; emailId: string }> }) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id, emailId } = await params;
@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; emailId: string }> }) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id, emailId } = await params;

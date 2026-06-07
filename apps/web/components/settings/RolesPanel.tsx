@@ -95,14 +95,6 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
     ],
   },
   {
-    label: "Sequences",
-    perms: [
-      { key: "sequences:read",   label: "View sequences" },
-      { key: "sequences:write",  label: "Create and edit sequences" },
-      { key: "sequences:delete", label: "Delete sequences" },
-    ],
-  },
-  {
     label: "Email Templates",
     perms: [
       { key: "email_templates:read",   label: "View email templates" },
@@ -118,11 +110,11 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
     ],
   },
   {
-    label: "Automations",
+    label: "Workflows",
     perms: [
-      { key: "automations:read",   label: "View automations" },
-      { key: "automations:write",  label: "Create and edit automations" },
-      { key: "automations:delete", label: "Delete automations" },
+      { key: "workflows:read",   label: "View workflows" },
+      { key: "workflows:write",  label: "Create and edit workflows" },
+      { key: "workflows:delete", label: "Delete workflows" },
     ],
   },
   {

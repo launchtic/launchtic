@@ -47,20 +47,6 @@ const TOOL_LABELS: Record<string, string> = {
   cancel_broadcast:           "Canceling broadcast",
   delete_broadcast:           "Deleting broadcast",
 
-  // ─── Sequences ───────────────────────────────────────────────────────────
-  list_sequences:             "Listing sequences",
-  get_sequence_details:       "Reading sequence",
-  create_sequence_from_spec:  "Drafting sequence",
-  add_sequence_step:          "Adding sequence step",
-  update_sequence_step:       "Updating sequence step",
-  update_sequence_status:     "Toggling sequence status",
-  delete_sequence:            "Deleting sequence",
-
-  // ─── Automations ─────────────────────────────────────────────────────────
-  list_automations:           "Listing automations",
-  update_automation_status:   "Toggling automation status",
-  delete_automation:          "Deleting automation",
-
   // ─── Coupons ─────────────────────────────────────────────────────────────
   list_coupons:               "Listing coupons",
   create_coupon:              "Creating coupon",

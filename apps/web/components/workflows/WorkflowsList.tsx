@@ -74,7 +74,7 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [busy, setBusy]     = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
-  const { canManageAutomations } = useRole();
+  const { canManageWorkflows, canDeleteWorkflows } = useRole();
 
   const filtered = useMemo(() => {
     let list = items;
@@ -146,7 +146,7 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
             Build visual workflows that respond to your funnel and customer events.
           </p>
         </div>
-        {canManageAutomations && (
+        {canManageWorkflows && (
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setShowGallery(true)}
@@ -196,7 +196,7 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
           <p className="text-sm text-gray-500 mb-4">
             {items.length === 0 ? "No workflows yet. Build one to automate your funnel response." : "No workflows match your filters."}
           </p>
-          {items.length === 0 && canManageAutomations && (
+          {items.length === 0 && canManageWorkflows && (
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => setShowGallery(true)}
@@ -254,7 +254,7 @@ export default function WorkflowsList({ initial }: { initial: Row[] }) {
                   >
                     <FileEdit size={14} />
                   </Link>
-                  {canManageAutomations && (
+                  {canDeleteWorkflows && (
                     <button
                       onClick={() => handleDelete(w)}
                       disabled={busy === w.id}

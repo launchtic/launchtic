@@ -18,7 +18,7 @@ export default async function NewWorkflowEmailPage({
   params: Promise<{ workspaceSlug: string; id: string }>;
 }) {
   const { workspaceSlug, id } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "automations:write");
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "workflows:write");
 
   const [workflow, senders, templates] = await Promise.all([
     db.workflow.findFirst({

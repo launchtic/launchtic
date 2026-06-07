@@ -37,7 +37,7 @@ const updateSchema = z.object({
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:read");
+    const r = await requireAccess("workflows:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;
@@ -55,7 +55,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;
@@ -86,7 +86,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:write");
+    // Deleting a whole workflow is irreversible (cascades WorkflowRun +
+    // WorkflowRunStep run history) — gated by the dedicated workflows:delete
+    // grant, separate from workflows:write. Deleting individual workflow
+    // emails stays under workflows:write (content editing).
+    const r = await requireAccess("workflows:delete");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;

@@ -20,7 +20,7 @@ const bodySchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
     const { id } = await params;

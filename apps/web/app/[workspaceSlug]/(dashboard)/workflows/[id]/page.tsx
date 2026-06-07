@@ -11,7 +11,7 @@ export default async function WorkflowEditorPage({
   params: Promise<{ workspaceSlug: string; id: string }>;
 }) {
   const { workspaceSlug, id } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "automations:read");
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "workflows:read");
 
   const wf = await db.workflow.findFirst({
     where: { id, workspaceId },

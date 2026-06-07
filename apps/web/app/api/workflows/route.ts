@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   try {
     // Reuses the automations permission until Phase 1B introduces a
     // dedicated workflows:* permission set.
-    const r = await requireAccess("automations:read");
+    const r = await requireAccess("workflows:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const r = await requireAccess("automations:write");
+    const r = await requireAccess("workflows:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 

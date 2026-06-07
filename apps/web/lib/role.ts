@@ -73,19 +73,16 @@ export function useRole() {
     canManageBroadcasts:   hasPermission("broadcasts:write"),
     canSendBroadcasts:     hasPermission("broadcasts:send"),
     canDeleteBroadcasts:   hasPermission("broadcasts:delete"),
-    canReadSequences:      hasPermission("sequences:read"),
-    canManageSequences:    hasPermission("sequences:write"),
-    canDeleteSequences:    hasPermission("sequences:delete"),
     canReadEmailTemplates: hasPermission("email_templates:read"),
     canManageEmailTemplates: hasPermission("email_templates:write"),
     canDeleteEmailTemplates: hasPermission("email_templates:delete"),
     canReadEmailLogs:      hasPermission("email_logs:read"),
     canResendEmails:       hasPermission("email_logs:resend"),
 
-    // Automations
-    canReadAutomations:    hasPermission("automations:read"),
-    canManageAutomations:  hasPermission("automations:write"),
-    canDeleteAutomations:  hasPermission("automations:delete"),
+    // Workflows (renamed from the legacy automations:* permissions)
+    canReadWorkflows:      hasPermission("workflows:read"),
+    canManageWorkflows:    hasPermission("workflows:write"),
+    canDeleteWorkflows:    hasPermission("workflows:delete"),
 
     // Media
     canReadMedia:          hasPermission("media:read"),
@@ -121,9 +118,8 @@ export function useRole() {
       hasPermission("funnels:write") ||
       hasPermission("contacts:write") ||
       hasPermission("broadcasts:write") ||
-      hasPermission("sequences:write") ||
       hasPermission("email_templates:write") ||
-      hasPermission("automations:write"),
+      hasPermission("workflows:write"),
     /** Legacy alias of canManageGeneralSettings — components may use this. */
     canManageSettings: hasPermission("settings:general:write"),
   };

@@ -16,7 +16,7 @@ export default async function WorkflowEmailEditorPage({
   params: Promise<{ workspaceSlug: string; id: string; emailId: string }>;
 }) {
   const { workspaceSlug, id, emailId } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "automations:read");
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "workflows:read");
 
   // Ownership chain — workflow must belong to the workspace + email must
   // belong to that workflow. Either miss = 404 to avoid id-probe leaks.

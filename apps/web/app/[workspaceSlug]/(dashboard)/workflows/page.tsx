@@ -6,7 +6,7 @@ export const metadata = { title: "Workflows" };
 
 export default async function WorkflowsPage({ params }: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "automations:read");
+  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "workflows:read");
 
   const workflows = await db.workflow.findMany({
     where:   { workspaceId },
