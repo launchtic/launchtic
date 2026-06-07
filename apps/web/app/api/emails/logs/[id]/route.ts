@@ -7,7 +7,8 @@ import { requireAccess } from "../../../../../lib/permissions";
 
 type Params = { params: Promise<{ id: string }> };
 
-type SourceType = "BROADCAST" | "WORKFLOW" | "TEMPLATE" | "SYSTEM";
+// TEMPLATE is intentionally absent — see /api/emails/logs (list) for rationale.
+type SourceType = "BROADCAST" | "WORKFLOW" | "SYSTEM";
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
@@ -79,19 +80,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
           : null;
       } else if (!log.sourceLabel) {
         sourceName = "Workflow (deleted)";
-      }
-    } else if (sourceType === "TEMPLATE" && sourceId) {
-      const t = await db.emailTemplate.findUnique({
-        where: { id: sourceId },
-        select: { id: true, name: true, subject: true, htmlBody: true },
-      });
-      if (t) {
-        sourceName       = t.name;
-        liveSourceHtml   = t.htmlBody;
-        liveSourceSubject = t.subject;
-        sourceHref = workspaceSlug ? `/${workspaceSlug}/emails/templates/${t.id}` : null;
-      } else if (!log.sourceLabel) {
-        sourceName = "Template (deleted)";
       }
     }
     // SYSTEM rows have no href and use sourceLabel as-is (already assigned).

@@ -10,7 +10,11 @@ type StatusFilter = (typeof STATUSES)[number];
 
 // Source filter values match EmailSend.sourceType (Pattern B). String column,
 // not a DB enum — adding new source types only needs an app-code bump.
-const SOURCES = ["BROADCAST", "WORKFLOW", "TEMPLATE", "SYSTEM"] as const;
+// TEMPLATE intentionally NOT in the taxonomy: EmailTemplate is a content
+// library that Broadcast / WorkflowEmail copy from at design time — it never
+// sends directly. Add TEMPLATE back if/when a "test send" or "send-by-template"
+// API ships (cost = bump this array, no migration).
+const SOURCES = ["BROADCAST", "WORKFLOW", "SYSTEM"] as const;
 type SourceFilter = (typeof SOURCES)[number];
 
 const RANGES: Record<string, number> = {

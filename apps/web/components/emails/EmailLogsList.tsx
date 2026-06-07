@@ -12,8 +12,10 @@ import { apiFetch } from "../../lib/api-client";
 type Status = "QUEUED" | "SENT" | "FAILED" | "BOUNCED";
 // Source taxonomy matches EmailSend.sourceType (Pattern B). Backend stores
 // this as a plain String column (not a DB enum) so adding new source types
-// only requires bumping this union — no schema migration.
-type SourceType = "BROADCAST" | "WORKFLOW" | "TEMPLATE" | "SYSTEM";
+// only requires bumping this union — no schema migration. TEMPLATE is
+// intentionally absent (EmailTemplate is a content library, never sends
+// directly); add it back if a "send by template" code path ships.
+type SourceType = "BROADCAST" | "WORKFLOW" | "SYSTEM";
 
 type Row = {
   id: string;
@@ -63,7 +65,6 @@ const SOURCE_OPTIONS: { value: "ALL" | SourceType; label: string }[] = [
   { value: "ALL",       label: "All sources" },
   { value: "BROADCAST", label: "Broadcasts" },
   { value: "WORKFLOW",  label: "Workflows" },
-  { value: "TEMPLATE",  label: "Templates" },
   { value: "SYSTEM",    label: "System" },
 ];
 

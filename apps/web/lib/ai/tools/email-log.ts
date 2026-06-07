@@ -15,7 +15,7 @@ const listEmailLogs = defineTool({
   inputSchema: z.object({
     status:       z.enum(["QUEUED", "SENT", "FAILED", "BOUNCED"]).optional(),
     contactEmail: z.string().optional().describe("Filter to a specific recipient email."),
-    source:       z.enum(["BROADCAST", "WORKFLOW", "TEMPLATE", "SYSTEM"]).optional().describe("Filter by what dispatched the email."),
+    source:       z.enum(["BROADCAST", "WORKFLOW", "SYSTEM"]).optional().describe("Filter by what dispatched the email."),
     limit:        z.number().int().min(1).max(100).default(25),
   }),
   requiresConfirm: false,

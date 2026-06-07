@@ -19,8 +19,9 @@ import { requireAccess } from "../../../../../lib/permissions";
 
 // Source taxonomy matches /api/emails/logs (list). Mirrors EmailSend.sourceType
 // values written by the workflow / broadcast / system send paths under
-// Pattern B (no FKs — sourceType is a plain String column).
-const SOURCES = ["BROADCAST", "WORKFLOW", "TEMPLATE", "SYSTEM"] as const;
+// Pattern B (no FKs — sourceType is a plain String column). TEMPLATE is not
+// listed: EmailTemplate is a content library, never sends directly.
+const SOURCES = ["BROADCAST", "WORKFLOW", "SYSTEM"] as const;
 
 const RANGES_MS: Record<string, number> = {
   "24h": 24 * 3600 * 1000,

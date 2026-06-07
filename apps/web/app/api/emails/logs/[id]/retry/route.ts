@@ -55,20 +55,12 @@ export async function POST(_req: NextRequest, { params }: Params) {
         liveFromName      = b.fromName;
         broadcastIdForCounter = b.id;
       }
-    } else if (log.sourceType === "TEMPLATE" && log.sourceId) {
-      const t = await db.emailTemplate.findUnique({
-        where: { id: log.sourceId },
-        select: { id: true, subject: true, htmlBody: true },
-      });
-      if (t) {
-        liveSourceHtml    = t.htmlBody;
-        liveSourceSubject = t.subject;
-      }
     }
-    // WORKFLOW retries don't re-resolve the live source — workflow emails
-    // get edited frequently and a retry should reflect what was originally
-    // queued, not a current (possibly very different) draft. Falls through
-    // to the bodyHtml snapshot below.
+    // WORKFLOW + SYSTEM retries don't re-resolve a live source — workflow
+    // emails get edited frequently and a retry should reflect what was
+    // originally queued, not a current (possibly very different) draft.
+    // SYSTEM rows have no live source row to read from. Both fall through to
+    // the bodyHtml snapshot below.
 
     // Snapshot fallback: log.bodyHtml is always populated on new sends.
     const sourceHtml    = liveSourceHtml    ?? log.bodyHtml ?? null;
