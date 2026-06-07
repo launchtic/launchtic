@@ -1,69 +1,71 @@
-# Workflow rules
+# Quy tắc Workflow
 
-Canonical reference for the launchtic Workflow automation feature.
-Captures every rule the runtime enforces and every guarantee the UI relies
-on. Update this doc whenever the validation contract, trigger payload, or
-re-fire semantics change.
+Tài liệu tham chiếu chuẩn cho tính năng tự động hoá Workflow của launchtic.
+Mô tả mọi quy tắc mà runtime ép buộc và mọi đảm bảo mà UI dựa vào. Cập nhật
+tài liệu này bất cứ khi nào contract validation, payload của trigger hoặc
+ngữ nghĩa re-fire thay đổi.
 
-Last reviewed: 2026-06.
+Lần rà soát gần nhất: 2026-06.
 
 ---
 
-## 1. Conceptual model
+## 1. Mô hình khái niệm
 
-A **Workflow** is a directed graph of **Nodes** wired by **Edges**, plus
-a **Trigger** that decides when a Contact enrolls.
+Một **Workflow** là một đồ thị có hướng gồm các **Node** được nối với nhau
+bằng các **Edge**, cộng với một **Trigger** quyết định khi nào một Contact
+được enroll.
 
-- The trigger is a virtual node attached to the start of the graph (id
-  `__trigger`). Never persisted to `Workflow.nodes` JSON.
-- Each enrollment creates a **WorkflowRun** row tracking position
-  (`currentNodeId`) and accumulated `context`.
-- Each node execution writes a **WorkflowRunStep** for audit + retry.
-- The worker (`apps/worker`) consumes BullMQ jobs; each job advances one
-  node, then enqueues the next (with optional `delay`).
+- Trigger là một node ảo gắn vào điểm bắt đầu của đồ thị (id
+  `__trigger`). Không bao giờ được lưu vào JSON `Workflow.nodes`.
+- Mỗi lần enroll tạo ra một bản ghi **WorkflowRun** để theo dõi vị trí
+  (`currentNodeId`) và `context` tích luỹ.
+- Mỗi lần thực thi node ghi một **WorkflowRunStep** để audit + retry.
+- Worker (`apps/worker`) tiêu thụ các job BullMQ; mỗi job chạy tiến một
+  node, sau đó enqueue node tiếp theo (kèm `delay` tuỳ chọn).
 
-Source of truth for runtime is `apps/worker/src/queues/workflow.ts`. Source
-of truth for validation is `apps/web/lib/workflow-validation.ts` (shared by
-the builder and the activation endpoint).
+Nguồn chân lý cho runtime là `apps/worker/src/queues/workflow.ts`. Nguồn
+chân lý cho validation là `apps/web/lib/workflow-validation.ts` (dùng chung
+giữa builder và endpoint activation).
 
 ---
 
 ## 2. Triggers
 
-10 trigger types. All fire via `fireTrigger(workspaceId, type, context)` in
-either `apps/web/lib/automations.ts` or `apps/renderer/lib/automations.ts`.
-The two implementations are kept in sync — same signature, same gate logic.
+Có 10 loại trigger. Tất cả đều kích hoạt qua
+`fireTrigger(workspaceId, type, context)` trong `apps/web/lib/automations.ts`
+hoặc `apps/renderer/lib/automations.ts`. Hai bản triển khai được giữ đồng
+bộ — cùng signature, cùng logic gating.
 
-### 2.1 Trigger catalog
+### 2.1 Danh mục trigger
 
-| Trigger | Fires when | Context payload (must include) | Funnel-scoped? | Email-scoped? | Smart re-fire default |
+| Trigger | Kích hoạt khi | Payload context (bắt buộc có) | Theo funnel? | Theo email? | Re-fire mặc định thông minh |
 |---|---|---|:---:|:---:|---|
-| `NEW_SALE` | Order transitions to PAID | `contactId`, `orderId`, `funnelId`, `funnelStepId`, `orderTotal`, `orderCurrency` | ✅ | — | every |
-| `SALE_CANCELED` | Order refunded or canceled | `contactId`, `orderId`, `funnelId`, `funnelStepId` | ✅ | — | every |
-| `SUBSCRIPTION_PAYMENT_FAILED` | Stripe/PayPal recurring charge fails | `contactId`, `subscriptionId`, `funnelId`, `funnelStepId` | ✅ | — | every |
-| `FORM_SUBMIT` | Contact submits a funnel-page form (incl. opt-in, checkout customer info) | `contactId`, `funnelId`, `funnelStepId` | ✅ | — | **once** |
-| `CHECKOUT_STARTED` | Click Pay on checkout page (before charge) | `contactId`, `funnelId`, `funnelStepId` | ✅ | — | every |
-| `TAG_ADDED` | Tag attached to a contact (manual / API / workflow) | `contactId`, `tagId` | — | — | every |
-| `TAG_REMOVED` | Tag detached from a contact | `contactId`, `tagId` | — | — | every |
-| `EMAIL_OPENED` | First pixel hit on an EmailSend | `contactId`, `emailSendId`, `broadcastId?`, `workflowEmailId?` | — | ✅ | every |
-| `EMAIL_LINK_CLICKED` | First click of any tracked link in an EmailSend | `contactId`, `emailSendId`, `broadcastId?`, `workflowEmailId?`, `linkUrl` | — | ✅ | every |
-| `PAGE_VISITED` | Identified Contact loads a funnel page (via `lt_contact` cookie) | `contactId`, `funnelId`, `funnelStepId` | ✅ | — | every |
+| `NEW_SALE` | Order chuyển sang PAID | `contactId`, `orderId`, `funnelId`, `funnelStepId`, `orderTotal`, `orderCurrency` | ✅ | — | every |
+| `SALE_CANCELED` | Order bị hoàn tiền hoặc huỷ | `contactId`, `orderId`, `funnelId`, `funnelStepId` | ✅ | — | every |
+| `SUBSCRIPTION_PAYMENT_FAILED` | Lần thanh toán định kỳ Stripe/PayPal thất bại | `contactId`, `subscriptionId`, `funnelId`, `funnelStepId` | ✅ | — | every |
+| `FORM_SUBMIT` | Contact submit form trên trang funnel (gồm opt-in, thông tin khách hàng ở checkout) | `contactId`, `funnelId`, `funnelStepId` | ✅ | — | **once** |
+| `CHECKOUT_STARTED` | Bấm Pay trên trang checkout (trước khi charge) | `contactId`, `funnelId`, `funnelStepId` | ✅ | — | every |
+| `TAG_ADDED` | Tag được gắn vào contact (thủ công / API / workflow) | `contactId`, `tagId` | — | — | every |
+| `TAG_REMOVED` | Tag bị gỡ khỏi contact | `contactId`, `tagId` | — | — | every |
+| `EMAIL_OPENED` | Lần đầu pixel được load trên một EmailSend | `contactId`, `emailSendId`, `broadcastId?`, `workflowEmailId?` | — | ✅ | every |
+| `EMAIL_LINK_CLICKED` | Lần đầu click vào bất kỳ link tracked nào trong EmailSend | `contactId`, `emailSendId`, `broadcastId?`, `workflowEmailId?`, `linkUrl` | — | ✅ | every |
+| `PAGE_VISITED` | Contact đã định danh load một trang funnel (qua cookie `lt_contact`) | `contactId`, `funnelId`, `funnelStepId` | ✅ | — | every |
 
-### 2.2 Trigger config rules (validation)
+### 2.2 Quy tắc cấu hình trigger (validation)
 
-Server-side validator (`validateTrigger` in `workflow-validation.ts`) is
-mirrored by the builder's red badges. Activation fails with the same
-`issues[]` shape from the `/api/workflows/[id]/status` endpoint.
+Bộ validate server-side (`validateTrigger` trong `workflow-validation.ts`)
+được phản chiếu bởi các badge đỏ trên builder. Activation thất bại với cùng
+hình thức `issues[]` từ endpoint `/api/workflows/[id]/status`.
 
-#### Funnel-scoped triggers
-Must pick **both** `funnelId` and `funnelStepId`. There is no "any
-funnel" or "any step" — operator scopes one workflow per funnel/step
-combination. This rule covers `NEW_SALE`, `SALE_CANCELED`,
+#### Triggers theo funnel
+Phải chọn **cả** `funnelId` lẫn `funnelStepId`. Không có lựa chọn "any
+funnel" hay "any step" — operator gán một workflow cho từng cặp funnel/step.
+Quy tắc này áp dụng cho `NEW_SALE`, `SALE_CANCELED`,
 `SUBSCRIPTION_PAYMENT_FAILED`, `FORM_SUBMIT`, `CHECKOUT_STARTED`,
 `PAGE_VISITED`.
 
-Step types accepted per trigger (builder filters the Step dropdown
-accordingly):
+Loại step được chấp nhận cho từng trigger (builder lọc dropdown Step theo
+đó):
 
 ```
 NEW_SALE                    → CHECKOUT, UPSELL, DOWNSELL
@@ -74,24 +76,24 @@ FORM_SUBMIT                 → OPTIN, SALES, CUSTOM, THANKYOU
 PAGE_VISITED                → OPTIN, SALES, CHECKOUT, UPSELL, DOWNSELL, THANKYOU, CUSTOM
 ```
 
-#### Tag-scoped triggers
-`TAG_ADDED`, `TAG_REMOVED`: require `config.tagId`.
+#### Triggers theo tag
+`TAG_ADDED`, `TAG_REMOVED`: yêu cầu `config.tagId`.
 
-#### Email-scoped triggers
-`EMAIL_OPENED`, `EMAIL_LINK_CLICKED`: require `config.source` discriminator
-plus the matching id:
+#### Triggers theo email
+`EMAIL_OPENED`, `EMAIL_LINK_CLICKED`: yêu cầu trường discriminator
+`config.source` cộng với id tương ứng:
 
-- `source: "broadcast"` → require `config.broadcastId`
-- `source: "workflow_email"` → require `config.workflowEmailId`
+- `source: "broadcast"` → yêu cầu `config.broadcastId`
+- `source: "workflow_email"` → yêu cầu `config.workflowEmailId`
 
-`EMAIL_LINK_CLICKED` additionally accepts an optional `config.linkUrl`
-(URL or path substring; matched with `String.includes` at runtime).
+`EMAIL_LINK_CLICKED` còn chấp nhận thêm `config.linkUrl` tuỳ chọn (URL hoặc
+chuỗi con của path; được so khớp bằng `String.includes` tại runtime).
 
-### 2.3 Trigger fire matcher
+### 2.3 Bộ so khớp khi trigger fire
 
-`matchesFilter(config, context, stepType)` returns true only when every
-configured key matches the runtime context. Mismatch on any key →
-workflow skipped. Both web and renderer share this logic verbatim:
+`matchesFilter(config, context, stepType)` chỉ trả về true khi mọi key đã
+cấu hình đều khớp với context runtime. Lệch ở bất kỳ key nào → workflow
+bị bỏ qua. Cả web và renderer dùng chung logic này nguyên văn:
 
 ```ts
 if (config.funnelId        && context.funnelId        !== config.funnelId)        return false;
@@ -106,20 +108,20 @@ return true;
 
 ---
 
-## 3. Re-fire policy
+## 3. Chính sách Re-fire
 
-Workflow-level setting controlled via the top-bar selector. Persists in
-`Workflow.reFirePolicy`. Two values:
+Cấu hình ở cấp workflow, điều khiển qua selector trên top-bar. Lưu trong
+`Workflow.reFirePolicy`. Có hai giá trị:
 
-| Policy | Semantic | Use cases |
+| Policy | Ngữ nghĩa | Trường hợp dùng |
 |---|---|---|
-| `every` (default for transactional) | Each event spawns a new run. **Concurrent runs are allowed** — a contact who buys twice while a 24h-delay run is still pending gets enrolled twice. Matches Klaviyo / Mailchimp / Systeme.io. | NEW_SALE thank-you, EMAIL_OPENED engagement scoring, CHECKOUT_STARTED cart-recovery, PAGE_VISITED browse abandonment. |
-| `once` (default for FORM_SUBMIT) | Fire ONCE per contact ever. Block enroll if ANY prior WorkflowRun exists for this (workflow, contact) regardless of status. | Welcome series, lead-magnet delivery, onboarding sequences. |
+| `every` (mặc định cho các trigger giao dịch) | Mỗi sự kiện sinh ra một run mới. **Cho phép run đồng thời** — một contact mua hai lần khi run delay 24h vẫn đang chờ sẽ được enroll hai lần. Giống Klaviyo / Mailchimp / Systeme.io. | Thank-you NEW_SALE, scoring engagement EMAIL_OPENED, recovery giỏ hàng CHECKOUT_STARTED, browse abandonment PAGE_VISITED. |
+| `once` (mặc định cho FORM_SUBMIT) | Chỉ fire MỘT lần cho mỗi contact, mãi mãi. Chặn enroll nếu đã tồn tại BẤT KỲ WorkflowRun nào trước đó cho cặp (workflow, contact) bất kể trạng thái. | Welcome series, gửi lead-magnet, các chuỗi onboarding. |
 
-### 3.1 Smart defaults
+### 3.1 Mặc định thông minh
 
-When the operator changes trigger type, the selector snaps to the smart
-default for the new trigger:
+Khi operator đổi loại trigger, selector tự "snap" về mặc định thông minh
+của trigger mới:
 
 ```ts
 TRIGGER_DEFAULT_REFIRE_POLICY = {
@@ -131,14 +133,15 @@ TRIGGER_DEFAULT_REFIRE_POLICY = {
   EMAIL_LINK_CLICKED:          "every",
   TAG_ADDED:                   "every",
   TAG_REMOVED:                 "every",
-  PAGE_VISITED:                "every",   // throttled separately via 1h Redis cooldown
-  FORM_SUBMIT:                 "once",    // welcome / lead-magnet pattern
+  PAGE_VISITED:                "every",   // được throttle riêng qua cooldown Redis 1h
+  FORM_SUBMIT:                 "once",    // mẫu welcome / lead-magnet
 }
 ```
 
-Operator can override after the snap; the override persists across saves.
+Operator có thể override sau khi snap; giá trị override sẽ được giữ qua
+các lần save.
 
-### 3.2 Re-fire gate (in fireTrigger)
+### 3.2 Re-fire gate (trong fireTrigger)
 
 ```ts
 if (context.contactId && wf.reFirePolicy === "once") {
@@ -150,364 +153,365 @@ if (context.contactId && wf.reFirePolicy === "once") {
 }
 ```
 
-`every` skips the check entirely — concurrent runs created freely.
+`every` bỏ qua hoàn toàn check này — run đồng thời được tạo tự do.
 
 ---
 
-## 4. Source-level dedupe (per trigger)
+## 4. Dedupe ở cấp nguồn (theo từng trigger)
 
-Each trigger source layer has its own dedupe mechanism. Re-fire policy
-operates on top of this; dedupe runs FIRST.
+Mỗi tầng nguồn của trigger có cơ chế dedupe riêng. Chính sách re-fire vận
+hành ở trên tầng này; dedupe chạy TRƯỚC.
 
-| Trigger | Mechanism | Where | Window |
+| Trigger | Cơ chế | Ở đâu | Cửa sổ |
 |---|---|---|---|
-| `PAGE_VISITED` | Redis `SET NX EX` lock | `apps/renderer/app/[[...slug]]/page.tsx` + `/api/track/visit` | 1 hour |
-| `FORM_SUBMIT` | `ContactEvent` table row | `apps/renderer/app/api/submit/route.ts` | 60 seconds |
-| `EMAIL_OPENED` | First-open flag (`EmailSend.openedAt IS NULL`) | `/api/email/track/open/[emailSendId]` | first-only |
-| `EMAIL_LINK_CLICKED` | First-click flag (`EmailSend.clickedAt IS NULL`) | `/api/email/track/click/[token]` | first-only |
-| `NEW_SALE` | None (each PAID transition is real) | Stripe / PayPal webhook | — |
-| `SALE_CANCELED` | None | Webhook | — |
-| `CHECKOUT_STARTED` | None | `/api/checkout/intent` | — |
-| `SUBSCRIPTION_PAYMENT_FAILED` | None (idempotent webhook events) | Webhook | — |
-| `TAG_ADDED` / `TAG_REMOVED` | None (operator-explicit) | Tag mutation routes | — |
+| `PAGE_VISITED` | Lock Redis `SET NX EX` | `apps/renderer/app/[[...slug]]/page.tsx` + `/api/track/visit` | 1 giờ |
+| `FORM_SUBMIT` | Bản ghi bảng `ContactEvent` | `apps/renderer/app/api/submit/route.ts` | 60 giây |
+| `EMAIL_OPENED` | Cờ first-open (`EmailSend.openedAt IS NULL`) | `/api/email/track/open/[emailSendId]` | chỉ lần đầu |
+| `EMAIL_LINK_CLICKED` | Cờ first-click (`EmailSend.clickedAt IS NULL`) | `/api/email/track/click/[token]` | chỉ lần đầu |
+| `NEW_SALE` | Không có (mỗi transition PAID đều là thật) | Webhook Stripe / PayPal | — |
+| `SALE_CANCELED` | Không có | Webhook | — |
+| `CHECKOUT_STARTED` | Không có | `/api/checkout/intent` | — |
+| `SUBSCRIPTION_PAYMENT_FAILED` | Không có (sự kiện webhook đã idempotent) | Webhook | — |
+| `TAG_ADDED` / `TAG_REMOVED` | Không có (operator chủ động) | Route mutation tag | — |
 
-### 4.1 PAGE_VISITED reload spam protection
+### 4.1 Chống spam reload cho PAGE_VISITED
 
-Page reloads are frequent (tab switching, navigation back/forth). The 1h
-Redis cooldown key `pv:{contactId}:{funnelStepId}` blocks reload-triggered
-fires until 1 hour after the previous fire. Without this, a `PAGE_VISITED →
-SEND_EMAIL → END` workflow would email the contact on every reload.
+Việc reload trang khá thường xuyên (chuyển tab, back/forth). Cooldown Redis
+1h với key `pv:{contactId}:{funnelStepId}` chặn các lần fire do reload cho
+đến 1 giờ sau lần fire trước. Nếu không có nó, một workflow
+`PAGE_VISITED → SEND_EMAIL → END` sẽ gửi email cho contact mỗi lần reload.
 
-Performance note: Redis `SET NX EX` is ~1ms and ~100 bytes/key. With 1h TTL
-and identified-only firing (cookie required), memory pressure is
-negligible (~50MB at 500k unique combos peak hour).
+Lưu ý hiệu năng: Redis `SET NX EX` mất ~1ms và ~100 bytes/key. Với TTL 1h
+và chỉ fire khi đã định danh (cần cookie), áp lực bộ nhớ là không đáng kể
+(~50MB ở đỉnh 500k tổ hợp duy nhất mỗi giờ).
 
 ---
 
-## 5. Identity model
+## 5. Mô hình định danh
 
-### 5.1 `lt_contact` cookie
+### 5.1 Cookie `lt_contact`
 
-Workflows can only enroll a **known** contact (one with a `contactId`).
-Identity is established at one of four capture points and persisted in a
-HttpOnly `lt_contact` cookie (30-day TTL, SameSite=Lax, Secure in prod):
+Workflow chỉ có thể enroll một contact **đã biết** (có `contactId`). Định
+danh được thiết lập tại một trong bốn điểm thu thập và lưu trong cookie
+HttpOnly `lt_contact` (TTL 30 ngày, SameSite=Lax, Secure ở prod):
 
-| Capture point | Endpoint |
+| Điểm thu thập | Endpoint |
 |---|---|
-| Email link click | `apps/renderer/app/api/email/track/click/[token]/route.ts` |
-| Funnel form opt-in | `apps/renderer/app/api/submit/route.ts` (optin branch) |
-| Checkout intent | `apps/renderer/app/api/checkout/intent/route.ts` |
-| Checkout confirm | `apps/renderer/app/api/checkout/confirm/route.ts` (defensive re-set for PayPal) |
+| Click link trong email | `apps/renderer/app/api/email/track/click/[token]/route.ts` |
+| Opt-in qua form funnel | `apps/renderer/app/api/submit/route.ts` (nhánh optin) |
+| Khởi tạo checkout | `apps/renderer/app/api/checkout/intent/route.ts` |
+| Xác nhận checkout | `apps/renderer/app/api/checkout/confirm/route.ts` (re-set phòng hờ cho PayPal) |
 
-Helper: `setLtContactCookie(response, contactId)` in
+Helper: `setLtContactCookie(response, contactId)` trong
 `apps/renderer/lib/identity-cookie.ts`.
 
-### 5.2 Cookie scoping rules (browser-enforced)
+### 5.2 Quy tắc scoping cookie (do trình duyệt ép)
 
-Cookie has NO `Domain` attribute → scoped to **exact origin**. This means:
+Cookie KHÔNG có thuộc tính `Domain` → bị scope theo **đúng origin**. Hệ quả:
 
-- Multi-customer SaaS on separate domains → independent cookies ✅
-- Multi-workspace on separate subdomains → independent cookies ✅
-- Multi-funnel same domain → cookie shared (same workspace assumed) ✅
-- Cross-domain identity transfer → email-click bridge only (no other method)
+- SaaS đa khách hàng trên các domain khác nhau → cookie độc lập ✅
+- Đa workspace trên các subdomain khác nhau → cookie độc lập ✅
+- Đa funnel cùng domain → cookie dùng chung (giả định cùng workspace) ✅
+- Truyền định danh xuyên domain → chỉ qua cầu nối email-click (không cách khác)
 
-### 5.3 Cross-workspace defense
+### 5.3 Phòng thủ xuyên workspace
 
-Even with cookie collision (shared root domain, rare), the `firePageVisited`
-helper verifies `Contact.workspaceId === Funnel.workspaceId` before
-firing the trigger. Stolen / stale cookies pointing at a contact from a
-different workspace → silent skip, no fire.
+Ngay cả khi cookie va chạm (chia chung root domain, hiếm), helper
+`firePageVisited` kiểm tra `Contact.workspaceId === Funnel.workspaceId`
+trước khi fire trigger. Cookie bị đánh cắp / cũ trỏ tới contact ở workspace
+khác → bỏ qua âm thầm, không fire.
 
-### 5.4 Anonymous visitors
+### 5.4 Khách ẩn danh
 
-No `lt_contact` cookie → no trigger fire. The page renders normally; only
-PAGE_VISITED and downstream identity-required triggers skip. Anonymous
-events are not tracked individually (no AnonymousSession table — defer to
-Phase 2 if needed).
+Không có cookie `lt_contact` → không fire trigger. Trang vẫn render bình
+thường; chỉ PAGE_VISITED và các trigger downstream cần định danh là bị
+bỏ qua. Sự kiện ẩn danh không được track riêng (không có bảng
+AnonymousSession — đẩy sang Phase 2 nếu cần).
 
 ---
 
-## 6. Node types (Actions)
+## 6. Loại node (Actions)
 
-All node types validated by `validateNode(type, config)`.
+Mọi loại node được validate bởi `validateNode(type, config)`.
 
-| Type | Required config | Behavior |
+| Loại | Config bắt buộc | Hành vi |
 |---|---|---|
-| `SEND_EMAIL` | `emailId` (FK to `WorkflowEmail` row) | Worker renders linked email body with Mustache vars, creates `EmailSend` row (sets `workflowEmailId` FK), enqueues SMTP delivery. Bumps `WorkflowEmail.sentCount` |
-| `ADD_TAG` | `tagId` | Idempotent upsert into `ContactTag` |
-| `REMOVE_TAG` | `tagId` | Delete row from `ContactTag` if present (no-op if absent) |
-| `WEBHOOK` | `url` (http/https), `method` (GET/POST/PUT/PATCH) | POST JSON envelope with type discriminator + custom headers. Non-2xx → step FAILED |
-| `DELAY` | At least one of `days` / `hours` / `minutes` non-zero; total ≤ 365 days | Worker schedules next step at `scheduledFor = now + totalMs`. Run stays ACTIVE while waiting |
-| `CONDITION` | `kind` discriminator + kind-specific fields (see §7) | Sets `preferredLabel` to `"true"` or `"false"` — worker picks the matching outgoing edge |
-| `END` | Optional `reason` (free text, ≤ ~50 chars) | Marks `WorkflowRun.status = COMPLETED`, `exitReason = reason` |
+| `SEND_EMAIL` | `emailId` (FK đến bản ghi `WorkflowEmail`) | Worker render body email được liên kết với biến Mustache, tạo bản ghi `EmailSend` (set FK `workflowEmailId`), enqueue gửi SMTP. Tăng `WorkflowEmail.sentCount` |
+| `ADD_TAG` | `tagId` | Upsert idempotent vào `ContactTag` |
+| `REMOVE_TAG` | `tagId` | Xoá bản ghi khỏi `ContactTag` nếu có (no-op nếu không có) |
+| `WEBHOOK` | `url` (http/https), `method` (GET/POST/PUT/PATCH) | POST envelope JSON với type discriminator + header tuỳ chỉnh. Non-2xx → step FAILED |
+| `DELAY` | Ít nhất một trong `days` / `hours` / `minutes` khác 0; tổng ≤ 365 ngày | Worker đặt lịch step tiếp theo tại `scheduledFor = now + totalMs`. Run vẫn ACTIVE trong khi chờ |
+| `CONDITION` | Discriminator `kind` + các trường theo kind (xem §7) | Set `preferredLabel` thành `"true"` hoặc `"false"` — worker chọn edge ra tương ứng |
+| `END` | `reason` tuỳ chọn (text tự do, ≤ ~50 ký tự) | Đánh dấu `WorkflowRun.status = COMPLETED`, `exitReason = reason` |
 
-### 6.1 WorkflowEmail entity
+### 6.1 Entity WorkflowEmail
 
-`SEND_EMAIL` nodes don't store content inline — they reference a separate
-`WorkflowEmail` row by `config.emailId`. This lets multiple SEND_EMAIL
-nodes share the same email body and gives the email its own analytics
-(`sentCount`, `openedCount`, `clickedCount` denormalized counters).
+Node `SEND_EMAIL` không lưu nội dung inline — chúng tham chiếu một bản ghi
+`WorkflowEmail` riêng qua `config.emailId`. Cho phép nhiều node SEND_EMAIL
+chia sẻ chung một body email và cho email có analytics riêng (các bộ đếm
+denormalize `sentCount`, `openedCount`, `clickedCount`).
 
-Lifecycle:
-- Add SEND_EMAIL node → emailId is `null`. Operator picks an existing
-  email or clicks "Create new email" (navigates to `/emails/new`).
-- "Create new email" page does NOT write to DB until Save — abandoning
-  the page leaves no orphan row.
-- Delete SEND_EMAIL node → linked `WorkflowEmail` is NOT deleted. It may
-  be reused by another node or kept as a draft. Orphan cleanup is via the
-  `/workflows/[id]/emails` listing page.
-- Type-switch from SEND_EMAIL → ADD_TAG → linked email also NOT deleted.
+Vòng đời:
+- Thêm node SEND_EMAIL → emailId là `null`. Operator chọn một email có sẵn
+  hoặc bấm "Create new email" (điều hướng tới `/emails/new`).
+- Trang "Create new email" KHÔNG ghi DB cho tới khi Save — bỏ trang giữa
+  chừng không để lại bản ghi orphan.
+- Xoá node SEND_EMAIL → `WorkflowEmail` liên kết KHÔNG bị xoá. Có thể được
+  dùng lại bởi node khác hoặc giữ làm draft. Dọn orphan qua trang
+  `/workflows/[id]/emails`.
+- Đổi loại từ SEND_EMAIL → ADD_TAG → email liên kết cũng KHÔNG bị xoá.
 
-The email editor (`/workflows/[id]/emails/[emailId]/edit`) is fullscreen,
-uses the maily.to TipTap editor, and has explicit Save (no autosave).
-Validation: subject non-empty, sender picked (senderId OR fromName +
-fromEmail), bodyHtml is a non-empty maily JSON doc (walked for text /
-image / button / logo nodes via `isMailyDocEmpty`).
+Trình soạn email (`/workflows/[id]/emails/[emailId]/edit`) chạy fullscreen,
+dùng editor TipTap của maily.to, và có nút Save tường minh (không autosave).
+Validation: subject không rỗng, sender đã chọn (senderId HOẶC fromName +
+fromEmail), bodyHtml là một doc JSON maily không rỗng (được duyệt qua các
+node text / image / button / logo bằng `isMailyDocEmpty`).
 
-### 6.2 SEND_EMAIL content format
+### 6.2 Định dạng nội dung SEND_EMAIL
 
-`WorkflowEmail.bodyHtml` is a **JSON-stringified maily.to TipTap doc**, NOT
-raw HTML. The worker's `renderEmailContent` (in `packages/email/src/render.ts`)
-rejects anything that doesn't start with `{`. Templates use a maily DSL
-(`doc`, `p`, `btn`, `link`, `bold`, …) in `apps/web/lib/workflow-templates.ts`
-to author bodies — these emit valid TipTap JSON.
+`WorkflowEmail.bodyHtml` là **chuỗi JSON của doc TipTap maily.to**, KHÔNG
+phải HTML thô. Hàm `renderEmailContent` của worker (trong
+`packages/email/src/render.ts`) từ chối bất kỳ thứ gì không bắt đầu bằng
+`{`. Template dùng DSL của maily (`doc`, `p`, `btn`, `link`, `bold`, …)
+trong `apps/web/lib/workflow-templates.ts` để soạn body — chúng phát ra
+JSON TipTap hợp lệ.
 
 ---
 
-## 7. CONDITION kinds
+## 7. Các kind của CONDITION
 
-`CONDITION` nodes branch on `preferredLabel` set by the executor.
-Edges must be labeled `"true"` and `"false"`; graph validation enforces
-both branches exist.
+Node `CONDITION` rẽ nhánh dựa trên `preferredLabel` mà executor set. Các
+edge phải được gắn nhãn `"true"` và `"false"`; validation đồ thị ép cả hai
+nhánh phải tồn tại.
 
-| Kind | Required config | True when |
+| Kind | Config bắt buộc | True khi |
 |---|---|---|
-| `contact_tag` | `tagId`, `operator` ∈ {`has`, `does_not_have`} | Contact has (or lacks) the tag |
-| `contact_field` | `field`, `operator` ∈ {`equals`, `begins`, `contains`, `ends`}, `value` | String compare (case-insensitive) on `Contact.{field}` |
-| `contact_purchased` | (optional `funnelStepId`) | Any `Order` with `status = PAID` for this contact since `run.startedAt`; if `funnelStepId` set, scopes to that step |
-| `email_opened` | `source` ∈ {`broadcast`, `workflow_email`} + matching id | `EmailSend.openedAt ≥ run.startedAt` for the configured source. **No `"any"` option** — was dropped because it routed on unrelated engagement |
-| `email_clicked` | Same as `email_opened` | Same shape, checks `clickedAt` instead |
+| `contact_tag` | `tagId`, `operator` ∈ {`has`, `does_not_have`} | Contact có (hoặc không có) tag |
+| `contact_field` | `field`, `operator` ∈ {`equals`, `begins`, `contains`, `ends`}, `value` | So sánh chuỗi (không phân biệt hoa thường) trên `Contact.{field}` |
+| `contact_purchased` | (`funnelStepId` tuỳ chọn) | Có `Order` nào với `status = PAID` của contact này kể từ `run.startedAt`; nếu set `funnelStepId` thì scope vào step đó |
+| `email_opened` | `source` ∈ {`broadcast`, `workflow_email`} + id tương ứng | `EmailSend.openedAt ≥ run.startedAt` cho nguồn đã cấu hình. **Không có lựa chọn `"any"`** — đã bỏ vì routing trên engagement không liên quan |
+| `email_clicked` | Giống `email_opened` | Cấu trúc tương tự, kiểm tra `clickedAt` thay vì `openedAt` |
 
-Conditions fail closed: missing config / unsupported kind → `result = false`.
-
----
-
-## 8. Graph rules
-
-`validateGraph(nodes, edges, startNodeId)` enforces:
-
-1. `startNodeId` must be set and present in `nodes`.
-2. Every `edge.source` and `edge.target` must reference an existing node.
-3. `CONDITION` nodes must have BOTH a `true` and `false` outgoing edge.
-4. Non-`END` nodes must have at least one outgoing edge (no dead ends).
-
-Edge labels:
-- `CONDITION` outputs: `"true"` / `"false"` (drives the executor's edge
-  pick via `ctx.preferredLabel`)
-- All other linear nodes: no label
+Condition fail-closed: thiếu config / kind không hỗ trợ → `result = false`.
 
 ---
 
-## 9. Activation gating (Klaviyo-strict lock)
+## 8. Quy tắc đồ thị
 
-When `Workflow.status = ACTIVE`:
+`validateGraph(nodes, edges, startNodeId)` ép buộc:
 
-### 9.1 Server-side guards
-- `PATCH /api/workflows/[id]` returns **409** "Workflow is active — pause it to edit."
-- `POST /api/workflows/[id]/emails` returns **409**
-- `PATCH /api/workflows/[id]/emails/[emailId]` returns **409**
-- `DELETE /api/workflows/[id]/emails/[emailId]` returns **409**
-- Status transitions (`/api/workflows/[id]/status`) ARE allowed (operator
-  must be able to Pause).
+1. `startNodeId` phải được set và tồn tại trong `nodes`.
+2. Mọi `edge.source` và `edge.target` phải tham chiếu node có thật.
+3. Node `CONDITION` phải có CẢ edge ra `true` và `false`.
+4. Node không phải `END` phải có ít nhất một edge ra (không có ngõ cụt).
 
-### 9.2 UI guards
-- Top bar shows yellow lock banner "Workflow is active — edits are locked.
+Nhãn edge:
+- Output của `CONDITION`: `"true"` / `"false"` (điều khiển việc chọn edge
+  của executor qua `ctx.preferredLabel`)
+- Mọi node tuyến tính khác: không có nhãn
+
+---
+
+## 9. Gating khi activate (khoá nghiêm ngặt kiểu Klaviyo)
+
+Khi `Workflow.status = ACTIVE`:
+
+### 9.1 Bảo vệ phía server
+- `PATCH /api/workflows/[id]` trả **409** "Workflow is active — pause it to edit."
+- `POST /api/workflows/[id]/emails` trả **409**
+- `PATCH /api/workflows/[id]/emails/[emailId]` trả **409**
+- `DELETE /api/workflows/[id]/emails/[emailId]` trả **409**
+- Chuyển trạng thái (`/api/workflows/[id]/status`) ĐƯỢC phép (operator
+  phải có thể bấm Pause).
+
+### 9.2 Bảo vệ phía UI
+- Top bar hiển thị banner khoá vàng "Workflow is active — edits are locked.
   Click Pause to make changes."
-- Workflow name input: readonly
-- Re-fire selector: disabled
-- Save button: hidden
-- "+" picker on nodes: hidden
-- Delete X on nodes: hidden
-- Keyboard Delete/Backspace: blocked via `onNodesChangeGuarded`
-- Node click → modal opens but all form controls disabled (via wrapping
-  `<fieldset disabled>`)
-- Type switcher in modal: disabled
-- "Create new email" link: hidden
-- Email editor + listing: readonly with same banner
+- Input tên workflow: readonly
+- Selector re-fire: disabled
+- Nút Save: ẩn
+- Picker "+" trên các node: ẩn
+- Nút Delete X trên các node: ẩn
+- Phím Delete/Backspace: bị chặn qua `onNodesChangeGuarded`
+- Click vào node → modal mở nhưng mọi control form đều disabled (qua
+  `<fieldset disabled>` bao ngoài)
+- Switcher loại node trong modal: disabled
+- Link "Create new email": ẩn
+- Editor email + trang listing: readonly cùng banner
 
-### 9.3 Activate flow
-1. Operator clicks Activate (status=DRAFT or PAUSED).
-2. Client runs `validateWorkflow()` — if issues exist, opens the pre-flight
-   modal listing them, does NOT call the server.
-3. Otherwise → pre-save (via the same PATCH endpoint, which works because
-   status is still pre-ACTIVE) → call `PATCH /api/workflows/[id]/status`
-   with `{status: "ACTIVE"}` → server re-validates → 400 with issues[] or
-   commit.
-4. Existing runs continue executing the graph snapshot they enrolled with.
-5. New triggers enroll under the new config.
+### 9.3 Luồng Activate
+1. Operator bấm Activate (status=DRAFT hoặc PAUSED).
+2. Client chạy `validateWorkflow()` — nếu có issue, mở modal pre-flight
+   liệt kê chúng, KHÔNG gọi server.
+3. Nếu OK → pre-save (qua chính endpoint PATCH, vẫn hoạt động vì status
+   chưa phải ACTIVE) → gọi `PATCH /api/workflows/[id]/status` với
+   `{status: "ACTIVE"}` → server re-validate → 400 kèm issues[] hoặc commit.
+4. Các run hiện hữu tiếp tục chạy theo snapshot đồ thị mà chúng enroll.
+5. Trigger mới enroll theo config mới.
 
 ---
 
-## 10. Runtime execution semantics
+## 10. Ngữ nghĩa thực thi runtime
 
-### 10.1 Job lifecycle
-- Trigger fires → `WorkflowRun` row created (status=ACTIVE) → BullMQ
-  `workflow.step` job enqueued for `startNodeId`.
-- Worker (`processWorkflowJob`) loads the run + workflow + contact, finds
-  the node by id, executes it.
-- Lifecycle gates skip the job if:
-  - Run is not ACTIVE (paused / completed / failed)
-  - Workflow is not ACTIVE (operator paused / archived mid-flight → run
-    exits with `EXITED` + reason `workflow_<status>`)
-  - `run.currentNodeId` ≠ job's `nodeId` (graph edited under us → skip
-    silently; the latest enqueued job will execute the right node)
-- Step is recorded as a `WorkflowRunStep` row (RUNNING → COMPLETED /
-  FAILED / SKIPPED) for audit.
-- Next step is enqueued with optional `delay` from `ctx.contextDelta.__delayMs`.
+### 10.1 Vòng đời job
+- Trigger fire → tạo bản ghi `WorkflowRun` (status=ACTIVE) → enqueue job
+  BullMQ `workflow.step` cho `startNodeId`.
+- Worker (`processWorkflowJob`) load run + workflow + contact, tìm node
+  theo id và thực thi.
+- Cổng vòng đời bỏ qua job nếu:
+  - Run không ACTIVE (paused / completed / failed)
+  - Workflow không ACTIVE (operator pause / archive giữa chừng → run
+    thoát với `EXITED` + reason `workflow_<status>`)
+  - `run.currentNodeId` ≠ `nodeId` của job (đồ thị bị sửa khi đang chạy
+    → bỏ qua âm thầm; job được enqueue gần nhất sẽ chạy đúng node)
+- Step được ghi thành bản ghi `WorkflowRunStep` (RUNNING → COMPLETED /
+  FAILED / SKIPPED) để audit.
+- Step tiếp theo được enqueue với `delay` tuỳ chọn từ
+  `ctx.contextDelta.__delayMs`.
 
-### 10.2 Failure handling
-- Per-node failure: log error → mark step FAILED → run keeps going (does
-  NOT abort the run). Allows transient WEBHOOK / SMTP errors to be
-  retried by BullMQ or skipped without ending the run.
-- Worker-side unrecoverable error: BullMQ retries up to 2 attempts with
-  exponential backoff (30s base). If both fail, the job lands in the
-  `failed` set.
+### 10.2 Xử lý lỗi
+- Lỗi từng node: log lỗi → đánh dấu step FAILED → run vẫn tiếp tục (KHÔNG
+  abort run). Cho phép lỗi WEBHOOK / SMTP tạm thời được retry bởi BullMQ
+  hoặc bỏ qua mà không kết thúc run.
+- Lỗi không khôi phục được phía worker: BullMQ retry tối đa 2 lần với
+  exponential backoff (base 30s). Nếu cả hai đều fail, job rơi vào set
+  `failed`.
 
 ### 10.3 Concurrency
-- BullMQ worker concurrency configurable via `WORKFLOW_WORKER_CONCURRENCY`
-  (default 8).
-- Re-fire `every` allows the same contact to have multiple concurrent
-  WorkflowRuns. Each has its own `currentNodeId`, `context`, and step
-  chain. No mutex needed — runs are independent state machines.
+- Concurrency của worker BullMQ cấu hình qua `WORKFLOW_WORKER_CONCURRENCY`
+  (mặc định 8).
+- Re-fire `every` cho phép cùng một contact có nhiều WorkflowRun đồng
+  thời. Mỗi run có `currentNodeId`, `context`, chuỗi step riêng. Không
+  cần mutex — các run là state machine độc lập.
 
 ---
 
 ## 11. Templates
 
-`apps/web/lib/workflow-templates.ts` ships 17 pre-built templates.
-Clone-and-customize via the gallery (`TemplateGallery.tsx`).
+`apps/web/lib/workflow-templates.ts` ship sẵn 17 template. Clone và tuỳ
+biến qua gallery (`TemplateGallery.tsx`).
 
-Categories:
-- **Sales**: Cart Abandonment Recovery (3-step, Flagship), Browse Abandonment (PAGE_VISITED)
-- **Onboarding**: Welcome Series (3 emails, Popular), Post-purchase Thank You (Popular), Lead Magnet Delivery (New)
+Phân loại:
+- **Sales**: Cart Abandonment Recovery (3 bước, Flagship), Browse Abandonment (PAGE_VISITED)
+- **Onboarding**: Welcome Series (3 email, Popular), Post-purchase Thank You (Popular), Lead Magnet Delivery (New)
 - **Retention**: Refund Follow-up, Failed Payment Grace, FAQ Visit → Customer Support Outreach (New)
 - **Re-engagement**: Re-engagement Sequence
 - **Tagging**: Segment-Specific Onboarding, Engaged Reader Tagger, High-Intent Page Tagger (New)
 - **Rules**: Auto-tag form leads, Trial → Paid tag swap, Refund cleanup
 
-### 11.1 Template structure
+### 11.1 Cấu trúc template
 
 ```ts
 {
   id, name, description, category, icon, badge?,
-  triggerType, triggerConfig: {},  // operator fills funnel/step on clone
-  reFirePolicy?: "every" | "once",  // omit → uses smart default per trigger
+  triggerType, triggerConfig: {},  // operator điền funnel/step khi clone
+  reFirePolicy?: "every" | "once",  // bỏ trống → dùng smart default theo trigger
   startNodeId,
   nodes: TemplateNode[],
   edges: TemplateEdge[],
 }
 ```
 
-### 11.2 Email content
+### 11.2 Nội dung email
 
-Template SEND_EMAIL nodes carry seed content in `config.subject` +
-`config.bodyHtml`. The clone route (`/api/workflows/from-template`):
-1. Creates the Workflow row with `reFirePolicy` from the template OR the
-   smart default for `triggerType`.
-2. For each SEND_EMAIL node with non-empty subject/body, creates a
-   `WorkflowEmail` row with that content + the workspace's default sender.
-3. Rewrites the node's `config` to `{emailId: <newEmailId>}`, stripping
-   the inline content.
+Node SEND_EMAIL của template mang nội dung seed trong `config.subject` +
+`config.bodyHtml`. Route clone (`/api/workflows/from-template`):
+1. Tạo bản ghi Workflow với `reFirePolicy` từ template HOẶC smart default
+   theo `triggerType`.
+2. Với mỗi node SEND_EMAIL có subject/body không rỗng, tạo một bản ghi
+   `WorkflowEmail` mang nội dung đó + sender mặc định của workspace.
+3. Viết lại `config` của node thành `{emailId: <newEmailId>}`, bỏ phần
+   nội dung inline.
 
-Template bodies use a maily.to DSL (`doc(p("..."), btn("CTA", "/url"), …)`)
-to emit valid TipTap JSON. Plain HTML in templates would throw at send
-time — the renderer rejects anything that doesn't start with `{`.
+Body template dùng DSL của maily.to (`doc(p("..."), btn("CTA", "/url"), …)`)
+để phát ra JSON TipTap hợp lệ. HTML thô trong template sẽ throw lúc gửi —
+renderer từ chối mọi thứ không bắt đầu bằng `{`.
 
 ---
 
-## 12. API surface
+## 12. Bề mặt API
 
-| Endpoint | Method | Purpose | Locked? |
+| Endpoint | Method | Mục đích | Bị khoá? |
 |---|---|---|---|
-| `/api/workflows` | GET | List workspace workflows | — |
-| `/api/workflows` | POST | Create workflow (DRAFT) | — |
-| `/api/workflows/[id]` | GET | Read | — |
-| `/api/workflows/[id]` | PATCH | Update name / trigger / nodes / edges / reFirePolicy | 🔒 409 if ACTIVE |
-| `/api/workflows/[id]` | DELETE | Remove + cascade WorkflowRun | — |
-| `/api/workflows/[id]/status` | PATCH | Status transition (DRAFT/PAUSED/ACTIVE/ARCHIVED). DRAFT/PAUSED → ACTIVE re-runs validation | — |
-| `/api/workflows/[id]/emails` | GET | List workflow's emails | — |
-| `/api/workflows/[id]/emails` | POST | Create blank email | 🔒 409 if parent ACTIVE |
-| `/api/workflows/[id]/emails/[emailId]` | PATCH | Update email content | 🔒 409 if parent ACTIVE |
-| `/api/workflows/[id]/emails/[emailId]` | DELETE | Remove email (EmailSend.workflowEmailId set NULL) | 🔒 409 if parent ACTIVE |
-| `/api/workflows/[id]/email-links` | GET | Extract distinct hrefs from broadcast/workflow_email bodyHtml | — |
-| `/api/workflows/from-template` | POST | Clone template → DRAFT workflow + WorkflowEmail rows | — |
-| `/api/track/visit` | POST | Client-side PAGE_VISITED ping (alternative to server-side render fire) | — |
+| `/api/workflows` | GET | Liệt kê workflow của workspace | — |
+| `/api/workflows` | POST | Tạo workflow (DRAFT) | — |
+| `/api/workflows/[id]` | GET | Đọc | — |
+| `/api/workflows/[id]` | PATCH | Cập nhật name / trigger / nodes / edges / reFirePolicy | 🔒 409 nếu ACTIVE |
+| `/api/workflows/[id]` | DELETE | Xoá + cascade WorkflowRun | — |
+| `/api/workflows/[id]/status` | PATCH | Chuyển trạng thái (DRAFT/PAUSED/ACTIVE/ARCHIVED). DRAFT/PAUSED → ACTIVE chạy lại validation | — |
+| `/api/workflows/[id]/emails` | GET | Liệt kê email của workflow | — |
+| `/api/workflows/[id]/emails` | POST | Tạo email trống | 🔒 409 nếu workflow cha ACTIVE |
+| `/api/workflows/[id]/emails/[emailId]` | PATCH | Cập nhật nội dung email | 🔒 409 nếu workflow cha ACTIVE |
+| `/api/workflows/[id]/emails/[emailId]` | DELETE | Xoá email (EmailSend.workflowEmailId được set NULL) | 🔒 409 nếu workflow cha ACTIVE |
+| `/api/workflows/[id]/email-links` | GET | Trích các href riêng biệt từ bodyHtml của broadcast/workflow_email | — |
+| `/api/workflows/from-template` | POST | Clone template → workflow DRAFT + các bản ghi WorkflowEmail | — |
+| `/api/track/visit` | POST | Ping PAGE_VISITED phía client (thay cho fire khi render server-side) | — |
 
-All endpoints are workspace-scoped via `requireWorkspaceFromSlug` /
-`requireAccess`; the `X-Workspace-Slug` header is required.
+Tất cả endpoint đều scope theo workspace qua `requireWorkspaceFromSlug` /
+`requireAccess`; header `X-Workspace-Slug` là bắt buộc.
 
 ---
 
-## 13. Validation message catalog
+## 13. Danh mục thông báo validation
 
-Operator-facing strings produced by the validator. Stable surface — any
-test asserting these strings has a hard dependency on the wording.
+Các chuỗi hiển thị cho operator do validator phát ra. Đây là bề mặt ổn
+định — mọi test assert các chuỗi này phụ thuộc cứng vào câu chữ.
 
 - Trigger: `"Pick a trigger type."`
 - TAG_ADDED / TAG_REMOVED: `"Pick which tag this trigger watches for."`
-- Funnel-scoped triggers: `"Pick which funnel this trigger watches."` /
+- Triggers theo funnel: `"Pick which funnel this trigger watches."` /
   `"Pick which step in that funnel triggers the workflow."`
-- Email-scoped triggers: `"Pick an email source (broadcast or workflow
+- Triggers theo email: `"Pick an email source (broadcast or workflow
   email)."` / `"Pick which broadcast this trigger watches for."` / `"Pick
   which workflow email this trigger watches for."`
-- EMAIL_LINK_CLICKED + linkUrl invalid: `"Link filter must be a URL or URL
+- EMAIL_LINK_CLICKED + linkUrl không hợp lệ: `"Link filter must be a URL or URL
   substring (e.g. https://… or /path)."`
-- Deprecated node type: `"Node type "{TYPE}" is no longer supported.
+- Loại node deprecated: `"Node type "{TYPE}" is no longer supported.
   Delete this node and replace with a supported step."`
-- SEND_EMAIL no emailId: `"Pick or create an email for this step."`
-- WorkflowEmail content checks: `"Email sender is not picked."` / `"Email
+- SEND_EMAIL không có emailId: `"Pick or create an email for this step."`
+- Kiểm tra nội dung WorkflowEmail: `"Email sender is not picked."` / `"Email
   subject is empty."` / `"Email body is empty."`
-- Linked email missing: `"Linked email no longer exists. Pick or create a
+- Email liên kết bị mất: `"Linked email no longer exists. Pick or create a
   new one."`
-- WEBHOOK invalid URL: `"URL is empty."` / `"URL must start with http://
+- WEBHOOK URL không hợp lệ: `"URL is empty."` / `"URL must start with http://
   or https://."` / `"Method must be GET, POST, PUT, or PATCH."`
 - DELAY: `"Delay values cannot be negative."` / `"Set at least 1 minute,
   hour, or day."` / `"Total delay can't exceed 365 days."`
-- CONDITION: `"Condition kind not picked."` / kind-specific messages
-- CONDITION email source: `"Pick an email source (broadcast or workflow
+- CONDITION: `"Condition kind not picked."` / thông báo theo từng kind
+- Nguồn email của CONDITION: `"Pick an email source (broadcast or workflow
   email)."`
-- Graph: `"Connect the trigger to a starting step."` / `"Start node is
+- Đồ thị: `"Connect the trigger to a starting step."` / `"Start node is
   missing from the graph."` / `"Edge {id} points to a missing node."` /
   `"If/else needs both a true and a false branch."` / `"Step "{LABEL}"
   has no next step. Add one or connect it to End."`
 
 ---
 
-## 14. Mustache variables (SEND_EMAIL render)
+## 14. Biến Mustache (render SEND_EMAIL)
 
-Available in `subject` and `bodyHtml` (after maily render). Resolved at
-send time by the worker from `RunCtx`:
+Có sẵn trong `subject` và `bodyHtml` (sau khi render maily). Được resolve
+tại thời điểm gửi bởi worker từ `RunCtx`:
 
 - `contact.firstName`, `contact.lastName`, `contact.email`
 - `workspace.name`
-- `order.*` (when trigger payload included order data — NEW_SALE, SALE_CANCELED)
-- `unsubscribeUrl` (auto-injected before send)
-- Any `triggerData.*` / `context.*` key from the run
+- `order.*` (khi payload trigger có dữ liệu order — NEW_SALE, SALE_CANCELED)
+- `unsubscribeUrl` (được tự động chèn trước khi gửi)
+- Mọi key `triggerData.*` / `context.*` từ run
 
-Variables panel in the editor (bottom of fullscreen email editor) lists
-the canonical set from `STANDARD_VARIABLES` (in `@launchtic/email`).
+Panel biến trong editor (đáy của trình soạn email fullscreen) liệt kê tập
+chuẩn từ `STANDARD_VARIABLES` (trong `@launchtic/email`).
 
 ---
 
-## 15. Common patterns
+## 15. Các pattern thường gặp
 
-### 15.1 Post-purchase Thank You + Onboarding (split)
-- Workflow A: `NEW_SALE → SEND_EMAIL "Thanks" → END` with `reFirePolicy: "every"`
-  → fires per order, concurrent runs.
+### 15.1 Thank You sau mua + Onboarding (tách workflow)
+- Workflow A: `NEW_SALE → SEND_EMAIL "Thanks" → END` với `reFirePolicy: "every"`
+  → fire theo từng order, run đồng thời.
 - Workflow B: `NEW_SALE → DELAY 24h → SEND_EMAIL "Getting started" → END`
-  with `reFirePolicy: "once"` → fires only for the contact's first order.
+  với `reFirePolicy: "once"` → chỉ fire cho order đầu tiên của contact.
 
-### 15.2 Cart abandonment recovery (with auto-exit)
+### 15.2 Cart abandonment recovery (kèm auto-exit)
 ```
 CHECKOUT_STARTED → DELAY 1h → CONDITION contact_purchased
                                 ├─ true  → END "purchased"
@@ -518,61 +522,63 @@ CHECKOUT_STARTED → DELAY 1h → CONDITION contact_purchased
                                             └─ false → SEND "Last chance"
                                                       → END
 ```
-`reFirePolicy: "every"` so each new checkout attempt enrolls.
+Dùng `reFirePolicy: "every"` để mỗi lần thử checkout mới đều enroll.
 
-### 15.3 Cross-workflow chain (workflow A's email → triggers workflow B)
-- Workflow A sends email E1.
-- Workflow B trigger = `EMAIL_OPENED` with `source: "workflow_email"`,
+### 15.3 Chuỗi xuyên workflow (email của workflow A → trigger workflow B)
+- Workflow A gửi email E1.
+- Trigger của Workflow B = `EMAIL_OPENED` với `source: "workflow_email"`,
   `workflowEmailId: E1.id`.
-- Contact opens E1 → tracking pixel fires `EMAIL_OPENED` with
-  `workflowEmailId = E1.id` → workflow B enrolls.
+- Contact mở E1 → pixel tracking fire `EMAIL_OPENED` với
+  `workflowEmailId = E1.id` → workflow B enroll.
 
-### 15.4 Cold visitor → tag-bridge for retargeting
+### 15.4 Khách lạnh → cầu nối tag để retarget
 - Workflow A: `FORM_SUBMIT → ADD_TAG "interested:productX" → END`
-  (default `reFirePolicy: "once"` prevents re-tagging).
+  (mặc định `reFirePolicy: "once"` chống re-tag).
 - Workflow B: `TAG_ADDED tagId=interested:productX → SEND "Welcome" → DELAY 3d → … → END`
 - Workflow C: `TAG_ADDED tagId=interested:productX → WEBHOOK Facebook Ads Custom Audience`
 
-### 15.5 One-time fire for everything-else trigger (operator wants "once")
-Default for non-FORM_SUBMIT triggers is `every`. Operator switches the
-top-bar selector to `once` to gate any workflow to once-per-contact.
+### 15.5 Fire một lần cho trigger khác (operator muốn "once")
+Mặc định cho trigger không phải FORM_SUBMIT là `every`. Operator chuyển
+selector trên top-bar sang `once` để giới hạn workflow chỉ chạy một lần
+cho mỗi contact.
 
-### 15.6 Gate workflow with CONDITION + tag (alternate to "once")
+### 15.6 Gating workflow bằng CONDITION + tag (thay thế "once")
 ```
-TRIGGER (any) → CONDITION contact_tag "X_done"
-                  ├─ true  → END
-                  └─ false → ADD_TAG "X_done" → … → END
+TRIGGER (bất kỳ) → CONDITION contact_tag "X_done"
+                     ├─ true  → END
+                     └─ false → ADD_TAG "X_done" → … → END
 ```
-Works regardless of `reFirePolicy` setting — useful when you want some
-side effects each fire (e.g. analytics tag) and others once.
+Hoạt động bất kể `reFirePolicy` — hữu ích khi bạn muốn vài side effect
+chạy mỗi lần fire (ví dụ tag analytics) và vài side effect chỉ chạy một
+lần.
 
 ---
 
 ## 16. Testing
 
-Smoke tests live in `apps/web/scripts/`:
+Smoke test nằm tại `apps/web/scripts/`:
 
-| File | Coverage |
+| File | Phạm vi |
 |---|---|
-| `test-source-picker.mts` | Pure-logic validation rules (36 tests) |
-| `test-source-picker-integration.mts` | DB integration — fireTrigger pipeline + execCondition queries (14 tests) |
-| `test-workflow-coverage.mts` | DB integration — other conditions, other triggers, graph rules, DELAY math, SEND_EMAIL DB write (37 tests) |
-| `test-refire-policy.mts` | DB integration — every (concurrent) + once (block-all) semantics (8 tests) |
-| `test-template-bodies.mts` | Validate every template SEND_EMAIL body is valid maily JSON (120 checks across 24 emails) |
-| `test-template-render.mts` | Exercise `@maily-to/render` on every template email (24 emails) |
+| `test-source-picker.mts` | Validation thuần logic (36 test) |
+| `test-source-picker-integration.mts` | Integration DB — pipeline fireTrigger + query execCondition (14 test) |
+| `test-workflow-coverage.mts` | Integration DB — các condition khác, trigger khác, quy tắc đồ thị, toán DELAY, ghi DB SEND_EMAIL (37 test) |
+| `test-refire-policy.mts` | Integration DB — ngữ nghĩa every (đồng thời) + once (block-all) (8 test) |
+| `test-template-bodies.mts` | Validate mỗi body SEND_EMAIL template là JSON maily hợp lệ (120 check trên 24 email) |
+| `test-template-render.mts` | Chạy `@maily-to/render` trên từng email template (24 email) |
 
-Run individually:
+Chạy riêng:
 ```bash
 pnpm --filter @launchtic/worker exec tsx <abs-path-to-script>
 ```
 
-All test data uses `smoketest_*` namespace and cleans up in `finally`.
+Mọi dữ liệu test dùng namespace `smoketest_*` và tự dọn trong `finally`.
 
 ---
 
-## 17. Schema reference
+## 17. Tham chiếu schema
 
-Key columns on `Workflow` model:
+Các cột chính trên model `Workflow`:
 
 ```prisma
 model Workflow {
@@ -588,7 +594,7 @@ model Workflow {
   startNodeId   String?
   reFirePolicy  String         @default("every")  // "every" | "once"
   maxDurationDays Int?
-  // Denormalized counters
+  // Bộ đếm denormalize
   totalEnrolled  Int @default(0)
   activeCount    Int @default(0)
   completedCount Int @default(0)
@@ -599,32 +605,31 @@ model Workflow {
 
 `WorkflowRun`:
 - `status`: ACTIVE | COMPLETED | EXITED | FAILED
-- `exitReason`: free text — `"purchased"` / `"goal"` / `"manual"` /
-  `"workflow_paused"` / `"workflow_archived"` / END node's `config.reason`
-  / `"end_node"` (default for unlabeled END)
+- `exitReason`: text tự do — `"purchased"` / `"goal"` / `"manual"` /
+  `"workflow_paused"` / `"workflow_archived"` / `config.reason` của node END
+  / `"end_node"` (mặc định cho END không có nhãn)
 
 ---
 
-## 18. Out of scope / Phase 2
+## 18. Ngoài phạm vi / Phase 2
 
-Tracked but deliberately deferred:
+Đang được theo dõi nhưng cố ý hoãn lại:
 
-- **Anonymous visitor identification + stitching** — cold-traffic
-  PAGE_VISITED for visitors who never engaged via email/form. Requires
-  AnonymousSession + AnonymousEvent tables. See research notes — Systeme
-  and most competitors don't track anonymous individuals either; safe to
-  defer.
-- **Email-blur capture for CHECKOUT_STARTED** — fire on email field blur
-  instead of click Pay. Doubles abandonment-recovery surface but
-  requires bot/disposable protection layer (regex + MX lookup + Redis
-  rate limit + disposable-email-domains list).
-- **Per-workflow cooldown N days** — formerly the `COOLDOWN` re-enroll
-  policy. Removed for simplicity; achievable via DELAY node + CONDITION
-  contact_tag gate.
-- **External webhook → workflow trigger** — fire a workflow from a
-  third-party event.
-- **Workflow-level analytics dashboard** — currently denormalized counters
-  + run history. No funnel/conversion view per workflow yet.
-- **Configurable PAGE_VISITED dedupe TTL** — currently hardcoded 1h.
-- **Phone-first / external-userId identity** — current model is email-only
-  for Contact uniqueness.
+- **Định danh + stitching khách ẩn danh** — PAGE_VISITED cho traffic lạnh
+  với khách chưa từng engage qua email/form. Cần các bảng AnonymousSession
+  + AnonymousEvent. Xem ghi chú research — Systeme và phần lớn đối thủ
+  cũng không track cá nhân ẩn danh; hoãn lại là an toàn.
+- **Bắt email khi blur cho CHECKOUT_STARTED** — fire khi blur khỏi ô email
+  thay vì bấm Pay. Tăng gấp đôi bề mặt recovery nhưng cần tầng chống bot /
+  email rác (regex + tra MX + rate limit Redis + danh sách domain
+  disposable).
+- **Cooldown N ngày cho từng workflow** — trước đây là policy re-enroll
+  `COOLDOWN`. Đã gỡ vì lý do đơn giản hoá; có thể đạt được qua node DELAY
+  + gate CONDITION contact_tag.
+- **Webhook ngoài → trigger workflow** — fire workflow từ sự kiện của bên
+  thứ ba.
+- **Dashboard analytics theo workflow** — hiện chỉ có bộ đếm denormalize
+  + lịch sử run. Chưa có view funnel/conversion theo workflow.
+- **TTL dedupe PAGE_VISITED có thể cấu hình** — hiện đang hardcode 1h.
+- **Định danh phone-first / external-userId** — mô hình hiện tại dùng
+  email làm khoá duy nhất cho Contact.

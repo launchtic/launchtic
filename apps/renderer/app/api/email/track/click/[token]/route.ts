@@ -21,7 +21,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       emailSend: {
         select: {
           id: true, workspaceId: true, contactId: true,
-          broadcastId: true, workflowEmailId: true, clickedAt: true,
+          // Pattern B source columns — decoded into legacy
+          // {broadcastId, workflowEmailId} keys inside recordClick so the
+          // automations layer's trigger context stays the same.
+          sourceType: true, sourceId: true,
+          clickedAt: true,
         },
       },
     },
@@ -50,14 +54,17 @@ async function recordClick(link: {
     id: string;
     workspaceId: string;
     contactId: string | null;
-    broadcastId: string | null;
-    workflowEmailId: string | null;
+    sourceType: string | null;
+    sourceId:   string | null;
     clickedAt: Date | null;
   };
 }): Promise<void> {
   const now = new Date();
   const isFirstLinkClick  = link.clickedAt == null;
   const isFirstEmailClick = link.emailSend.clickedAt == null;
+
+  const workflowEmailId = link.emailSend.sourceType === "WORKFLOW"  ? link.emailSend.sourceId : null;
+  const broadcastId     = link.emailSend.sourceType === "BROADCAST" ? link.emailSend.sourceId : null;
 
   await db.emailSendLink.update({
     where: { id: link.id },
@@ -77,9 +84,9 @@ async function recordClick(link: {
 
   // Bump WorkflowEmail clickedCount only on first email-level click so the
   // dashboard "click rate" stat reflects unique clickers.
-  if (isFirstEmailClick && link.emailSend.workflowEmailId) {
+  if (isFirstEmailClick && workflowEmailId) {
     await db.workflowEmail.update({
-      where: { id: link.emailSend.workflowEmailId },
+      where: { id: workflowEmailId },
       data:  { clickedCount: { increment: 1 } },
     }).catch(() => {});
   }
@@ -90,8 +97,8 @@ async function recordClick(link: {
     await fireTrigger(link.emailSend.workspaceId, "EMAIL_LINK_CLICKED", {
       contactId:       link.emailSend.contactId,
       emailSendId:     link.emailSend.id,
-      broadcastId:     link.emailSend.broadcastId     ?? undefined,
-      workflowEmailId: link.emailSend.workflowEmailId ?? undefined,
+      broadcastId:     broadcastId     ?? undefined,
+      workflowEmailId: workflowEmailId ?? undefined,
       linkUrl:         link.url,
     }).catch((err: unknown) => {
       console.error(`[email-track] EMAIL_LINK_CLICKED trigger failed:`, err);

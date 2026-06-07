@@ -326,6 +326,11 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     where: { id: emailId },
     select: {
       workflowId: true,
+      // `name` + parent workflow name are joined so the EmailSend row can
+      // snapshot a "WorkflowName · EmailName" sourceLabel at send time.
+      // Survives both workflow rename and workflow delete in the logs UI.
+      name:       true,
+      workflow:   { select: { name: true } },
       subject:    true, bodyHtml: true,
       fromName:   true, fromEmail: true,
     },
@@ -358,17 +363,25 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   const renderedHtml    = await renderEmailContent(bodyHtml, vars, renderOpts);
 
   // Persist EmailSend FIRST then enqueue — if enqueue fails we mark the
-  // send FAILED so it's not stuck QUEUED forever. workflowEmailId links the
-  // send back to its source for analytics + source-scoped conditions.
+  // send FAILED so it's not stuck QUEUED forever. The generic source columns
+  // (Pattern B) snapshot WHERE this send came from at send time:
+  //   sourceType   = "WORKFLOW"
+  //   sourceId     = emailId — used by workflow CONDITION executor to filter
+  //                  "did this contact open/click email X" via the index
+  //                  (contactId, sourceType, sourceId, openedAt/clickedAt).
+  //   sourceLabel  = "WorkflowName · EmailName" — survives source rename/delete
+  //                  for the logs UI audit trail.
   const send = await db.emailSend.create({
     data: {
-      workspaceId:     ctx.workspaceId,
-      contactId:       c.id,
-      toEmail:         c.email,
-      subject:         renderedSubject,
-      bodyHtml:        renderedHtml,
-      status:          "QUEUED",
-      workflowEmailId: emailId,
+      workspaceId: ctx.workspaceId,
+      contactId:   c.id,
+      toEmail:     c.email,
+      subject:     renderedSubject,
+      bodyHtml:    renderedHtml,
+      status:      "QUEUED",
+      sourceType:  "WORKFLOW",
+      sourceId:    emailId,
+      sourceLabel: `${email.workflow.name} · ${email.name || subject || "(untitled)"}`,
     },
   });
 
@@ -617,20 +630,24 @@ async function execCondition(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     case "email_clicked": {
       // True if the contact opened/clicked an email matching the configured
       // source filter, with engagement timestamp >= run.startedAt.
-      //   source="broadcast"      → matches sends with broadcastId=X.
-      //   source="workflow_email" → matches sends with workflowEmailId=X
-      //                             (any workflow's email in this workspace).
+      //   source="broadcast"      → matches sends with sourceType=BROADCAST  + sourceId=X
+      //   source="workflow_email" → matches sends with sourceType=WORKFLOW   + sourceId=X
+      // Under Pattern B the (contactId, sourceType, sourceId, openedAt/clickedAt)
+      // composite indexes cover this query — same selectivity as the old
+      // (contactId, broadcastId/workflowEmailId, *) indexes.
       if (!ctx.contact) { result = false; break; }
       const source = cfg.source as string | undefined;
       const where: Record<string, unknown> = { contactId: ctx.contact.id };
       if (source === "broadcast") {
         const broadcastId = cfg.broadcastId as string | undefined;
         if (!broadcastId) { result = false; break; }
-        where.broadcastId = broadcastId;
+        where.sourceType = "BROADCAST";
+        where.sourceId   = broadcastId;
       } else if (source === "workflow_email") {
         const workflowEmailId = cfg.workflowEmailId as string | undefined;
         if (!workflowEmailId) { result = false; break; }
-        where.workflowEmailId = workflowEmailId;
+        where.sourceType = "WORKFLOW";
+        where.sourceId   = workflowEmailId;
       } else {
         // Missing or unsupported source — fail closed so a misconfigured
         // condition routes to the "false" branch rather than ANY-emailing.

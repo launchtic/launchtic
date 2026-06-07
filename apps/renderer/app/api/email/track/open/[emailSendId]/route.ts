@@ -46,10 +46,19 @@ async function recordOpen(emailSendId: string): Promise<void> {
     where:  { id: emailSendId },
     select: {
       id: true, workspaceId: true, contactId: true,
-      broadcastId: true, workflowEmailId: true, openedAt: true,
+      // Pattern B source columns — sourceType decides whether this is a
+      // broadcast / workflow-email / template / system send. The downstream
+      // trigger context still uses the legacy {broadcastId, workflowEmailId}
+      // keys so the automations layer stays decoupled from EmailSend's
+      // storage shape; we decode here.
+      sourceType: true, sourceId: true,
+      openedAt: true,
     },
   });
   if (!send) return;
+
+  const workflowEmailId = send.sourceType === "WORKFLOW"  ? send.sourceId : null;
+  const broadcastId     = send.sourceType === "BROADCAST" ? send.sourceId : null;
 
   const isFirstOpen = send.openedAt == null;
   await db.emailSend.update({
@@ -62,9 +71,9 @@ async function recordOpen(emailSendId: string): Promise<void> {
 
   // Bump the WorkflowEmail's openedCount only on first open per send, so the
   // dashboard "open rate" stat reflects unique opens not total hits.
-  if (isFirstOpen && send.workflowEmailId) {
+  if (isFirstOpen && workflowEmailId) {
     await db.workflowEmail.update({
-      where: { id: send.workflowEmailId },
+      where: { id: workflowEmailId },
       data:  { openedCount: { increment: 1 } },
     }).catch(() => {});
   }
@@ -75,8 +84,8 @@ async function recordOpen(emailSendId: string): Promise<void> {
     await fireTrigger(send.workspaceId, "EMAIL_OPENED", {
       contactId:       send.contactId,
       emailSendId:     send.id,
-      broadcastId:     send.broadcastId     ?? undefined,
-      workflowEmailId: send.workflowEmailId ?? undefined,
+      broadcastId:     broadcastId     ?? undefined,
+      workflowEmailId: workflowEmailId ?? undefined,
     }).catch((err: unknown) => {
       console.error(`[email-track] EMAIL_OPENED trigger failed for ${emailSendId}:`, err);
     });

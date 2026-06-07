@@ -10,7 +10,10 @@ import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
 
 type Status = "QUEUED" | "SENT" | "FAILED" | "BOUNCED";
-type SourceType = "BROADCAST" | "TEMPLATE" | "AUTOMATION" | "SEQUENCE" | "TRANSACTIONAL";
+// Source taxonomy matches EmailSend.sourceType (Pattern B). Backend stores
+// this as a plain String column (not a DB enum) so adding new source types
+// only requires bumping this union — no schema migration.
+type SourceType = "BROADCAST" | "WORKFLOW" | "TEMPLATE" | "SYSTEM";
 
 type Row = {
   id: string;
@@ -57,12 +60,11 @@ const STATUS_TABS: { id: "ALL" | Status; label: string }[] = [
 ];
 
 const SOURCE_OPTIONS: { value: "ALL" | SourceType; label: string }[] = [
-  { value: "ALL",           label: "All sources" },
-  { value: "BROADCAST",     label: "Broadcasts" },
-  { value: "SEQUENCE",      label: "Sequences" },
-  { value: "AUTOMATION",    label: "Automations" },
-  { value: "TEMPLATE",      label: "Templates" },
-  { value: "TRANSACTIONAL", label: "Transactional" },
+  { value: "ALL",       label: "All sources" },
+  { value: "BROADCAST", label: "Broadcasts" },
+  { value: "WORKFLOW",  label: "Workflows" },
+  { value: "TEMPLATE",  label: "Templates" },
+  { value: "SYSTEM",    label: "System" },
 ];
 
 const RANGE_OPTIONS = [

@@ -109,21 +109,31 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
       };
     }));
 
+    // Pattern B source columns (generic + snapshot). sourceLabel = broadcast
+    // name at send time, survives broadcast rename/delete in the logs UI.
     await db.emailSend.createMany({
       data: rendered.map((r) => ({
         workspaceId,
-        contactId: r.contact.id,
-        toEmail: r.contact.email,
-        broadcastId,
-        subject: r.subject,
-        bodyHtml: r.html,
-        status: "QUEUED" as const,
+        contactId:   r.contact.id,
+        toEmail:     r.contact.email,
+        subject:     r.subject,
+        bodyHtml:    r.html,
+        status:      "QUEUED" as const,
+        sourceType:  "BROADCAST",
+        sourceId:    broadcastId,
+        sourceLabel: broadcast.name,
       })),
     });
 
-    // Re-fetch with IDs (createMany doesn't return rows)
+    // Re-fetch with IDs (createMany doesn't return rows). Filter by
+    // sourceType + sourceId so we only pick up rows this dispatch created
+    // (matches the (sourceType, sourceId) index added in Pattern B).
     const created = await db.emailSend.findMany({
-      where: { broadcastId, contactId: { in: batch.map((c) => c.id) } },
+      where: {
+        sourceType: "BROADCAST",
+        sourceId:   broadcastId,
+        contactId:  { in: batch.map((c) => c.id) },
+      },
       select: { id: true, contactId: true, toEmail: true },
     });
 

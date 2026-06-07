@@ -68,9 +68,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       return err("Parent workflow is active — pause it to delete emails.", 409);
     }
 
-    // Cascade EmailSend.workflowEmailId → SET NULL via FK; historical sends
-    // keep their content snapshot in bodyHtml. Caller is responsible for
-    // updating any SEND_EMAIL node configs that pointed at this email.
+    // Pattern B: EmailSend has no FK back to WorkflowEmail. Historical sends
+    // keep sourceType=WORKFLOW + sourceId=this.id; their content snapshot
+    // lives in EmailSend.bodyHtml and the human-readable provenance in
+    // EmailSend.sourceLabel. Logs UI continues to label the source via
+    // sourceLabel after delete. Caller is responsible for updating any
+    // SEND_EMAIL node configs that pointed at this email.
     await db.workflowEmail.delete({ where: { id: emailId } });
     return ok({ deleted: true });
   } catch (error) {

@@ -18,9 +18,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     });
     if (!broadcast) return err("Broadcast not found", 404);
 
+    // Pattern B: filter by generic source columns. Index (sourceType, sourceId)
+    // covers the lookup; the broadcast's per-status counters are derived via
+    // group-by.
     const grouped = await db.emailSend.groupBy({
       by: ["status"],
-      where: { broadcastId: id, workspaceId },
+      where: { sourceType: "BROADCAST", sourceId: id, workspaceId },
       _count: { _all: true },
     });
 

@@ -8,7 +8,9 @@ const PAGE_SIZE = 50;
 const STATUSES = ["QUEUED", "SENT", "FAILED", "BOUNCED"] as const;
 type StatusFilter = (typeof STATUSES)[number];
 
-const SOURCES = ["BROADCAST", "TEMPLATE", "TRANSACTIONAL"] as const;
+// Source filter values match EmailSend.sourceType (Pattern B). String column,
+// not a DB enum — adding new source types only needs an app-code bump.
+const SOURCES = ["BROADCAST", "WORKFLOW", "TEMPLATE", "SYSTEM"] as const;
 type SourceFilter = (typeof SOURCES)[number];
 
 const RANGES: Record<string, number> = {
@@ -30,17 +32,16 @@ export async function GET(req: NextRequest) {
     const range      = url.searchParams.get("range") ?? "all";
     const cursor     = url.searchParams.get("cursor");
 
-    const where: any = { workspaceId };
+    const where: Record<string, unknown> = { workspaceId };
 
     if (statusParam && (STATUSES as readonly string[]).includes(statusParam)) {
       where.status = statusParam as StatusFilter;
     }
 
     if (sourceParam && (SOURCES as readonly string[]).includes(sourceParam)) {
-      const s = sourceParam as SourceFilter;
-      if (s === "BROADCAST")     where.broadcastId      = { not: null };
-      if (s === "TEMPLATE")      where.templateId       = { not: null };
-      if (s === "TRANSACTIONAL") where.transactionalKey = { not: null };
+      // Direct equality on sourceType — covered by the
+      // (workspaceId, sourceType, queuedAt) index.
+      where.sourceType = sourceParam as SourceFilter;
     }
 
     if (q) {
@@ -67,9 +68,9 @@ export async function GET(req: NextRequest) {
         queuedAt: true,
         sentAt: true,
         failedAt: true,
-        broadcastId: true,
-        templateId: true,
-        transactionalKey: true,
+        sourceType:  true,
+        sourceId:    true,
+        sourceLabel: true,
         errorMessage: true,
       },
     });
@@ -78,50 +79,22 @@ export async function GET(req: NextRequest) {
     const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
     const nextCursor = hasMore ? items[items.length - 1].id : null;
 
-    // Batch-resolve source names so the list shows "Welcome blast" instead of an ID.
-    const broadcastIds = [...new Set(items.map((r) => r.broadcastId).filter(Boolean))] as string[];
-    const templateIds  = [...new Set(items.map((r) => r.templateId).filter(Boolean))]  as string[];
-
-    const [broadcasts, templates] = await Promise.all([
-      broadcastIds.length
-        ? db.broadcast.findMany({ where: { id: { in: broadcastIds } }, select: { id: true, name: true } })
-        : [],
-      templateIds.length
-        ? db.emailTemplate.findMany({ where: { id: { in: templateIds } }, select: { id: true, name: true } })
-        : [],
-    ]);
-
-    const broadcastMap = new Map(broadcasts.map((b: { id: string; name: string }) => [b.id, b.name]));
-    const templateMap  = new Map(templates.map((t:  { id: string; name: string }) => [t.id, t.name]));
-
-    const resolved = items.map((r) => {
-      let sourceType: SourceFilter = "TRANSACTIONAL";
-      let sourceName = r.transactionalKey ?? "Transactional";
-      let sourceId: string | null = null;
-      if (r.broadcastId) {
-        sourceType = "BROADCAST";
-        sourceName = broadcastMap.get(r.broadcastId) ?? "(deleted broadcast)";
-        sourceId = r.broadcastId;
-      } else if (r.templateId) {
-        sourceType = "TEMPLATE";
-        sourceName = templateMap.get(r.templateId) ?? "(deleted template)";
-        sourceId = r.templateId;
-      }
-
-      return {
-        id: r.id,
-        toEmail: r.toEmail,
-        subject: r.subject,
-        status: r.status,
-        queuedAt: r.queuedAt.toISOString(),
-        sentAt:   r.sentAt?.toISOString()   ?? null,
-        failedAt: r.failedAt?.toISOString() ?? null,
-        errorMessage: r.errorMessage,
-        sourceType,
-        sourceName,
-        sourceId,
-      };
-    });
+    // Pattern B keeps the source label as a snapshot column on EmailSend, so
+    // the list endpoint no longer fans out to Broadcast/EmailTemplate/
+    // WorkflowEmail tables. Single query — much cheaper for high-volume logs.
+    const resolved = items.map((r) => ({
+      id: r.id,
+      toEmail: r.toEmail,
+      subject: r.subject,
+      status: r.status,
+      queuedAt: r.queuedAt.toISOString(),
+      sentAt:   r.sentAt?.toISOString()   ?? null,
+      failedAt: r.failedAt?.toISOString() ?? null,
+      errorMessage: r.errorMessage,
+      sourceType: (r.sourceType ?? "SYSTEM") as SourceFilter,
+      sourceName: r.sourceLabel ?? "System",
+      sourceId:   r.sourceId,
+    }));
 
     return ok({ items: resolved, nextCursor });
   } catch (error) {

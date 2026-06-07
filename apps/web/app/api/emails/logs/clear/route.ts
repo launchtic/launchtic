@@ -17,7 +17,10 @@ import { requireAccess } from "../../../../../lib/permissions";
 // actually attempted, which is correct for the broadcast's history even if
 // the audit log is purged.
 
-const SOURCES = ["BROADCAST", "TEMPLATE", "AUTOMATION", "SEQUENCE", "TRANSACTIONAL"] as const;
+// Source taxonomy matches /api/emails/logs (list). Mirrors EmailSend.sourceType
+// values written by the workflow / broadcast / system send paths under
+// Pattern B (no FKs — sourceType is a plain String column).
+const SOURCES = ["BROADCAST", "WORKFLOW", "TEMPLATE", "SYSTEM"] as const;
 
 const RANGES_MS: Record<string, number> = {
   "24h": 24 * 3600 * 1000,
@@ -41,14 +44,12 @@ export async function POST(req: NextRequest) {
     const raw = await req.text();
     const parsed = raw.trim().length > 0 ? schema.parse(JSON.parse(raw)) : {};
 
-    const where: any = { workspaceId };
+    const where: Record<string, unknown> = { workspaceId };
     if (parsed.status) where.status = parsed.status;
     if (parsed.source) {
-      if (parsed.source === "BROADCAST")     where.broadcastId      = { not: null };
-      if (parsed.source === "TEMPLATE")      where.templateId       = { not: null };
-      if (parsed.source === "AUTOMATION")    where.automationId     = { not: null };
-      if (parsed.source === "SEQUENCE")      where.sequenceId       = { not: null };
-      if (parsed.source === "TRANSACTIONAL") where.transactionalKey = { not: null };
+      // Pattern B: direct equality on sourceType. Covered by the
+      // (workspaceId, sourceType, queuedAt) index.
+      where.sourceType = parsed.source;
     }
     if (parsed.range && RANGES_MS[parsed.range]) {
       where.queuedAt = { gte: new Date(Date.now() - RANGES_MS[parsed.range]) };

@@ -18,6 +18,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { searchParams } = new URL(req.url);
     const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "50"));
 
+    // Pattern B: source info comes from the snapshot columns. Single query;
+    // no FK include needed. Frontend reads sourceType/sourceId/sourceLabel
+    // directly and renders the source name from sourceLabel (which survives
+    // rename / delete of the underlying Broadcast / WorkflowEmail / Template).
     const sends = await db.emailSend.findMany({
       where: { contactId: id, workspaceId },
       orderBy: { queuedAt: "desc" },
@@ -26,9 +30,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         id: true, subject: true, status: true,
         queuedAt: true, sentAt: true, failedAt: true,
         errorMessage: true,
-        broadcastId: true, templateId: true, transactionalKey: true,
-        broadcast: { select: { id: true, name: true } },
-        template:  { select: { id: true, name: true } },
+        sourceType: true, sourceId: true, sourceLabel: true,
       },
     });
 

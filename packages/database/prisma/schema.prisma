@@ -66,7 +66,7 @@ model Organization {
   // PLAN_FEATURES[plan].whiteLabel — runtime reads always succeed (so a
   // downgraded plan still renders the agency's saved branding rather than
   // snapping back to launchtic mid-session; the next save will be blocked).
-  brandingConfig    Json?
+  brandingConfig Json?
 
   // Storage config shared by every Workspace under this Organization.
   // Shape: { driver, endpoint, region, bucket, accessKey, secretKey, publicUrl }
@@ -78,7 +78,7 @@ model Organization {
   //   1. Organization.storage — owner-managed via Settings UI (this column)
   //   2. WorkspaceSettings.storage — legacy per-workspace fallback
   //   3. Local driver — default
-  storage           Json?
+  storage Json?
 
   // Founder — primary admin and (for now) the only user who can manage this
   // Organization's billing. Unique today because B-minimal is single-owner;
@@ -94,10 +94,10 @@ model Organization {
 }
 
 model Workspace {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  ownerId   String
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  ownerId        String
   // Billing parent. Inherited from owner's Organization at create time —
   // never changes for a given Workspace. Plan/license checks for this
   // workspace read from organization.plan.
@@ -105,30 +105,30 @@ model Workspace {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  owner        User              @relation(fields: [ownerId],        references: [id])
+  owner        User              @relation(fields: [ownerId], references: [id])
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   members      WorkspaceMember[]
 
-  funnels             Funnel[]
-  contacts            Contact[]
-  tags                Tag[]
-  physicalProducts    PhysicalProduct[]
-  domains             Domain[]
-  settings            WorkspaceSettings?
-  orders              Order[]
-  subscriptions       Subscription[]
-  coupons             Coupon[]
-  emailTemplates      EmailTemplate[]
-  broadcasts          Broadcast[]
-  emailSends          EmailSend[]
-  workflows           Workflow[]
-  workflowRuns        WorkflowRun[]
-  senderIdentities    SenderIdentity[]
-  aiConversations     AiConversation[]
-  savedBlocks         SavedBlock[]
-  pageTemplates       PageTemplate[]
-  roles               Role[]
-  assets              Asset[]
+  funnels          Funnel[]
+  contacts         Contact[]
+  tags             Tag[]
+  physicalProducts PhysicalProduct[]
+  domains          Domain[]
+  settings         WorkspaceSettings?
+  orders           Order[]
+  subscriptions    Subscription[]
+  coupons          Coupon[]
+  emailTemplates   EmailTemplate[]
+  broadcasts       Broadcast[]
+  emailSends       EmailSend[]
+  workflows        Workflow[]
+  workflowRuns     WorkflowRun[]
+  senderIdentities SenderIdentity[]
+  aiConversations  AiConversation[]
+  savedBlocks      SavedBlock[]
+  pageTemplates    PageTemplate[]
+  roles            Role[]
+  assets           Asset[]
 
   @@index([organizationId])
 }
@@ -138,7 +138,7 @@ model Workspace {
 // changes, clone, and marketplace import) while still keeping `url` denormalized
 // for fast render. `sha256` enables dedup at upload time and during clone/import.
 model Asset {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
   filename    String
   mimeType    String
@@ -157,9 +157,9 @@ model Asset {
   // on local, some on S3 after a switch) read each file with the right driver.
   driver      String
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, sha256])
   @@index([workspaceId, createdAt])
@@ -303,8 +303,8 @@ model FunnelStep {
   // One-click upsell/downsell branching: which step to route to after the
   // visitor accepts (buys) vs declines this step. Null → fall back to the next
   // step by `order`. Plain ids (no FK) — navigation resolves + validates them.
-  acceptStepId      String?
-  declineStepId     String?
+  acceptStepId  String?
+  declineStepId String?
 
   // Craft.js JSON — stored as JSONB
   pageJson Json
@@ -342,9 +342,9 @@ model FunnelStep {
 model StepVariant {
   id        String   @id @default(cuid())
   stepId    String
-  name      String   // "Control", "Variant B", "New headline"
+  name      String // "Control", "Variant B", "New headline"
   pageJson  Json
-  weight    Int      @default(50)   // relative traffic split
+  weight    Int      @default(50) // relative traffic split
   isControl Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -362,19 +362,19 @@ model StepVariant {
 // (group by variantId). Separate from ContactEvent (CRM timeline) because
 // VIEWs are anonymous (no contact) and we need sessionId + variant attribution.
 model FunnelEvent {
-  id          String    @id @default(cuid())
+  id          String          @id @default(cuid())
   funnelId    String
   stepId      String
   type        FunnelEventType
   // Per-visitor id from the lt_sid cookie set by the renderer — stitches a
   // visitor's journey across steps and is the unit of A/B attribution.
   sessionId   String
-  variantId   String?   // set once A/B testing ships; null today
-  contactId   String?   // LEAD / PURCHASE once identified
-  orderId     String?   // PURCHASE only
-  amountCents Int?       // PURCHASE only — for revenue rollups
+  variantId   String? // set once A/B testing ships; null today
+  contactId   String? // LEAD / PURCHASE once identified
+  orderId     String? // PURCHASE only
+  amountCents Int? // PURCHASE only — for revenue rollups
   ip          String?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime        @default(now())
 
   funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
 
@@ -417,7 +417,7 @@ model PageTemplate {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, type, isDefault])
   @@index([workspaceId])
@@ -431,13 +431,13 @@ model SavedBlock {
   id          String   @id @default(cuid())
   workspaceId String
   name        String
-  kind        String   // 'section' | 'row'
+  kind        String // 'section' | 'row'
   tags        String[] @default([])
-  contentJson Json     // serialized Craft.js node tree
+  contentJson Json // serialized Craft.js node tree
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, kind])
   @@index([workspaceId, createdAt])
@@ -579,14 +579,14 @@ model Contact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace           Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  tags                ContactTag[]
-  events              ContactEvent[]
-  orders              Order[]
-  subscriptions       Subscription[]
-  resourceAccesses    ContactResourceAccess[]
-  emailSends          EmailSend[]
-  workflowRuns        WorkflowRun[]
+  workspace        Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tags             ContactTag[]
+  events           ContactEvent[]
+  orders           Order[]
+  subscriptions    Subscription[]
+  resourceAccesses ContactResourceAccess[]
+  emailSends       EmailSend[]
+  workflowRuns     WorkflowRun[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, createdAt])
@@ -818,7 +818,7 @@ model WorkspaceSettings {
 model AiConversation {
   id          String   @id @default(cuid())
   workspaceId String
-  userId      String   // FK without back-relation to keep User model untouched
+  userId      String // FK without back-relation to keep User model untouched
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -837,8 +837,8 @@ model AiMessage {
   // - assistant: text from LLM (no tool call)
   // - tool_use: LLM proposes a tool call (content = { name, args })
   // - tool_result: outcome of executing the tool (content = result JSON)
-  role    String
-  content Json
+  role           String
+  content        Json
   // Set when role = tool_use. Tracks the lifecycle:
   //   pending_confirm → user must confirm (write tools)
   //   approved → user approved, server is executing
@@ -846,10 +846,10 @@ model AiMessage {
   //   executed → ran successfully (paired tool_result follows)
   //   error → ran but failed (paired tool_result follows with error)
   // Read-only tools skip pending_confirm and go straight to executed.
-  toolCallId String?
-  toolName   String?
-  toolStatus String?
-  createdAt  DateTime @default(now())
+  toolCallId     String?
+  toolName       String?
+  toolStatus     String?
+  createdAt      DateTime @default(now())
 
   conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -915,7 +915,10 @@ model EmailTemplate {
 
   workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   broadcasts Broadcast[]
-  emailSends EmailSend[]
+
+  // No `EmailSend[]` back-relation — Pattern B uses generic sourceType/sourceId
+  // without FK. Reverse-lookup sends with
+  // `db.emailSend.findMany({ where: { sourceType: "TEMPLATE", sourceId: templateId } })`.
 
   @@unique([workspaceId, systemKey])
   @@index([workspaceId, category])
@@ -949,9 +952,12 @@ model Broadcast {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  template   EmailTemplate? @relation(fields: [templateId], references: [id])
-  emailSends EmailSend[]
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  template  EmailTemplate? @relation(fields: [templateId], references: [id])
+
+  // Note: no `EmailSend[]` back-relation under Pattern B. EmailSend's source is
+  // generic (sourceType + sourceId without FK). Query sends with
+  // `db.emailSend.findMany({ where: { sourceType: "BROADCAST", sourceId: broadcastId } })`.
 
   @@index([workspaceId, status])
   @@index([scheduledAt, status])
@@ -965,14 +971,28 @@ model EmailSend {
   contactId   String?
   toEmail     String
 
-  // Source — exactly one of broadcastId / templateId / transactionalKey is set
-  broadcastId        String?
-  templateId         String?
-  transactionalKey   String? // e.g. "order_confirmation" for ad-hoc transactional sends
+  // Generic source — Pattern B (snapshot at send time, no FK constraints).
+  //   sourceType:  "BROADCAST" | "WORKFLOW" | "TEMPLATE" | "SYSTEM"
+  //                String (not enum) so adding new source types stays additive
+  //                — no migration, just an app-code enum bump.
+  //   sourceId:    Raw ID of the source row (Broadcast.id / WorkflowEmail.id /
+  //                EmailTemplate.id). NULL for SYSTEM sends. No FK constraint
+  //                — source rows can rename / delete without touching sends.
+  //                App code dispatches on sourceType when fresh source data is
+  //                needed (preview re-render, navigation hrefs).
+  //   sourceLabel: Human-readable label captured at send time. Survives source
+  //                rename / delete — drives the "what was this from?" column
+  //                in logs UI and audit-trail use cases.
+  // Earlier schemas stored 3 FK columns (broadcastId/templateId/workflowEmailId)
+  // + a `transactionalKey` string. Pattern B folds all of those into the 3
+  // generic columns above.
+  sourceType  String?
+  sourceId    String?
+  sourceLabel String?
 
   subject  String
   bodyHtml String? // Rendered HTML at send time. Snapshot for support / audit / debug.
-                   // Nullable for legacy rows; new sends always populate.
+  // Nullable for legacy rows; new sends always populate.
   status   EmailSendStatus @default(QUEUED)
 
   errorMessage      String?
@@ -986,32 +1006,23 @@ model EmailSend {
   // Populated by the open pixel + click redirect endpoints in the renderer.
   // openedAt/clickedAt capture the FIRST hit; *Count is total hits (a single
   // recipient may open/click multiple times). Workflow conditions
-  // `email_opened` / `email_clicked` filter on `openedAt >= run.startedAt`.
+  // `email_opened` / `email_clicked` filter on `openedAt >= run.startedAt`
+  // joined with `(sourceType, sourceId)` to scope to the configured source.
   openedAt   DateTime?
-  openCount  Int        @default(0)
+  openCount  Int       @default(0)
   clickedAt  DateTime?
-  clickCount Int        @default(0)
+  clickCount Int       @default(0)
 
-  // Link back to the WorkflowEmail that produced this send. Lets workflow
-  // conditions (email_opened / email_clicked with source="workflow_email")
-  // scope their query, and feeds per-email analytics back into the
-  // WorkflowEmail row's counters.
-  workflowEmailId String?
-
-  workspace     Workspace      @relation(fields: [workspaceId],     references: [id], onDelete: Cascade)
-  contact       Contact?       @relation(fields: [contactId],       references: [id], onDelete: SetNull)
-  broadcast     Broadcast?     @relation(fields: [broadcastId],     references: [id], onDelete: SetNull)
-  template      EmailTemplate? @relation(fields: [templateId],      references: [id], onDelete: SetNull)
-  workflowEmail WorkflowEmail? @relation(fields: [workflowEmailId], references: [id], onDelete: SetNull)
-  links         EmailSendLink[]
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  links     EmailSendLink[]
 
   @@index([workspaceId, status, queuedAt])
-  @@index([contactId, queuedAt])
-  @@index([broadcastId])
-  @@index([contactId, broadcastId, openedAt])
-  @@index([contactId, broadcastId, clickedAt])
-  @@index([contactId, workflowEmailId, openedAt])
-  @@index([contactId, workflowEmailId, clickedAt])
+  @@index([workspaceId, sourceType, queuedAt]) // logs source filter
+  @@index([contactId, queuedAt]) // contact email-history
+  @@index([contactId, sourceType, sourceId, openedAt]) // workflow email_opened
+  @@index([contactId, sourceType, sourceId, clickedAt]) // workflow email_clicked
+  @@index([sourceType, sourceId]) // reverse: "all sends from source X"
 }
 
 // Per-link click tracking for outgoing emails. Each link in a rendered
@@ -1019,15 +1030,15 @@ model EmailSend {
 // `token` below; the renderer's click endpoint looks up the link, bumps
 // clickedAt/clickCount, and 302-redirects to `url`.
 model EmailSendLink {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   emailSendId String
-  token       String   @unique
-  url         String   @db.Text
+  token       String @unique
+  url         String @db.Text
 
-  clickedAt   DateTime?
-  clickCount  Int      @default(0)
+  clickedAt  DateTime?
+  clickCount Int       @default(0)
 
-  emailSend   EmailSend @relation(fields: [emailSendId], references: [id], onDelete: Cascade)
+  emailSend EmailSend @relation(fields: [emailSendId], references: [id], onDelete: Cascade)
 
   @@index([emailSendId])
 }
@@ -1053,11 +1064,11 @@ model EmailSendLink {
 // address, the SMTP send fails and surfaces in EmailSend.errorMessage.
 
 model SenderIdentity {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
-  name        String   // "Brand Support"
-  email       String   // "support@brand.com"
-  isDefault   Boolean  @default(false)
+  name        String // "Brand Support"
+  email       String // "support@brand.com"
+  isDefault   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1098,8 +1109,8 @@ enum StepType {
   UPSELL
   DOWNSELL
   THANKYOU
-  CUSTOM     // Generic static page — about / privacy / terms / contact / FAQ.
-             // No offer config, no price plan, no form submit by default.
+  CUSTOM // Generic static page — about / privacy / terms / contact / FAQ.
+  // No offer config, no price plan, no form submit by default.
 }
 
 enum OfferType {
@@ -1209,24 +1220,24 @@ enum EmailSendStatus {
 // EmailSequence + ContactSequenceEnrollment in one drop.
 
 model Workflow {
-  id            String         @id @default(cuid())
-  workspaceId   String
-  name          String
-  description   String?
-  status        WorkflowStatus @default(DRAFT)
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  status      WorkflowStatus @default(DRAFT)
 
   // Trigger — new types added in Phase 2 (CHECKOUT_STARTED, PAGE_VISITED, etc.)
   // Stored as string (no enum) for forward extensibility without migrations.
   triggerType   String
-  triggerConfig Json?   // { funnelId?, funnelStepId?, tagId?, amountMin?, ... }
+  triggerConfig Json? // { funnelId?, funnelStepId?, tagId?, amountMin?, ... }
 
   // Graph definition. See WorkflowNode + WorkflowEdge types in the executor.
   //   nodes: [{ id, type, position: {x,y}, config }]
   //   edges: [{ id, source, target, label?, condition? }]
-  nodes         Json
-  edges         Json
+  nodes       Json
+  edges       Json
   // Entry point — node id where every run starts. Validated on activate.
-  startNodeId   String?
+  startNodeId String?
 
   // Re-fire policy:
   //   "every" → fire on every event (default for transactional triggers).
@@ -1240,16 +1251,16 @@ model Workflow {
   // Per-trigger smart defaults: FORM_SUBMIT → "once" (welcome / opt-in
   // pattern), everything else → "every". See TRIGGER_DEFAULT_REFIRE_POLICY
   // in apps/web/lib/workflow-validation.ts.
-  reFirePolicy          String @default("every")
-  maxDurationDays       Int?
+  reFirePolicy    String @default("every")
+  maxDurationDays Int?
 
   // Denormalized stats (incremented at run creation / completion). Source of
   // truth still WorkflowRun count queries.
-  totalEnrolled  Int @default(0)
-  activeCount    Int @default(0)
-  completedCount Int @default(0)
-  exitedCount    Int @default(0)
-  failedCount    Int @default(0)
+  totalEnrolled   Int       @default(0)
+  activeCount     Int       @default(0)
+  completedCount  Int       @default(0)
+  exitedCount     Int       @default(0)
+  failedCount     Int       @default(0)
   lastTriggeredAt DateTime?
 
   createdAt DateTime @default(now())
@@ -1283,20 +1294,20 @@ model Workflow {
 // Phase 3+ feature when there's demand.
 
 model WorkflowEmail {
-  id          String  @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
   workflowId  String
 
   // Internal label for the operator's email list view. Falls back to
   // subject when empty in the UI.
-  name        String?
+  name String?
 
   // Content snapshot. Mustache vars resolved at send time by the worker.
-  subject     String
-  bodyHtml    String  @db.Text
-  fromName    String
-  fromEmail   String
-  senderId    String?
+  subject   String
+  bodyHtml  String  @db.Text
+  fromName  String
+  fromEmail String
+  senderId  String?
 
   // Denormalized counters bumped by the email worker / tracking endpoints.
   // Source of truth still EmailSend queries; these are for dashboard reads.
@@ -1308,8 +1319,10 @@ model WorkflowEmail {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workflow Workflow    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  sends    EmailSend[]
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  // No `sends EmailSend[]` back-relation under Pattern B. Query with
+  // `db.emailSend.findMany({ where: { sourceType: "WORKFLOW", sourceId: workflowEmailId } })`.
 
   @@index([workspaceId])
   @@index([workflowId])
@@ -1353,14 +1366,14 @@ model WorkflowRun {
 }
 
 model WorkflowRunStep {
-  id       String  @id @default(cuid())
+  id       String @id @default(cuid())
   runId    String
   // Refers to Workflow.nodes[].id. Denormalized for fast filtering without
   // parsing the parent workflow JSON.
   nodeId   String
   nodeType String
 
-  status   String // PENDING | RUNNING | COMPLETED | FAILED | SKIPPED
+  status String // PENDING | RUNNING | COMPLETED | FAILED | SKIPPED
 
   startedAt   DateTime  @default(now())
   completedAt DateTime?
@@ -1383,10 +1396,10 @@ enum WorkflowStatus {
 }
 
 enum WorkflowRunStatus {
-  ACTIVE     // executing or scheduled for next node
-  COMPLETED  // reached an END node
-  EXITED     // exited via goal / manual / re-enroll / pause
-  FAILED     // unrecoverable error mid-run
+  ACTIVE // executing or scheduled for next node
+  COMPLETED // reached an END node
+  EXITED // exited via goal / manual / re-enroll / pause
+  FAILED // unrecoverable error mid-run
 }
 
 // ─────────────────────────────────────────
@@ -1404,7 +1417,7 @@ enum WorkflowRunStatus {
 // Pre-setup state = no row exists OR setupCompletedAt is null → middleware
 // redirects every request to /setup.
 model SystemConfig {
-  id               String   @id @default("system")
+  id               String    @id @default("system")
   appDomain        String?
   pagesDomain      String?
   acmeEmail        String?
@@ -1412,6 +1425,6 @@ model SystemConfig {
   // a row with this null means setup was started but never completed (e.g.
   // browser tab closed mid-flow) and the wizard should resume from Step 2.
   setupCompletedAt DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }

@@ -18,9 +18,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const log = await db.emailSend.findFirst({
       where: { id, workspaceId },
       include: {
-        broadcast: { select: { id: true, subject: true, htmlBody: true, fromEmail: true, fromName: true } },
-        template:  { select: { id: true, subject: true, htmlBody: true } },
-        contact:   { select: { id: true, email: true, firstName: true, lastName: true } },
+        contact: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
     });
     if (!log) return err("Email log not found", 404);
@@ -34,27 +32,54 @@ export async function POST(_req: NextRequest, { params }: Params) {
       return err("SMTP not configured. Configure it in Settings → SMTP first.", 400);
     }
 
-    // Use rendered bodyHtml + subject snapshots when available — Phase 1C
-    // removed automation/sequence step joins, so workflow-sourced emails rely
-    // on their snapshotted body/subject (always populated at create time).
-    const sourceHtml =
-      log.broadcast?.htmlBody ??
-      log.bodyHtml ??
-      log.template?.htmlBody ??
-      null;
-    const sourceSubject =
-      log.broadcast?.subject ??
-      log.subject ??
-      log.template?.subject ??
-      null;
+    // Resolve fresh source content + sender identity (Pattern B).
+    // FK relations no longer auto-include — switch on sourceType and load the
+    // matching row manually. BROADCAST sends carry their own fromEmail/fromName
+    // on the broadcast row; WORKFLOW/TEMPLATE/SYSTEM fall through to the
+    // workspace's default Sender Identity.
+    let liveSourceHtml:    string | null = null;
+    let liveSourceSubject: string | null = null;
+    let liveFromEmail:     string | null = null;
+    let liveFromName:      string | null = null;
+    let broadcastIdForCounter: string | null = null;
+
+    if (log.sourceType === "BROADCAST" && log.sourceId) {
+      const b = await db.broadcast.findUnique({
+        where: { id: log.sourceId },
+        select: { id: true, subject: true, htmlBody: true, fromEmail: true, fromName: true },
+      });
+      if (b) {
+        liveSourceHtml    = b.htmlBody;
+        liveSourceSubject = b.subject;
+        liveFromEmail     = b.fromEmail;
+        liveFromName      = b.fromName;
+        broadcastIdForCounter = b.id;
+      }
+    } else if (log.sourceType === "TEMPLATE" && log.sourceId) {
+      const t = await db.emailTemplate.findUnique({
+        where: { id: log.sourceId },
+        select: { id: true, subject: true, htmlBody: true },
+      });
+      if (t) {
+        liveSourceHtml    = t.htmlBody;
+        liveSourceSubject = t.subject;
+      }
+    }
+    // WORKFLOW retries don't re-resolve the live source — workflow emails
+    // get edited frequently and a retry should reflect what was originally
+    // queued, not a current (possibly very different) draft. Falls through
+    // to the bodyHtml snapshot below.
+
+    // Snapshot fallback: log.bodyHtml is always populated on new sends.
+    const sourceHtml    = liveSourceHtml    ?? log.bodyHtml ?? null;
+    const sourceSubject = liveSourceSubject ?? log.subject  ?? null;
     if (!sourceHtml || !sourceSubject) {
       return err("Cannot retry — source content not available.", 400);
     }
 
-    // Resolve sender. Broadcast carries its own; everything else (including
-    // workflow-sent emails) falls through to the workspace's default Sender Identity.
-    let fromEmail: string | null = log.broadcast?.fromEmail ?? null;
-    let fromName:  string | null = log.broadcast?.fromName  ?? null;
+    // Sender resolution
+    let fromEmail = liveFromEmail;
+    let fromName  = liveFromName;
     if (!fromEmail || !fromName) {
       const def = await db.senderIdentity.findFirst({
         where: { workspaceId },
@@ -91,9 +116,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
       data: { status: "QUEUED", failedAt: null, errorMessage: null, bodyHtml: html },
     });
 
-    if (log.broadcastId) {
+    if (broadcastIdForCounter) {
       await db.broadcast.update({
-        where: { id: log.broadcastId },
+        where: { id: broadcastIdForCounter },
         data: { failedCount: { decrement: 1 } },
       }).catch(() => {});
     }
@@ -107,7 +132,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       html,
       fromEmail,
       fromName,
-      broadcastId: log.broadcastId ?? undefined,
+      broadcastId: broadcastIdForCounter ?? undefined,
     };
 
     await emailQueue().add("send", jobData);

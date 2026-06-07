@@ -422,10 +422,15 @@ async function main() {
   });
   created.workflowEmails.push(we.id);
 
-  // Mirror execSendEmail's DB write (worker/queues/workflow.ts lines ~340-370):
-  // creates EmailSend with workflowEmailId, then bumps WorkflowEmail.sentCount.
+  // Mirror execSendEmail's DB write (worker/queues/workflow.ts):
+  // creates EmailSend with Pattern B source columns (sourceType=WORKFLOW,
+  // sourceId=workflowEmailId, sourceLabel="WorkflowName · EmailName"), then
+  // bumps WorkflowEmail.sentCount.
   async function execSendEmail_writeShape(contactId: string, workflowEmailId: string) {
-    const we = await db.workflowEmail.findFirst({ where: { id: workflowEmailId } });
+    const we = await db.workflowEmail.findFirst({
+      where:  { id: workflowEmailId },
+      include: { workflow: { select: { name: true } } },
+    });
     if (!we) throw new Error("WorkflowEmail not found");
     const c = await db.contact.findFirst({ where: { id: contactId } });
     if (!c) throw new Error("Contact not found");
@@ -437,7 +442,10 @@ async function main() {
       data: {
         workspaceId: ws.id, contactId, toEmail: c.email,
         subject: rendered, bodyHtml: renderedBody,
-        status: "QUEUED", workflowEmailId,
+        status: "QUEUED",
+        sourceType:  "WORKFLOW",
+        sourceId:    workflowEmailId,
+        sourceLabel: `${we.workflow.name} · ${we.name || we.subject || "(untitled)"}`,
       },
     });
     await db.workflowEmail.update({
@@ -450,15 +458,18 @@ async function main() {
   const send = await execSendEmail_writeShape(contact.id, we.id);
   created.emailSends.push(send.id);
 
-  // H1: EmailSend row has workflowEmailId FK set (source link for analytics)
+  // H1: EmailSend row carries the Pattern B source columns (sourceType=WORKFLOW,
+  // sourceId=workflowEmailId) — the source link drives analytics and CONDITION
+  // executor queries.
   const reread = await db.emailSend.findUnique({
     where: { id: send.id },
     select: {
-      workflowEmailId: true, contactId: true, status: true,
+      sourceType: true, sourceId: true, contactId: true, status: true,
       subject: true, bodyHtml: true,
     },
   });
-  check("H1: EmailSend.workflowEmailId set",     reread?.workflowEmailId === we.id);
+  check("H1: EmailSend source = WORKFLOW + workflowEmailId",
+        reread?.sourceType === "WORKFLOW" && reread?.sourceId === we.id);
   check("H2: EmailSend.contactId set",           reread?.contactId === contact.id);
   check("H3: EmailSend.status = QUEUED",         reread?.status === "QUEUED");
   check("H4: Mustache vars rendered in subject", reread?.subject === "Hi Alice");

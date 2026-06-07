@@ -42,9 +42,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
     let cursorId: string | null = null;
 
     while (true) {
+      // Pattern B: scope failed sends to this broadcast via generic source
+      // columns. The (sourceType, sourceId) index handles the lookup.
       const failed: { id: string; contactId: string | null; toEmail: string }[] =
         await db.emailSend.findMany({
-          where: { broadcastId: id, workspaceId, status: "FAILED" },
+          where: { sourceType: "BROADCAST", sourceId: id, workspaceId, status: "FAILED" },
           orderBy: { id: "asc" },
           take: BATCH_SIZE,
           ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),

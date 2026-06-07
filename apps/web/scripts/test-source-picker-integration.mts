@@ -308,6 +308,9 @@ async function main() {
   //   sendWorkflowEmail      — workflowEmailId = upstreamEmail.id, opened recent
   const halfway = new Date(PAST.getTime() + 30 * 60 * 1000); // 30 min ago
 
+  // Seed sends using Pattern B source columns (sourceType + sourceId). The
+  // CONDITION executor filters by (contactId, sourceType, sourceId, openedAt/
+  // clickedAt) — covered by the corresponding compound indexes.
   const sendOpenedRecent = await db.emailSend.create({
     data: {
       workspaceId: ws.id,
@@ -315,7 +318,9 @@ async function main() {
       toEmail:     contact.email,
       subject:     "Test recent open",
       status:      "SENT",
-      broadcastId: broadcastA.id,
+      sourceType:  "BROADCAST",
+      sourceId:    broadcastA.id,
+      sourceLabel: broadcastA.name,
       sentAt:      PAST,
       openedAt:    halfway,
       openCount:   1,
@@ -330,7 +335,9 @@ async function main() {
       toEmail:     contact.email,
       subject:     "Test recent click",
       status:      "SENT",
-      broadcastId: broadcastA.id,
+      sourceType:  "BROADCAST",
+      sourceId:    broadcastA.id,
+      sourceLabel: broadcastA.name,
       sentAt:      PAST,
       clickedAt:   halfway,
       clickCount:  1,
@@ -345,7 +352,9 @@ async function main() {
       toEmail:     contact.email,
       subject:     "Test old open",
       status:      "SENT",
-      broadcastId: broadcastB.id,    // also pair with a different broadcast
+      sourceType:  "BROADCAST",
+      sourceId:    broadcastB.id,
+      sourceLabel: broadcastB.name,
       sentAt:      FAR_PAST,
       openedAt:    FAR_PAST,
       openCount:   1,
@@ -355,22 +364,24 @@ async function main() {
 
   const sendWorkflowEmail = await db.emailSend.create({
     data: {
-      workspaceId:     ws.id,
-      contactId:       contact.id,
-      toEmail:         contact.email,
-      subject:         "Workflow email open",
-      status:          "SENT",
-      workflowEmailId: upstreamEmail.id,
-      sentAt:          PAST,
-      openedAt:        halfway,
-      openCount:       1,
+      workspaceId: ws.id,
+      contactId:   contact.id,
+      toEmail:     contact.email,
+      subject:     "Workflow email open",
+      status:      "SENT",
+      sourceType:  "WORKFLOW",
+      sourceId:    upstreamEmail.id,
+      sourceLabel: `Test workflow · ${upstreamEmail.subject}`,
+      sentAt:      PAST,
+      openedAt:    halfway,
+      openCount:   1,
     },
   });
   created.emailSends.push(sendWorkflowEmail.id);
 
   // The query mirror — keep the WHERE shape EXACTLY as in execCondition.
-  // source="any" was removed; this mirror also drops it so the test exercises
-  // what the worker actually accepts.
+  // Pattern B uses (sourceType, sourceId) instead of the old per-source FK
+  // columns; the executor's index plan is the same.
   async function condQuery(
     kind: "email_opened" | "email_clicked",
     cfg:  { source: "broadcast" | "workflow_email"; broadcastId?: string; workflowEmailId?: string },
@@ -379,10 +390,12 @@ async function main() {
     const where: Record<string, unknown> = { contactId: contact.id };
     if (cfg.source === "broadcast") {
       if (!cfg.broadcastId) return false;
-      where.broadcastId = cfg.broadcastId;
+      where.sourceType = "BROADCAST";
+      where.sourceId   = cfg.broadcastId;
     } else if (cfg.source === "workflow_email") {
       if (!cfg.workflowEmailId) return false;
-      where.workflowEmailId = cfg.workflowEmailId;
+      where.sourceType = "WORKFLOW";
+      where.sourceId   = cfg.workflowEmailId;
     } else {
       return false;
     }
