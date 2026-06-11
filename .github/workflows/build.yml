@@ -1,21 +1,22 @@
 # Build & publish Docker images to GitHub Container Registry.
 #
-# Flow:
-#   1. Push to main → this workflow runs
-#   2. Builds all 3 service images in parallel (web / renderer / worker)
-#   3. Publishes each to ghcr.io with two tags:
-#        :latest         ← user self-host pulls this by default
-#        :sha-<7chars>   ← traceable to specific commit, for rollback
-#   4. User self-host then runs: `docker compose pull && docker compose up -d`
+# Flow — two channels, gated by trigger:
+#   • Push to main (dev/bleeding-edge) → publishes:
+#        :latest         ← newest build, not vetted
+#        :sha-<7chars>   ← traceable to a specific commit, for rollback
+#   • Manual "Run workflow" (workflow_dispatch = a deliberate RELEASE) → publishes:
+#        :stable         ← the vetted channel customers pull
+#        :YYYY.MM.DD     ← the concrete dated version (annual-update pinning)
+#        :sha-<7chars>
 #
-# First-time setup (one-off, after the first successful run):
-#   The 3 images appear at https://github.com/TechFago/launchtic?tab=packages
-#   as PRIVATE by default. Make each one Public:
-#     Package page → ⚙ Package settings → Change visibility → Public
-#   Subsequent runs require no manual action — visibility persists.
+# Annual-update enforcement: launchtic.com/api/install/authorize hands each
+# license the dated tag it's entitled to (frozen once its update window ends),
+# and the VPS .env pins LAUNCHTIC_VERSION to it. So a RELEASE here must be paired
+# with bumping LAUNCHTIC_CURRENT_VERSION on launchtic.com to the SAME date tag.
 #
-# Manual trigger: GitHub Actions UI has a "Run workflow" button (workflow_dispatch).
-# Useful for republishing after fixing a broken release without making a new commit.
+# Image visibility: KEEP THESE PACKAGES PRIVATE. The license gate works by
+# vending GHCR pull tokens from /api/install/authorize — making the packages
+# Public would let anyone pull them and defeat the gate.
 
 name: Build & Push
 
@@ -38,6 +39,11 @@ on:
       - 'docs/**'
       - 'scripts_test/**'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag, e.g. 2026.07.01 (set the SAME value as LAUNCHTIC_CURRENT_VERSION on launchtic.com). Leave blank to use today (UTC).'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -75,8 +81,14 @@ jobs:
         id: meta
         with:
           images: ghcr.io/${{ github.repository_owner }}/launchtic-${{ matrix.service.name }}
+          # Dev tags on push; release tags (stable + dated) only on a deliberate
+          # workflow_dispatch. The dated tag is the input `version` if given,
+          # else today's UTC date. sha tag always, for rollback traceability.
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.event_name == 'push' }}
+            type=raw,value=stable,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
+            type=raw,value={{date 'YYYY.MM.DD'}},enable=${{ github.event_name == 'workflow_dispatch' && inputs.version == '' }}
             type=sha,prefix=sha-,format=short
 
       - uses: docker/build-push-action@v5
