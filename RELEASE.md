@@ -14,6 +14,23 @@ value: `LAUNCHTIC_CURRENT_VERSION` must equal a published `:YYYY.MM.DD` tag.
 
 ---
 
+## TL;DR — release checklist
+
+> **Thứ tự bắt buộc: publish tag TRƯỚC, set env SAU.**
+
+- [ ] Merge `main` → CI tự build `:latest` → test trên demo.launchtic.com.
+- [ ] GitHub → **Actions → "Build & Push" → Run workflow**, nhập **version** = `YYYY.MM.DD`.
+- [ ] Đợi 3 job (web/renderer/worker) xanh → check tag tại `github.com/orgs/techfago/packages`.
+- [ ] Trên `launchtic-com`: `.env` set `LAUNCHTIC_CURRENT_VERSION=<đúng ngày đó>` → `docker compose up -d`.
+- [ ] **Có sửa `docker-compose.yml` / `Caddyfile` / `install.sh` / `update.sh`?** → copy sang `launchtic-com/public/` (install.sh) hoặc `public/dist/` (compose, Caddyfile, update.sh) → **redeploy site** → verify `curl -fsSL https://launchtic.com/dist/docker-compose.yml | head`.
+
+Khách update: `cd launchtic && curl -fsSL https://launchtic.com/update | bash`
+Rollback nhanh: trên VPS đổi `.env` `LAUNCHTIC_VERSION=<tag cũ>` → `docker compose up -d`.
+
+Chi tiết từng phần ở dưới.
+
+---
+
 ## Two image channels (gated by CI trigger)
 
 | Trigger | Tags published | Who pulls it |

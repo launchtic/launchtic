@@ -1,0 +1,28 @@
+
+
+Ship xong cuoi thang nay. 30/5/2026:
+
+- Marketing site:
++ Tao demo cho app
++ Submit Google index
++ Xay dung thu vien templates.. funnels, emails, workflows...
+- Main site:
++ Test ky: one cmd install with license
++ Test webhook Paypal.
++ AI auto create workflows
+
+
+Cac kenh phan phoi:
+- landingfago.top, zillapage.com => banner gioi thieu
+- SEO keyword selft-hosted
+
+Checkout:
+1. Test webhook Paypal.
+Cấu hình webhook trên PayPal sandbox với đúng events:
+BILLING.SUBSCRIPTION.ACTIVATED, .CANCELLED, .EXPIRED, .PAYMENT.FAILED
+PAYMENT.CAPTURE.COMPLETED, .DENIED, .REVERSED, .REFUNDED
+PAYMENT.SALE.COMPLETED, .REFUNDED
+CUSTOMER.DISPUTE.CREATED, .RESOLVED
+
+Road map:
+https://launchtic.com/roadmap

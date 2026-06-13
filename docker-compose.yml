@@ -13,6 +13,9 @@ services:
       REDIS_URL: redis://redis:6379
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # The image tag this stack runs — shown in Settings → License + compared
+      # against launchtic.com/api/version to surface "update available".
+      LAUNCHTIC_VERSION: ${LAUNCHTIC_VERSION:-stable}
       # APP_DOMAIN, PAGES_DOMAIN, APP_URL, RENDERER_URL are no longer required
       # at boot — the first-run wizard writes them to the SystemConfig table
       # and apps read from DB via lib/system-config.ts. NextAuth uses
