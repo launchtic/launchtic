@@ -76,8 +76,10 @@ VPS `.env`. The entitled version comes from `/api/install/authorize`:
 
 ## Versioning
 
-- Format: **`YYYY.MM.DD`** (date-based, monotonic). Two releases on the same day:
-  append `-2`, e.g. `2026.07.01-2`.
+- Format: **`YYYY.MM.DD`** (date-based, monotonic). Leave the workflow's version
+  box blank — it auto-uses today's UTC date, and a 2nd release the same day is
+  auto-suffixed `-2`, `-3`, … (the `resolve-version` job checks GHCR for the
+  existing tag). Only type a version to override.
 - Keep old dated tags forever (don't delete them) — expired customers reinstall
   the exact version they're frozen at, and `:sha-…` tags back rollbacks.
 

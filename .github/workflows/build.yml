@@ -41,12 +41,50 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version tag, e.g. 2026.07.01 (set the SAME value as LAUNCHTIC_CURRENT_VERSION on launchtic.com). Leave blank to use today (UTC).'
+        description: 'Release tag, e.g. 2026.07.01 (also set LAUNCHTIC_CURRENT_VERSION on launchtic.com to match). Leave blank for today (UTC) — a 2nd release the same day auto-becomes -2, -3, …'
         required: false
         type: string
 
 jobs:
+  # Resolve the dated release tag ONCE so all matrix services share the same
+  # value. On a manual release: use the typed version; else today's UTC date —
+  # and if that date tag already exists in GHCR (a 2nd release the same day),
+  # auto-append -2, -3, … so you never type the suffix by hand.
+  resolve-version:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT: ${{ inputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT" ]; then
+            echo "version=$INPUT" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          BASE="$(date -u +%Y.%m.%d)"
+          # launchtic-web's existing tags stand in for the whole release set
+          # (all 3 images are tagged together each release).
+          TAGS="$(gh api --paginate \
+            "/orgs/${OWNER}/packages/container/launchtic-web/versions" \
+            --jq '.[].metadata.container.tags[]' 2>/dev/null || true)"
+          version="$BASE"
+          if echo "$TAGS" | grep -qx "$BASE"; then
+            n=2
+            while echo "$TAGS" | grep -qx "$BASE-$n"; do n=$((n+1)); done
+            version="$BASE-$n"
+          fi
+          echo "Resolved release version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,13 +120,12 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/launchtic-${{ matrix.service.name }}
           # Dev tags on push; release tags (stable + dated) only on a deliberate
-          # workflow_dispatch. The dated tag is the input `version` if given,
-          # else today's UTC date. sha tag always, for rollback traceability.
+          # workflow_dispatch. The dated tag comes pre-resolved (with auto -N
+          # suffix) from the resolve-version job. sha tag always, for rollback.
           tags: |
             type=raw,value=latest,enable=${{ github.event_name == 'push' }}
             type=raw,value=stable,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
-            type=raw,value={{date 'YYYY.MM.DD'}},enable=${{ github.event_name == 'workflow_dispatch' && inputs.version == '' }}
+            type=raw,value=${{ needs.resolve-version.outputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=sha,prefix=sha-,format=short
 
       - uses: docker/build-push-action@v5
