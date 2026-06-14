@@ -20,10 +20,10 @@ Launchtic combines a drag-and-drop page builder with payment processing, email a
 ## Quick start
 
 One-line install on a fresh Ubuntu/Debian VPS (Docker auto-installed). Replace
-`LT-XXX-XXXX-XXXX-XXXX` with your license key:
+`LT-XXXX-XXXX-XXXX-XXXX` with your license key:
 
 ```bash
-curl -fsSL https://launchtic.com/install | bash -s -- --license LT-XXX-XXXX-XXXX-XXXX
+curl -fsSL https://launchtic.com/install | bash -s -- --license LT-XXXX-XXXX-XXXX-XXXX
 ```
 
 > Copy the command with your key already embedded from your [account](https://launchtic.com/account).

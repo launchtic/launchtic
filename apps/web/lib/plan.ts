@@ -12,9 +12,10 @@
 // "Community"/free tier anymore; an unlicensed instance is locked, not degraded
 // to a usable free plan.
 //
-// License key prefix → plan (verified on launchtic.com side):
-//   LT-SOL-* → SOLO    LT-STR-* → STARTER
-//   LT-AGY-* → AGENCY  LT-CUS-* → CUSTOM
+// The plan is authoritative on the launchtic.com side (License.plan) and
+// returned by license verification — it is NOT derived from the key. Keys are
+// tier-agnostic (legacy keys may carry an LT-SOL-/LT-AGY- word, but it's
+// cosmetic and ignored).
 
 export type Plan = "SOLO" | "STARTER" | "AGENCY" | "CUSTOM";
 

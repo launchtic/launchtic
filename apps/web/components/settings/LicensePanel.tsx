@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { XCircle, Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles } from "lucide-react";
+import { XCircle, Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles, RefreshCw } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { planLabel, planColor } from "../../lib/plan";
 import { useRole } from "../../lib/role";
@@ -18,7 +18,7 @@ export default function LicensePanel() {
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openingPortal, setOpeningPortal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     apiFetch("/api/license")
@@ -27,32 +27,26 @@ export default function LicensePanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Open Stripe Customer Portal in a new tab — operator can update card,
-  // view invoices, or cancel subscription self-serve. Server proxies to
-  // launchtic.com/api/portal which returns a one-time portal URL.
-  async function openBillingPortal() {
-    setOpeningPortal(true);
+  // Force an immediate re-verify against launchtic.com (bypasses the 24h
+  // staleness gate) so a fresh renewal / upgrade shows up right away. Reload so
+  // both this panel and the Version panel re-read the updated state.
+  async function refresh() {
+    setRefreshing(true);
     setError(null);
     try {
-      const res  = await apiFetch("/api/billing/portal", { method: "POST" });
+      const res = await apiFetch("/api/license/refresh", { method: "POST" });
       const json = await res.json();
-      if (!res.ok || !json?.data?.url) {
-        setError(json?.error ?? "Could not open billing portal.");
+      if (!res.ok || !json.success) {
+        setError(json?.error ?? "Could not refresh license.");
+        setRefreshing(false);
         return;
       }
-      // Use top-level navigation, not window.open — popup blockers fire
-      // when the navigation is async and not directly from a click handler.
-      window.location.href = json.data.url;
+      window.location.reload();
     } catch {
       setError("Network error. Please try again.");
-    } finally {
-      setOpeningPortal(false);
+      setRefreshing(false);
     }
   }
-
-  // Plan color + label come from the shared helper. Enum values (SOLO/
-  // STARTER/AGENCY/CUSTOM) are the same names the operator sees in the UI —
-  // no mapping layer. A null plan = locked (no valid license).
 
   if (loading) {
     return (
@@ -74,15 +68,13 @@ export default function LicensePanel() {
       {/* Status hero — color-coded so the operator instantly sees license
           health when they land on this page. State derivation:
             - community  : free self-host, neutral gray (upgrade prompt)
-            - active     : paid + valid, green (auto-renew is healthy)
-            - expired    : paid + past expiresAt, RED with affected-features
-                           list so the operator understands what broke
-          Auto-renew billing means we don't surface a yellow "expiring soon"
-          state — Stripe charges before expiry, so a healthy sub never sees it. */}
-      <StatusHero status={status} onOpenPortal={openBillingPortal} openingPortal={openingPortal} isOwner={isOwner} />
+            - active     : paid + valid, green
+            - expired    : paid + past expiresAt, amber with a renew prompt
+          Management (renew / upgrade / billing) lives on launchtic.com/account,
+          so every action links there rather than embedding a billing portal. */}
+      <StatusHero status={status} isOwner={isOwner} />
 
-      {/* Portal-open error — inline alert, only renders on failure. Lives
-          here (not inside the hero) so the hero stays stable in size. */}
+      {/* Action error — inline alert, only renders on failure. */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-start gap-2">
           <XCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
@@ -90,11 +82,26 @@ export default function LicensePanel() {
         </div>
       )}
 
-      {/* Active key */}
+      {/* Active key + manual re-check on the right. Refresh forces an immediate
+          re-verify against launchtic.com (bypasses the 24h gate) — handy right
+          after renewing/upgrading instead of waiting up to a day. */}
       {status?.licenseKey && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">License Key</p>
-          <code className="text-sm font-mono text-gray-700">{status.licenseKey}</code>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">License Key</p>
+            <code className="text-sm font-mono text-gray-700 break-all">{status.licenseKey}</code>
+          </div>
+          {isOwner && status?.plan && (
+            <button
+              onClick={refresh}
+              disabled={refreshing}
+              title="Re-check plan & update window with launchtic.com"
+              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-60"
+            >
+              {refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -102,20 +109,15 @@ export default function LicensePanel() {
 }
 
 // ─── Status hero card ──────────────────────────────────────────────────────
-// Big color-coded card communicating license health at a glance. Three
-// visual states; copy adapts to each. No countdown noise for active subs
-// (Stripe auto-renews — the operator never needs to act on an active sub
-// unless they want to change card / cancel via the Manage subscription btn).
+// Big color-coded card communicating license health at a glance. Three visual
+// states; copy adapts to each. The primary action always points at
+// launchtic.com/account, the single home for renew / upgrade / billing.
 
 function StatusHero({
   status,
-  onOpenPortal,
-  openingPortal,
   isOwner,
 }: {
-  status:           LicenseStatus | null;
-  onOpenPortal:    () => void;
-  openingPortal:   boolean;
+  status: LicenseStatus | null;
   isOwner: boolean;
 }) {
   if (!status) return null;
@@ -191,8 +193,7 @@ function StatusHero({
           <p className={`text-xs ${variant.accent} opacity-70 mt-0.5 leading-snug`}>{variant.subtitle}</p>
         </div>
 
-        {/* Primary action — inline on right, only when there's room. Wraps
-            below the meta on narrow viewports via flex-wrap on the parent. */}
+        {/* Primary action — all license management lives on launchtic.com/account. */}
         {isLocked ? (
           <a
             href="https://launchtic.com/pricing"
@@ -214,18 +215,17 @@ function StatusHero({
             <ExternalLink size={11} />
           </a>
         ) : isOwner && (
-          <button
-            onClick={onOpenPortal}
-            disabled={openingPortal}
-            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-60 leading-none bg-white hover:bg-gray-50 text-gray-700 border border-gray-200"
+          <a
+            href="https://launchtic.com/account"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg leading-none bg-white hover:bg-gray-50 text-gray-700 border border-gray-200"
           >
-            {openingPortal ? <Loader2 size={11} className="animate-spin" /> : <ExternalLink size={11} />}
+            <ExternalLink size={11} />
             <span>Manage license</span>
-          </button>
+          </a>
         )}
       </div>
-      {/* No "reverted features" block — under the perpetual model nothing is
-          revoked when the update window ends; the tier's features stay on. */}
     </div>
   );
 }
