@@ -13,7 +13,12 @@ const apiCall = async <T = any>(url: string, options: RequestInit = {}): Promise
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     ...options,
   });
-  if (!res.ok) throw new Error(`API Error: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    // Prefer the server's JSON error (e.g. the demo-gate 403 message) over the
+    // generic status text.
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || body?.message || `API Error: ${res.status} ${res.statusText}`);
+  }
   return res.json();
 };
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Loader2, Plus, Pencil, Trash2, Check, X, Building2, Copy } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, X, Building2, Copy } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
@@ -66,39 +66,6 @@ export default function WorkspacePanel({
     setItems((prev) => [...prev, ws]);
     setShowCreate(false);
     setNewName("");
-  }
-
-  // ── Rename ─────────────────────────────────────────────────
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [renameSaving, setRenameSaving] = useState(false);
-  const [renameError, setRenameError] = useState<string | null>(null);
-
-  function startRename(ws: Workspace) {
-    setRenamingId(ws.id);
-    setRenameValue(ws.name);
-    setRenameError(null);
-  }
-
-  async function saveRename(ws: Workspace) {
-    const trimmed = renameValue.trim();
-    if (!trimmed || trimmed === ws.name) { setRenamingId(null); return; }
-    setRenameSaving(true);
-    setRenameError(null);
-    const res = await apiFetch(`/api/workspaces/${ws.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmed }),
-    });
-    const json = await res.json();
-    setRenameSaving(false);
-    if (!res.ok) { setRenameError(json.error ?? "Failed to rename"); return; }
-    setItems((prev) => prev.map((w) => w.id === ws.id ? { ...w, name: trimmed } : w));
-    if (ws.id === activeId) {
-      await update({ workspaceName: trimmed });
-      router.refresh();
-    }
-    setRenamingId(null);
   }
 
   // ── Clone ──────────────────────────────────────────────────
@@ -207,7 +174,6 @@ export default function WorkspacePanel({
           const isActive   = ws.id === activeId;
           const isOwner    = ws.ownerId === userId;
           const isLast     = isOwner && ownedCount <= 1;
-          const isRenaming = renamingId === ws.id;
 
           return (
             <div
@@ -219,38 +185,9 @@ export default function WorkspacePanel({
                 <Building2 size={14} className={isActive ? "text-blue-600" : "text-gray-400"} />
               </div>
 
-              {/* Name / inline rename */}
+              {/* Name */}
               <div className="flex-1 min-w-0">
-                {isRenaming ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveRename(ws);
-                        if (e.key === "Escape") setRenamingId(null);
-                      }}
-                      className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {renameSaving
-                      ? <Loader2 size={14} className="animate-spin text-gray-400 ml-1" />
-                      : <>
-                          <button onClick={() => saveRename(ws)} className="p-1 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                            <Check size={14} />
-                          </button>
-                          <button onClick={() => setRenamingId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
-                            <X size={14} />
-                          </button>
-                        </>
-                    }
-                  </div>
-                ) : (
-                  <p className="text-sm font-medium text-gray-900 truncate">{ws.name}</p>
-                )}
-                {renameError && renamingId === null && (
-                  <p className="text-xs text-red-600 mt-0.5">{renameError}</p>
-                )}
+                <p className="text-sm font-medium text-gray-900 truncate">{ws.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{isOwner ? "Owner" : "Member"}</p>
               </div>
 
@@ -270,14 +207,6 @@ export default function WorkspacePanel({
                     className="px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
                   >
                     {switchingId === ws.id ? <Loader2 size={12} className="animate-spin" /> : "Switch"}
-                  </button>
-                )}
-                {isOwner && !isRenaming && (
-                  <button
-                    onClick={() => startRename(ws)}
-                    className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <Pencil size={13} />
                   </button>
                 )}
                 {isOwner && (

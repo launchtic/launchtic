@@ -1,6 +1,7 @@
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getRendererUrl } from "../../../../../lib/system-config";
+import { maskInDemo } from "../../../../../lib/demo";
 import PaymentPanel from "../../../../../components/settings/PaymentPanel";
 
 export const metadata = { title: "Payment Settings" };
@@ -25,13 +26,13 @@ export default async function Page({
       <PaymentPanel
         stripe={stripe ? {
           publishableKey: stripe.publishableKey ?? "",
-          secretKey:      stripe.secretKey ?? "",
-          webhookSecret:  stripe.webhookSecret ?? null,
+          secretKey:      maskInDemo(stripe.secretKey ?? ""),
+          webhookSecret:  stripe.webhookSecret ? maskInDemo(stripe.webhookSecret) : null,
           mode:           stripe.mode ?? "test",
         } : null}
         paypal={paypal ? {
           clientId:     paypal.clientId ?? "",
-          clientSecret: paypal.clientSecret ?? "",
+          clientSecret: maskInDemo(paypal.clientSecret ?? ""),
           webhookId:    paypal.webhookId ?? null,
           mode:         paypal.mode ?? "sandbox",
         } : null}

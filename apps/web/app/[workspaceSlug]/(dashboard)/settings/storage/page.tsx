@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
+import { maskInDemo } from "../../../../../lib/demo";
 import StoragePanel from "../../../../../components/settings/StoragePanel";
 
 export const metadata = { title: "Storage" };
@@ -46,11 +47,10 @@ export default async function Page({
           region:    storage.region    ?? "",
           bucket:    storage.bucket    ?? "",
           accessKey: storage.accessKey ?? "",
-          // Plaintext to owner — UI uses the password input + eye toggle to
-          // hide-by-default. Same pattern as Stripe/AI keys. (We previously
-          // tried masking with bullets but that string would get echoed back
-          // to S3 signing and fail.)
-          secretKey: storage.secretKey ?? "",
+          // Plaintext to the real owner (UI hides via password input + eye
+          // toggle). Masked only in the demo — safe there because storage save
+          // is gated, so the bullets can never be echoed back to S3 signing.
+          secretKey: maskInDemo(storage.secretKey ?? ""),
           publicUrl: storage.publicUrl  ?? "",
         } : null}
         assetCounts={assetCounts}

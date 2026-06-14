@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { demoGuard } from "../../../lib/demo";
 import { getEffectivePlan } from "../../../lib/organization";
 import { isPaidPlan, canInviteTeamMember } from "../../../lib/plan";
 
@@ -59,6 +60,8 @@ const inviteSchema = z.object({
 // the given role. Validates that roleId belongs to this workspace.
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
     const { workspaceId, userId: callerId } = r;

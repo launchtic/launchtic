@@ -174,11 +174,6 @@ export default function AiAssistantPanel() {
           <AlertCircle size={14} /> API key on file but assistant is disabled.
         </div>
       )}
-      {switchingProvider && (
-        <div className="mt-4 mb-4 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
-          <AlertCircle size={14} /> Switching providers — enter a new API key for {currentProvider.label}.
-        </div>
-      )}
 
       <div className="space-y-4 mt-4">
         <div>

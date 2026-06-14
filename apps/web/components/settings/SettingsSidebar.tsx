@@ -43,7 +43,6 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
     label: "ACCOUNT",
     items: [
       { segment: "profile", label: "Profile", icon: UserCircle },
-      { segment: "general", label: "General", icon: Settings2, freeOnly: true, requirePerm: "settings:general:read" },
     ],
   },
   // ORGANIZATION section = org-wide concerns (affect every workspace under
@@ -61,6 +60,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
   {
     label: "WORKSPACE",
     items: [
+      { segment: "general",        label: "General",          icon: Settings2,                      requirePerm: "settings:general:read"          },
       { segment: "team",           label: "Team",             icon: Users,        starterPlus: true, requirePerm: "members:read"                 },
       { segment: "roles",          label: "Roles",            icon: Shield,       starterPlus: true, requirePerm: "roles:read"                   },
       { segment: "domains",        label: "Custom Domains",   icon: Globe,                          requirePerm: "settings:domains:read"          },

@@ -21,6 +21,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("roles:manage");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
