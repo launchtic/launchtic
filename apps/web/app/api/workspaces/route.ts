@@ -4,6 +4,7 @@ import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
 import { canCreateWorkspace } from "../../../lib/plan";
 import { getOrganizationForOwner, getEffectivePlan } from "../../../lib/organization";
+import { demoGuard } from "../../../lib/demo";
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -19,6 +20,8 @@ function slugify(name: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const userId = await getUserId();
     if (!userId) return err("Unauthorized", 401);
 

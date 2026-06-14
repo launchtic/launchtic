@@ -453,93 +453,6 @@ function CreateTemplateModal({ onClose, onCreate }: { onClose: () => void; onCre
   );
 }
 
-/* ─── Import from systeme.io ─── */
-function ImportSystemeModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const [url, setUrl] = useState("");
-  const [type, setType] = useState<StepType>("CUSTOM");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ id: string; name: string; nodeCount: number; warnings: string[] } | null>(null);
-
-  async function handleImport(e: React.FormEvent) {
-    e.preventDefault();
-    if (!url.trim()) return;
-    setSaving(true); setError(null);
-    const res = await apiFetch("/api/page-templates/import-systeme", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url.trim(), type }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (!res.ok) { setError(json.error ?? "Import failed"); return; }
-    setResult(json.data);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-gray-900">Import from systeme.io</h2>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"><X size={16} /></button>
-        </div>
-
-        {result ? (
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-gray-900">{result.name}</p>
-              <p className="text-xs text-gray-500">{result.nodeCount} elements imported</p>
-            </div>
-            {result.warnings.length > 0 && (
-              <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs font-semibold text-amber-700 mb-1">Not auto-imported ({result.warnings.length}) — add in the editor:</p>
-                <ul className="list-disc list-inside text-xs text-amber-700/90 space-y-0.5">
-                  {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
-                </ul>
-              </div>
-            )}
-            <button onClick={() => onCreated(result.id)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
-              Open in editor
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleImport} className="space-y-4">
-            {error && <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{error}</div>}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Published systeme.io URL <span className="text-red-500">*</span></label>
-              <input required value={url} onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://…systeme.io/…"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <p className="mt-1 text-[11px] text-gray-400">Layout, text and images are imported. Buttons / forms / FAQ are skipped — rebuild them in the editor. Only import pages you have the rights to use.</p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Type</label>
-              <div className="grid grid-cols-2 gap-2">
-                {STEP_TYPES.map((s) => (
-                  <button key={s.value} type="button" onClick={() => setType(s.value)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-medium transition-colors ${
-                      type === s.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    }`}>
-                    <span className={`${s.color} p-1 rounded-md`}>{s.icon}</span>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button type="submit" disabled={saving || !url.trim()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition-colors mt-2">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-              Import
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ─── Main Panel ─── */
 export default function PageTemplatesPanel() {
   const { canManagePageTemplates } = useRole();
@@ -555,7 +468,6 @@ export default function PageTemplatesPanel() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [navigating, setNavigating] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [settingsFor, setSettingsFor] = useState<Template | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
@@ -690,12 +602,6 @@ export default function PageTemplatesPanel() {
             </select>
             <ChevronRight size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 rotate-90 pointer-events-none" />
           </div>
-          {canManagePageTemplates && (
-            <button onClick={() => setShowImport(true)}
-              className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shrink-0">
-              <Download size={16} /> Import
-            </button>
-          )}
           {canManagePageTemplates && (
             <button onClick={() => setShowCreate(true)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shrink-0">
@@ -878,7 +784,6 @@ export default function PageTemplatesPanel() {
       </div>
 
       {showCreate && <CreateTemplateModal onClose={() => setShowCreate(false)} onCreate={handleCreated} />}
-      {showImport && <ImportSystemeModal onClose={() => setShowImport(false)} onCreated={handleCreated} />}
       {settingsFor && <TemplateSettingsPanel template={settingsFor} onClose={() => setSettingsFor(null)} onSaved={handleSaved} />}
     </div>
   );

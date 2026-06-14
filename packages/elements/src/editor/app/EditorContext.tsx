@@ -107,8 +107,8 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
         console.log('Page saved successfully:', response);
         setHasUnsavedChanges(false);
       } else {
-        console.error('Failed to save page:', response.message);
-        throw new Error(response.message || 'Failed to save page');
+        console.error('Failed to save page:', response.error ?? response.message);
+        throw new Error(response.error || response.message || 'Failed to save page');
       }
     } catch (error) {
       console.error('Failed to save page:', error);

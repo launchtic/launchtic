@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { demoGuard } from "../../../lib/demo";
 import { defaultPageJson } from "../../../lib/default-page-json";
 import { extractSlotsFromPageJson } from "../../../lib/page-templates/slots";
 
@@ -68,6 +69,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:page_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

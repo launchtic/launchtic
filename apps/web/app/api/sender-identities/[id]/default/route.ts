@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { demoGuard } from "../../../../../lib/demo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -9,6 +10,8 @@ type Params = { params: Promise<{ id: string }> };
 // transaction.
 export async function POST(_req: NextRequest, { params }: Params) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:email:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
