@@ -136,7 +136,7 @@ export default function StoragePanel({
         body: JSON.stringify({ driver, endpoint, region, bucket, accessKey, secretKey: secretKey || "__KEEP__", publicUrl }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.message ?? "Failed to save");
+      if (!json.success) throw new Error(json.error ?? "Failed to save");
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
