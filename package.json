@@ -45,7 +45,8 @@
       "sharp"
     ],
     "overrides": {
-      "@tiptap/pm": "2.27.2"
+      "@tiptap/pm": "2.27.2",
+      "esbuild": ">=0.25.0"
     }
   },
   "devDependencies": {
