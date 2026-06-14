@@ -4,7 +4,7 @@
 # content, then let cron restore it on a schedule.
 #
 #   ./demo-reset.sh snapshot   # capture current DB + uploads as the baseline
-#   ./demo-reset.sh            # restore the baseline (run by cron, e.g. every 6h)
+#   ./demo-reset.sh            # restore the baseline (run by cron, e.g. every 2h)
 #
 # Run from the Launchtic install dir (where docker-compose.yml + .env live).
 set -euo pipefail

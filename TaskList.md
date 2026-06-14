@@ -6,8 +6,11 @@ Ship xong cuoi thang nay. 30/5/2026:
 + Tao demo cho app... Xu ly demo
 + Submit Google index
 + Xay dung thu vien templates.. funnels, emails, workflows...
+  
 - Main site:
 + Test ky: one cmd install with license
++ Upsell va downsell template defaults.
++ Xu ly import bundle funnels, templates...
 + Test webhook Paypal.
 + AI auto create workflows
 

@@ -17,6 +17,7 @@ import { db } from "@launchtic/database";
 import { getPlanFeatures } from "../../../lib/plan";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { demoGuard } from "../../../lib/demo";
 import { getBranding, saveBranding, resetBranding } from "../../../lib/branding";
 
 // Patch schema — every field optional, UI sends only what changed.
@@ -42,6 +43,11 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
+    // Block in demo — changing the shared instance's branding would persist
+    // for every other visitor until the next reset.
+    const blocked = demoGuard();
+    if (blocked) return blocked;
+
     const r = await requireAccess();
     if (!r.ok) return r.response;
     if (!r.isOwner) return err("Only the Organization owner can change white-label config.", 403);
@@ -71,6 +77,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE() {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
+
     const r = await requireAccess();
     if (!r.ok) return r.response;
     if (!r.isOwner) return err("Only the Organization owner can reset white-label config.", 403);

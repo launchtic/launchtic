@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess, ALL_PERMISSIONS } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 import { getEffectivePlan } from "../../../../lib/organization";
 import { isPaidPlan } from "../../../../lib/plan";
 
@@ -102,6 +103,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
+
     const r = await requireAccess("roles:manage");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

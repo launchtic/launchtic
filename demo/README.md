@@ -19,7 +19,7 @@ Set `DEMO_MODE=true` in the install `.env`. Then the app:
   contacts, draft emails) works so the product feels real.
 
 Building funnels/contacts/pages is allowed — that's the point — so it gets messy
-between resets. The 6-hour reset cleans it up.
+between resets. The 2-hour reset cleans it up.
 
 ## One-time setup
 
@@ -66,9 +66,9 @@ between resets. The 6-hour reset cleans it up.
 
 ## Scheduled reset
 
-Restore the baseline every 6 hours via cron:
+Restore the baseline every 2 hours via cron:
 ```cron
-0 */6 * * * cd /root/launchtic && ./demo-reset.sh restore >> /var/log/demo-reset.log 2>&1
+0 */2 * * * cd /root/launchtic && ./demo-reset.sh restore >> /var/log/demo-reset.log 2>&1
 ```
 `restore` stops web/worker/renderer, `pg_restore --clean` the baseline, restores
 uploads, and starts the services again (clearing in-process caches). `.env`,
