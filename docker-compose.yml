@@ -16,6 +16,11 @@ services:
       # The image tag this stack runs — shown in Settings → License + compared
       # against launchtic.com/api/version to surface "update available".
       LAUNCHTIC_VERSION: ${LAUNCHTIC_VERSION:-stable}
+      # Public demo (demo.launchtic.com only — leave default for real installs):
+      # auto-login as the demo user + block risky actions + suppress email.
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DEMO_EMAIL: ${DEMO_EMAIL:-demo@launchtic.com}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-launchtic-demo}
       # APP_DOMAIN, PAGES_DOMAIN, APP_URL, RENDERER_URL are no longer required
       # at boot — the first-run wizard writes them to the SystemConfig table
       # and apps read from DB via lib/system-config.ts. NextAuth uses
@@ -54,6 +59,8 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/launchtic
       REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # Demo: suppress outbound email at the send chokepoint.
+      DEMO_MODE: ${DEMO_MODE:-false}
       # Worker reads APP_URL / RENDERER_URL from SystemConfig at runtime via
       # lib/system-config.ts (60s cache). Env vars no longer required.
     depends_on:

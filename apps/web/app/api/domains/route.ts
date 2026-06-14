@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@launchtic/database";
 import { requireAccess } from "../../../lib/permissions";
+import { demoGuard } from "../../../lib/demo";
 import { ensureDefaultDomain } from "../../../lib/domains/default-domain";
 import { getOrganizationForWorkspace, getEffectivePlan } from "../../../lib/organization";
 import { canAddDomain, getPlanFeatures } from "../../../lib/plan";
@@ -22,6 +23,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const blocked = demoGuard();
+  if (blocked) return blocked;
   const r = await requireAccess("settings:domains:write");
   if (!r.ok) return r.response;
   const { workspaceId } = r;

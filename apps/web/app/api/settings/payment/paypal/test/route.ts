@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, err, handleError } from "../../../../../../lib/api";
 import { requireAccess } from "../../../../../../lib/permissions";
+import { demoGuard } from "../../../../../../lib/demo";
 
 const schema = z.object({
   clientId:     z.string().min(1),
@@ -11,6 +12,8 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:payment:read");
     if (!r.ok) return r.response;
 

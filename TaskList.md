@@ -3,7 +3,7 @@
 Ship xong cuoi thang nay. 30/5/2026:
 
 - Marketing site:
-+ Tao demo cho app
++ Tao demo cho app... Xu ly demo
 + Submit Google index
 + Xay dung thu vien templates.. funnels, emails, workflows...
 - Main site:

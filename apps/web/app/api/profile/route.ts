@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@launchtic/database";
 import { ok, err, handleError, getUserId } from "../../../lib/api";
+import { demoGuard } from "../../../lib/demo";
 
 const updateSchema = z.object({
   name:            z.string().min(1).max(100).optional(),
@@ -29,6 +30,9 @@ export async function PATCH(req: NextRequest) {
 
     // Verify current password before allowing password change.
     if (body.newPassword) {
+      // Block in demo — a password change would lock every other visitor out.
+      const blocked = demoGuard();
+      if (blocked) return blocked;
       const valid = await bcrypt.compare(body.currentPassword!, user.passwordHash);
       if (!valid) return err("Current password is incorrect.", 400);
     }

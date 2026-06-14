@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 import { getEffectivePlan } from "../../../../lib/organization";
 import { isPaidPlan } from "../../../../lib/plan";
 
@@ -21,6 +22,8 @@ export async function PATCH(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
     const { workspaceId, organizationId } = r;
@@ -83,6 +86,8 @@ export async function DELETE(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("members:manage");
     if (!r.ok) return r.response;
     const { workspaceId, userId: callerId, organizationId } = r;

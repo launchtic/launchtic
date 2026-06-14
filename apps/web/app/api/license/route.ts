@@ -4,6 +4,7 @@ import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
 import { verifyLicenseKey } from "../../../lib/license";
+import { demoGuard } from "../../../lib/demo";
 
 const activateSchema = z.object({
   licenseKey: z.string().min(10),
@@ -13,6 +14,10 @@ const activateSchema = z.object({
 // Owner-only — invited team members get 403 here.
 export async function POST(req: NextRequest) {
   try {
+    // Block in demo — replacing the demo license would break the sandbox.
+    const blocked = demoGuard();
+    if (blocked) return blocked;
+
     const r = await requireAccess();
     if (!r.ok) return r.response;
     if (!r.isOwner) return err("Owner-only", 403);

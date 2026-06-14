@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 import { getDriver, getDriverName, LocalDriver, type StorageDriver } from "../../../../lib/storage";
 
 const updateSchema = z.object({
@@ -43,6 +44,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // DELETE /api/workspaces/[id] — delete workspace (owner only, not last workspace)
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess();
     if (!r.ok) return r.response;
     const { userId } = r;

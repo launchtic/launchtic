@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 import { invalidateAllPagesForWorkspace } from "../../../../lib/funnels/step-cache";
 
 const stripeSchema = z.object({
@@ -59,6 +60,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:payment:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

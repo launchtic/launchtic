@@ -41,6 +41,14 @@ export async function sendEmail(
   smtp: SmtpConfig,
   input: SendEmailInput,
 ): Promise<SendEmailResult> {
+  // Public demo: never deliver real mail. Log + return a simulated success so
+  // broadcasts / automations / invites still "complete" in the UI. This is the
+  // single outbound chokepoint, so it covers every send path at once.
+  if (process.env.DEMO_MODE === "true") {
+    console.log(`[demo] Suppressed email to ${input.to} — "${input.subject}"`);
+    return { messageId: `demo-${Date.now()}`, accepted: [input.to], rejected: [] };
+  }
+
   const transporter = createTransporter(smtp);
 
   const result = await transporter.sendMail({

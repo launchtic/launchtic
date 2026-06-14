@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 import { getPublicAiSettings, saveAiSettings, deleteAiSettings } from "../../../../lib/ai/settings";
 
 const updateSchema = z.object({
@@ -25,6 +26,8 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:ai:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
@@ -38,6 +41,8 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE() {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:ai:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

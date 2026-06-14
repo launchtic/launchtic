@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 
 // Storage config lives on Organization (single bucket shared by every
 // workspace under the org; files isolated via {workspaceId}/... path prefix).
@@ -64,6 +65,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess();
     if (!r.ok) return r.response;
     const { workspaceId, isOwner } = r;

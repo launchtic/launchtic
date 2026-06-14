@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { demoGuard } from "../../../../../lib/demo";
 import { buildDriver } from "../../../../../lib/storage";
 
 // POST /api/settings/storage/test
@@ -33,6 +34,8 @@ const KEEP = "__KEEP__";
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess();
     if (!r.ok) return r.response;
     const { workspaceId, isOwner } = r;
