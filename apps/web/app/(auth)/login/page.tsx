@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import LoginForm from "./LoginForm";
-import DemoAutoEnter from "./DemoAutoEnter";
-import { demoEnter } from "./actions";
-import { isDemoMode } from "../../../lib/demo";
+import { isDemoMode, DEMO_EMAIL, DEMO_PASSWORD } from "../../../lib/demo";
 import { getInstallationBranding } from "../../../lib/branding";
 
 // First-run gate: a fresh install has no users in the DB. Redirect callers
@@ -20,15 +18,21 @@ export default async function LoginPage() {
   const userCount = await db.user.count();
   if (userCount === 0) redirect("/setup");
 
-  // Public demo: skip the form, auto-sign-in as the shared demo user.
-  if (isDemoMode()) {
-    return <DemoAutoEnter action={demoEnter} />;
-  }
-
   // Self-host: one Organization per install. Use the installation's branding
   // for login chrome (logo + favicon + tab title) so an agency's clients
   // never see launchtic at the login page.
   const branding = await getInstallationBranding();
 
-  return <LoginForm brandLogoUrl={branding.logoUrl} brandName={branding.brandName} />;
+  // In the public demo, hand the form the shared credentials so visitors can
+  // one-click fill them (no auto-login — they click Sign in themselves).
+  const demo = isDemoMode();
+
+  return (
+    <LoginForm
+      brandLogoUrl={branding.logoUrl}
+      brandName={branding.brandName}
+      demoEmail={demo ? DEMO_EMAIL : undefined}
+      demoPassword={demo ? DEMO_PASSWORD : undefined}
+    />
+  );
 }

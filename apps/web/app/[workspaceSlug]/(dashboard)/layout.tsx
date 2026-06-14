@@ -6,6 +6,7 @@ import { getEffectivePlan } from "../../../lib/organization";
 import { getActiveBranding } from "../../../lib/branding";
 import { requireWorkspaceFromSlug } from "../../../lib/permissions";
 import TopNav from "../../../components/TopNav";
+import DemoBanner from "../../../components/DemoBanner";
 import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
 import { ToastProvider } from "../../../components/ui/Toast";
 import { UnsavedChangesProvider } from "../../../contexts/UnsavedChangesContext";
@@ -95,6 +96,7 @@ export default async function DashboardLayout({
               injected into <head> by Next). No client effect needed. */}
           <NextTopLoader color="#2563eb" height={3} showSpinner={false} />
           <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
+            <DemoBanner />
             <TopNav
               name={fullName}
               email={user?.email ?? ""}
