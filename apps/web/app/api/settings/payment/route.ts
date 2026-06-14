@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { demoGuard } from "../../../../lib/demo";
+import { demoGuard, maskInDemo } from "../../../../lib/demo";
 import { invalidateAllPagesForWorkspace } from "../../../../lib/funnels/step-cache";
 
 const stripeSchema = z.object({
@@ -41,13 +41,13 @@ export async function GET() {
     return ok({
       stripe: stripe ? {
         publishableKey: stripe.publishableKey ?? "",
-        secretKey:      stripe.secretKey ?? "",
-        webhookSecret:  stripe.webhookSecret ?? null,
+        secretKey:      maskInDemo(stripe.secretKey ?? ""),
+        webhookSecret:  stripe.webhookSecret ? maskInDemo(stripe.webhookSecret) : null,
         mode:           stripe.mode ?? "test",
       } : null,
       paypal: paypal ? {
         clientId:     paypal.clientId ?? "",
-        clientSecret: paypal.clientSecret ?? "",
+        clientSecret: maskInDemo(paypal.clientSecret ?? ""),
         webhookId:    paypal.webhookId ?? null,
         mode:         paypal.mode ?? "sandbox",
       } : null,

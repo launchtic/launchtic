@@ -281,7 +281,7 @@ export type SmtpConfigInput = {
   host: string;
   port: number;
   username: string;
-  password: string; // plain — encrypted before being saved to DB
+  password: string; // plaintext (stored as-is, like Stripe/AI keys)
   fromEmail: string;
   fromName: string;
   maxPerSecond?: number;

@@ -1,6 +1,5 @@
 // Server-only entry point. Pulls in nodemailer + node:crypto.
 // Do NOT import from this file in a client component or browser bundle.
-export { encrypt, decrypt } from "./crypto";
 export {
   render,
   renderEmailContent,

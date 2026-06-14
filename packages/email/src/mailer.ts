@@ -1,12 +1,11 @@
 import nodemailer, { type Transporter } from "nodemailer";
-import { decrypt } from "./crypto";
 
 export type SmtpConfig = {
   provider: string;
   host: string;
   port: number;
   username: string;
-  passwordEnc: string;
+  password: string;
   maxPerDay?: number;
   maxPerSecond?: number;
   maxConcurrent?: number;
@@ -28,12 +27,11 @@ export type SendEmailResult = {
 };
 
 export function createTransporter(smtp: SmtpConfig): Transporter {
-  const password = decrypt(smtp.passwordEnc);
   return nodemailer.createTransport({
     host: smtp.host,
     port: smtp.port,
     secure: smtp.port === 465,
-    auth: { user: smtp.username, pass: password },
+    auth: { user: smtp.username, pass: smtp.password },
   });
 }
 

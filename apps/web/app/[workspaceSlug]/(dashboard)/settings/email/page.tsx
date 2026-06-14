@@ -1,14 +1,9 @@
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
-import { decrypt } from "../../../../../lib/crypto";
+import { maskInDemo } from "../../../../../lib/demo";
 import EmailSettings from "../../../../../components/settings/EmailSettings";
 
 export const metadata = { title: "Email Settings" };
-
-function safeDecrypt(enc: string): string {
-  if (!enc) return "";
-  try { return decrypt(enc); } catch { return ""; }
-}
 
 export default async function Page({
   params,
@@ -37,7 +32,7 @@ export default async function Page({
           host:          smtp.host ?? "",
           port:          smtp.port ?? 587,
           username:      smtp.username ?? "",
-          password:      safeDecrypt(smtp.passwordEnc ?? ""),
+          password:      maskInDemo(smtp.password ?? ""),
           maxPerDay:     smtp.maxPerDay     ?? 10000,
           maxPerSecond:  smtp.maxPerSecond  ?? 1,
           maxConcurrent: smtp.maxConcurrent ?? 1,

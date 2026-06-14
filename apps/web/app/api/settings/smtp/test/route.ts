@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const smtp = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
-    if (!smtp?.host || !smtp?.passwordEnc) return err("SMTP not configured", 400);
+    if (!smtp?.host || !smtp?.password) return err("SMTP not configured", 400);
 
     // Pick the workspace's default Sender Identity for the From address. SMTP
     // no longer carries a sender, so we need at least one identity to test.
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       host: String(smtp.host),
       port: Number(smtp.port ?? 587),
       username: String(smtp.username ?? ""),
-      passwordEnc: String(smtp.passwordEnc),
+      password: String(smtp.password),
     };
 
     await sendEmail(config, {

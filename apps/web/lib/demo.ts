@@ -19,3 +19,12 @@ export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "launchtic-demo";
 export function demoGuard() {
   return isDemoMode() ? err("This action is disabled in the live demo.", 403) : null;
 }
+
+// Hide a secret in the public demo. Settings GETs return real secrets for the
+// operator's reveal toggle — but demo visitors share the owner account, so we
+// mask Stripe/PayPal/S3/AI secrets there. Empty stays empty; real installs are
+// untouched. (App still uses the real values server-side for actual calls.)
+export function maskInDemo(value: string | null | undefined): string {
+  const v = value ?? "";
+  return isDemoMode() && v ? "••••••••" : v;
+}

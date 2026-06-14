@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { demoGuard } from "../../../../lib/demo";
+import { demoGuard, maskInDemo } from "../../../../lib/demo";
 
 // Storage config lives on Organization (single bucket shared by every
 // workspace under the org; files isolated via {workspaceId}/... path prefix).
@@ -53,8 +53,8 @@ export async function GET() {
       bucket:    s?.bucket    ?? "",
       accessKey: s?.accessKey ?? "",
       // Plaintext — owner-only endpoint. UI hides via password input + eye
-      // toggle. Same pattern as Stripe/AI key settings.
-      secretKey: s?.secretKey ?? "",
+      // toggle. Same pattern as Stripe/AI key settings. Masked in demo.
+      secretKey: maskInDemo(s?.secretKey ?? ""),
       publicUrl: s?.publicUrl ?? "",
     });
   } catch (error) {

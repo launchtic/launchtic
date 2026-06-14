@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // SMTP check — fail fast in API rather than letting worker fail the whole batch
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const smtp = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
-    if (!smtp?.host || !smtp?.passwordEnc) {
+    if (!smtp?.host || !smtp?.password) {
       return err("SMTP not configured. Configure it in Settings → SMTP first.", 400);
     }
 

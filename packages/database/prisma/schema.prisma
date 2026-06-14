@@ -794,7 +794,7 @@ model WorkspaceSettings {
   // Each field is a JSONB blob — no migration needed when adding fields
   stripe      Json? // { publishableKey, secretKey, webhookSecret, mode }
   paypal      Json? // { clientId, clientSecret, webhookId, mode }
-  smtp        Json? // { provider, host, port, username, passwordEnc, maxPerDay }
+  smtp        Json? // { provider, host, port, username, password, maxPerDay }
   // NOTE: storage moved to Organization.storage (org-wide, single bucket
   // shared by every workspace under the org). Column dropped in migration
   // 20260524_drop_workspace_storage.

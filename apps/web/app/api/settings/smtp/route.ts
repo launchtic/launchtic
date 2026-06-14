@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { encrypt, decrypt } from "../../../../lib/crypto";
+import { maskInDemo } from "../../../../lib/demo";
 
 const KEEP = "__KEEP__";
 
@@ -33,7 +33,7 @@ export async function GET() {
       host:          smtp.host,
       port:          smtp.port,
       username:      smtp.username,
-      password:      maskSecret(safeDecrypt(smtp.passwordEnc ?? "")),
+      password:      maskInDemo(smtp.password ?? ""),
       maxPerDay:     smtp.maxPerDay     ?? 10000,
       maxPerSecond:  smtp.maxPerSecond  ?? 1,
       maxConcurrent: smtp.maxConcurrent ?? 1,
@@ -55,12 +55,12 @@ export async function POST(req: NextRequest) {
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const existing = settings?.smtp as any;
 
-    let passwordEnc: string;
+    let password: string;
     if (body.password === KEEP) {
-      if (!existing?.passwordEnc) return err("No existing SMTP config to keep password from", 400);
-      passwordEnc = existing.passwordEnc;
+      if (!existing?.password) return err("No existing SMTP config to keep password from", 400);
+      password = existing.password;
     } else {
-      passwordEnc = encrypt(body.password);
+      password = body.password;
     }
 
     const smtpData = {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       host:          body.host,
       port:          body.port,
       username:      body.username,
-      passwordEnc,
+      password,
       maxPerDay:     body.maxPerDay,
       maxPerSecond:  body.maxPerSecond,
       maxConcurrent: body.maxConcurrent,
@@ -85,14 +85,4 @@ export async function POST(req: NextRequest) {
     console.error(error);
     return err("Failed to save SMTP config", 500);
   }
-}
-
-function maskSecret(s: string) {
-  if (s.length <= 8) return "••••••••";
-  return s.slice(0, 8) + "••••••••" + s.slice(-4);
-}
-
-function safeDecrypt(enc: string): string {
-  if (!enc) return "";
-  try { return decrypt(enc); } catch { return ""; }
 }

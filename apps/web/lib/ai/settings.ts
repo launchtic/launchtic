@@ -14,6 +14,7 @@
 //   3. Add factory branch in lib/ai/llm.ts → getModel()
 
 import { db } from "@launchtic/database";
+import { maskInDemo } from "../demo";
 
 export type AiProvider = "anthropic" | "google" | "deepseek" | "openai";
 
@@ -114,7 +115,9 @@ export async function getPublicAiSettings(workspaceId: string): Promise<PublicAi
     model: ai.model,
     enabled: ai.enabled,
     hasApiKey: true,
-    apiKey: ai.apiKey,
+    // Masked in the public demo so visitors (sharing the owner account) can't
+    // read the BYOK key. Actual LLM calls use getApiKey() with the real value.
+    apiKey: maskInDemo(ai.apiKey),
   };
 }
 

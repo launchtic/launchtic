@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const smtp = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
-    if (!smtp?.host || !smtp?.passwordEnc) {
+    if (!smtp?.host || !smtp?.password) {
       return err("SMTP not configured. Set up SMTP in Settings first.", 400);
     }
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       host: String(smtp.host),
       port: Number(smtp.port ?? 587),
       username: String(smtp.username ?? ""),
-      passwordEnc: String(smtp.passwordEnc),
+      password: String(smtp.password),
     };
 
     await sendEmail(config, {

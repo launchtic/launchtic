@@ -33,7 +33,7 @@ function resolveScheduledAt(requested: Date, now: Date): { final: Date; bumped: 
 async function ensureSmtpConfigured(workspaceId: string) {
   const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
   const smtp = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
-  if (!smtp?.host || !smtp?.passwordEnc) {
+  if (!smtp?.host || !smtp?.password) {
     throw new Error("SMTP not configured. Configure it in Settings → SMTP first.");
   }
 }

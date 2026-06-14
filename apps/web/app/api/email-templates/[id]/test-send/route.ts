@@ -35,14 +35,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!sender) return err("Add a Sender Identity in Settings before sending.", 400);
 
     const smtpRaw = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
-    if (!smtpRaw?.host || !smtpRaw?.passwordEnc) return err("SMTP not configured", 400);
+    if (!smtpRaw?.host || !smtpRaw?.password) return err("SMTP not configured", 400);
 
     const smtp: SmtpConfig = {
       provider: String(smtpRaw.provider ?? "CUSTOM"),
       host: String(smtpRaw.host),
       port: Number(smtpRaw.port ?? 587),
       username: String(smtpRaw.username ?? ""),
-      passwordEnc: String(smtpRaw.passwordEnc),
+      password: String(smtpRaw.password),
     };
 
     const workspaceName = workspace?.name ?? "Your Workspace";

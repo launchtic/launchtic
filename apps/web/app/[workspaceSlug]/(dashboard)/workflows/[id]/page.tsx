@@ -42,7 +42,9 @@ export default async function WorkflowEditorPage({
       select: { id: true, name: true, email: true, isDefault: true },
     }),
     db.funnel.findMany({
-      where: { workspaceId }, orderBy: { name: "asc" },
+      // Only ACTIVE funnels are valid trigger-scope targets — a trashed funnel
+      // serves no pages, so its events never fire. Excludes them from the picker.
+      where: { workspaceId, status: "ACTIVE" }, orderBy: { name: "asc" },
       select: {
         id: true, name: true,
         steps: { select: { id: true, name: true, type: true }, orderBy: { order: "asc" } },
