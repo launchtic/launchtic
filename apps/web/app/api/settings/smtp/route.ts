@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { maskInDemo } from "../../../../lib/demo";
+import { demoGuard, maskInDemo } from "../../../../lib/demo";
 
 const KEEP = "__KEEP__";
 
@@ -46,6 +46,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:email:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

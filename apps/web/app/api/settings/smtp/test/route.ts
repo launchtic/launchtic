@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, err } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { demoGuard } from "../../../../../lib/demo";
 import { db } from "@launchtic/database";
 import { sendEmail, type SmtpConfig } from "@launchtic/email/server";
 
@@ -9,6 +10,8 @@ const schema = z.object({ sendTo: z.string().email() });
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("settings:email:read");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
