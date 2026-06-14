@@ -2,6 +2,7 @@ import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { verifyLicenseKey } from "../../../../lib/license";
+import { invalidateVersionCache } from "../../../../lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,10 @@ export async function POST() {
         licenseVerifiedAt: new Date(),
       },
     });
+
+    // Bust the cached latest version so the same refresh also pulls a freshly
+    // bumped release tag from launchtic.com (no waiting on the 1h cache).
+    invalidateVersionCache();
 
     return ok({ plan: result.plan, expiresAt: result.expiresAt ?? null });
   } catch (error) {

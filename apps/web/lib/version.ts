@@ -28,11 +28,18 @@ export function getCurrentVersion(): string {
   return v && v.length > 0 ? v : "dev";
 }
 
+// Drop the cached latest version so the next read re-fetches launchtic.com.
+// The manual license refresh calls this so one click pulls plan + latest.
+export function invalidateVersionCache() {
+  cached = null;
+}
+
 async function getLatestVersion(): Promise<string | null> {
   const now = Date.now();
   if (cached && now - cached.stamp < TTL_MS) return cached.latest;
   try {
     const res = await fetch(`${LICENSE_SERVER_URL}/api/version`, {
+      cache: "no-store",
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) return cached?.latest ?? null;

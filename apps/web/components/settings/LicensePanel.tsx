@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { XCircle, Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles, RefreshCw } from "lucide-react";
+import { Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { planLabel, planColor } from "../../lib/plan";
 import { useRole } from "../../lib/role";
@@ -17,8 +17,6 @@ export default function LicensePanel() {
   const { isOwner } = useRole();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     apiFetch("/api/license")
@@ -26,27 +24,6 @@ export default function LicensePanel() {
       .then((r) => { if (r.success) setStatus(r.data); })
       .finally(() => setLoading(false));
   }, []);
-
-  // Force an immediate re-verify against launchtic.com (bypasses the 24h
-  // staleness gate) so a fresh renewal / upgrade shows up right away. Reload so
-  // both this panel and the Version panel re-read the updated state.
-  async function refresh() {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const res = await apiFetch("/api/license/refresh", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        setError(json?.error ?? "Could not refresh license.");
-        setRefreshing(false);
-        return;
-      }
-      window.location.reload();
-    } catch {
-      setError("Network error. Please try again.");
-      setRefreshing(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -57,7 +34,7 @@ export default function LicensePanel() {
   }
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="space-y-6">
       <div>
         <h2 className="text-base font-semibold text-gray-900">License</h2>
         <p className="text-sm text-gray-500 mt-1">
@@ -65,45 +42,9 @@ export default function LicensePanel() {
         </p>
       </div>
 
-      {/* Status hero — color-coded so the operator instantly sees license
-          health when they land on this page. State derivation:
-            - community  : free self-host, neutral gray (upgrade prompt)
-            - active     : paid + valid, green
-            - expired    : paid + past expiresAt, amber with a renew prompt
-          Management (renew / upgrade / billing) lives on launchtic.com/account,
-          so every action links there rather than embedding a billing portal. */}
+      {/* Status hero — color-coded license health with the key inline. Renew /
+          upgrade / billing live on launchtic.com/account. */}
       <StatusHero status={status} isOwner={isOwner} />
-
-      {/* Action error — inline alert, only renders on failure. */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-start gap-2">
-          <XCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-red-700 leading-snug">{error}</p>
-        </div>
-      )}
-
-      {/* Active key + manual re-check on the right. Refresh forces an immediate
-          re-verify against launchtic.com (bypasses the 24h gate) — handy right
-          after renewing/upgrading instead of waiting up to a day. */}
-      {status?.licenseKey && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">License Key</p>
-            <code className="text-sm font-mono text-gray-700 break-all">{status.licenseKey}</code>
-          </div>
-          {isOwner && status?.plan && (
-            <button
-              onClick={refresh}
-              disabled={refreshing}
-              title="Re-check plan & update window with launchtic.com"
-              className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-60"
-            >
-              {refreshing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -226,6 +167,14 @@ function StatusHero({
           </a>
         )}
       </div>
+
+      {/* License key inline — keeps the panel compact (no separate card). */}
+      {status.licenseKey && (
+        <div className="mt-3 pt-3 border-t border-black/5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">License Key</span>
+          <code className="block text-xs font-mono text-gray-600 break-all mt-0.5">{status.licenseKey}</code>
+        </div>
+      )}
     </div>
   );
 }
