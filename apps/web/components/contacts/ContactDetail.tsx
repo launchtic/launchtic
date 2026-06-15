@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ChevronRight, ChevronLeft, Mail, Phone, Globe, Calendar, Tag as TagIcon,
   Plus, X, Trash2, Loader2, ShoppingCart, FileText, Eye, Pencil,
-  MousePointer, CheckCircle, AlertCircle, Activity, Repeat,
+  MousePointer, CheckCircle, AlertCircle, Activity,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
@@ -32,17 +32,6 @@ type Contact = {
   tags: ContactTag[];
   events: Event[];
   _count: { orders: number };
-};
-type Enrollment = {
-  id: string;
-  status: "ACTIVE" | "COMPLETED" | "EXITED" | "FAILED";
-  currentStepIndex: number;
-  totalSteps: number;
-  nextSendAt: string;
-  enrolledAt: string;
-  completedAt: string | null;
-  exitReason: string | null;
-  sequence: { id: string; name: string };
 };
 
 const EVENT_ICON: Record<string, React.ReactNode> = {
@@ -86,11 +75,9 @@ function TagBadge({ tag, onRemove, canRemove }: { tag: Tag; onRemove: () => void
 export default function ContactDetail({
   contact: initial,
   allTags,
-  enrollments = [],
 }: {
   contact: Contact;
   allTags: Tag[];
-  enrollments?: Enrollment[];
 }) {
   const { canManageContacts, canDeleteContacts } = useRole();
   const [contact, setContact] = useState(initial);
@@ -254,48 +241,6 @@ export default function ContactDetail({
           )}
         </div>
 
-        {/* Sequences */}
-        <div className="px-5 py-4 space-y-2 border-b border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-            <Repeat size={12} /> Sequences
-          </p>
-          {enrollments.length === 0 ? (
-            <p className="text-xs text-gray-400">Not enrolled in any sequence.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {enrollments.map((e) => (
-                <Link
-                  key={e.id}
-                  href={`/${slug}/sequences/${e.sequence.id}`}
-                  className="block border border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 rounded-lg px-2.5 py-2 transition-colors"
-                >
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-medium text-gray-800 truncate flex-1">
-                      {e.sequence.name}
-                    </span>
-                    <span className={`text-[9px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
-                      e.status === "ACTIVE"    ? "bg-blue-50 text-blue-700"
-                      : e.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700"
-                      : e.status === "FAILED"    ? "bg-red-50 text-red-700"
-                      :                            "bg-gray-100 text-gray-500"
-                    }`}>
-                      {e.status.toLowerCase()}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-500">
-                    Step {Math.min(e.currentStepIndex + 1, e.totalSteps)} / {e.totalSteps}
-                    {e.status === "ACTIVE" && (
-                      <> · next {new Date(e.nextSendAt).toLocaleString()}</>
-                    )}
-                    {e.status === "EXITED" && e.exitReason && (
-                      <> · {e.exitReason}</>
-                    )}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Actions */}
         <div className="px-5 py-4 mt-auto flex items-center gap-2">

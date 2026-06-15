@@ -13,6 +13,7 @@ type Domain = {
   verified: boolean;
   isDefault: boolean;
   createdAt: string;
+  funnelCount: number;
 };
 
 /** Heuristic apex-domain detector. Apex domains can't be CNAME'd (RFC 1034)
@@ -91,7 +92,7 @@ export default function DomainsPanel({
       return;
     }
 
-    setDomains((prev) => [...prev, json]);
+    setDomains((prev) => [...prev, { ...json, funnelCount: 0 }]);
     setInput("");
   }
 
@@ -108,10 +109,12 @@ export default function DomainsPanel({
     setDomains((prev) => prev.map((d) => (d.id === id ? { ...d, verified: true } : d)));
   }
 
-  async function handleDelete(id: string, domain: string) {
+  async function handleDelete(id: string, domain: string, funnelCount: number) {
     const ok = await confirm({
       title: `Remove "${domain}"?`,
-      description: "Funnel pages using this domain will stop working.",
+      description: funnelCount > 0
+        ? `${funnelCount} funnel${funnelCount === 1 ? "" : "s"} use this domain — they'll revert to the default domain and this URL will stop working.`
+        : "Funnel pages using this domain will stop working.",
       confirmLabel: "Remove",
       variant: "danger",
     });
@@ -245,7 +248,7 @@ export default function DomainsPanel({
                   )}
                   {canManageDomains && !d.isDefault && (
                     <button
-                      onClick={() => handleDelete(d.id, d.domain)}
+                      onClick={() => handleDelete(d.id, d.domain, d.funnelCount)}
                       className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                       title="Remove domain"
                     >

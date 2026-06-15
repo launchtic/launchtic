@@ -20,6 +20,7 @@ export default async function Page({
   const domains = await db.domain.findMany({
     where: { workspaceId },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    include: { _count: { select: { funnelDomains: true } } },
   });
 
   const rendererUrl  = await getRendererUrl();
@@ -34,6 +35,7 @@ export default async function Page({
           verified: d.verified,
           isDefault: d.isDefault,
           createdAt: d.createdAt.toISOString(),
+          funnelCount: d._count.funnelDomains,
         }))}
         rendererHost={rendererHost}
       />

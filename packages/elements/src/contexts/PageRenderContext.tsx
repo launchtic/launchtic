@@ -48,7 +48,6 @@ export const PageRenderProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // 2. Validate using helper
     const validationErrors = validateFormData(formData, fieldInfo);
-    console.log("validationErrors", validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);

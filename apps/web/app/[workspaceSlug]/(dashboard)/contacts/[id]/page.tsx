@@ -57,5 +57,5 @@ export default async function ContactDetailPage({ params }: Params) {
 
   const serializedTags = tags.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
-  return <ContactDetail contact={serialized} allTags={serializedTags} enrollments={[]} />;
+  return <ContactDetail contact={serialized} allTags={serializedTags} />;
 }

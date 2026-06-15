@@ -147,7 +147,12 @@ export const collectFormData = (query: any) => {
         value = value.replace(/\s/g, '');
       }
 
-      formData[fieldName] = value;
+      // Same-named fields (a form repeated in hero + footer, or a desktop/
+      // mobile breakpoint twin) share one logical value — keep the first
+      // non-empty so an empty twin can't clobber a filled field.
+      if (!isEmpty(value) || formData[fieldName] === undefined) {
+        formData[fieldName] = value;
+      }
       fieldInfo[fieldId] = { name: fieldName, required: isRequired, type: inputType };
     } else if (node.data.displayName === "Checkbox") {
       const props = node.data.props;
@@ -173,9 +178,10 @@ export const collectFormData = (query: any) => {
 };
 
 /**
- * Validate all form fields.
- * Reads each field's value directly from the DOM (by fieldId) to avoid
- * shared-name collisions when multiple fields have the same inputDetail.name.
+ * Validate all form fields. Name-aware: fields that share an inputDetail.name
+ * (a form repeated in hero + footer, or a breakpoint twin) are treated as one
+ * logical field — a required name is satisfied when any sibling is filled, and
+ * the submitted value is the non-empty one (see collectFormData).
  */
 export const validateFormData = (
   formData: Record<string, any>,
@@ -193,9 +199,10 @@ export const validateFormData = (
       return;
     }
 
-    // Read value from the actual DOM element — prevents shared-name collisions
-    const element = document.getElementById(fieldId) as HTMLInputElement | null;
-    let value: string = element?.value ?? '';
+    // Name-aware: use the logical value for this field's name. formData is
+    // keyed by name and keeps the non-empty twin, so a duplicate empty field
+    // no longer triggers "required" once any sibling with that name is filled.
+    let value: string = typeof formData[info.name] === 'string' ? formData[info.name] : '';
 
     if (isPhoneField(info.type)) {
       value = value.replace(/\s/g, '');
