@@ -6,6 +6,8 @@ import { Editor } from "@maily-to/core";
 import { ImageUploadExtension } from "@maily-to/core/extensions";
 import type { Editor as TiptapEditor, JSONContent } from "@tiptap/core";
 import { apiFetch } from "../../lib/api-client";
+import { Image as ImageIcon } from "lucide-react";
+import MediaLibraryPicker from "../media/MediaLibraryPicker";
 
 // `value` and `onChange` are JSON-stringified TipTap docs (maily.to format).
 // Empty/invalid input falls back to an empty doc — strict JSON only.
@@ -51,6 +53,7 @@ export default function RichEmailEditor({
   value, onChange, onEditorReady, onFocus, minHeight, showMenuBar = false,
 }: Props) {
   const [editor, setEditor] = useState<TiptapEditor>();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const lastEmittedRef = useRef<string>(value);
 
   // Stable refs for callbacks — keeps the maily Editor's `onCreate`/`onUpdate`
@@ -169,6 +172,30 @@ export default function RichEmailEditor({
         extensions={extensions}
         config={config}
       />
+
+      {/* Unobtrusive floating action — pick an existing image (no re-upload).
+          Maily's native upload (slash "/Image", drag, paste) is untouched. */}
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        disabled={!editor}
+        title="Insert image from Media Library"
+        className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 shadow-sm text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
+      >
+        <ImageIcon size={14} /> Library
+      </button>
+
+      {pickerOpen && (
+        <MediaLibraryPicker
+          onSelect={(url) => {
+            if (!editor) return;
+            // maily registers a TipTap image node; `setImage` isn't in the typed
+            // chain (see @maily-to/core image block), so cast to call it.
+            (editor.chain().focus() as any).setImage({ src: url }).run();
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }
