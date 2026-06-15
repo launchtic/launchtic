@@ -44,7 +44,7 @@ async function importBundleAssets(
       continue; // content rewrite leaves the original URL in place
     }
 
-    const key = buildKey(workspaceId, a.filename, "imported");
+    const key = buildKey(workspaceId, a.filename);
     const newUrl = await driver.upload(key, bytes, a.mimeType);
     await db.asset.create({
       data: {

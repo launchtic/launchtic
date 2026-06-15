@@ -16,8 +16,6 @@ export default function MediaLibraryPicker({
   onClose: () => void;
 }) {
   const [files, setFiles] = useState<MediaFile[]>([]);
-  const [folders, setFolders] = useState<string[]>([]);
-  const [folder, setFolder] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,20 +23,17 @@ export default function MediaLibraryPicker({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams({ limit: "60" });
-    if (folder) params.set("folder", folder);
-    apiFetch(`/api/media?${params}`)
+    apiFetch(`/api/media?limit=60`)
       .then((r) => r.json())
       .then((r) => {
         if (cancelled) return;
         if (!r.success) { setError(r.error ?? "Failed to load media"); return; }
         setFiles(r.data.files ?? []);
-        if (Array.isArray(r.data.folders)) setFolders(r.data.folders);
       })
       .catch(() => { if (!cancelled) setError("Network error"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [folder]);
+  }, []);
 
   return (
     <div
@@ -51,21 +46,9 @@ export default function MediaLibraryPicker({
       >
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-200 shrink-0">
           <h2 className="text-sm font-semibold text-gray-900">Media Library</h2>
-          <div className="flex items-center gap-2">
-            {folders.length > 0 && (
-              <select
-                value={folder}
-                onChange={(e) => setFolder(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All folders</option>
-                {folders.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            )}
-            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-              <X size={16} />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+            <X size={16} />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">

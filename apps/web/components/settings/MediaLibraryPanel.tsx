@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Upload, Trash2, Loader2, Image as ImageIcon, ChevronDown,
-  Search, Copy, Check, X, HardDrive,
+  Upload, Trash2, Loader2, Image as ImageIcon,
+  Search, Copy, Check, X,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -33,8 +33,6 @@ function fmtDate(iso?: string): string {
 export default function MediaLibraryPanel() {
   const confirm = useConfirm();
   const [files, setFiles]           = useState<MediaFile[]>([]);
-  const [folders, setFolders]       = useState<string[]>([]);
-  const [folder, setFolder]         = useState<string | null>(null);   // null = root
   const [search, setSearch]         = useState("");
   const [loading, setLoading]       = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -53,7 +51,6 @@ export default function MediaLibraryPanel() {
     setError(null);
     try {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (folder) params.set("folder", folder);
       if (loadMore && nextToken) params.set("continuation_token", nextToken);
       const res  = await apiFetch(`/api/media?${params}`);
       const json = await res.json();
@@ -63,22 +60,20 @@ export default function MediaLibraryPanel() {
       setHasMore(d.hasMore);
       setNextToken(d.nextToken);
       setTotal(d.total);
-      if (!loadMore && Array.isArray(d.folders)) setFolders(d.folders);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     } finally {
       setLoading(false); setLoadingMore(false);
     }
-  }, [folder, nextToken]);
+  }, [nextToken]);
 
-  useEffect(() => { load(false); /* eslint-disable-next-line */ }, [folder]);
+  useEffect(() => { load(false); /* eslint-disable-next-line */ }, []);
 
   async function handleUpload(file: File) {
     setUploading(true); setError(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      if (folder) fd.append("folder", folder);
       const res  = await fetch("/api/media/upload", { method: "POST", body: fd });
       const json = await res.json();
       if (!json.success) { setError(json.error ?? "Upload failed"); return; }
@@ -158,18 +153,6 @@ export default function MediaLibraryPanel() {
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative">
-          <select
-            value={folder ?? ""}
-            onChange={(e) => setFolder(e.target.value || null)}
-            className="appearance-none pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All folders</option>
-            {folders.map((f) => <option key={f} value={f}>{f}</option>)}
-          </select>
-          <HardDrive size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
         <div className="relative flex-1 min-w-48 max-w-md">
           <input
             type="text"

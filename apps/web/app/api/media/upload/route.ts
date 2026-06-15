@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
     if (!ALLOWED_TYPES.includes(file.type)) return err("File type not allowed", 400);
     if (file.size > MAX_SIZE) return err("File too large (max 10 MB)", 400);
 
-    const folder = formData.get("folder") as string | null;
     const rawBuffer = Buffer.from(await file.arrayBuffer());
 
     // Resize, strip EXIF, recompress. SVG / GIF pass through unchanged.
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
     // the right driver.
     const driverName = await getDriverName(workspaceId);
 
-    const key = buildKey(workspaceId, file.name, folder ?? undefined);
+    const key = buildKey(workspaceId, file.name);
     const driver = await getDriver(workspaceId);
     const url = await driver.upload(key, processed.buffer, processed.mimeType);
 

@@ -84,8 +84,8 @@ export async function importAssets(
       continue;
     }
 
-    // Upload to target storage under an "imported/" folder for traceability.
-    const key = buildKey(workspaceId, entry.filename, "imported");
+    // Upload to the workspace's shared media folder (root).
+    const key = buildKey(workspaceId, entry.filename);
     const newUrl = await driver.upload(key, buffer, entry.mimeType);
 
     const created = await db.asset.create({

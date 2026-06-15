@@ -11,17 +11,11 @@ export async function GET(req: NextRequest) {
     const { workspaceId } = r;
 
     const { searchParams } = new URL(req.url);
-    const folder = searchParams.get("folder") ?? null;
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
     const continuationToken = searchParams.get("continuation_token") ?? undefined;
 
-    const prefix = folder ? `${workspaceId}/${folder}` : workspaceId;
     const driver = await getDriver(workspaceId);
-
-    const [result, folders] = await Promise.all([
-      driver.list(prefix, limit, continuationToken),
-      folder ? Promise.resolve([]) : driver.listFolders(workspaceId),
-    ]);
+    const result = await driver.list(workspaceId, limit, continuationToken);
 
     // Enrich each file with its Asset row (assetId) when one exists.
     // Files uploaded via the older flow without an Asset row come back with
@@ -45,7 +39,6 @@ export async function GET(req: NextRequest) {
       hasMore:   result.hasMore,
       nextToken: result.nextToken,
       total:     result.total,
-      folders,
     });
   } catch (error) {
     console.error("Media list error:", error);

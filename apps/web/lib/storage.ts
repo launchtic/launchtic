@@ -25,7 +25,6 @@ export interface StorageDriver {
   upload(key: string, buffer: Buffer, mimeType: string): Promise<string>;
   delete(key: string): Promise<void>;
   list(prefix: string, limit?: number, continuationToken?: string): Promise<ListResult>;
-  listFolders(workspaceId: string): Promise<string[]>;
   /** Native server-side copy (no buffer through this app). Returns new public URL. */
   copy(srcKey: string, destKey: string): Promise<string>;
   /** Recursively delete every file under this workspace's prefix. Used when
@@ -157,13 +156,6 @@ export class LocalDriver implements StorageDriver {
     return { files: page, hasMore, nextToken: hasMore ? String(offset + limit) : null, total: allFiles.length };
   }
 
-  async listFolders(workspaceId: string): Promise<string[]> {
-    const dir = join(this.root, workspaceId);
-    if (!existsSync(dir)) return [];
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries.filter(e => e.isDirectory()).map(e => e.name).sort();
-  }
-
   /** Wipe the entire workspace folder. force:true → no error if missing. */
   async purge(workspaceId: string): Promise<void> {
     const dir = join(this.root, workspaceId);
@@ -262,21 +254,6 @@ class S3Driver implements StorageDriver {
       nextToken: res.NextContinuationToken ?? null,
       total: files.length,
     };
-  }
-
-  async listFolders(workspaceId: string): Promise<string[]> {
-    const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
-    const client = await this.client();
-    const res = await client.send(new ListObjectsV2Command({
-      Bucket: this.cfg.bucket,
-      Prefix: `${workspaceId}/`,
-      Delimiter: "/",
-      MaxKeys: 100,
-    }));
-    return (res.CommonPrefixes ?? [])
-      .map(p => (p.Prefix ?? "").replace(`${workspaceId}/`, "").replace(/\/$/, ""))
-      .filter(Boolean)
-      .sort();
   }
 
   /**
