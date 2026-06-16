@@ -26,6 +26,13 @@ function RichEditable({ as: Tag, html, onInput, connectRef, style }: any) {
     if (ref.current && ref.current.innerHTML !== (html || "")) ref.current.innerHTML = html || "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Paste as plain text — strip external styles/fonts/colors so pasted content
+  // adopts the element's own styling (re-format via the bubble toolbar).
+  const onPaste = (e: any) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, text);
+  };
   return (
     <Tag
       ref={(r: HTMLElement | null) => { ref.current = r; if (r) connectRef(r); }}
@@ -33,6 +40,7 @@ function RichEditable({ as: Tag, html, onInput, connectRef, style }: any) {
       suppressContentEditableWarning
       data-rt="1"
       onInput={(e: any) => onInput(e.currentTarget.innerHTML)}
+      onPaste={onPaste}
       style={{ outline: "none", ...style }}
     />
   );
