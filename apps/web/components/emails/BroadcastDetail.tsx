@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle,
-  Users, Clock, Tag as TagIcon, Pencil, ChevronDown, X, Ban, Braces,
+  Users, Clock, Tag as TagIcon, Pencil, ChevronDown, X, Ban, Braces, Settings,
 } from "lucide-react";
 import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -88,6 +88,7 @@ export default function BroadcastDetail({
 
   const subjectRef = useRef<HTMLInputElement>(null);
   const [varsOpen, setVarsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const dirty = useMemo(
     () =>
@@ -305,14 +306,6 @@ export default function BroadcastDetail({
         >
           <ArrowLeft size={18} />
         </Link>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={!isEditable}
-          placeholder="Broadcast name"
-          title="Click to rename"
-          className="shrink-0 w-28 sm:w-40 text-sm font-medium text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none rounded-lg px-2 py-1.5 transition-all disabled:opacity-100 disabled:hover:border-transparent"
-        />
         <StatusBadge status={initial.status} />
 
         {view === "edit" && (isEditable || isScheduled) ? (
@@ -356,33 +349,64 @@ export default function BroadcastDetail({
                 </>
               )}
             </div>
-            {senderIdentities.length === 0 ? (
-              <Link href={`/${slug}/settings/email`} className="shrink-0 hidden md:block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                <AlertCircle size={11} className="inline mr-1" /> Add identity
-              </Link>
-            ) : (
-              <select
-                value={pickIdentityId(fromEmail, senderIdentities) ?? ""}
-                onChange={(e) => { const id = senderIdentities.find((s) => s.id === e.target.value); if (id) { setFromEmail(id.email); setFromName(id.name); } }}
-                disabled={!isEditable}
-                title="From"
-                className="shrink-0 w-36 hidden md:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((o) => !o)}
+                title="Sender & template"
+                className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                {!pickIdentityId(fromEmail, senderIdentities) && <option value="">From…</option>}
-                {senderIdentities.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
-              </select>
-            )}
-            {templates.length > 0 && isEditable && (
-              <select
-                value=""
-                onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); }}
-                title="Start from a template"
-                className="shrink-0 w-32 hidden lg:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Template…</option>
-                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            )}
+                <Settings size={16} />
+              </button>
+              {settingsOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 space-y-2.5">
+                    <label className="block">
+                      <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Name</span>
+                      <input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        disabled={!isEditable}
+                        placeholder="Broadcast name"
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">From</span>
+                      {senderIdentities.length === 0 ? (
+                        <Link href={`/${slug}/settings/email`} className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                          <AlertCircle size={11} className="inline mr-1" /> Add identity
+                        </Link>
+                      ) : (
+                        <select
+                          value={pickIdentityId(fromEmail, senderIdentities) ?? ""}
+                          onChange={(e) => { const id = senderIdentities.find((s) => s.id === e.target.value); if (id) { setFromEmail(id.email); setFromName(id.name); } }}
+                          disabled={!isEditable}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {!pickIdentityId(fromEmail, senderIdentities) && <option value="">— Select —</option>}
+                          {senderIdentities.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
+                        </select>
+                      )}
+                    </label>
+                    {templates.length > 0 && isEditable && (
+                      <label className="block">
+                        <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Start from template</span>
+                        <select
+                          value=""
+                          onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); setSettingsOpen(false); }}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">— None —</option>
+                          {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </>
         ) : (
           <div className="flex-1" />

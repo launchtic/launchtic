@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Save, AlertCircle, Braces } from "lucide-react";
+import { ArrowLeft, Loader2, Save, AlertCircle, Braces, Settings } from "lucide-react";
 import EmailBuilder from "../email-builder/EmailBuilder";
 import { apiFetch } from "../../lib/api-client";
 import { STANDARD_VARIABLES, EMPTY_EMAIL_DOC } from "@launchtic/email";
@@ -88,6 +88,7 @@ export default function WorkflowEmailEditor({
   // Validation errors — keyed list. Empty = valid.
   const [errors, setErrors] = useState<string[]>([]);
   const [varsOpen, setVarsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Dirty tracking — used to enable Save in edit mode (Save is always
   // active in create mode since we want first-write to land).
@@ -223,17 +224,6 @@ export default function WorkflowEmailEditor({
           <span className="hidden lg:inline max-w-[120px] truncate">{workflow.name}</span>
         </Link>
 
-        <select
-          value={senderId ?? ""}
-          onChange={(e) => onSenderChange(e.target.value)}
-          disabled={isLocked}
-          title="From sender"
-          className="shrink-0 w-36 hidden md:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">From…</option>
-          {senders.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
-        </select>
-
         <div className="relative flex-1 min-w-0">
           <input
             ref={subjectRef}
@@ -275,17 +265,49 @@ export default function WorkflowEmailEditor({
           )}
         </div>
 
-        {templates.length > 0 && !isLocked && (
-          <select
-            value=""
-            disabled={templateBusy}
-            onChange={(e) => applyTemplate(e.target.value)}
-            title="Start from a template"
-            className="shrink-0 w-32 hidden lg:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Template…</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+        {!isLocked && (
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen((o) => !o)}
+              title="Sender & template"
+              className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Settings size={16} />
+            </button>
+            {settingsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 space-y-2.5">
+                  <label className="block">
+                    <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">From</span>
+                    <select
+                      value={senderId ?? ""}
+                      onChange={(e) => onSenderChange(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">— pick sender —</option>
+                      {senders.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
+                    </select>
+                  </label>
+                  {templates.length > 0 && (
+                    <label className="block">
+                      <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Start from template</span>
+                      <select
+                        value=""
+                        disabled={templateBusy}
+                        onChange={(e) => { applyTemplate(e.target.value); setSettingsOpen(false); }}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">— None —</option>
+                        {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {!isLocked && (

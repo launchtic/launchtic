@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle,
-  Lock, Trash2, Braces, X,
+  Lock, Trash2, Braces, X, Settings,
 } from "lucide-react";
 import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -53,6 +53,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
   const [testTo, setTestTo] = useState("");
   const [testOpen, setTestOpen] = useState(false);
   const [varsOpen, setVarsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Last saved snapshot — drives `dirty` locally so autosave settles after a
   // save instead of looping until the server-component props refresh.
   const [baseline, setBaseline] = useState({ name: initial.name, subject: initial.subject, htmlBody: initial.htmlBody, category: initial.category });
@@ -174,13 +175,6 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         </Link>
 
         {initial.isSystem && <Lock size={13} className="text-gray-400 shrink-0" />}
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Template name"
-          title="Click to rename template"
-          className="shrink-0 w-32 sm:w-44 text-sm font-medium text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none rounded-lg px-2 py-1.5 transition-all"
-        />
 
         {/* Subject (flex) with variable popover */}
         <div className="relative flex-1 min-w-0">
@@ -222,17 +216,45 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
           )}
         </div>
 
-        {!initial.isSystem && (
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as Category)}
-            title="Category"
-            className="shrink-0 w-32 hidden md:block border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((o) => !o)}
+            title="Settings"
+            className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <option value="MARKETING">Marketing</option>
-            <option value="TRANSACTIONAL">Transactional</option>
-          </select>
-        )}
+            <Settings size={16} />
+          </button>
+          {settingsOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-3 space-y-2.5">
+                <label className="block">
+                  <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Template name"
+                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+                {!initial.isSystem && (
+                  <label className="block">
+                    <span className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Category</span>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value as Category)}
+                      className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="MARKETING">Marketing</option>
+                      <option value="TRANSACTIONAL">Transactional</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         <button
           onClick={() => setTestOpen((o) => !o)}
