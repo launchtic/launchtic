@@ -1,8 +1,8 @@
 "use client";
 
-// Fullscreen editor for a single WorkflowEmail (the maily.to surface).
+// Fullscreen editor for a single WorkflowEmail (Craft + MJML builder).
 // Mirrors BroadcastDetail's edit pane but strips out the broadcast-only
-// surfaces (audience picker, schedule/send, preview/test send).
+// surfaces (audience picker, schedule/send).
 //
 // Two modes:
 //   • "edit"   — initial email loaded from DB. Save → PATCH the existing row.
@@ -14,7 +14,7 @@
 // validation runs on Save click. Until Save succeeds, the create-mode row
 // does not exist in the database — no orphan rows from abandoned drafts.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Save, AlertCircle, Braces, Settings } from "lucide-react";
@@ -117,11 +117,11 @@ export default function WorkflowEmailEditor({
     });
   }
 
-  async function onSave() {
+  async function onSave(silent = false) {
     const issues = runValidation();
     setErrors(issues);
     if (issues.length > 0) {
-      toast.error(issues[0]);
+      if (!silent) toast.error(issues[0]);
       return;
     }
     setBusy(true);
@@ -139,7 +139,7 @@ export default function WorkflowEmailEditor({
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error ?? `HTTP ${res.status}`);
       }
-      toast.success(isCreate ? "Email created." : "Email saved.");
+      if (!silent) toast.success(isCreate ? "Email created." : "Email saved.");
       if (isCreate) {
         // Replace the URL so back-button doesn't land on /emails/new.
         const newId = json?.data?.id;
@@ -153,11 +153,21 @@ export default function WorkflowEmailEditor({
         router.refresh();
       }
     } catch {
-      toast.error("Save failed — retry in a moment.");
+      if (!silent) toast.error("Save failed — retry in a moment.");
     } finally {
       setBusy(false);
     }
   }
+
+  // Autosave — debounced 1.5s in EDIT mode once valid. Create mode stays manual
+  // (no DB row until the first Save); locked (active) workflows don't save.
+  useEffect(() => {
+    if (isCreate || isLocked || busy || !dirty) return;
+    if (runValidation().length > 0) return;
+    const t = setTimeout(() => { onSave(true); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, subject, bodyHtml, senderId, fromName, fromEmail, busy, isCreate, isLocked]);
 
   // Refocus the last-focused editable surface so cursor doesn't jump back to
   // subject after typing in body (or vice versa) when a re-render happens.
@@ -312,7 +322,7 @@ export default function WorkflowEmailEditor({
 
         {!isLocked && (
           <button
-            onClick={onSave}
+            onClick={() => onSave()}
             disabled={busy || (!isCreate && !dirty)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 shrink-0"
           >
@@ -351,26 +361,11 @@ export default function WorkflowEmailEditor({
         </div>
       )}
 
-      {/* Body — left: form fields (sender, subject). Right (flex-1): editor.
-          Wrapping fieldset disables every form control (selects, inputs,
-          variable chips) at once when the workflow is ACTIVE. `contents`
-          removes the fieldset's own box so flex layout below works
-          unchanged. (RichEmailEditor's TipTap surface isn't a form
-          control — its read-only state needs a separate path, but for MVP
-          the lock banner is clear enough; operators won't expect typing
-          into mly to persist when Save is hidden.) */}
+      {/* Body — the email builder fills the remaining height. The fieldset
+          disables the form controls when the parent workflow is ACTIVE;
+          `contents` removes its own box so the flex layout is unaffected. */}
       <fieldset disabled={isLocked} className="contents">
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Editor pane — scrollable, fills remaining height. Container has
-            no overflow-hidden so maily's floating "+ / drag-handle" controls
-            aren't clipped (see RichEmailEditor's wrapper comment).
-            • pt-16 (64px): reserves vertical room above the first block so
-              maily's floating element toolbar (the bubble that pops above
-              an image/button when selected) isn't clipped by the
-              sender/subject row when the block is at the top of the scroll
-              viewport.
-            • scroll-pt-16: same idea but for keyboard / programmatic
-              scrollIntoView — leaves the same gap above the active block. */}
         <div className="flex-1 min-h-0 p-3 bg-white">
           <EmailBuilder value={bodyHtml} onChange={setBodyHtml} />
         </div>

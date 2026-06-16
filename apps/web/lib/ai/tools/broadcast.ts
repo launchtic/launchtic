@@ -64,7 +64,7 @@ async function scheduleBroadcastDispatch(opts: {
 // Why both: LLMs occasionally fall back to string ("Hi name,\n\nText...")
 // even when schema asks for object — likely from training-data prior. Rather
 // than reject and force a retry (slow + token-burning), accept both shapes
-// and route to the appropriate maily converter.
+// and route to the appropriate Craft-doc converter.
 //
 // Recommended shape (for polished output): the object form. Plain string
 // renders as bare paragraphs only — no heading, no button.

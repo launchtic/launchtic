@@ -13,6 +13,8 @@
 //      submits an invalid graph (bug or bypass), server rejects with the
 //      same `issues` shape so the client can render them too.
 
+import { isEmptyEmailDoc } from "@launchtic/email";
+
 export type WorkflowNode = {
   id: string;
   type: string;
@@ -97,36 +99,8 @@ export function validateWorkflowEmail(email: WorkflowEmailMini): string[] {
   const senderOk = nonEmpty(email.senderId) || (nonEmpty(email.fromEmail) && nonEmpty(email.fromName));
   if (!senderOk)                  out.push("Email sender is not picked.");
   if (!nonEmpty(email.subject))   out.push("Email subject is empty.");
-  if (isMailyDocEmpty(email.bodyHtml)) out.push("Email body is empty.");
+  if (isEmptyEmailDoc(email.bodyHtml)) out.push("Email body is empty.");
   return out;
-}
-
-// A maily-rendered body is stored as a JSON-stringified TipTap doc (NOT raw
-// HTML — the worker's renderEmailContent rejects anything that doesn't start
-// with `{`). The visually-empty default doc is `{type:"doc", content:[{type:
-// "paragraph"}]}` — non-empty as a string but renders to nothing. Walk the
-// tree once looking for any `text` node with actual content.
-function isMailyDocEmpty(raw: string | null | undefined): boolean {
-  const s = (raw ?? "").trim();
-  if (!s) return true;
-  if (!s.startsWith("{")) {
-    // Legacy plain HTML (pre-mly migration) — treat any non-empty string as
-    // content so old data doesn't suddenly become "empty" mid-migration.
-    return false;
-  }
-  let json: unknown;
-  try { json = JSON.parse(s); } catch { return true; }
-  const stack: unknown[] = [json];
-  while (stack.length) {
-    const n = stack.pop() as any;
-    if (!n || typeof n !== "object") continue;
-    if (typeof n.text === "string" && n.text.trim().length > 0) return false;
-    // Image / button / spacer nodes count as content too — they render to
-    // something the recipient sees.
-    if (n.type === "image" || n.type === "button" || n.type === "logo") return false;
-    if (Array.isArray(n.content)) for (const c of n.content) stack.push(c);
-  }
-  return true;
 }
 
 // ─── Re-fire policy ────────────────────────────────────────────────────────

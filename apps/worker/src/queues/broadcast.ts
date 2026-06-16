@@ -85,7 +85,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
 
     // Render every email up-front so the EmailSend row carries the rendered
     // subject + bodyHtml snapshot (audit / support visibility). Rendering
-    // happens in parallel; cheap because maily render is in-process.
+    // happens in parallel; cheap because the MJML render is in-process.
     const appUrl = await getAppUrl();
     const rendered = await Promise.all(batch.map(async (c) => {
       const firstName = c.firstName ?? "";

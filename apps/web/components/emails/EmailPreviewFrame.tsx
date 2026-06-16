@@ -4,9 +4,9 @@ import { useState } from "react";
 import { Monitor, Smartphone } from "lucide-react";
 
 // Preview iframe with a Desktop / Mobile toggle. Mobile constrains the frame to
-// 375px so maily's responsive @media (max-width:425px) kicks in (columns stack,
-// fluid images). The iframe is keyed by version+device so it remounts on toggle
-// — browsers don't reliably reflow srcDoc when only width changes.
+// 375px so MJML's responsive @media kicks in (columns stack, fluid images).
+// The iframe is keyed by version+device so it remounts on toggle — browsers
+// don't reliably reflow srcDoc when only width changes.
 export default function EmailPreviewFrame({
   html, version = 0, title = "Email preview", minHeight = "400px",
 }: {

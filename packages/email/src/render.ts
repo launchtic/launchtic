@@ -1,5 +1,5 @@
 // Browser-safe helpers: {{var}} substitution + email-doc constants/validation.
-// NO mjml / @maily-to here (those live in render-email.ts, server-only).
+// NO mjml here (that lives in render-email.ts, server-only).
 //   render("Hi {{contact.firstName}}", { contact: { firstName: "John" } }) → "Hi John"
 
 export type RenderVars = Record<string, unknown>;

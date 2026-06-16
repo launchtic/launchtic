@@ -172,6 +172,13 @@ export default function BroadcastDetail({
     return () => window.removeEventListener("keydown", h);
   }, [isEditable, dirty, save, handleSave]);
 
+  // Autosave — debounced 1.5s while the broadcast is editable (DRAFT/SCHEDULED).
+  useEffect(() => {
+    if (!isEditable || !dirty || save === "saving") return;
+    const t = setTimeout(() => { handleSave(); }, 1500);
+    return () => clearTimeout(t);
+  }, [isEditable, dirty, save, handleSave]);
+
   // Register dirty state with the global unsaved-changes guard. Covers
   // browser reload/close + every in-app <Link> click (TopNav, back arrow, etc.).
   useUnsavedChanges(dirty);
@@ -190,11 +197,8 @@ export default function BroadcastDetail({
   function applyTemplate(templateId: string) {
     const tpl = templates.find((t) => t.id === templateId);
     if (!tpl) return;
-    // Fetch full template content. Don't call editor.setContent directly —
-    // TipTap interprets a plain string as HTML, but our htmlBody is a JSON
-    // string (maily doc), so it would render as raw text. Just update parent
-    // state; RichEmailEditor's external-value useEffect parses the JSON via
-    // parseValue() and sets the editor content correctly.
+    // Fetch full template content and update parent state; EmailBuilder's
+    // ExternalValueSync deserializes the new value into the canvas.
     apiFetch(`/api/email-templates/${templateId}`)
       .then((r) => r.json())
       .then((json) => {
@@ -628,9 +632,9 @@ function SentDetail({
     queued === 0 &&
     (initial.status === "SENT" || initial.status === "FAILED");
 
-  // Render the sent body. The DB field may hold maily JSON or legacy HTML
-  // — branch on the first char and run @maily-to/render dynamically when
-  // it's JSON.
+  // Render the sent body. The DB field holds a Craft doc (JSON) or legacy
+  // raw HTML — JSON goes through /api/email-preview (Craft → HTML), HTML is
+  // shown as-is.
   const [bodyHtml, setBodyHtml] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;

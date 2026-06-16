@@ -2474,7 +2474,7 @@ function NodeConfigForm({
     // Compact picker: the workflow editor only links a node to a saved
     // WorkflowEmail. All content editing (subject, sender, body) happens on
     // the dedicated editor page reached via Edit / Create — same pattern as
-    // Broadcast where the listing links out to a fullscreen maily.to editor.
+    // Broadcast where the listing links out to a fullscreen email editor.
     const emailId = config.emailId as string | undefined;
     const email   = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
     const editUrl = (id: string) => `/${workspaceSlug}/workflow-email-editor/${workflowId}/${id}`;
