@@ -12,6 +12,7 @@ import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import RichEmailEditor from "./RichEmailEditor";
 import FontSelect from "./FontSelect";
+import EmailPreviewFrame from "./EmailPreviewFrame";
 import { apiFetch } from "../../lib/api-client";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
@@ -381,7 +382,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         {view === "edit" ? (
           <>
             <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="max-w-3xl mx-auto px-4 sm:px-5 py-6 h-full flex flex-col">
+              <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6 h-full flex flex-col">
                 <div className="flex-1 min-h-0">
                   <RichEmailEditor
                     value={htmlBody}
@@ -414,21 +415,14 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         ) : (
           // Preview view
           <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
-            <div className="max-w-3xl mx-auto px-4 sm:px-5 py-6">
+            <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6">
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
                   <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-0.5">Subject</p>
                   <p className="text-sm font-medium text-gray-900">{previewSubject || subject || "(no subject)"}</p>
                 </div>
                 {previewHtml ? (
-                  <iframe
-                    key={previewVersion}
-                    title="Email preview"
-                    srcDoc={previewHtml}
-                    sandbox=""
-                    className="w-full p-2 bg-white"
-                    style={{ minHeight: "calc(100vh - 280px)" }}
-                  />
+                  <EmailPreviewFrame html={previewHtml} version={previewVersion} minHeight="calc(100vh - 320px)" />
                 ) : (
                   <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-2">
                     <Loader2 size={14} className="animate-spin" /> Rendering preview…

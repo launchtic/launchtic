@@ -367,7 +367,7 @@ export default function WorkflowEmailEditor({
             • scroll-pt-16: same idea but for keyboard / programmatic
               scrollIntoView — leaves the same gap above the active block. */}
         <div className="flex-1 min-h-0 overflow-y-auto bg-white scroll-pt-16">
-          <div className="max-w-3xl mx-auto px-4 sm:px-5 pt-16 pb-6 h-full flex flex-col">
+          <div className="max-w-[600px] mx-auto px-4 sm:px-5 pt-16 pb-6 h-full flex flex-col">
             <div className="flex-1 min-h-0">
               <RichEmailEditor
                 value={bodyHtml}

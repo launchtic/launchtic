@@ -102,6 +102,7 @@ export async function importBundle(workspaceId: string, buf: Buffer): Promise<Im
         name,
         subject:  String(template.subject ?? ""),
         htmlBody: template.htmlBody ? rewriteHtmlAssetUrls(String(template.htmlBody), refs) : "",
+        font:     (template.font as string | null) ?? null,
         category: ((template.category as string) || "MARKETING") as never,
         isSystem: false,
       },

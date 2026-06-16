@@ -154,8 +154,7 @@ export default function RichEmailEditor({
       // (placement: top-start) and is appended INSIDE this scroll container,
       // so the top-most block's toolbar gets clipped by the container edge
       // without enough headroom. The extra top padding gives it room.
-      // pb-12: clears the floating "Library" button + last-line breathing room.
-      contentClassName: "focus:outline-none flex-1 overflow-y-auto px-4 pt-12 pb-12",
+      contentClassName: "focus:outline-none flex-1 overflow-y-auto px-4 pt-12 pb-6",
     }),
     [showMenuBar],
   );
@@ -181,17 +180,20 @@ export default function RichEmailEditor({
         config={config}
       />
 
-      {/* Unobtrusive floating action — pick an existing image (no re-upload).
-          Maily's native upload (slash "/Image", drag, paste) is untouched. */}
-      <button
-        type="button"
-        onClick={() => setPickerOpen(true)}
-        disabled={!editor}
-        title="Insert image from Media Library"
-        className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 shadow-sm text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
-      >
-        <ImageIcon size={14} /> Library
-      </button>
+      {/* Pick an existing image (no re-upload). In its own bar BELOW the
+          content so it never overlaps the email canvas. Maily's native upload
+          (slash "/Image", drag, paste) is untouched. */}
+      <div className="shrink-0 flex items-center justify-end border-t border-gray-100 bg-white px-2 py-1.5">
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          disabled={!editor}
+          title="Insert image from Media Library"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 transition-colors"
+        >
+          <ImageIcon size={14} /> Library
+        </button>
+      </div>
 
       {pickerOpen && (
         <MediaLibraryPicker

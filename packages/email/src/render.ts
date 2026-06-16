@@ -131,14 +131,20 @@ const EMAIL_THEME = {
 // these render the same for every recipient. Stored on each email row as the
 // `name`; resolved to a theme (send) or CSS stack (editor/preview) at render.
 export const EMAIL_FONTS = [
-  { name: "Arial",           fontFamily: "Arial",           fallback: "Helvetica, sans-serif" },
-  { name: "Helvetica",       fontFamily: "Helvetica",       fallback: "Arial, sans-serif" },
-  { name: "Georgia",         fontFamily: "Georgia",         fallback: "'Times New Roman', serif" },
-  { name: "Times New Roman", fontFamily: "Times New Roman", fallback: "Times, serif" },
-  { name: "Verdana",         fontFamily: "Verdana",         fallback: "Geneva, sans-serif" },
-  { name: "Tahoma",          fontFamily: "Tahoma",          fallback: "Verdana, sans-serif" },
-  { name: "Trebuchet MS",    fontFamily: "Trebuchet MS",    fallback: "Helvetica, sans-serif" },
-  { name: "Courier New",     fontFamily: "Courier New",     fallback: "Courier, monospace" },
+  // Sans-serif
+  { name: "Arial",           fontFamily: "Arial",                fallback: "Helvetica, sans-serif" },
+  { name: "Helvetica",       fontFamily: "Helvetica",            fallback: "Arial, sans-serif" },
+  { name: "Verdana",         fontFamily: "Verdana",              fallback: "Geneva, sans-serif" },
+  { name: "Tahoma",          fontFamily: "Tahoma",               fallback: "Verdana, sans-serif" },
+  { name: "Trebuchet MS",    fontFamily: "Trebuchet MS",         fallback: "Helvetica, sans-serif" },
+  { name: "Lucida Sans",     fontFamily: "Lucida Sans Unicode",  fallback: "'Lucida Grande', Geneva, Verdana, sans-serif" },
+  // Serif
+  { name: "Georgia",         fontFamily: "Georgia",              fallback: "'Times New Roman', serif" },
+  { name: "Times New Roman", fontFamily: "Times New Roman",      fallback: "Times, serif" },
+  { name: "Palatino",        fontFamily: "Palatino Linotype",    fallback: "Palatino, 'Book Antiqua', serif" },
+  { name: "Garamond",        fontFamily: "Garamond",             fallback: "Baskerville, 'Times New Roman', serif" },
+  // Monospace
+  { name: "Courier New",     fontFamily: "Courier New",          fallback: "Courier, monospace" },
 ] as const;
 
 export const DEFAULT_EMAIL_FONT = "Arial";
@@ -147,10 +153,13 @@ function resolveFont(font?: string | null) {
   return EMAIL_FONTS.find((f) => f.name === font) ?? EMAIL_FONTS[0];
 }
 
-// maily theme `font` block for the send-render path.
+// maily theme `font` block for the send-render path. webFont:null is REQUIRED:
+// maily's default theme ships an Inter @font-face and deep-merges it in, which
+// would alias the chosen family to Inter (so every font renders as Inter in
+// webfont-capable clients). Nulling it keeps us on real web-safe system fonts.
 export function emailFontTheme(font?: string | null) {
   const f = resolveFont(font);
-  return { fontFamily: f.fontFamily, fallbackFontFamily: f.fallback };
+  return { fontFamily: f.fontFamily, fallbackFontFamily: f.fallback, webFont: null };
 }
 
 // Full CSS font-family stack for the editor + preview (multi-word names quoted).

@@ -14,6 +14,7 @@ import { useToast } from "../ui/Toast";
 import { useUnsavedChanges } from "../../contexts/UnsavedChangesContext";
 import RichEmailEditor from "./RichEmailEditor";
 import FontSelect from "./FontSelect";
+import EmailPreviewFrame from "./EmailPreviewFrame";
 import { apiFetch } from "../../lib/api-client";
 
 type Status = "DRAFT" | "SCHEDULED" | "SENDING" | "SENT" | "FAILED" | "CANCELED";
@@ -544,7 +545,7 @@ export default function BroadcastDetail({
             {view === "edit" ? (
               <>
                 <div className="flex-1 min-h-0 overflow-y-auto">
-                  <div className="max-w-3xl mx-auto px-4 sm:px-5 py-6 h-full flex flex-col">
+                  <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6 h-full flex flex-col">
                     <div className="flex-1 min-h-0">
                       <RichEmailEditor
                         value={htmlBody}
@@ -576,7 +577,7 @@ export default function BroadcastDetail({
               </>
             ) : view === "preview" ? (
               <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
-                <div className="max-w-3xl mx-auto px-4 sm:px-5 py-6">
+                <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6">
                   <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                     <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
                       <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-0.5">Subject</p>
@@ -589,14 +590,7 @@ export default function BroadcastDetail({
                       )}
                     </div>
                     {previewHtml ? (
-                      <iframe
-                        key={previewVersion}
-                        title="Broadcast preview"
-                        srcDoc={previewHtml}
-                        sandbox=""
-                        className="w-full bg-white"
-                        style={{ minHeight: "calc(100vh - 280px)" }}
-                      />
+                      <EmailPreviewFrame html={previewHtml} version={previewVersion} title="Broadcast preview" minHeight="calc(100vh - 320px)" />
                     ) : (
                       <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-2">
                         <Loader2 size={14} className="animate-spin" /> Rendering preview…
@@ -836,12 +830,7 @@ function SentDetail({
             <Loader2 size={14} className="animate-spin" /> Rendering…
           </div>
         ) : (
-          <iframe
-            title="Sent broadcast"
-            srcDoc={bodyHtml}
-            sandbox=""
-            className="w-full min-h-[400px] border border-gray-100 rounded-lg bg-white"
-          />
+          <EmailPreviewFrame html={bodyHtml} title="Sent broadcast" minHeight="400px" />
         )}
       </div>
     </div>

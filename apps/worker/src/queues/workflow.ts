@@ -378,6 +378,7 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       toEmail:     c.email,
       subject:     renderedSubject,
       bodyHtml:    renderedHtml,
+      font:        email.font,
       status:      "QUEUED",
       sourceType:  "WORKFLOW",
       sourceId:    emailId,

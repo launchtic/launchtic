@@ -118,6 +118,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
         toEmail:     r.contact.email,
         subject:     r.subject,
         bodyHtml:    r.html,
+        font:        broadcast.font,
         status:      "QUEUED" as const,
         sourceType:  "BROADCAST",
         sourceId:    broadcastId,
