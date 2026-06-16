@@ -18,13 +18,12 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react";
-import RichEmailEditor from "../emails/RichEmailEditor";
+import EmailBuilder from "../email-builder/EmailBuilder";
 import FontSelect from "../emails/FontSelect";
 import { apiFetch } from "../../lib/api-client";
-import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
+import { STANDARD_VARIABLES, emailFontCss, EMPTY_EMAIL_DOC } from "@launchtic/email";
 import { useToast } from "../ui/Toast";
 import { validateWorkflowEmail } from "../../lib/workflow-validation";
-import type { Editor as TiptapEditor } from "@tiptap/core";
 
 type Sender = { id: string; name: string; email: string; isDefault: boolean };
 
@@ -40,7 +39,7 @@ type EmailRow = {
   senderId:  string | null;
 };
 
-const EMPTY_DOC = JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] });
+const EMPTY_DOC = EMPTY_EMAIL_DOC;
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300 transition-colors";
 
@@ -86,8 +85,6 @@ export default function WorkflowEmailEditor({
     initial?.fromEmail ?? seedSender?.email ?? "",
   );
 
-  const editorRef    = useRef<TiptapEditor | null>(null);
-  const lastFocused  = useRef<"subject" | "body">("body");
   const subjectRef   = useRef<HTMLInputElement>(null);
 
   const [busy, setBusy] = useState(false);
@@ -167,25 +164,15 @@ export default function WorkflowEmailEditor({
   // Refocus the last-focused editable surface so cursor doesn't jump back to
   // subject after typing in body (or vice versa) when a re-render happens.
   // Variables button uses this so inserting a token keeps focus where it was.
+  // Subject-only variable insert (body variables live in the builder's panel).
   const insertVariable = useCallback((key: string) => {
     const token = `{{${key}}}`;
-    if (lastFocused.current === "subject") {
-      const el = subjectRef.current;
-      if (!el) return;
-      const start = el.selectionStart ?? subject.length;
-      const end   = el.selectionEnd   ?? subject.length;
-      const next  = subject.slice(0, start) + token + subject.slice(end);
-      setSubject(next);
-      queueMicrotask(() => {
-        el.focus();
-        const pos = start + token.length;
-        try { el.setSelectionRange(pos, pos); } catch { /* IE-only fallback no-op */ }
-      });
-    } else {
-      const ed = editorRef.current;
-      if (!ed) return;
-      ed.chain().focus().insertContent(token).run();
-    }
+    const el = subjectRef.current;
+    if (!el) { setSubject((s) => s + token); return; }
+    const start = el.selectionStart ?? subject.length;
+    const end   = el.selectionEnd   ?? subject.length;
+    setSubject(subject.slice(0, start) + token + subject.slice(end));
+    queueMicrotask(() => { el.focus(); const pos = start + token.length; try { el.setSelectionRange(pos, pos); } catch {} });
   }, [subject]);
 
   // Picking a sender identity also seeds fromName/fromEmail with the
@@ -322,7 +309,6 @@ export default function WorkflowEmailEditor({
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              onFocus={() => { lastFocused.current = "subject"; }}
               placeholder="Hi {{contact.firstName}}…"
               className={inputCls}
             />
@@ -366,25 +352,15 @@ export default function WorkflowEmailEditor({
               viewport.
             • scroll-pt-16: same idea but for keyboard / programmatic
               scrollIntoView — leaves the same gap above the active block. */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-white scroll-pt-16">
-          <div className="max-w-[600px] mx-auto px-4 sm:px-5 pt-16 pb-6 h-full flex flex-col">
-            <div className="flex-1 min-h-0">
-              <RichEmailEditor
-                value={bodyHtml}
-                onChange={setBodyHtml}
-                onEditorReady={(ed) => { editorRef.current = ed; }}
-                onFocus={() => { lastFocused.current = "body"; }}
-                fontCss={emailFontCss(font)}
-              />
-            </div>
-          </div>
+        <div className="flex-1 min-h-0 p-3 bg-white">
+          <EmailBuilder value={bodyHtml} onChange={setBodyHtml} fontCss={emailFontCss(font)} />
         </div>
 
         {/* Variables row — bottom, sticky. Click a chip → token inserted at
             the cursor in whichever surface (subject / body) was last focused. */}
         <div className="border-t border-gray-200 bg-white shrink-0">
           <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium text-gray-500 mr-1">Insert variable:</span>
+            <span className="text-xs font-medium text-gray-500 mr-1">Subject variable:</span>
             {STANDARD_VARIABLES.map((v) => (
               <button
                 key={v.key}

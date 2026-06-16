@@ -1,0 +1,115 @@
+// Serialize a Craft.js email tree (Page → Section → Column → content) into MJML.
+// MJML compiles to bulletproof responsive HTML. Pure string logic (no mjml dep).
+
+import { emailFontCss } from "./fonts";
+
+type SNode = {
+  type: { resolvedName?: string } | string;
+  props?: Record<string, any>;
+  nodes?: string[];
+  linkedNodes?: Record<string, string>;
+};
+type SNodes = Record<string, SNode>;
+
+const nameOf = (n: SNode) => (typeof n.type === "string" ? n.type : n.type?.resolvedName ?? "");
+const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const attr = (s: unknown) => esc(s).replace(/"/g, "&quot;");
+const ml = (s: unknown) => esc(s).replace(/\n/g, "<br/>");
+
+export function isCraftDoc(serialized: string): boolean {
+  try { const o = JSON.parse(serialized); return !!o && typeof o === "object" && !!o.ROOT; } catch { return false; }
+}
+
+function block(n: SNode): string {
+  const p = n.props ?? {};
+  switch (nameOf(n)) {
+    case "EmailHeading":
+      return `<mj-text font-size="${Number(p.fontSize) || 24}px" font-weight="bold" color="${attr(p.color || "#111827")}" align="${attr(p.align || "left")}" line-height="1.3" padding="8px 0">${ml(p.text || "Heading")}</mj-text>`;
+    case "EmailText":
+      return `<mj-text font-size="${Number(p.fontSize) || 14}px" color="${attr(p.color || "#374151")}" align="${attr(p.align || "left")}" line-height="1.6" padding="8px 0">${ml(p.text || "")}</mj-text>`;
+    case "EmailButton":
+      return `<mj-button background-color="${attr(p.bg || "#2563eb")}" color="${attr(p.color || "#ffffff")}" href="${attr(p.href || "#")}" border-radius="${Number(p.radius) || 6}px" align="${attr(p.align || "center")}" padding="12px 0" inner-padding="12px 28px">${esc(p.text || "Button")}</mj-button>`;
+    case "EmailImage":
+      if (!p.src) return "";
+      return `<mj-image src="${attr(p.src)}" alt="${attr(p.alt || "")}" align="${attr(p.align || "center")}"${p.width ? ` width="${Number(p.width)}px"` : ""}${p.href ? ` href="${attr(p.href)}"` : ""} padding="8px 0" />`;
+    case "EmailDivider":
+      return `<mj-divider border-color="${attr(p.color || "#e5e7eb")}" border-width="1px" padding="8px 0" />`;
+    case "EmailSpacer":
+      return `<mj-spacer height="${Number(p.height) || 16}px" />`;
+    default:
+      return "";
+  }
+}
+
+function column(nodes: SNodes, id: string): string {
+  const n = nodes[id]; if (!n) return "";
+  const p = n.props ?? {};
+  const inner = (n.nodes ?? []).map((b) => block(nodes[b])).join("") || `<mj-text>&nbsp;</mj-text>`;
+  const bg = p.bgColor && p.bgColor !== "transparent" ? ` background-color="${attr(p.bgColor)}"` : "";
+  return `<mj-column${bg} vertical-align="${attr(p.verticalAlign || "top")}" padding="${Number(p.paddingY) || 0}px ${Number(p.paddingX) ?? 8}px">${inner}</mj-column>`;
+}
+
+function section(nodes: SNodes, id: string): string {
+  const n = nodes[id]; if (!n) return "";
+  const p = n.props ?? {};
+  const cols = (n.nodes ?? []).map((c) => column(nodes, c)).join("") || `<mj-column><mj-text>&nbsp;</mj-text></mj-column>`;
+  const a: string[] = [];
+  if (p.bgColor && p.bgColor !== "transparent") a.push(`background-color="${attr(p.bgColor)}"`);
+  if (p.bgImage) {
+    const d = p.bgDisplay || "cover";
+    const size = d === "contain" ? "contain" : d === "repeat" || d === "actual" ? "auto" : "cover";
+    a.push(`background-url="${attr(p.bgImage)}"`, `background-size="${size}"`, `background-repeat="${d === "repeat" ? "repeat" : "no-repeat"}"`, `background-position="${attr(p.bgPosition || "center center")}"`);
+  }
+  if (Number(p.borderRadius)) a.push(`border-radius="${Number(p.borderRadius)}px"`);
+  a.push(`padding="${Number(p.paddingY) || 8}px ${Number(p.paddingX) || 0}px"`);
+  return `<mj-section ${a.join(" ")}>${cols}</mj-section>`;
+}
+
+export function craftToMjml(serialized: string, opts: { font?: string | null; extraSections?: string } = {}): string {
+  let nodes: SNodes;
+  try { nodes = JSON.parse(serialized); } catch { nodes = {}; }
+  const root = nodes["ROOT"] ?? ({} as SNode);
+  const pp = root.props ?? {};
+  const width = Number(pp.width) || 600;
+  const breakpoint = Number(pp.breakpoint) || 480;
+  const pageBg = pp.bgColor || "#f3f4f6";
+  const fontStack = emailFontCss(opts.font ?? pp.fontFamily);   // per-email font wins; else page theme
+  const fontSize = Number(pp.fontSize) || 14;
+  const textColor = pp.textColor || "#374151";
+
+  const body = (root.nodes ?? []).map((id) => section(nodes, id)).join("") + (opts.extraSections ?? "");
+
+  return [
+    `<mjml><mj-head>`,
+    `<mj-breakpoint width="${breakpoint}px" />`,
+    `<mj-attributes>`,
+    `<mj-all font-family="${attr(fontStack)}" />`,
+    `<mj-text font-size="${fontSize}px" color="${attr(textColor)}" line-height="1.6" />`,
+    `</mj-attributes></mj-head>`,
+    `<mj-body width="${width}px" background-color="${attr(pageBg)}">`,
+    body || `<mj-section><mj-column><mj-text align="center" color="#9ca3af">Empty email</mj-text></mj-column></mj-section>`,
+    `</mj-body></mjml>`,
+  ].join("");
+}
+
+export function unsubscribeSectionMjml(unsubscribeText: string, physicalAddress?: string | null): string {
+  const m = unsubscribeText.match(/\{([^{}]+)\}/);
+  const label = m ? m[1] : "unsubscribe";
+  const idx = m ? m.index! : unsubscribeText.length;
+  const before = esc(unsubscribeText.slice(0, idx));
+  const after = m ? esc(unsubscribeText.slice(idx + m[0].length)) : "";
+  const addr = physicalAddress?.trim()
+    ? `<mj-text align="center" font-size="12px" color="#9ca3af" padding="0 0 4px 0">${ml(physicalAddress.trim())}</mj-text>`
+    : "";
+  return [
+    `<mj-section padding="0"><mj-column>`,
+    `<mj-divider border-color="#e5e7eb" border-width="1px" padding="16px 0 8px 0" />`,
+    addr,
+    `<mj-text align="center" font-size="12px" color="#9ca3af">${before}<a href="{{unsubscribeUrl}}" style="color:#6b7280;text-decoration:underline">${esc(label)}</a>${after}</mj-text>`,
+    `</mj-column></mj-section>`,
+  ].join("");
+}
+
+export function craftContainsUnsubscribe(serialized: string): boolean {
+  return serialized.includes("{{unsubscribeUrl}}");
+}

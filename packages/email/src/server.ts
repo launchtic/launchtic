@@ -2,15 +2,14 @@
 // Do NOT import from this file in a client component or browser bundle.
 export {
   render,
-  renderEmailContent,
   sampleVars,
   EMPTY_EMAIL_DOC,
   WELCOME_EMAIL_DOC,
   isEmptyEmailDoc,
   STANDARD_VARIABLES,
   type RenderVars,
-  type RenderOptions,
 } from "./render";
+export { renderEmailContent, type RenderOptions } from "./render-email";
 export {
   createTransporter,
   sendEmail,

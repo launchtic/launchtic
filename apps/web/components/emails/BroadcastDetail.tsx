@@ -7,12 +7,11 @@ import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle, Trash2,
   Users, Clock, Tag as TagIcon, Pencil, Eye, ChevronDown, X, Ban,
 } from "lucide-react";
-import type { Editor as TiptapEditor } from "@tiptap/react";
 import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useUnsavedChanges } from "../../contexts/UnsavedChangesContext";
-import RichEmailEditor from "./RichEmailEditor";
+import EmailBuilder from "../email-builder/EmailBuilder";
 import FontSelect from "./FontSelect";
 import EmailPreviewFrame from "./EmailPreviewFrame";
 import { apiFetch } from "../../lib/api-client";
@@ -96,8 +95,6 @@ export default function BroadcastDetail({
   const [retrying, setRetrying] = useState(false);
 
   const subjectRef = useRef<HTMLInputElement>(null);
-  const editorRef = useRef<TiptapEditor | null>(null);
-  const lastFocused = useRef<"subject" | "body">("body");
 
   const dirty = useMemo(
     () =>
@@ -146,40 +143,30 @@ export default function BroadcastDetail({
     return () => { cancelled = true; };
   }, [isSent, initial.status, initial.id]);
 
-  // Preview iframe — render maily JSON → email HTML client-side, then
-  // substitute {{vars}} with sample data. Falls back to legacy HTML body.
+  // Server-side preview (Craft → MJML → responsive HTML). Subject tokens
+  // substituted client-side for instant feedback.
   useEffect(() => {
     if (view !== "preview") return;
     let cancelled = false;
+    const sample = {
+      contact: { firstName: "John", lastName: "Doe", email: "john@example.com", fullName: "John Doe" },
+      workspace: { name: "Your Workspace" },
+      order: { id: "ord_demo123", total: "$99.00", currency: "USD" },
+    };
+    setPreviewSubject(renderTokens(subject, sample));
     (async () => {
-      const sample = {
-        contact: { firstName: "John", lastName: "Doe", email: "john@example.com", fullName: "John Doe" },
-        workspace: { name: "Your Workspace" },
-        order: { id: "ord_demo123", total: "$99.00", currency: "USD" },
-        unsubscribeUrl: "#preview-unsubscribe",
-      };
-      const renderedSubject = renderTokens(subject, sample);
-      const trimmed = (htmlBody ?? "").trim();
-      let bodyHtml = "";
-      if (trimmed.startsWith("{")) {
-        try {
-          const json = JSON.parse(trimmed);
-          // Dynamic import — keep maily render out of the editor's hot path.
-          const { renderPreviewHtml } = await import("./preview-render");
-          bodyHtml = await renderPreviewHtml(json, font);
-        } catch (e) {
-          bodyHtml = `<pre style="color:#dc2626;padding:16px;font-family:monospace;font-size:12px">Preview render failed: ${
-            e instanceof Error ? e.message : "unknown"
-          }</pre>`;
+      try {
+        const res = await apiFetch("/api/email-preview", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: htmlBody, font }),
+        });
+        const d = await res.json();
+        if (!cancelled) {
+          setPreviewHtml(d.success ? d.data.html : `<pre style="color:#dc2626;padding:16px">${d.error ?? "Preview failed"}</pre>`);
+          setPreviewVersion((v) => v + 1);
         }
-      } else {
-        bodyHtml = trimmed.startsWith("<") ? trimmed : `<p>${trimmed}</p>`;
-      }
-      const renderedBody = renderTokens(bodyHtml, sample);
-      if (!cancelled) {
-        setPreviewSubject(renderedSubject);
-        setPreviewHtml(renderedBody);
-        setPreviewVersion((v) => v + 1);
+      } catch {
+        if (!cancelled) { setPreviewHtml(`<pre style="padding:16px">Preview failed</pre>`); setPreviewVersion((v) => v + 1); }
       }
     })();
     return () => { cancelled = true; };
@@ -225,27 +212,15 @@ export default function BroadcastDetail({
   // browser reload/close + every in-app <Link> click (TopNav, back arrow, etc.).
   useUnsavedChanges(dirty);
 
-  // Editor wraps onChange in useTransition for typing perf — pull current JSON
-  // directly when switching to Preview to bypass the transition lag.
-  function flushEditorState() {
-    const ed = editorRef.current;
-    if (!ed) return;
-    const str = JSON.stringify(ed.getJSON());
-    if (str !== htmlBody) setHtmlBody(str);
-  }
-
+  // Subject-only variable insert (body variables live in the builder's panel).
   function insertVariable(key: string) {
     const token = `{{${key}}}`;
-    if (lastFocused.current === "subject") {
-      const el = subjectRef.current;
-      if (!el) return;
-      const start = el.selectionStart ?? subject.length;
-      const end = el.selectionEnd ?? subject.length;
-      setSubject(subject.slice(0, start) + token + subject.slice(end));
-      requestAnimationFrame(() => { el.focus(); const p = start + token.length; el.setSelectionRange(p, p); });
-    } else {
-      editorRef.current?.chain().focus().insertContent(token).run();
-    }
+    const el = subjectRef.current;
+    if (!el) { setSubject(subject + token); return; }
+    const start = el.selectionStart ?? subject.length;
+    const end = el.selectionEnd ?? subject.length;
+    setSubject(subject.slice(0, start) + token + subject.slice(end));
+    requestAnimationFrame(() => { el.focus(); const p = start + token.length; el.setSelectionRange(p, p); });
   }
 
   function applyTemplate(templateId: string) {
@@ -404,7 +379,7 @@ export default function BroadcastDetail({
               <Pencil size={12} /> Edit
             </button>
             <button
-              onClick={() => { flushEditorState(); setView("preview"); }}
+              onClick={() => setView("preview")}
               className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                 view === "preview" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
@@ -481,7 +456,6 @@ export default function BroadcastDetail({
                     ref={subjectRef}
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    onFocus={() => { lastFocused.current = "subject"; }}
                     disabled={!isEditable}
                     placeholder="Email subject line"
                     className={inputCls}
@@ -544,23 +518,13 @@ export default function BroadcastDetail({
           <div className="flex-1 min-h-0 flex flex-col bg-white">
             {view === "edit" ? (
               <>
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                  <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6 h-full flex flex-col">
-                    <div className="flex-1 min-h-0">
-                      <RichEmailEditor
-                        value={htmlBody}
-                        onChange={setHtmlBody}
-                        onEditorReady={(ed) => { editorRef.current = ed; }}
-                        onFocus={() => { lastFocused.current = "body"; }}
-                        fontCss={emailFontCss(font)}
-                      />
-                    </div>
-                  </div>
+                <div className="flex-1 min-h-0 p-3">
+                  <EmailBuilder value={htmlBody} onChange={setHtmlBody} fontCss={emailFontCss(font)} />
                 </div>
-                {/* Variables row */}
+                {/* Subject variables row */}
                 <div className="border-t border-gray-200 bg-white shrink-0">
                   <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium text-gray-500 mr-1">Insert variable:</span>
+                    <span className="text-xs font-medium text-gray-500 mr-1">Subject variable:</span>
                     {STANDARD_VARIABLES.map((v) => (
                       <button
                         key={v.key}
@@ -759,23 +723,21 @@ function SentDetail({
       const trimmed = (initial.htmlBody ?? "").trim();
       if (trimmed.startsWith("{")) {
         try {
-          const json = JSON.parse(trimmed);
-          const { renderPreviewHtml } = await import("./preview-render");
-          const rendered = await renderPreviewHtml(json, initial.font);
-          if (!cancelled) setBodyHtml(rendered);
-        } catch (e) {
-          if (!cancelled) {
-            setBodyHtml(`<pre style="color:#dc2626;padding:16px;font-family:monospace;font-size:12px">Render failed: ${
-              e instanceof Error ? e.message : "unknown"
-            }</pre>`);
-          }
+          const res = await apiFetch("/api/email-preview", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: trimmed, font: initial.font }),
+          });
+          const d = await res.json();
+          if (!cancelled) setBodyHtml(d.success ? d.data.html : `<pre style="color:#dc2626;padding:16px">${d.error ?? "Render failed"}</pre>`);
+        } catch {
+          if (!cancelled) setBodyHtml(`<pre style="padding:16px">Render failed</pre>`);
         }
       } else {
         if (!cancelled) setBodyHtml(trimmed.startsWith("<") ? trimmed : `<p>${trimmed}</p>`);
       }
     })();
     return () => { cancelled = true; };
-  }, [initial.htmlBody]);
+  }, [initial.htmlBody, initial.font]);
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
