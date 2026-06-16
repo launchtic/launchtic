@@ -7,11 +7,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
-import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft } from "lucide-react";
-import { STANDARD_VARIABLES } from "@launchtic/email";
+import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough } from "lucide-react";
+import { STANDARD_VARIABLES, EMAIL_FONTS } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";
 import {
-  EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer,
+  EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar,
 } from "./blocks";
 
 // Duplicate a node + its subtree (fresh ids), inserted right after it.
@@ -71,7 +71,7 @@ function RenderNode({ render }: { render: React.ReactElement }) {
       {rect && createPortal(
         isActive ? (
           // Selected — full toolbar with actions.
-          <div style={{ position: "fixed", top: Math.max(rect.top - 23, 2), left: rect.left, zIndex: 9999 }}
+          <div style={{ position: "fixed", top: Math.max(rect.top - 23, 2), left: rect.left, zIndex: 41 }}
             className="flex items-center gap-0.5 h-[22px] px-1 bg-blue-600 text-white text-[11px] rounded-t-md shadow-md">
             <span ref={(r) => { if (r) drag(r); }} title="Drag to move" className="px-0.5 cursor-grab"><Move size={12} /></span>
             <span className="px-1 font-medium">{name}</span>
@@ -81,7 +81,7 @@ function RenderNode({ render }: { render: React.ReactElement }) {
           </div>
         ) : (
           // Hover only — just the name label (lighter).
-          <div style={{ position: "fixed", top: Math.max(rect.top - 19, 2), left: rect.left, zIndex: 9998 }}
+          <div style={{ position: "fixed", top: Math.max(rect.top - 19, 2), left: rect.left, zIndex: 40 }}
             className="h-[18px] px-1.5 bg-blue-400 text-white text-[10px] font-medium rounded-t-md leading-[18px]">
             {name}
           </div>
@@ -90,6 +90,45 @@ function RenderNode({ render }: { render: React.ReactElement }) {
       )}
       {render}
     </>
+  );
+}
+
+// Floating rich-text bubble toolbar for inline editing (Text/Heading). Appears
+// on a non-collapsed selection inside a [data-rt] contentEditable.
+const RT_COLORS = ["#111827", "#6b7280", "#2563eb", "#dc2626", "#16a34a", "#ffffff"];
+function InlineToolbar() {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  useEffect(() => {
+    const onSel = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { setPos(null); return; }
+      const range = sel.getRangeAt(0);
+      let node: any = range.commonAncestorContainer;
+      node = node?.nodeType === 3 ? node.parentElement : node;
+      if (!node?.closest?.("[data-rt]")) { setPos(null); return; }
+      const r = range.getBoundingClientRect();
+      if (!r || (r.top === 0 && r.left === 0 && r.width === 0)) { setPos(null); return; }
+      setPos({ top: r.top - 38, left: r.left });
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
+  if (!pos) return null;
+  const cmd = (c: string, v?: string) => (e: React.MouseEvent) => { e.preventDefault(); document.execCommand(c, false, v); };
+  const btn = "p-1 hover:bg-gray-700 rounded";
+  return createPortal(
+    <div onMouseDown={(e) => e.preventDefault()} style={{ position: "fixed", top: Math.max(pos.top, 2), left: pos.left, zIndex: 45 }}
+      className="flex items-center gap-0.5 bg-gray-900 text-white rounded-md shadow-lg px-1.5 py-1">
+      <button onMouseDown={cmd("bold")} className={btn} title="Bold"><Bold size={13} /></button>
+      <button onMouseDown={cmd("italic")} className={btn} title="Italic"><Italic size={13} /></button>
+      <button onMouseDown={cmd("underline")} className={btn} title="Underline"><Underline size={13} /></button>
+      <button onMouseDown={cmd("strikeThrough")} className={btn} title="Strikethrough"><Strikethrough size={13} /></button>
+      <span className="w-px h-4 bg-gray-600 mx-0.5" />
+      {RT_COLORS.map((c) => (
+        <button key={c} onMouseDown={cmd("foreColor", c)} title={c} className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ background: c }} />
+      ))}
+    </div>,
+    document.body,
   );
 }
 
@@ -113,7 +152,7 @@ function Toolbox() {
         </div>
       </div>
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Content <span className="normal-case font-normal">(drop into a column)</span></p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Content <span className="normal-case font-normal">(drop anywhere — auto-wraps)</span></p>
         <div className="grid grid-cols-2 gap-2">
           <div ref={ref(<EmailHeading />)} className={cell}><Heading1 size={20} />Heading</div>
           <div ref={ref(<EmailText />)} className={cell}><Type size={20} />Text</div>
@@ -121,6 +160,7 @@ function Toolbox() {
           <div ref={ref(<EmailImage />)} className={cell}><ImageIcon size={20} />Image</div>
           <div ref={ref(<EmailDivider />)} className={cell}><Minus size={20} />Divider</div>
           <div ref={ref(<EmailSpacer />)} className={cell}><MoveVertical size={20} />Spacer</div>
+          <div ref={ref(<EmailNavbar />)} className={cell}><Menu size={20} />Navbar</div>
         </div>
       </div>
     </div>
@@ -131,18 +171,58 @@ const inputCls = "w-full border border-gray-200 rounded-lg px-2.5 py-2 text-sm f
 const LABEL: Record<string, string> = {
   text: "Text", href: "Link URL", src: "Image URL", alt: "Alt text", fontSize: "Font size", color: "Color", bg: "Button color",
   align: "Align", width: "Width (px)", height: "Height (px)", radius: "Corner radius", bgColor: "Background", contentBg: "Content background",
-  textColor: "Text color", breakpoint: "Mobile breakpoint", paddingY: "Padding Y", paddingX: "Padding X", verticalAlign: "Vertical align",
-  borderRadius: "Corner radius",
+  textColor: "Text color", breakpoint: "Mobile breakpoint", paddingY: "Padding Y", paddingX: "Padding X", verticalAlign: "Vertical align", fontFamily: "Font",
+  borderRadius: "Corner radius", thickness: "Thickness", style: "Style", itemPadding: "Item padding", lineHeight: "Line height", letterSpacing: "Letter spacing",
+  marginY: "Margin Y", marginX: "Margin X",
 };
 const COLOR_KEYS = ["color", "bg", "bgColor", "contentBg", "textColor"];
-const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius"];
-// Section background-media keys — rendered by a dedicated control, not generically.
-const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition"];
+const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius", "thickness", "itemPadding", "lineHeight", "letterSpacing", "marginY", "marginX"];
+// Keys rendered by dedicated controls, not the generic field loop.
+const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX"];
 const BG_DISPLAY = [{ v: "cover", l: "Cover" }, { v: "contain", l: "Contain (no crop)" }, { v: "repeat", l: "Repeat" }, { v: "actual", l: "Actual size" }];
 const BG_POSITION = ["top left", "top center", "top right", "center left", "center center", "center right", "bottom left", "bottom center", "bottom right"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block"><span className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-1">{label}</span>{children}</label>;
+}
+
+// Shared image control — preview + Replace/Remove (Library picker) OR a Choose
+// button, plus an external-URL input. Used for both Image element src and
+// Section background image so they look/behave the same.
+function ImagePickerField({ value, onPick, onChange }: { value?: string; onPick: () => void; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1.5">
+      {value ? (
+        <>
+          <div className="h-20 rounded-lg border border-gray-200 bg-gray-50 bg-center bg-contain bg-no-repeat" style={{ backgroundImage: `url("${value}")` }} />
+          <div className="flex gap-1.5">
+            <button type="button" onClick={onPick} className="flex-1 text-xs px-2 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Replace</button>
+            <button type="button" onClick={() => onChange("")} className="text-xs px-2 py-1.5 rounded border border-gray-200 text-gray-500 hover:text-red-600 hover:bg-red-50">Remove</button>
+          </div>
+        </>
+      ) : (
+        <button type="button" onClick={onPick} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-300 hover:bg-blue-50"><ImagePlus size={14} /> Choose image</button>
+      )}
+      <input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder="or paste image URL…" className={`${inputCls} text-xs`} />
+    </div>
+  );
+}
+
+// Two-axis numeric control (Y | X) on one compact row — used for Padding/Margin.
+function AxisRow({ label, yKey, xKey, props, set }: { label: string; yKey: string; xKey: string; props: any; set: (k: string, v: any) => void }) {
+  const cell = (k: string, ax: string) =>
+    k in props ? (
+      <div className="relative">
+        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 pointer-events-none">{ax}</span>
+        <input type="number" value={props[k] ?? 0} onChange={(e) => set(k, Number(e.target.value))} className={`${inputCls} pl-6`} />
+      </div>
+    ) : <div />;
+  return (
+    <div>
+      <span className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-1">{label}</span>
+      <div className="grid grid-cols-2 gap-2">{cell(yKey, "Y")}{cell(xKey, "X")}</div>
+    </div>
+  );
 }
 
 function SettingsPanel() {
@@ -157,12 +237,16 @@ function SettingsPanel() {
   const set = (k: string, v: any) => actions.setProp(id, (p: any) => { p[k] = v; });
   const isImage = name === "Image";
   const isSection = name === "Section";
+  const isNavbar = name === "Navbar";
   const isTextual = name === "Heading" || name === "Text";
+  const itemsSet = (next: any[]) => actions.setProp(id, (p: any) => { p.items = next; });
 
   const renderField = (k: string) => {
     const v = props[k];
     if (k === "align") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></Field>;
     if (k === "verticalAlign") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></Field>;
+    if (k === "style") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></Field>;
+    if (k === "fontFamily") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}>{EMAIL_FONTS.map((f) => <option key={f.name} value={f.name} style={{ fontFamily: f.fontFamily }}>{f.name}</option>)}</select></Field>;
     if (COLOR_KEYS.includes(k)) {
       const transparent = v === "transparent";
       return <Field key={k} label={LABEL[k]}>
@@ -197,22 +281,16 @@ function SettingsPanel() {
           </div>
         )}
       </div>
-      {isImage && <button type="button" onClick={() => setPickerKey("src")} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"><ImagePlus size={14} /> Choose from Library</button>}
+      {isImage && (
+        <Field label="Image">
+          <ImagePickerField value={props.src} onPick={() => setPickerKey("src")} onChange={(v) => set("src", v)} />
+        </Field>
+      )}
 
       {isSection && (
         <div className="space-y-2 pb-1">
           <Field label="Background image">
-            {props.bgImage ? (
-              <div className="space-y-1.5">
-                <div className="h-16 rounded-lg border border-gray-200 bg-gray-50 bg-center bg-cover" style={{ backgroundImage: `url("${props.bgImage}")` }} />
-                <div className="flex gap-1.5">
-                  <button type="button" onClick={() => setPickerKey("bgImage")} className="flex-1 text-xs px-2 py-1.5 rounded border border-gray-200 hover:bg-gray-50">Replace</button>
-                  <button type="button" onClick={() => set("bgImage", "")} className="text-xs px-2 py-1.5 rounded border border-gray-200 text-gray-500 hover:text-red-600 hover:bg-red-50">Remove</button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setPickerKey("bgImage")} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-300 hover:bg-blue-50"><ImagePlus size={14} /> Choose image</button>
-            )}
+            <ImagePickerField value={props.bgImage} onPick={() => setPickerKey("bgImage")} onChange={(v) => set("bgImage", v)} />
           </Field>
           {props.bgImage && (
             <>
@@ -233,13 +311,30 @@ function SettingsPanel() {
         </div>
       )}
 
-      {Object.keys(props).filter((k) => !SKIP_GENERIC.includes(k)).map(renderField)}
+      {isNavbar && (
+        <Field label="Menu items">
+          <div className="space-y-1.5">
+            {(props.items ?? []).map((it: any, i: number) => (
+              <div key={i} className="flex items-center gap-1">
+                <input value={it.text} onChange={(e) => itemsSet(props.items.map((x: any, j: number) => j === i ? { ...x, text: e.target.value } : x))} placeholder="Label" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs" />
+                <input value={it.href} onChange={(e) => itemsSet(props.items.map((x: any, j: number) => j === i ? { ...x, href: e.target.value } : x))} placeholder="URL" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs" />
+                <button type="button" onClick={() => itemsSet(props.items.filter((_: any, j: number) => j !== i))} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
+              </div>
+            ))}
+            <button type="button" onClick={() => itemsSet([...(props.items ?? []), { text: "Link", href: "#" }])} className="text-xs px-2 py-1 rounded border border-dashed border-gray-300 text-gray-600 hover:bg-gray-50 w-full">+ Add item</button>
+          </div>
+        </Field>
+      )}
+
+      {Object.keys(props).filter((k) => !SKIP_GENERIC.includes(k) && !(isTextual && k === "text")).map(renderField)}
+      {("paddingY" in props || "paddingX" in props) && <AxisRow label="Padding" yKey="paddingY" xKey="paddingX" props={props} set={set} />}
+      {("marginY" in props || "marginX" in props) && <AxisRow label="Margin" yKey="marginY" xKey="marginX" props={props} set={set} />}
       {isTextual && (
         <div className="pt-2 border-t border-gray-100">
-          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Insert variable</p>
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Insert variable (at cursor)</p>
           <div className="flex flex-wrap gap-1">
             {STANDARD_VARIABLES.map((va) => (
-              <button key={va.key} type="button" onClick={() => set("text", `${props.text ?? ""}{{${va.key}}}`)} className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded border border-gray-200">{`{{${va.key}}}`}</button>
+              <button key={va.key} type="button" onMouseDown={(e) => { e.preventDefault(); document.execCommand("insertText", false, `{{${va.key}}}`); }} className="text-[10px] font-mono px-1.5 py-0.5 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded border border-gray-200">{`{{${va.key}}}`}</button>
             ))}
           </div>
         </div>
@@ -247,6 +342,37 @@ function SettingsPanel() {
       {pickerKey && <MediaLibraryPicker onSelect={(url) => { set(pickerKey, url); setPickerKey(null); }} onClose={() => setPickerKey(null)} />}
     </div>
   );
+}
+
+// Auto-wrap any bare content dropped directly onto the Page (ROOT) in a fresh
+// Section → Column, so users never get a blocked drop. Runs after each change;
+// once every ROOT child is a Section there's nothing to do (no loop).
+const SECTION_DEFAULTS = { bgColor: "#ffffff", paddingY: 10, paddingX: 10, bgImage: "", bgDisplay: "cover", bgPosition: "center center", borderRadius: 0 };
+const COLUMN_DEFAULTS = { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "top" };
+function snode(resolvedName: string, props: any, parent: string, nodes: string[]) {
+  return { type: { resolvedName }, isCanvas: true, props, displayName: resolvedName, custom: {}, parent, hidden: false, nodes, linkedNodes: {} };
+}
+function AutoWrap() {
+  const { strays, actions, query } = useEditor((state) => ({
+    strays: (state.nodes["ROOT"]?.data?.nodes ?? []).filter((cid) => state.nodes[cid]?.data?.name !== "Section"),
+  }));
+  const key = strays.join(",");
+  useEffect(() => {
+    if (!strays.length) return;
+    const tree: Record<string, any> = JSON.parse(query.serialize());
+    const gid = () => "n" + Math.random().toString(36).slice(2, 10);
+    tree.ROOT.nodes = (tree.ROOT.nodes as string[]).map((cid) => {
+      if (tree[cid]?.type?.resolvedName === "Section") return cid;
+      const secId = gid(), colId = gid();
+      tree[secId] = snode("Section", { ...SECTION_DEFAULTS }, "ROOT", [colId]);
+      tree[colId] = snode("Column", { ...COLUMN_DEFAULTS }, secId, [cid]);
+      tree[cid].parent = colId;
+      return secId;
+    });
+    actions.deserialize(JSON.stringify(tree));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return null;
 }
 
 // One left sidebar: element list (Toolbox) by default; the selected element's
@@ -260,15 +386,17 @@ function LeftPanel() {
   );
 }
 
-export default function EmailBuilder({ value, onChange, fontCss }: { value?: string; onChange: (json: string) => void; fontCss?: string }) {
+export default function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: string) => void }) {
   const hasData = !!value && value.trim().startsWith("{") && value.includes("ROOT");
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   return (
     <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={(q) => onChangeRef.current(q.serialize())}>
+      <AutoWrap />
+      <InlineToolbar />
       <div className="flex h-full min-h-0 border border-gray-200 rounded-lg overflow-hidden">
         <LeftPanel />
-        <div className="flex-1 min-w-0 overflow-y-auto" style={fontCss ? { fontFamily: fontCss } : undefined}>
+        <div className="flex-1 min-w-0 overflow-y-auto">
           {hasData ? (
             <Frame data={value!} />
           ) : (

@@ -38,19 +38,20 @@ export function sampleVars(): RenderVars {
 }
 
 // Craft serialized docs — Page → Section → Column → content. Default seed.
-const PAGE_PROPS = { width: 600, breakpoint: 480, bgColor: "#f3f4f6", fontSize: 14, textColor: "#374151" };
+import { DEFAULT_EMAIL_FONT } from "./fonts";
+const PAGE_PROPS = { width: 600, breakpoint: 480, bgColor: "#f3f4f6", fontSize: 14, textColor: "#374151", fontFamily: DEFAULT_EMAIL_FONT };
 const node = (resolvedName: string, props: any, parent: string | undefined, nodes: string[] = [], isCanvas = false) =>
   ({ type: { resolvedName }, isCanvas, props, displayName: resolvedName, custom: {}, hidden: false, ...(parent ? { parent } : {}), nodes, linkedNodes: {} });
 
 export const EMPTY_EMAIL_DOC = JSON.stringify({
   ROOT: node("Page", PAGE_PROPS, undefined, ["s1"], true),
-  s1: node("Section", { bgColor: "transparent", paddingY: 8, paddingX: 0 }, "ROOT", ["c1"], true),
+  s1: node("Section", { bgColor: "#ffffff", paddingY: 10, paddingX: 10 }, "ROOT", ["c1"], true),
   c1: node("Column", { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "top" }, "s1", [], true),
 });
 
 export const WELCOME_EMAIL_DOC = JSON.stringify({
   ROOT: node("Page", PAGE_PROPS, undefined, ["s1"], true),
-  s1: node("Section", { bgColor: "transparent", paddingY: 8, paddingX: 0 }, "ROOT", ["c1"], true),
+  s1: node("Section", { bgColor: "#ffffff", paddingY: 10, paddingX: 10 }, "ROOT", ["c1"], true),
   c1: node("Column", { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "top" }, "s1", ["h1", "t1"], true),
   h1: node("EmailHeading", { text: "Welcome, {{contact.firstName}}", fontSize: 24, color: "#111827", align: "left" }, "c1"),
   t1: node("EmailText", { text: "Thanks for joining {{workspace.name}}. We're glad to have you.", fontSize: 14, color: "#374151", align: "left" }, "c1"),

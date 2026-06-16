@@ -9,7 +9,6 @@ export type RenderOptions = {
   appendUnsubscribe?: boolean;
   unsubscribeText?: string | null;
   physicalAddress?: string | null;
-  font?: string | null;
 };
 
 const DEFAULT_UNSUB_TEXT = "Don't want these emails? You can {unsubscribe} anytime.";
@@ -34,7 +33,7 @@ export async function renderEmailContent(
   if (opts.appendUnsubscribe && !craftContainsUnsubscribe(trimmed)) {
     extra = unsubscribeSectionMjml(opts.unsubscribeText?.trim() || DEFAULT_UNSUB_TEXT, opts.physicalAddress);
   }
-  const mjmlStr = craftToMjml(trimmed, { font: opts.font, extraSections: extra });
+  const mjmlStr = craftToMjml(trimmed, { extraSections: extra });
   // @ts-ignore — mjml ships no type declarations
   const mjml2html = (await import("mjml")).default as (m: string, o?: any) => Promise<{ html: string }>;
   const { html } = await mjml2html(mjmlStr, { validationLevel: "soft" }); // mjml v5 is async

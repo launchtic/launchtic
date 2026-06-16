@@ -9,7 +9,6 @@ const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   subject: z.string().min(1).max(500).optional(),
   htmlBody: z.string().min(1).optional(),
-  font: z.string().max(50).nullable().optional(),
   templateId: z.string().nullable().optional(),
   fromEmail: z.string().email().optional(),
   fromName: z.string().min(1).optional(),

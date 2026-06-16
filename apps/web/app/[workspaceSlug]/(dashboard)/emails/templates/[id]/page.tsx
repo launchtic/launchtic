@@ -1,32 +1,10 @@
-import { notFound } from "next/navigation";
-import { db } from "@launchtic/database";
-import TemplateEditor from "../../../../../../components/emails/TemplateEditor";
-
-import { requireWorkspaceFromSlug } from "../../../../../../lib/permissions";
-export const metadata = { title: "Edit Email Template" };
+import { redirect } from "next/navigation";
 
 type PageProps = { params: Promise<{ id: string; workspaceSlug: string }> };
 
-export default async function EditTemplatePage({ params }: PageProps) {
-  const { workspaceSlug } = await params;
-  const { workspaceId } = await requireWorkspaceFromSlug(workspaceSlug, "email_templates:read");
-
-  const { id } = await params;
-  const template = await db.emailTemplate.findFirst({ where: { id, workspaceId } });
-  if (!template) notFound();
-
-  return (
-    <TemplateEditor
-      initial={{
-        id: template.id,
-        name: template.name,
-        subject: template.subject,
-        htmlBody: template.htmlBody,
-        font: template.font,
-        category: template.category,
-        isSystem: template.isSystem,
-        systemKey: template.systemKey,
-      }}
-    />
-  );
+// The email template editor moved to a full-screen route outside the dashboard
+// chrome. Keep this path working for old links/bookmarks.
+export default async function LegacyEditTemplatePage({ params }: PageProps) {
+  const { id, workspaceSlug } = await params;
+  redirect(`/${workspaceSlug}/email-template-editor/${id}`);
 }

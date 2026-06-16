@@ -8,7 +8,6 @@ const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   subject: z.string().min(1).max(500).optional(),
   htmlBody: z.string().min(1).optional(),
-  font: z.string().max(50).nullable().optional(),
   category: z.enum(["TRANSACTIONAL", "MARKETING", "SYSTEM"]).optional(),
 });
 

@@ -13,9 +13,9 @@ export async function POST(req: NextRequest) {
   try {
     const r = await requireAccess("email_templates:read");
     if (!r.ok) return r.response;
-    const { body, font } = await req.json();
+    const { body } = await req.json();
     if (typeof body !== "string") return err("Missing body", 400);
-    const html = await renderEmailContent(body, sampleVars(), { font: font ?? null });
+    const html = await renderEmailContent(body, sampleVars());
     return ok({ html });
   } catch (e: any) {
     return handleError(e);

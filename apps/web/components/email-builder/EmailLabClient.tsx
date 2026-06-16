@@ -2,17 +2,15 @@
 
 import { useState } from "react";
 import { Pencil, Eye, Loader2 } from "lucide-react";
-import { WELCOME_EMAIL_DOC, emailFontCss } from "@launchtic/email";
+import { WELCOME_EMAIL_DOC } from "@launchtic/email";
 import { apiFetch } from "../../lib/api-client";
 import EmailBuilder from "./EmailBuilder";
-import FontSelect from "../emails/FontSelect";
 import EmailPreviewFrame from "../emails/EmailPreviewFrame";
 
 // Isolated POC harness for the new Craft+MJML email editor. Not wired into
 // templates/broadcasts yet — proves the build → MJML → responsive HTML flow.
 export default function EmailLabClient() {
   const [value, setValue] = useState<string>(WELCOME_EMAIL_DOC);
-  const [font, setFont] = useState<string | null>(null);
   const [view, setView] = useState<"build" | "preview">("build");
   const [html, setHtml] = useState("");
   const [version, setVersion] = useState(0);
@@ -23,7 +21,7 @@ export default function EmailLabClient() {
     try {
       const res = await apiFetch("/api/email-preview", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: value, font }),
+        body: JSON.stringify({ body: value }),
       });
       const d = await res.json();
       setHtml(d.success ? d.data.html : `<pre style="color:#dc2626;padding:16px">${d.error}</pre>`);
@@ -43,7 +41,6 @@ export default function EmailLabClient() {
           <button onClick={() => setView("preview")} className={tab(view === "preview")}><Eye size={12} /> Preview</button>
         </div>
         <div className="flex-1" />
-        <FontSelect value={font} onChange={setFont} />
         <button onClick={preview} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
           {busy ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />} Render
         </button>
@@ -51,7 +48,7 @@ export default function EmailLabClient() {
 
       <div className="flex-1 min-h-0 p-3">
         {view === "build" ? (
-          <EmailBuilder value={value} onChange={setValue} fontCss={emailFontCss(font)} />
+          <EmailBuilder value={value} onChange={setValue} />
         ) : html ? (
           <div className="max-w-3xl mx-auto rounded-xl border border-gray-200 overflow-hidden bg-white">
             <EmailPreviewFrame html={html} version={version} minHeight="60vh" />

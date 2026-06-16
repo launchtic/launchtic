@@ -30,7 +30,7 @@ export default async function WorkflowEmailEditorPage({
     db.workflowEmail.findFirst({
       where:  { id: emailId, workflowId: id, workspaceId },
       select: {
-        id: true, name: true, subject: true, bodyHtml: true, font: true,
+        id: true, name: true, subject: true, bodyHtml: true,
         fromName: true, fromEmail: true, senderId: true,
       },
     }),

@@ -105,7 +105,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
       return {
         contact: c,
         subject: render(broadcast.subject, vars),
-        html: await renderEmailContent(broadcast.htmlBody, vars, { ...renderOpts, font: broadcast.font }),
+        html: await renderEmailContent(broadcast.htmlBody, vars, renderOpts),
       };
     }));
 
@@ -118,7 +118,6 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
         toEmail:     r.contact.email,
         subject:     r.subject,
         bodyHtml:    r.html,
-        font:        broadcast.font,
         status:      "QUEUED" as const,
         sourceType:  "BROADCAST",
         sourceId:    broadcastId,

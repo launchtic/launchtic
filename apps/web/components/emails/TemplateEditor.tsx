@@ -5,13 +5,11 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle,
-  Pencil, Eye, Lock, Trash2,
+  Lock, Trash2, Braces,
 } from "lucide-react";
-import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
+import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import EmailBuilder from "../email-builder/EmailBuilder";
-import FontSelect from "./FontSelect";
-import EmailPreviewFrame from "./EmailPreviewFrame";
 import { apiFetch } from "../../lib/api-client";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
@@ -21,7 +19,6 @@ type Initial = {
   name: string;
   subject: string;
   htmlBody: string;
-  font: string | null;
   category: Category;
   isSystem: boolean;
   systemKey: string | null;
@@ -41,18 +38,6 @@ type TestState =
 
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-300 transition-colors";
 
-// Tiny client-side {{var}} substitution — keeps preview render fast and
-// reflects unsaved changes immediately.
-function renderTokens(template: string, vars: Record<string, any>): string {
-  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => {
-    const value = path.split(".").reduce<unknown>(
-      (acc, key) => (acc != null && typeof acc === "object" ? (acc as Record<string, unknown>)[key] : undefined),
-      vars,
-    );
-    return value == null ? "" : String(value);
-  });
-}
-
 export default function TemplateEditor({ initial }: { initial: Initial }) {
   const router = useRouter();
   const params = useParams();
@@ -62,31 +47,25 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
   const [name, setName] = useState(initial.name);
   const [subject, setSubject] = useState(initial.subject);
   const [htmlBody, setHtmlBody] = useState(initial.htmlBody);
-  const [font, setFont] = useState<string | null>(initial.font);
   const [category, setCategory] = useState<Category>(initial.category);
-  const [view, setView] = useState<"edit" | "preview">("edit");
   const [save, setSave] = useState<SaveState>({ status: "idle" });
   const [test, setTest] = useState<TestState>({ status: "idle" });
   const [testTo, setTestTo] = useState("");
   const [testOpen, setTestOpen] = useState(false);
+  const [varsOpen, setVarsOpen] = useState(false);
+  // Last saved snapshot — drives `dirty` locally so autosave settles after a
+  // save instead of looping until the server-component props refresh.
+  const [baseline, setBaseline] = useState({ name: initial.name, subject: initial.subject, htmlBody: initial.htmlBody, category: initial.category });
 
   const subjectRef = useRef<HTMLInputElement>(null);
-  const [previewHtml, setPreviewHtml] = useState<string>("");
-  const [previewSubject, setPreviewSubject] = useState<string>("");
-  // Forces iframe remount on each preview render — browsers don't reliably
-  // reload <iframe srcDoc> when the prop string changes, especially across
-  // similar-length HTML. Bumping a key on every successful render guarantees
-  // the iframe is rebuilt fresh.
-  const [previewVersion, setPreviewVersion] = useState(0);
 
   const dirty = useMemo(
     () =>
-      name !== initial.name ||
-      subject !== initial.subject ||
-      htmlBody !== initial.htmlBody ||
-      font !== initial.font ||
-      category !== initial.category,
-    [name, subject, htmlBody, font, category, initial],
+      name !== baseline.name ||
+      subject !== baseline.subject ||
+      htmlBody !== baseline.htmlBody ||
+      category !== baseline.category,
+    [name, subject, htmlBody, category, baseline],
   );
 
   // Warn user before leaving with unsaved changes
@@ -99,7 +78,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
 
   const handleSave = useCallback(async () => {
     setSave({ status: "saving" });
-    const body: Record<string, unknown> = { name, subject, htmlBody, font };
+    const body: Record<string, unknown> = { name, subject, htmlBody };
     if (!initial.isSystem) body.category = category;
 
     const res = await apiFetch(`/api/email-templates/${initial.id}`, {
@@ -112,10 +91,18 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
       setSave({ status: "error", message: json.error ?? "Failed to save" });
       return;
     }
+    setBaseline({ name, subject, htmlBody, category });
     setSave({ status: "saved" });
     setTimeout(() => setSave({ status: "idle" }), 2000);
     router.refresh();
-  }, [name, subject, htmlBody, font, category, initial.id, initial.isSystem, router]);
+  }, [name, subject, htmlBody, category, initial.id, initial.isSystem, router]);
+
+  // Autosave — debounced 1.5s after the last edit. Manual Save / Cmd+S still work.
+  useEffect(() => {
+    if (!dirty || save.status === "saving") return;
+    const t = setTimeout(() => { handleSave(); }, 1500);
+    return () => clearTimeout(t);
+  }, [dirty, name, subject, htmlBody, category, save.status, handleSave]);
 
   // Cmd+S / Ctrl+S to save
   useEffect(() => {
@@ -128,35 +115,6 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [dirty, save.status, handleSave]);
-
-  // Server-side preview render (Craft → MJML → responsive HTML) with sample
-  // data. Subject tokens substituted client-side for instant feedback.
-  useEffect(() => {
-    if (view !== "preview") return;
-    let cancelled = false;
-    const sample = {
-      contact: { firstName: "John", lastName: "Doe", email: "john@example.com", fullName: "John Doe" },
-      workspace: { name: "Your Workspace" },
-      order: { id: "ord_demo123", total: "$99.00", currency: "USD" },
-    };
-    setPreviewSubject(renderTokens(subject, sample));
-    (async () => {
-      try {
-        const res = await apiFetch("/api/email-preview", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: htmlBody, font }),
-        });
-        const d = await res.json();
-        if (!cancelled) {
-          setPreviewHtml(d.success ? d.data.html : `<pre style="color:#dc2626;padding:16px">${d.error ?? "Preview failed"}</pre>`);
-          setPreviewVersion((v) => v + 1);
-        }
-      } catch {
-        if (!cancelled) { setPreviewHtml(`<pre style="padding:16px">Preview failed</pre>`); setPreviewVersion((v) => v + 1); }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [view, htmlBody, subject, font]);
 
   // Subject-only variable insert (body variables live in the builder's panel).
   function insertVariable(key: string) {
@@ -205,57 +163,92 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-200 bg-white shrink-0">
+    <div className="flex flex-col h-screen">
+      {/* Single action bar — back · name · subject · category · test · save · delete */}
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-200 bg-white shrink-0">
         <Link
           href={`/${slug}/emails/templates`}
-          className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
         >
           <ArrowLeft size={18} />
         </Link>
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          {initial.isSystem && <Lock size={13} className="text-gray-400 shrink-0" />}
+
+        {initial.isSystem && <Lock size={13} className="text-gray-400 shrink-0" />}
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Template name"
+          title="Click to rename template"
+          className="shrink-0 w-32 sm:w-44 text-sm font-medium text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none rounded-lg px-2 py-1.5 transition-all"
+        />
+
+        {/* Subject (flex) with variable popover */}
+        <div className="relative flex-1 min-w-0">
           <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Template name"
-            title="Click to rename template"
-            className="text-sm font-medium text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none rounded-lg px-2 py-1 -mx-2 -my-1 w-full max-w-md transition-all"
+            ref={subjectRef}
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Email subject line"
+            className={`${inputCls} pr-9`}
           />
+          <button
+            type="button"
+            onClick={() => setVarsOpen((o) => !o)}
+            title="Insert variable into subject"
+            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+          >
+            <Braces size={14} />
+          </button>
+          {varsOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setVarsOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 px-1.5 py-1">Insert into subject</p>
+                <div className="max-h-56 overflow-y-auto">
+                  {STANDARD_VARIABLES.map((v) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      onClick={() => { insertVariable(v.key); setVarsOpen(false); }}
+                      className="w-full flex items-center justify-between gap-2 px-1.5 py-1.5 text-left rounded-md hover:bg-blue-50 group"
+                    >
+                      <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate">{v.label}</span>
+                      <span className="text-[10px] font-mono text-gray-400 group-hover:text-blue-600 shrink-0">{`{{${v.key}}}`}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* View toggle */}
-        <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => setView("edit")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-              view === "edit" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            }`}
+        {!initial.isSystem && (
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as Category)}
+            title="Category"
+            className="shrink-0 w-32 hidden md:block border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <Pencil size={12} /> Edit
-          </button>
-          <button
-            onClick={() => setView("preview")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-              view === "preview" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <Eye size={12} /> Preview
-          </button>
-        </div>
+            <option value="MARKETING">Marketing</option>
+            <option value="TRANSACTIONAL">Transactional</option>
+          </select>
+        )}
 
         <button
           onClick={() => setTestOpen((o) => !o)}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg transition-colors shrink-0"
         >
           <Send size={12} /> Test send
         </button>
 
+        <span className="hidden md:inline text-[11px] text-gray-400 shrink-0 min-w-[58px] text-right">
+          {save.status === "saving" ? "Saving…" : save.status === "saved" ? "Saved" : dirty ? "Unsaved" : "Saved"}
+        </span>
+
         <button
           onClick={handleSave}
           disabled={!dirty || save.status === "saving"}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-lg transition-colors shrink-0"
         >
           {save.status === "saving"
             ? <Loader2 size={12} className="animate-spin" />
@@ -268,7 +261,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         {!initial.isSystem && (
           <button
             onClick={handleDelete}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
             title="Delete"
           >
             <Trash2 size={14} />
@@ -309,89 +302,9 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         </div>
       )}
 
-      {/* Compact field strip — Subject + Category in single row (edit mode only) */}
-      {view === "edit" && (
-        <div className="border-b border-gray-100 bg-white shrink-0">
-          <div className="max-w-3xl mx-auto px-4 sm:px-5 py-3 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-end">
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Subject</label>
-              <input
-                ref={subjectRef}
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Email subject line"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Font</label>
-              <FontSelect value={font} onChange={setFont} />
-            </div>
-            {!initial.isSystem && (
-              <div className="lg:w-44">
-                <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as Category)}
-                  className={inputCls}
-                >
-                  <option value="MARKETING">Marketing</option>
-                  <option value="TRANSACTIONAL">Transactional</option>
-                </select>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Body */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white">
-        {view === "edit" ? (
-          <>
-            <div className="flex-1 min-h-0 p-3">
-              <EmailBuilder value={htmlBody} onChange={setHtmlBody} fontCss={emailFontCss(font)} />
-            </div>
-
-            {/* Subject variables row — fixed bottom */}
-            <div className="border-t border-gray-200 bg-white shrink-0">
-              <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-medium text-gray-500 mr-1">Subject variable:</span>
-                {STANDARD_VARIABLES.map((v) => (
-                  <button
-                    key={v.key}
-                    type="button"
-                    onClick={() => insertVariable(v.key)}
-                    className="text-[11px] font-mono px-2 py-1 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded-md transition-colors border border-gray-200"
-                  >
-                    {`{{${v.key}}}`}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : (
-          // Preview view
-          <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
-            <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6">
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-                  <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-0.5">Subject</p>
-                  <p className="text-sm font-medium text-gray-900">{previewSubject || subject || "(no subject)"}</p>
-                </div>
-                {previewHtml ? (
-                  <EmailPreviewFrame html={previewHtml} version={previewVersion} minHeight="calc(100vh - 320px)" />
-                ) : (
-                  <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-2">
-                    <Loader2 size={14} className="animate-spin" /> Rendering preview…
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-3 text-center">
-                Preview uses sample data. Real emails will render with each contact&apos;s actual values.
-              </p>
-            </div>
-          </div>
-        )}
+      <div className="flex-1 min-h-0 p-3 bg-white">
+        <EmailBuilder value={htmlBody} onChange={setHtmlBody} />
       </div>
     </div>
   );

@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const tpl = await db.emailTemplate.findFirst({
       where:  { id, workspaceId },
-      select: { name: true, subject: true, htmlBody: true, font: true, category: true },
+      select: { name: true, subject: true, htmlBody: true, category: true },
     });
     if (!tpl) return err("Email template not found", 404);
 
@@ -32,7 +32,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         name:     tpl.name,
         subject:  tpl.subject,
         htmlBody: tpl.htmlBody,
-        font:     tpl.font,
         category: tpl.category,
       },
       assets,

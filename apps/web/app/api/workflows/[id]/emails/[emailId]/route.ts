@@ -11,7 +11,6 @@ const updateSchema = z.object({
   name:      z.string().max(200).nullable().optional(),
   subject:   z.string().max(998).optional(),
   bodyHtml:  z.string().optional(),
-  font:      z.string().max(50).nullable().optional(),
   fromName:  z.string().max(200).optional(),
   fromEmail: z.string().max(200).optional(),
   senderId:  z.string().nullable().optional(),

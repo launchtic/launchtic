@@ -39,7 +39,6 @@ export default async function BroadcastDetailPage({ params }: PageProps) {
         name: broadcast.name,
         subject: broadcast.subject,
         htmlBody: broadcast.htmlBody,
-        font: broadcast.font,
         templateId: broadcast.templateId,
         fromEmail: broadcast.fromEmail,
         fromName: broadcast.fromName,

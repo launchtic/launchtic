@@ -101,7 +101,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       unsubscribeUrl: c ? buildUnsubscribeUrl(c.id, await getAppUrl()) : "#unsubscribe",
     };
     const subject = render(sourceSubject, vars);
-    const html    = await renderEmailContent(sourceHtml, vars, { font: log.font });
+    const html    = await renderEmailContent(sourceHtml, vars);
 
     await db.emailSend.update({
       where: { id: log.id },

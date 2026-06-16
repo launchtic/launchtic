@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { X, Loader2, ImageOff, Search } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { X, Loader2, ImageOff, Search, UploadCloud } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
 type MediaFile = { key: string; name: string; url: string; size: number };
@@ -26,6 +26,25 @@ export default function MediaLibraryPicker({
   const [hasMore, setHasMore] = useState(false);
   const [nextToken, setNextToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleUpload(file: File) {
+    setUploading(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/media/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!json.success) { setError(json.error ?? "Upload failed"); return; }
+      onSelect(json.data.url); // upload → use it immediately
+      onClose();
+    } catch {
+      setError("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const load = useCallback(async (loadMore: boolean) => {
     if (loadMore) setLoadingMore(true);
@@ -65,9 +84,26 @@ export default function MediaLibraryPicker({
       >
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-200 shrink-0">
           <h2 className="text-sm font-semibold text-gray-900">Media Library</h2>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60 transition-colors"
+            >
+              {uploading ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} />}
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }}
+            />
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Search */}

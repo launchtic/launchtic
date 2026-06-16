@@ -7,12 +7,11 @@ import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle, Trash2,
   Users, Clock, Tag as TagIcon, Pencil, Eye, ChevronDown, X, Ban,
 } from "lucide-react";
-import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
+import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useUnsavedChanges } from "../../contexts/UnsavedChangesContext";
 import EmailBuilder from "../email-builder/EmailBuilder";
-import FontSelect from "./FontSelect";
 import EmailPreviewFrame from "./EmailPreviewFrame";
 import { apiFetch } from "../../lib/api-client";
 
@@ -24,7 +23,6 @@ type Initial = {
   name: string;
   subject: string;
   htmlBody: string;
-  font: string | null;
   templateId: string | null;
   fromEmail: string;
   fromName: string;
@@ -67,7 +65,6 @@ export default function BroadcastDetail({
   const [name, setName] = useState(initial.name);
   const [subject, setSubject] = useState(initial.subject);
   const [htmlBody, setHtmlBody] = useState(initial.htmlBody);
-  const [font, setFont] = useState<string | null>(initial.font);
   const [fromEmail, setFromEmail] = useState<string>(initial.fromEmail);
   const [fromName, setFromName] = useState<string>(initial.fromName);
   const [targetType, setTargetType] = useState<Target>(initial.targetType);
@@ -102,13 +99,12 @@ export default function BroadcastDetail({
       (name !== initial.name ||
         subject !== initial.subject ||
         htmlBody !== initial.htmlBody ||
-        font !== initial.font ||
         fromEmail !== initial.fromEmail ||
         fromName !== initial.fromName ||
         targetType !== initial.targetType ||
         JSON.stringify(targetTagIds) !== JSON.stringify(initial.targetTagIds) ||
         excludeUnsubscribed !== initial.excludeUnsubscribed),
-    [name, subject, htmlBody, font, fromEmail, fromName, targetType, targetTagIds, excludeUnsubscribed, initial, isEditable],
+    [name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, excludeUnsubscribed, initial, isEditable],
   );
 
   // Audience preview — debounced
@@ -158,7 +154,7 @@ export default function BroadcastDetail({
       try {
         const res = await apiFetch("/api/email-preview", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: htmlBody, font }),
+          body: JSON.stringify({ body: htmlBody }),
         });
         const d = await res.json();
         if (!cancelled) {
@@ -170,7 +166,7 @@ export default function BroadcastDetail({
       }
     })();
     return () => { cancelled = true; };
-  }, [view, subject, htmlBody, font]);
+  }, [view, subject, htmlBody]);
 
   const handleSave = useCallback(async () => {
     if (!isEditable) return;
@@ -179,7 +175,7 @@ export default function BroadcastDetail({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name, subject, htmlBody, font,
+        name, subject, htmlBody,
         fromEmail, fromName,
         targetType, targetTagIds, excludeUnsubscribed,
       }),
@@ -193,7 +189,7 @@ export default function BroadcastDetail({
     setSave("saved");
     setTimeout(() => setSave("idle"), 2000);
     router.refresh();
-  }, [isEditable, initial.id, name, subject, htmlBody, font, fromEmail, fromName, targetType, targetTagIds, excludeUnsubscribed, router]);
+  }, [isEditable, initial.id, name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, excludeUnsubscribed, router]);
 
   // Cmd+S
   useEffect(() => {
@@ -237,7 +233,6 @@ export default function BroadcastDetail({
         if (!json.success) return;
         setSubject(json.data.subject);
         setHtmlBody(json.data.htmlBody);
-        if (json.data.font !== undefined) setFont(json.data.font ?? null);
       });
   }
 
@@ -504,12 +499,6 @@ export default function BroadcastDetail({
                     </select>
                   </div>
                 )}
-                {isEditable && (
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Font</label>
-                    <FontSelect value={font} onChange={setFont} />
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -519,7 +508,7 @@ export default function BroadcastDetail({
             {view === "edit" ? (
               <>
                 <div className="flex-1 min-h-0 p-3">
-                  <EmailBuilder value={htmlBody} onChange={setHtmlBody} fontCss={emailFontCss(font)} />
+                  <EmailBuilder value={htmlBody} onChange={setHtmlBody} />
                 </div>
                 {/* Subject variables row */}
                 <div className="border-t border-gray-200 bg-white shrink-0">
@@ -725,7 +714,7 @@ function SentDetail({
         try {
           const res = await apiFetch("/api/email-preview", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ body: trimmed, font: initial.font }),
+            body: JSON.stringify({ body: trimmed }),
           });
           const d = await res.json();
           if (!cancelled) setBodyHtml(d.success ? d.data.html : `<pre style="color:#dc2626;padding:16px">${d.error ?? "Render failed"}</pre>`);
@@ -737,7 +726,7 @@ function SentDetail({
       }
     })();
     return () => { cancelled = true; };
-  }, [initial.htmlBody, initial.font]);
+  }, [initial.htmlBody]);
 
   return (
     <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-5">

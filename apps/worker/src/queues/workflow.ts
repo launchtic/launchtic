@@ -331,7 +331,7 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       // Survives both workflow rename and workflow delete in the logs UI.
       name:       true,
       workflow:   { select: { name: true } },
-      subject:    true, bodyHtml: true, font: true,
+      subject:    true, bodyHtml: true,
       fromName:   true, fromEmail: true,
     },
   });
@@ -360,7 +360,7 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
 
   const renderedSubject = render(subject, vars);
   const renderOpts      = await marketingRenderOptions(ctx.workspaceId);
-  const renderedHtml    = await renderEmailContent(bodyHtml, vars, { ...renderOpts, font: email.font });
+  const renderedHtml    = await renderEmailContent(bodyHtml, vars, renderOpts);
 
   // Persist EmailSend FIRST then enqueue — if enqueue fails we mark the
   // send FAILED so it's not stuck QUEUED forever. The generic source columns
@@ -378,7 +378,6 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
       toEmail:     c.email,
       subject:     renderedSubject,
       bodyHtml:    renderedHtml,
-      font:        email.font,
       status:      "QUEUED",
       sourceType:  "WORKFLOW",
       sourceId:    emailId,
