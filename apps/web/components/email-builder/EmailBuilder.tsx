@@ -7,12 +7,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
-import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette } from "lucide-react";
+import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2 } from "lucide-react";
 import { STANDARD_VARIABLES, EMAIL_FONTS } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";
 import { ColorSwatchButton, ColorPickerPopup } from "./ColorPicker";
 import {
-  EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar,
+  EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar, DeviceContext,
 } from "./blocks";
 
 // Duplicate a node + its subtree (fresh ids), inserted right after it.
@@ -289,13 +289,15 @@ function SettingsPanel() {
   });
 
   if (!id || !props) return null; // LeftPanel shows the Toolbox when nothing is selected
-  const set = (k: string, v: any) => actions.setProp(id, (p: any) => { p[k] = v; });
+  // Throttle merges rapid edits (e.g. dragging the color picker, fast typing)
+  // into a single history entry so one undo reverts the whole change.
+  const set = (k: string, v: any) => actions.history.throttle(500).setProp(id, (p: any) => { p[k] = v; });
   const isImage = name === "Image";
   const isPage = name === "Page";
   const isSection = name === "Section";
   const isNavbar = name === "Navbar";
   const isTextual = name === "Heading" || name === "Text";
-  const itemsSet = (next: any[]) => actions.setProp(id, (p: any) => { p.items = next; });
+  const itemsSet = (next: any[]) => actions.history.throttle(500).setProp(id, (p: any) => { p.items = next; });
 
   const renderField = (k: string) => {
     const v = props[k];
@@ -458,13 +460,33 @@ function LeftPanel() {
   );
 }
 
-// Floating bottom-right control: switch the edit canvas between desktop/mobile width.
+// Floating bottom-right control: undo/redo + switch the editable canvas between
+// desktop and (simulated) mobile width.
 function DeviceBar({ device, setDevice }: { device: "desktop" | "mobile"; setDevice: (d: "desktop" | "mobile") => void }) {
-  const btn = (active: boolean) => `p-1.5 rounded-md transition-colors ${active ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`;
+  const { canUndo, canRedo, actions } = useEditor((_, query) => ({ canUndo: query.history.canUndo(), canRedo: query.history.canRedo() }));
+  // Ctrl/Cmd+Z / Shift+Z / Y — but leave inline text fields to native undo
+  // (their input events keep Craft props in sync).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.isContentEditable || ae.closest?.("[data-rt]"))) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); actions.history.undo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); actions.history.redo(); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [actions]);
+  const dbtn = (active: boolean) => `p-1.5 rounded-md transition-colors ${active ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`;
+  const hbtn = "p-1.5 rounded-md text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-500 transition-colors";
   return (
     <div className="absolute bottom-4 right-4 z-30 flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-lg p-1 shadow-md">
-      <button type="button" onClick={() => setDevice("desktop")} className={btn(device === "desktop")} title="Desktop width"><Monitor size={16} /></button>
-      <button type="button" onClick={() => setDevice("mobile")} className={btn(device === "mobile")} title="Mobile width"><Smartphone size={16} /></button>
+      <button type="button" onClick={() => actions.history.undo()} disabled={!canUndo} className={hbtn} title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
+      <button type="button" onClick={() => actions.history.redo()} disabled={!canRedo} className={hbtn} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16} /></button>
+      <span className="w-px h-5 bg-gray-300 mx-0.5" />
+      <button type="button" onClick={() => setDevice("desktop")} className={dbtn(device === "desktop")} title="Desktop width"><Monitor size={16} /></button>
+      <button type="button" onClick={() => setDevice("mobile")} className={dbtn(device === "mobile")} title="Mobile width"><Smartphone size={16} /></button>
     </div>
   );
 }
@@ -478,28 +500,28 @@ export default function EmailBuilder({ value, onChange }: { value?: string; onCh
     <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={(q) => onChangeRef.current(q.serialize())}>
       <AutoWrap />
       <InlineToolbar />
-      <div className="relative flex h-full min-h-0 border border-gray-200 rounded-lg overflow-hidden">
-        <LeftPanel />
-        <div className="flex-1 min-w-0 overflow-y-auto bg-gray-100">
-          <div className="mx-auto transition-[max-width] duration-200" style={{ maxWidth: device === "mobile" ? 390 : "100%" }}>
-          {hasData ? (
-            <Frame data={value!} />
-          ) : (
-            <Frame>
-              <Element is={Page} canvas>
-                <Element is={Section} canvas>
-                  <Element is={Column} canvas>
-                    <EmailHeading text="New email" />
-                    <EmailText text="Drag a Section, then drop content into its columns." />
+      <DeviceContext.Provider value={device}>
+        <div className="relative flex h-full min-h-0 border border-gray-200 rounded-lg overflow-hidden">
+          <LeftPanel />
+          <div className="flex-1 min-w-0 overflow-y-auto bg-gray-100">
+            {hasData ? (
+              <Frame data={value!} />
+            ) : (
+              <Frame>
+                <Element is={Page} canvas>
+                  <Element is={Section} canvas>
+                    <Element is={Column} canvas>
+                      <EmailHeading text="New email" />
+                      <EmailText text="Drag a Section, then drop content into its columns." />
+                    </Element>
                   </Element>
                 </Element>
-              </Element>
-            </Frame>
-          )}
+              </Frame>
+            )}
           </div>
+          <DeviceBar device={device} setDevice={setDevice} />
         </div>
-        <DeviceBar device={device} setDevice={setDevice} />
-      </div>
+      </DeviceContext.Provider>
     </Editor>
   );
 }

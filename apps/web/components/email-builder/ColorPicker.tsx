@@ -47,8 +47,7 @@ export function ColorPickerPopup({
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 70 }}>
       <div style={{ position: "absolute", inset: 0 }} onMouseDown={onClose} />
-      <div style={{ position: "absolute", top: pos.top, left: pos.left, opacity: ready ? 1 : 0, boxShadow: "0 4px 20px rgba(0,0,0,.15)", borderRadius: 8, overflow: "hidden" }}
-        onMouseDown={(e) => e.preventDefault()}>
+      <div style={{ position: "absolute", top: pos.top, left: pos.left, opacity: ready ? 1 : 0, boxShadow: "0 4px 20px rgba(0,0,0,.15)", borderRadius: 8, overflow: "hidden" }}>
         <Sketch
           color={cur}
           disableAlpha={false}

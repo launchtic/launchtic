@@ -5,8 +5,12 @@
 // (craft-mjml.ts). Borders/toolbar on hover+select are handled by RenderNode.
 
 import { useNode, Element } from "@craftjs/core";
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { emailFontCss, DEFAULT_EMAIL_FONT } from "@launchtic/email";
+
+// Lets the canvas simulate mobile (narrower width + stacked columns) while
+// staying fully editable. Provided by EmailBuilder, read by Page/Section.
+export const DeviceContext = createContext<"desktop" | "mobile">("desktop");
 
 function useBlockRef() {
   const { connectors: { connect, drag } } = useNode();
@@ -37,9 +41,11 @@ function RichEditable({ as: Tag, html, onInput, connectRef, style }: any) {
 // ── Page (ROOT) — the whole outer area; holds Sections; page/theme settings ──
 export function Page({ children, bgColor, width, fontFamily }: any) {
   const { connectors: { connect }, empty } = useNode((n) => ({ empty: n.data.nodes.length === 0 }));
+  const device = useContext(DeviceContext);
+  const innerMax = device === "mobile" ? 375 : width;
   return (
     <div ref={(r) => { if (r) connect(r); }} style={{ background: bgColor, padding: "32px 16px", minHeight: "100%", fontFamily: emailFontCss(fontFamily) }}>
-      <div style={{ maxWidth: width, margin: "0 auto", minHeight: 320, position: "relative" }}>
+      <div style={{ maxWidth: innerMax, margin: "0 auto", minHeight: 320, position: "relative" }}>
         {children}
         {empty && (
           <div style={{ border: "2px dashed #818cf8", borderRadius: 8, padding: "48px 16px", textAlign: "center", color: "#6366f1", background: "#eef2ff" }}>
@@ -68,10 +74,15 @@ export function bgImageStyle(bgImage?: string, bgDisplay?: string, bgPosition?: 
     backgroundPosition: bgPosition || "center center",
   } as Record<string, string>;
 }
-export function Section({ children, bgColor, paddingY, paddingX, bgImage, bgDisplay, bgPosition, borderRadius }: any) {
+export function Section({ children, bgColor, paddingY, paddingX, bgImage, bgDisplay, bgPosition, borderRadius, disableStacking, reverseOnMobile }: any) {
   const ref = useBlockRef();
+  const device = useContext(DeviceContext);
+  // Mirror MJML's mobile behavior: columns stack (column) unless stacking is
+  // disabled; reverse-on-mobile flips the stack order.
+  const stack = device === "mobile" && !disableStacking;
+  const flexDirection = stack ? (reverseOnMobile ? "column-reverse" : "column") : "row";
   return (
-    <div ref={ref as any} style={{ display: "flex", gap: 8, background: bgColor, ...bgImageStyle(bgImage, bgDisplay, bgPosition), padding: `${paddingY}px ${paddingX}px`, borderRadius: borderRadius || 0, cursor: "move" }}>
+    <div ref={ref as any} style={{ display: "flex", flexDirection, gap: 8, background: bgColor, ...bgImageStyle(bgImage, bgDisplay, bgPosition), padding: `${paddingY}px ${paddingX}px`, borderRadius: borderRadius || 0, cursor: "move" }}>
       {children}
     </div>
   );
