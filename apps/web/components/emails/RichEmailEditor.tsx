@@ -120,7 +120,6 @@ export default function RichEmailEditor({
   const handleImageUpload = useCallback(async (file: Blob): Promise<string> => {
     const fd = new FormData();
     fd.append("file", file as File);
-    fd.append("folder", "emails");
     const res = await apiFetch("/api/media/upload", { method: "POST", body: fd });
     const json = await res.json();
     if (!json.success) throw new Error(json.error ?? "Upload failed");
@@ -147,7 +146,13 @@ export default function RichEmailEditor({
       // its own `.mly:prose` system. Adding our legacy rules would conflict
       // with @maily-to/render's email output and the editor would visually
       // diverge from the Preview tab.
-      contentClassName: "focus:outline-none flex-1 overflow-y-auto px-4 py-3",
+      //
+      // pt-12: maily's inline bubble toolbar renders ABOVE the selected block
+      // (placement: top-start) and is appended INSIDE this scroll container,
+      // so the top-most block's toolbar gets clipped by the container edge
+      // without enough headroom. The extra top padding gives it room.
+      // pb-12: clears the floating "Library" button + last-line breathing room.
+      contentClassName: "focus:outline-none flex-1 overflow-y-auto px-4 pt-12 pb-12",
     }),
     [showMenuBar],
   );
