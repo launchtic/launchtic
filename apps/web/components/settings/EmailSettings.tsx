@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
-import EmailFooterPanel from "./EmailFooterPanel";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
@@ -96,8 +95,6 @@ export default function EmailSettings({
       <SmtpSection initial={smtp} />
       <hr className="border-gray-200" />
       <SenderIdentitiesSection initial={senderIdentities} />
-      <hr className="border-gray-200" />
-      <EmailFooterPanel />
     </div>
   );
 }

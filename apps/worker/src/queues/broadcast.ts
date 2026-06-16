@@ -15,7 +15,6 @@ import { db } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
 import { getAppUrl } from "../lib/system-config";
 import { createRedisConnection } from "../lib/redis";
-import { marketingRenderOptions } from "../lib/email-footer";
 import { EMAIL_QUEUE_NAME, type EmailJobData } from "./email";
 
 export const BROADCAST_QUEUE_NAME = "broadcast";
@@ -51,10 +50,6 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
 
   const workspace = await db.workspace.findUnique({ where: { id: workspaceId } });
   const workspaceName = workspace?.name ?? "Your Workspace";
-
-  // Load workspace footer config once per dispatch — applied uniformly to
-  // every recipient. Auto-appends unsubscribe link (legal requirement).
-  const renderOpts = await marketingRenderOptions(workspaceId);
 
   // Build target query
   const where: any = {
@@ -105,7 +100,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
       return {
         contact: c,
         subject: render(broadcast.subject, vars),
-        html: await renderEmailContent(broadcast.htmlBody, vars, renderOpts),
+        html: await renderEmailContent(broadcast.htmlBody, vars),
       };
     }));
 

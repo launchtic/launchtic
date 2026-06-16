@@ -82,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Stored body is a Craft doc (JSON) — render it to HTML first so the same
     // href="…" links the tracker rewrites at send time are what we extract.
     // Legacy raw-HTML bodies are parsed as-is.
-    const rendered = isCraftDoc(html) ? await renderEmailContent(html, sampleVars(), {}) : html;
+    const rendered = isCraftDoc(html) ? await renderEmailContent(html, sampleVars()) : html;
     return ok({ urls: extractLinks(rendered) });
   } catch (error) {
     return handleError(error);

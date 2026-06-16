@@ -25,7 +25,6 @@ import { Queue, Worker, type Job } from "bullmq";
 import { db } from "@launchtic/database";
 import { render, renderEmailContent, buildUnsubscribeUrl } from "@launchtic/email/server";
 import { getAppUrl } from "../lib/system-config";
-import { marketingRenderOptions } from "../lib/email-footer";
 import { createRedisConnection } from "../lib/redis";
 import { EMAIL_QUEUE_NAME, type EmailJobData } from "./email";
 
@@ -359,8 +358,7 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   };
 
   const renderedSubject = render(subject, vars);
-  const renderOpts      = await marketingRenderOptions(ctx.workspaceId);
-  const renderedHtml    = await renderEmailContent(bodyHtml, vars, renderOpts);
+  const renderedHtml    = await renderEmailContent(bodyHtml, vars);
 
   // Persist EmailSend FIRST then enqueue — if enqueue fails we mark the
   // send FAILED so it's not stuck QUEUED forever. The generic source columns

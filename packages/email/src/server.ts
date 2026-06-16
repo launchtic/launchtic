@@ -9,7 +9,7 @@ export {
   STANDARD_VARIABLES,
   type RenderVars,
 } from "./render";
-export { renderEmailContent, type RenderOptions } from "./render-email";
+export { renderEmailContent } from "./render-email";
 export {
   createTransporter,
   sendEmail,
