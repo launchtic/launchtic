@@ -7,5 +7,8 @@ export {
   WELCOME_EMAIL_DOC,
   isEmptyEmailDoc,
   STANDARD_VARIABLES,
+  EMAIL_FONTS,
+  DEFAULT_EMAIL_FONT,
+  emailFontCss,
   type RenderVars,
 } from "./render";

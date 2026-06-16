@@ -905,6 +905,7 @@ model EmailTemplate {
   name        String
   subject     String
   htmlBody    String
+  font        String? // Per-email web-safe font name (see EMAIL_FONTS); null = Arial
   category    EmailTemplateCategory @default(MARKETING)
 
   isSystem  Boolean @default(false)
@@ -931,6 +932,7 @@ model Broadcast {
   name        String
   subject     String
   htmlBody    String
+  font        String? // Per-email web-safe font name (see EMAIL_FONTS); null = Arial
   templateId  String?
   fromName    String
   fromEmail   String
@@ -1305,6 +1307,7 @@ model WorkflowEmail {
   // Content snapshot. Mustache vars resolved at send time by the worker.
   subject   String
   bodyHtml  String  @db.Text
+  font      String? // Per-email web-safe font name (see EMAIL_FONTS); null = Arial
   fromName  String
   fromEmail String
   senderId  String?

@@ -105,7 +105,7 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
       return {
         contact: c,
         subject: render(broadcast.subject, vars),
-        html: await renderEmailContent(broadcast.htmlBody, vars, renderOpts),
+        html: await renderEmailContent(broadcast.htmlBody, vars, { ...renderOpts, font: broadcast.font }),
       };
     }));
 

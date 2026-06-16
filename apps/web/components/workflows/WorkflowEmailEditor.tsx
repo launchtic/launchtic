@@ -19,8 +19,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react";
 import RichEmailEditor from "../emails/RichEmailEditor";
+import FontSelect from "../emails/FontSelect";
 import { apiFetch } from "../../lib/api-client";
-import { STANDARD_VARIABLES } from "@launchtic/email";
+import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
 import { useToast } from "../ui/Toast";
 import { validateWorkflowEmail } from "../../lib/workflow-validation";
 import type { Editor as TiptapEditor } from "@tiptap/core";
@@ -33,6 +34,7 @@ type EmailRow = {
   id:        string;
   subject:   string;
   bodyHtml:  string;
+  font:      string | null;
   fromName:  string;
   fromEmail: string;
   senderId:  string | null;
@@ -73,6 +75,7 @@ export default function WorkflowEmailEditor({
 
   const [subject,   setSubject]   = useState(initial?.subject   ?? "");
   const [bodyHtml,  setBodyHtml]  = useState(initial?.bodyHtml  || EMPTY_DOC);
+  const [font,      setFont]      = useState<string | null>(initial?.font ?? null);
   const [senderId,  setSenderId]  = useState<string | null>(
     initial?.senderId ?? seedSender?.id ?? null,
   );
@@ -98,11 +101,12 @@ export default function WorkflowEmailEditor({
       if (isCreate) return true; // first save always allowed
       return subject   !== (initial?.subject   ?? "")
           || bodyHtml  !== (initial?.bodyHtml  ?? "")
+          || font      !== (initial?.font      ?? null)
           || senderId  !== (initial?.senderId  ?? null)
           || fromName  !== (initial?.fromName  ?? "")
           || fromEmail !== (initial?.fromEmail ?? "");
     },
-    [isCreate, subject, bodyHtml, senderId, fromName, fromEmail, initial],
+    [isCreate, subject, bodyHtml, font, senderId, fromName, fromEmail, initial],
   );
 
   // Validation mirrors the server-side validateWorkflowEmail rule so the
@@ -127,7 +131,7 @@ export default function WorkflowEmailEditor({
     }
     setBusy(true);
     try {
-      const payload = { subject, bodyHtml, senderId, fromName, fromEmail };
+      const payload = { subject, bodyHtml, font, senderId, fromName, fromEmail };
       const url = isCreate
         ? `/api/workflows/${workflow.id}/emails`
         : `/api/workflows/${workflow.id}/emails/${initial!.id}`;
@@ -214,6 +218,7 @@ export default function WorkflowEmailEditor({
       }
       setSubject(json.data.subject ?? "");
       setBodyHtml(json.data.htmlBody ?? EMPTY_DOC);
+      if (json.data.font !== undefined) setFont(json.data.font ?? null);
       toast.success("Template applied — review and Save when ready.");
     } catch {
       toast.error("Couldn't load template.");
@@ -294,8 +299,8 @@ export default function WorkflowEmailEditor({
             when templates exist). Stacks on narrow screens. */}
         <div className={`bg-white border-b border-gray-200 px-4 sm:px-5 py-3 grid grid-cols-1 gap-3 shrink-0 ${
           templates.length > 0
-            ? "lg:grid-cols-[200px_1fr_200px]"
-            : "sm:grid-cols-[200px_1fr]"
+            ? "lg:grid-cols-[180px_1fr_150px_180px]"
+            : "sm:grid-cols-[180px_1fr_150px]"
         }`}>
           <div>
             <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">From</label>
@@ -321,6 +326,10 @@ export default function WorkflowEmailEditor({
               placeholder="Hi {{contact.firstName}}…"
               className={inputCls}
             />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Font</label>
+            <FontSelect value={font} onChange={setFont} />
           </div>
           {templates.length > 0 && (
             <div>
@@ -365,6 +374,7 @@ export default function WorkflowEmailEditor({
                 onChange={setBodyHtml}
                 onEditorReady={(ed) => { editorRef.current = ed; }}
                 onFocus={() => { lastFocused.current = "body"; }}
+                fontCss={emailFontCss(font)}
               />
             </div>
           </div>

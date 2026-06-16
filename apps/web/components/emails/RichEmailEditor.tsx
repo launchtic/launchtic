@@ -28,6 +28,9 @@ type Props = {
    * slash-command for blocks.
    */
   showMenuBar?: boolean;
+  /** CSS font-family stack for the email's chosen font (see emailFontCss).
+   *  Applied as the `--email-font` var so the editor previews the real font. */
+  fontCss?: string;
 };
 
 const EMPTY_DOC: JSONContent = {
@@ -50,7 +53,7 @@ function parseValue(value: string): JSONContent {
 }
 
 export default function RichEmailEditor({
-  value, onChange, onEditorReady, onFocus, minHeight, showMenuBar = false,
+  value, onChange, onEditorReady, onFocus, minHeight, showMenuBar = false, fontCss,
 }: Props) {
   const [editor, setEditor] = useState<TiptapEditor>();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -167,7 +170,7 @@ export default function RichEmailEditor({
     // minHeight prop is only applied when no flex parent constrains height.
     <div
       className="relative h-full flex flex-col"
-      style={minHeight ? { minHeight } : undefined}
+      style={{ ...(minHeight ? { minHeight } : {}), ...(fontCss ? ({ ["--email-font" as any]: fontCss }) : {}) }}
     >
       <Editor
         contentJson={initial}

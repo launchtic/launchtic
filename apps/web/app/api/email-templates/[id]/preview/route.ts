@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const workspaceName = workspace?.name ?? "Your Workspace";
     const vars = { ...sampleVars(), workspace: { name: workspaceName } };
     const subject = render(template.subject, vars);
-    const html = await renderEmailContent(template.htmlBody, vars);
+    const html = await renderEmailContent(template.htmlBody, vars, { font: template.font });
 
     return ok({ subject, html });
   } catch (error) {

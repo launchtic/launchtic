@@ -19,6 +19,7 @@
 // affects the in-app preview iframe rendering.
 
 import type { JSONContent } from "@tiptap/core";
+import { emailFontCss } from "@launchtic/email";
 
 const FLUSH_LAYOUT_THEME = {
   container: {
@@ -30,23 +31,20 @@ const FLUSH_LAYOUT_THEME = {
   },
 };
 
-// Force Arial/Helvetica on every element — overrides maily's default Inter
-// and any inline font-family the email blocks may set. Mirrors the
-// font-family rule in globals.css for the editor.
-const FONT_OVERRIDE_STYLE = `
-<style>
-  body, body * {
-    font-family: Arial, Helvetica, sans-serif !important;
-  }
-</style>
-`;
+// Force the chosen per-email font on every element — overrides maily's default
+// and any inline font-family the blocks may set. Mirrors globals.css (editor)
+// and EMAIL_THEME (send) so all three render paths agree.
+function fontOverrideStyle(font?: string | null): string {
+  return `<style>body, body * { font-family: ${emailFontCss(font)} !important; }</style>`;
+}
 
-export async function renderPreviewHtml(json: JSONContent): Promise<string> {
+export async function renderPreviewHtml(json: JSONContent, font?: string | null): Promise<string> {
   const { render: mailyRender } = await import("@maily-to/render");
   const html = await mailyRender(json, { theme: FLUSH_LAYOUT_THEME });
+  const style = fontOverrideStyle(font);
   if (html.includes("</head>")) {
-    return html.replace("</head>", `${FONT_OVERRIDE_STYLE}</head>`);
+    return html.replace("</head>", `${style}</head>`);
   }
   // Defensive: if no </head>, prepend a minimal head with the override.
-  return `<!DOCTYPE html><html><head>${FONT_OVERRIDE_STYLE}</head><body>${html}</body></html>`;
+  return `<!DOCTYPE html><html><head>${style}</head><body>${html}</body></html>`;
 }

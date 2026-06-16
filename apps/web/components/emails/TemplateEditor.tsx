@@ -8,9 +8,10 @@ import {
   Pencil, Eye, Lock, Trash2,
 } from "lucide-react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
-import { STANDARD_VARIABLES } from "@launchtic/email";
+import { STANDARD_VARIABLES, emailFontCss } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import RichEmailEditor from "./RichEmailEditor";
+import FontSelect from "./FontSelect";
 import { apiFetch } from "../../lib/api-client";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
@@ -20,6 +21,7 @@ type Initial = {
   name: string;
   subject: string;
   htmlBody: string;
+  font: string | null;
   category: Category;
   isSystem: boolean;
   systemKey: string | null;
@@ -60,6 +62,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
   const [name, setName] = useState(initial.name);
   const [subject, setSubject] = useState(initial.subject);
   const [htmlBody, setHtmlBody] = useState(initial.htmlBody);
+  const [font, setFont] = useState<string | null>(initial.font);
   const [category, setCategory] = useState<Category>(initial.category);
   const [view, setView] = useState<"edit" | "preview">("edit");
   const [save, setSave] = useState<SaveState>({ status: "idle" });
@@ -83,8 +86,9 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
       name !== initial.name ||
       subject !== initial.subject ||
       htmlBody !== initial.htmlBody ||
+      font !== initial.font ||
       category !== initial.category,
-    [name, subject, htmlBody, category, initial],
+    [name, subject, htmlBody, font, category, initial],
   );
 
   // Warn user before leaving with unsaved changes
@@ -97,7 +101,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
 
   const handleSave = useCallback(async () => {
     setSave({ status: "saving" });
-    const body: Record<string, unknown> = { name, subject, htmlBody };
+    const body: Record<string, unknown> = { name, subject, htmlBody, font };
     if (!initial.isSystem) body.category = category;
 
     const res = await apiFetch(`/api/email-templates/${initial.id}`, {
@@ -113,7 +117,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     setSave({ status: "saved" });
     setTimeout(() => setSave({ status: "idle" }), 2000);
     router.refresh();
-  }, [name, subject, htmlBody, category, initial.id, initial.isSystem, router]);
+  }, [name, subject, htmlBody, font, category, initial.id, initial.isSystem, router]);
 
   // Belt-and-suspenders: pull the editor's current JSON directly when
   // switching to Preview. The synchronous handleUpdate in RichEmailEditor
@@ -157,7 +161,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         try {
           const json = JSON.parse(trimmed);
           const { renderPreviewHtml } = await import("./preview-render");
-          bodyHtml = await renderPreviewHtml(json);
+          bodyHtml = await renderPreviewHtml(json, font);
         } catch (e) {
           bodyHtml = `<pre style="color:#dc2626;padding:16px;font-family:monospace;font-size:12px">Preview render failed: ${
             e instanceof Error ? e.message : "unknown"
@@ -174,7 +178,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [view, htmlBody, subject]);
+  }, [view, htmlBody, subject, font]);
 
   function insertVariable(key: string) {
     const token = `{{${key}}}`;
@@ -339,7 +343,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
       {/* Compact field strip — Subject + Category in single row (edit mode only) */}
       {view === "edit" && (
         <div className="border-b border-gray-100 bg-white shrink-0">
-          <div className="max-w-3xl mx-auto px-4 sm:px-5 py-3 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-end">
+          <div className="max-w-3xl mx-auto px-4 sm:px-5 py-3 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-end">
             <div>
               <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Subject</label>
               <input
@@ -350,6 +354,10 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
                 placeholder="Email subject line"
                 className={inputCls}
               />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Font</label>
+              <FontSelect value={font} onChange={setFont} />
             </div>
             {!initial.isSystem && (
               <div className="lg:w-44">
@@ -380,6 +388,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
                     onChange={setHtmlBody}
                     onEditorReady={(ed) => { editorRef.current = ed; }}
                     onFocus={() => { lastFocused.current = "body"; }}
+                    fontCss={emailFontCss(font)}
                   />
                 </div>
               </div>

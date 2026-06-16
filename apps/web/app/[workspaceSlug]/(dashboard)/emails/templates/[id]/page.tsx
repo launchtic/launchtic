@@ -22,6 +22,7 @@ export default async function EditTemplatePage({ params }: PageProps) {
         name: template.name,
         subject: template.subject,
         htmlBody: template.htmlBody,
+        font: template.font,
         category: template.category,
         isSystem: template.isSystem,
         systemKey: template.systemKey,

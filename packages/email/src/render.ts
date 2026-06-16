@@ -126,6 +126,40 @@ const EMAIL_THEME = {
   },
 };
 
+// Curated web-safe fonts the customer can pick PER email (template / broadcast /
+// workflow email). Web-safe only: Outlook desktop + Gmail strip @font-face, so
+// these render the same for every recipient. Stored on each email row as the
+// `name`; resolved to a theme (send) or CSS stack (editor/preview) at render.
+export const EMAIL_FONTS = [
+  { name: "Arial",           fontFamily: "Arial",           fallback: "Helvetica, sans-serif" },
+  { name: "Helvetica",       fontFamily: "Helvetica",       fallback: "Arial, sans-serif" },
+  { name: "Georgia",         fontFamily: "Georgia",         fallback: "'Times New Roman', serif" },
+  { name: "Times New Roman", fontFamily: "Times New Roman", fallback: "Times, serif" },
+  { name: "Verdana",         fontFamily: "Verdana",         fallback: "Geneva, sans-serif" },
+  { name: "Tahoma",          fontFamily: "Tahoma",          fallback: "Verdana, sans-serif" },
+  { name: "Trebuchet MS",    fontFamily: "Trebuchet MS",    fallback: "Helvetica, sans-serif" },
+  { name: "Courier New",     fontFamily: "Courier New",     fallback: "Courier, monospace" },
+] as const;
+
+export const DEFAULT_EMAIL_FONT = "Arial";
+
+function resolveFont(font?: string | null) {
+  return EMAIL_FONTS.find((f) => f.name === font) ?? EMAIL_FONTS[0];
+}
+
+// maily theme `font` block for the send-render path.
+export function emailFontTheme(font?: string | null) {
+  const f = resolveFont(font);
+  return { fontFamily: f.fontFamily, fallbackFontFamily: f.fallback };
+}
+
+// Full CSS font-family stack for the editor + preview (multi-word names quoted).
+export function emailFontCss(font?: string | null): string {
+  const f = resolveFont(font);
+  const primary = f.fontFamily.includes(" ") ? `'${f.fontFamily}'` : f.fontFamily;
+  return `${primary}, ${f.fallback}`;
+}
+
 export type RenderOptions = {
   // Append the standard unsubscribe footer if the doc doesn't already include
   // one. Pass true for marketing emails (broadcasts, sequences, automation
@@ -145,6 +179,8 @@ export type RenderOptions = {
   // Workspace physical mailing address (CAN-SPAM §5(a)(5)). Rendered as a
   // small centered footer block above the unsubscribe line.
   physicalAddress?: string | null;
+  // Per-email web-safe font name (see EMAIL_FONTS). Null/unknown → Arial.
+  font?: string | null;
 };
 
 const DEFAULT_UNSUB_TEXT = "Don't want these emails? You can {unsubscribe} anytime.";
@@ -244,6 +280,7 @@ export async function renderEmailContent(
   // Dynamic import — keeps @maily-to/render out of the import graph
   // for callers that never use it.
   const { render: mailyRender } = await import("@maily-to/render");
-  const html = await mailyRender(json, { theme: EMAIL_THEME });
+  const theme = { ...EMAIL_THEME, font: emailFontTheme(opts.font) };
+  const html = await mailyRender(json, { theme });
   return render(html, vars);
 }
