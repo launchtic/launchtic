@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Save, Send, Loader2, Check, AlertCircle,
-  Lock, Trash2, Braces,
+  Lock, Trash2, Braces, X,
 } from "lucide-react";
 import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -291,6 +291,14 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
             </button>
             {test.status === "ok" && <span className="text-xs text-green-700 flex items-center gap-1"><Check size={12} /> Sent</span>}
             {test.status === "fail" && <span className="text-xs text-red-700 flex items-center gap-1 truncate"><AlertCircle size={12} /> {test.message}</span>}
+            <button
+              type="button"
+              onClick={() => { setTestOpen(false); setTest({ status: "idle" }); }}
+              title="Close"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-lg transition-colors shrink-0"
+            >
+              <X size={14} />
+            </button>
           </div>
         </div>
       )}

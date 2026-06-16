@@ -35,10 +35,10 @@ function RichEditable({ as: Tag, html, onInput, connectRef, style }: any) {
 }
 
 // ── Page (ROOT) — the whole outer area; holds Sections; page/theme settings ──
-export function Page({ children, bgColor, fontSize, textColor, width, fontFamily }: any) {
+export function Page({ children, bgColor, width, fontFamily }: any) {
   const { connectors: { connect }, empty } = useNode((n) => ({ empty: n.data.nodes.length === 0 }));
   return (
-    <div ref={(r) => { if (r) connect(r); }} style={{ background: bgColor, padding: "32px 16px", minHeight: "100%", fontSize, color: textColor, fontFamily: emailFontCss(fontFamily) }}>
+    <div ref={(r) => { if (r) connect(r); }} style={{ background: bgColor, padding: "32px 16px", minHeight: "100%", fontFamily: emailFontCss(fontFamily) }}>
       <div style={{ maxWidth: width, margin: "0 auto", minHeight: 320, position: "relative" }}>
         {children}
         {empty && (
@@ -53,7 +53,7 @@ export function Page({ children, bgColor, fontSize, textColor, width, fontFamily
 }
 Page.craft = {
   displayName: "Page",
-  props: { width: 600, breakpoint: 480, bgColor: "#f3f4f6", fontSize: 14, textColor: "#374151", fontFamily: DEFAULT_EMAIL_FONT },
+  props: { width: 600, breakpoint: 480, bgColor: "#f3f4f6", fontFamily: DEFAULT_EMAIL_FONT },
   // Accept anything; bare content dropped here is auto-wrapped in a Section by AutoWrap.
   rules: { canMoveIn: () => true },
 };
@@ -78,7 +78,7 @@ export function Section({ children, bgColor, paddingY, paddingX, bgImage, bgDisp
 }
 Section.craft = {
   displayName: "Section",
-  props: { bgColor: "#ffffff", paddingY: 10, paddingX: 10, bgImage: "", bgDisplay: "cover", bgPosition: "center center", borderRadius: 0 },
+  props: { bgColor: "#ffffff", paddingY: 10, paddingX: 10, bgImage: "", bgDisplay: "cover", bgPosition: "center center", borderRadius: 0, disableStacking: false, reverseOnMobile: false },
   rules: { canMoveIn: (nodes: any[]) => nodes.every((n) => n.data.name === "Column") },
 };
 
@@ -97,7 +97,7 @@ export function Column({ children, bgColor, paddingY, paddingX, verticalAlign }:
 }
 Column.craft = {
   displayName: "Column",
-  props: { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "top" },
+  props: { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "middle" },
   rules: { canMoveIn: (nodes: any[]) => nodes.every((n) => !["Section", "Column", "Page"].includes(n.data.name)) },
 };
 
@@ -114,15 +114,15 @@ export function EmailText({ text, fontSize = 14, color, align, marginY = 8, marg
 }
 EmailText.craft = { displayName: "Text", props: { text: "Some body text.", fontSize: 14, color: "#374151", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 } };
 
-export function EmailButton({ text, href, bg, color, align, radius, fontSize = 14, paddingY = 12, paddingX = 28, marginY = 12, marginX = 0 }: any) {
+export function EmailButton({ text, href, bg, color, align, radius, fontSize = 14, fontWeight = 600, paddingY = 12, paddingX = 28, marginY = 12, marginX = 0 }: any) {
   const ref = useBlockRef();
   return (
     <div style={{ textAlign: align, margin: `${marginY}px ${marginX}px` }}>
-      <span ref={ref as any} style={{ display: "inline-block", background: bg, color, padding: `${paddingY}px ${paddingX}px`, borderRadius: radius, fontSize, fontWeight: 500, cursor: "move" }}>{text}</span>
+      <span ref={ref as any} style={{ display: "inline-block", background: bg, color, padding: `${paddingY}px ${paddingX}px`, borderRadius: radius, fontSize, fontWeight, cursor: "move" }}>{text}</span>
     </div>
   );
 }
-EmailButton.craft = { displayName: "Button", props: { text: "Click me", href: "#", bg: "#2563eb", color: "#ffffff", align: "center", radius: 6, fontSize: 14, paddingY: 12, paddingX: 28, marginY: 12, marginX: 0 } };
+EmailButton.craft = { displayName: "Button", props: { text: "Click me", href: "#", bg: "#2563eb", color: "#ffffff", align: "center", radius: 0, fontSize: 14, fontWeight: 600, paddingY: 12, paddingX: 28, marginY: 12, marginX: 0 } };
 
 export function EmailImage({ src, alt, width, href, align, marginY = 8, marginX = 0 }: any) {
   const ref = useBlockRef();

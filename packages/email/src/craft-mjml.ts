@@ -41,7 +41,7 @@ function block(n: SNode): string {
       return `<mj-text font-size="${Number(p.fontSize) || 14}px" color="${attr(p.color || "#374151")}" align="${attr(p.align || "left")}" line-height="1.6" padding="${mPad(p)}">${inner}</mj-text>`;
     }
     case "EmailButton":
-      return `<mj-button background-color="${attr(p.bg || "#2563eb")}" color="${attr(p.color || "#ffffff")}" href="${attr(p.href || "#")}" border-radius="${Number(p.radius) || 6}px" font-size="${Number(p.fontSize) || 14}px" align="${attr(p.align || "center")}" padding="${mPad(p, 12)}" inner-padding="${Number(p.paddingY ?? 12)}px ${Number(p.paddingX ?? 28)}px">${esc(p.text || "Button")}</mj-button>`;
+      return `<mj-button background-color="${attr(p.bg || "#2563eb")}" color="${attr(p.color || "#ffffff")}" href="${attr(p.href || "#")}" border-radius="${Number(p.radius) || 0}px" font-size="${Number(p.fontSize) || 14}px" font-weight="${attr(p.fontWeight ?? 600)}" align="${attr(p.align || "center")}" padding="${mPad(p, 12)}" inner-padding="${Number(p.paddingY ?? 12)}px ${Number(p.paddingX ?? 28)}px">${esc(p.text || "Button")}</mj-button>`;
     case "EmailImage":
       if (!p.src) return "";
       return `<mj-image src="${attr(p.src)}" alt="${attr(p.alt || "")}" align="${attr(p.align || "center")}"${p.width ? ` width="${Number(p.width)}px"` : ""}${p.href ? ` href="${attr(p.href)}"` : ""} padding="${mPad(p)}" />`;
@@ -72,7 +72,14 @@ function column(nodes: SNodes, id: string): string {
 function section(nodes: SNodes, id: string): string {
   const n = nodes[id]; if (!n) return "";
   const p = n.props ?? {};
-  const cols = (n.nodes ?? []).map((c) => column(nodes, c)).join("") || `<mj-column><mj-text>&nbsp;</mj-text></mj-column>`;
+  const colIds = n.nodes ?? [];
+  // reverse-on-mobile: emit columns in reverse + direction="rtl" so desktop
+  // shows the editor order while the mobile stack is reversed. Moot (and
+  // skipped) when stacking is disabled — grouped columns never stack.
+  const reverse = !!p.reverseOnMobile && !p.disableStacking;
+  const order = reverse ? [...colIds].reverse() : colIds;
+  const cols = order.map((c) => column(nodes, c)).join("") || `<mj-column><mj-text>&nbsp;</mj-text></mj-column>`;
+  const inner = p.disableStacking ? `<mj-group>${cols}</mj-group>` : cols;
   const a: string[] = [];
   if (p.bgColor && p.bgColor !== "transparent") a.push(`background-color="${attr(p.bgColor)}"`);
   if (p.bgImage) {
@@ -80,9 +87,10 @@ function section(nodes: SNodes, id: string): string {
     const size = d === "contain" ? "contain" : d === "repeat" || d === "actual" ? "auto" : "cover";
     a.push(`background-url="${attr(p.bgImage)}"`, `background-size="${size}"`, `background-repeat="${d === "repeat" ? "repeat" : "no-repeat"}"`, `background-position="${attr(p.bgPosition || "center center")}"`);
   }
+  if (reverse) a.push(`direction="rtl"`);
   if (Number(p.borderRadius)) a.push(`border-radius="${Number(p.borderRadius)}px"`);
   a.push(`padding="${Number(p.paddingY) || 8}px ${Number(p.paddingX) || 0}px"`);
-  return `<mj-section ${a.join(" ")}>${cols}</mj-section>`;
+  return `<mj-section ${a.join(" ")}>${inner}</mj-section>`;
 }
 
 export function craftToMjml(serialized: string, opts: { extraSections?: string } = {}): string {
