@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Save, Send, Loader2, Check, AlertCircle, Trash2,
-  Users, Clock, Tag as TagIcon, Pencil, Eye, ChevronDown, X, Ban,
+  ArrowLeft, Save, Send, Loader2, Check, AlertCircle,
+  Users, Clock, Tag as TagIcon, Pencil, ChevronDown, X, Ban, Braces,
 } from "lucide-react";
 import { STANDARD_VARIABLES } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -78,12 +78,7 @@ export default function BroadcastDetail({
   ); // yyyy-MM-ddTHH:mm
   const [audience, setAudience] = useState<number | null>(null);
 
-  const [view, setView] = useState<"edit" | "preview" | "send">("edit");
-  const [previewHtml, setPreviewHtml] = useState("");
-  const [previewSubject, setPreviewSubject] = useState("");
-  // Forces iframe remount on each preview render — browsers don't reliably
-  // reload <iframe srcDoc> when its prop changes.
-  const [previewVersion, setPreviewVersion] = useState(0);
+  const [view, setView] = useState<"edit" | "send">("edit");
 
   const [save, setSave] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -92,6 +87,7 @@ export default function BroadcastDetail({
   const [retrying, setRetrying] = useState(false);
 
   const subjectRef = useRef<HTMLInputElement>(null);
+  const [varsOpen, setVarsOpen] = useState(false);
 
   const dirty = useMemo(
     () =>
@@ -138,35 +134,6 @@ export default function BroadcastDetail({
     }
     return () => { cancelled = true; };
   }, [isSent, initial.status, initial.id]);
-
-  // Server-side preview (Craft → MJML → responsive HTML). Subject tokens
-  // substituted client-side for instant feedback.
-  useEffect(() => {
-    if (view !== "preview") return;
-    let cancelled = false;
-    const sample = {
-      contact: { firstName: "John", lastName: "Doe", email: "john@example.com", fullName: "John Doe" },
-      workspace: { name: "Your Workspace" },
-      order: { id: "ord_demo123", total: "$99.00", currency: "USD" },
-    };
-    setPreviewSubject(renderTokens(subject, sample));
-    (async () => {
-      try {
-        const res = await apiFetch("/api/email-preview", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body: htmlBody }),
-        });
-        const d = await res.json();
-        if (!cancelled) {
-          setPreviewHtml(d.success ? d.data.html : `<pre style="color:#dc2626;padding:16px">${d.error ?? "Preview failed"}</pre>`);
-          setPreviewVersion((v) => v + 1);
-        }
-      } catch {
-        if (!cancelled) { setPreviewHtml(`<pre style="padding:16px">Preview failed</pre>`); setPreviewVersion((v) => v + 1); }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [view, subject, htmlBody]);
 
   const handleSave = useCallback(async () => {
     if (!isEditable) return;
@@ -298,19 +265,6 @@ export default function BroadcastDetail({
     router.refresh();
   }
 
-  async function handleDelete() {
-    const ok = await confirm({
-      title: "Delete broadcast?",
-      description: `"${initial.name}" will be permanently removed.`,
-      confirmLabel: "Delete",
-      variant: "danger",
-    });
-    if (!ok) return;
-    const res = await apiFetch(`/api/broadcasts/${initial.id}`, { method: "DELETE" });
-    const json = await res.json();
-    if (json.success) router.push(`/${slug}/emails/broadcasts`);
-  }
-
   async function handleRetryFailed() {
     const failedNow = stats?.failed ?? initial.failedCount;
     if (failedNow <= 0) return;
@@ -342,26 +296,97 @@ export default function BroadcastDetail({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-gray-200 bg-white shrink-0">
+    <div className="flex flex-col h-screen">
+      {/* Single action bar — back · name · status · subject · from · template · tabs · actions */}
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-200 bg-white shrink-0">
         <Link
           href={`/${slug}/emails/broadcasts`}
-          className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
         >
           <ArrowLeft size={18} />
         </Link>
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={!isEditable}
-            placeholder="Broadcast name"
-            title="Click to rename"
-            className="text-sm font-medium text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none rounded-lg px-2 py-1 -mx-2 -my-1 w-full max-w-md transition-all disabled:opacity-100 disabled:hover:border-transparent"
-          />
-          <StatusBadge status={initial.status} />
-        </div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={!isEditable}
+          placeholder="Broadcast name"
+          title="Click to rename"
+          className="shrink-0 w-28 sm:w-40 text-sm font-medium text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none rounded-lg px-2 py-1.5 transition-all disabled:opacity-100 disabled:hover:border-transparent"
+        />
+        <StatusBadge status={initial.status} />
+
+        {view === "edit" && (isEditable || isScheduled) ? (
+          <>
+            <div className="relative flex-1 min-w-0">
+              <input
+                ref={subjectRef}
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                disabled={!isEditable}
+                placeholder="Email subject line"
+                className={`${inputCls} pr-9`}
+              />
+              <button
+                type="button"
+                onClick={() => setVarsOpen((o) => !o)}
+                title="Insert variable into subject"
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              >
+                <Braces size={14} />
+              </button>
+              {varsOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setVarsOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5">
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 px-1.5 py-1">Insert into subject</p>
+                    <div className="max-h-56 overflow-y-auto">
+                      {STANDARD_VARIABLES.map((v) => (
+                        <button
+                          key={v.key}
+                          type="button"
+                          onClick={() => { insertVariable(v.key); setVarsOpen(false); }}
+                          className="w-full flex items-center justify-between gap-2 px-1.5 py-1.5 text-left rounded-md hover:bg-blue-50 group"
+                        >
+                          <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate">{v.label}</span>
+                          <span className="text-[10px] font-mono text-gray-400 group-hover:text-blue-600 shrink-0">{`{{${v.key}}}`}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            {senderIdentities.length === 0 ? (
+              <Link href={`/${slug}/settings/email`} className="shrink-0 hidden md:block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                <AlertCircle size={11} className="inline mr-1" /> Add identity
+              </Link>
+            ) : (
+              <select
+                value={pickIdentityId(fromEmail, senderIdentities) ?? ""}
+                onChange={(e) => { const id = senderIdentities.find((s) => s.id === e.target.value); if (id) { setFromEmail(id.email); setFromName(id.name); } }}
+                disabled={!isEditable}
+                title="From"
+                className="shrink-0 w-36 hidden md:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {!pickIdentityId(fromEmail, senderIdentities) && <option value="">From…</option>}
+                {senderIdentities.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
+              </select>
+            )}
+            {templates.length > 0 && isEditable && (
+              <select
+                value=""
+                onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); }}
+                title="Start from a template"
+                className="shrink-0 w-32 hidden lg:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Template…</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            )}
+          </>
+        ) : (
+          <div className="flex-1" />
+        )}
 
         {(isEditable || isScheduled) && (
           <div className="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -372,14 +397,6 @@ export default function BroadcastDetail({
               }`}
             >
               <Pencil size={12} /> Edit
-            </button>
-            <button
-              onClick={() => setView("preview")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                view === "preview" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Eye size={12} /> Preview
             </button>
             <button
               onClick={() => setView("send")}
@@ -412,16 +429,6 @@ export default function BroadcastDetail({
             <Ban size={12} /> Cancel send
           </button>
         )}
-
-        {(initial.status === "DRAFT" || initial.status === "CANCELED" || initial.status === "FAILED") && (
-          <button
-            onClick={handleDelete}
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-        )}
       </div>
 
       {/* Save error */}
@@ -441,116 +448,11 @@ export default function BroadcastDetail({
       {/* DRAFT/SCHEDULED → Edit / Preview / Send tabs */}
       {(isEditable || isScheduled) && (
         <>
-          {/* Compact field strip — Subject + From + Template (edit only) */}
-          {view === "edit" && (
-            <div className="border-b border-gray-100 bg-white shrink-0">
-              <div className="px-4 sm:px-5 py-3 grid grid-cols-1 lg:grid-cols-[1fr_auto_auto] gap-3 items-end">
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Subject</label>
-                  <input
-                    ref={subjectRef}
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    disabled={!isEditable}
-                    placeholder="Email subject line"
-                    className={inputCls}
-                  />
-                </div>
-                <div className="lg:w-56">
-                  <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">From</label>
-                  {senderIdentities.length === 0 ? (
-                    <Link
-                      href={`/${slug}/settings/email`}
-                      className="block text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5"
-                    >
-                      <AlertCircle size={11} className="inline mr-1" /> Add identity
-                    </Link>
-                  ) : (
-                    <select
-                      value={pickIdentityId(fromEmail, senderIdentities) ?? ""}
-                      onChange={(e) => {
-                        const id = senderIdentities.find((s) => s.id === e.target.value);
-                        if (id) { setFromEmail(id.email); setFromName(id.name); }
-                      }}
-                      disabled={!isEditable}
-                      className={inputCls}
-                    >
-                      {!pickIdentityId(fromEmail, senderIdentities) && (
-                        <option value="">— Select —</option>
-                      )}
-                      {senderIdentities.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} &lt;{s.email}&gt;
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                {templates.length > 0 && isEditable && (
-                  <div className="lg:w-52">
-                    <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Template</label>
-                    <select
-                      defaultValue=""
-                      onChange={(e) => { if (e.target.value) applyTemplate(e.target.value); }}
-                      className={inputCls}
-                    >
-                      <option value="">— None —</option>
-                      {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Body */}
           <div className="flex-1 min-h-0 flex flex-col bg-white">
             {view === "edit" ? (
-              <>
-                <div className="flex-1 min-h-0 p-3">
-                  <EmailBuilder value={htmlBody} onChange={setHtmlBody} />
-                </div>
-                {/* Subject variables row */}
-                <div className="border-t border-gray-200 bg-white shrink-0">
-                  <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium text-gray-500 mr-1">Subject variable:</span>
-                    {STANDARD_VARIABLES.map((v) => (
-                      <button
-                        key={v.key}
-                        type="button"
-                        onClick={() => insertVariable(v.key)}
-                        disabled={!isEditable}
-                        className="text-[11px] font-mono px-2 py-1 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded-md transition-colors border border-gray-200 disabled:opacity-50"
-                      >
-                        {`{{${v.key}}}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : view === "preview" ? (
-              <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
-                <div className="max-w-[600px] mx-auto px-4 sm:px-5 py-6">
-                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                    <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-                      <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-0.5">Subject</p>
-                      <p className="text-sm font-medium text-gray-900">{previewSubject || subject || "(no subject)"}</p>
-                      {(fromName || fromEmail) && (
-                        <p className="text-xs text-gray-500 mt-1.5">
-                          From: <span className="font-medium">{fromName ?? ""}</span>
-                          {fromEmail && <span className="text-gray-400"> &lt;{fromEmail}&gt;</span>}
-                        </p>
-                      )}
-                    </div>
-                    {previewHtml ? (
-                      <EmailPreviewFrame html={previewHtml} version={previewVersion} title="Broadcast preview" minHeight="calc(100vh - 320px)" />
-                    ) : (
-                      <div className="flex items-center justify-center py-20 text-gray-400 text-sm gap-2">
-                        <Loader2 size={14} className="animate-spin" /> Rendering preview…
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="flex-1 min-h-0 p-3">
+                <EmailBuilder value={htmlBody} onChange={setHtmlBody} />
               </div>
             ) : (
               // Send tab — audience + schedule + send button
@@ -918,16 +820,4 @@ function TagPicker({
 function toLocalDateTimeInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// Tiny duplicate of the {{var}} renderer — keeps client-side preview fast and
-// works on dirty (unsaved) drafts without a round trip.
-function renderTokens(template: string, vars: Record<string, any>): string {
-  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => {
-    const value = path.split(".").reduce<unknown>(
-      (acc, key) => (acc != null && typeof acc === "object" ? (acc as Record<string, unknown>)[key] : undefined),
-      vars,
-    );
-    return value == null ? "" : String(value);
-  });
 }

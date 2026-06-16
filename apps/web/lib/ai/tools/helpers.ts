@@ -201,104 +201,73 @@ export async function pickDefaultPageTemplate(workspaceId: string, stepType: str
   return { pageJson: tpl?.pageJson ?? {}, meta: tpl?.meta ?? {} };
 }
 
-// ─── Email body conversion ─────────────────────────────────────────────────
+// ─── Email body conversion → Craft doc ───────────────────────────────────────
+// AI-generated email bodies are built as Craft serialized docs (Page → Section →
+// Column → blocks), the format the new editor + renderEmailContent expect.
+// Variable tokens like {{contact.firstName}} pass through verbatim.
 
-// Convert AI's plain text body → Maily TipTap JSON document.
-// Splits on double newlines → paragraphs. Variable tokens like
-// {{contact.firstName}} pass through verbatim (Maily substitutes at render).
-// Empty input → minimal valid doc so saves don't fail isEmptyEmailDoc.
-//
-// Note: unsubscribe footer is NOT injected here. The worker render step
-// (renderEmailContent with appendUnsubscribe) handles that — single source
-// of truth, workspace-scoped customization (Settings → Email → Footer).
-export function textToMailyDoc(text: string): string {
-  const trimmed = (text ?? "").trim();
-  const content: any[] = [];
+const escHtml = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  if (!trimmed) {
-    content.push({ type: "paragraph", attrs: { textAlign: "left" }, content: [{ type: "text", text: " " }] });
-  } else {
-    for (const p of trimmed.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean)) {
-      content.push({
-        type: "paragraph",
-        attrs: { textAlign: "left" },
-        content: [{ type: "text", text: p }],
-      });
+type CBlock =
+  | { kind: "heading" | "text" | "footer"; html: string }
+  | { kind: "button"; text: string; href: string };
+
+// Build a Craft email doc. Node shape mirrors @launchtic/email render.ts seeds
+// and apps/web/components/email-builder/blocks.tsx craft props.
+function craftEmailDoc(blocks: CBlock[]): string {
+  let i = 0;
+  const gid = (pfx: string) => `${pfx}${i++}`;
+  const node = (rn: string, props: any, parent?: string, kids: string[] = [], canvas = false) =>
+    ({ type: { resolvedName: rn }, isCanvas: canvas, props, displayName: rn, custom: {}, hidden: false, ...(parent ? { parent } : {}), nodes: kids, linkedNodes: {} });
+  const nodes: Record<string, any> = {};
+  const colId = "c0";
+  const kids: string[] = [];
+  const list = blocks.length ? blocks : [{ kind: "text" as const, html: "" }];
+  for (const b of list) {
+    const cid = gid("b");
+    if (b.kind === "button") {
+      nodes[cid] = node("EmailButton", { text: b.text, href: b.href, bg: "#2563eb", color: "#ffffff", align: "center", radius: 6, fontSize: 14, fontWeight: 600, paddingY: 12, paddingX: 28, marginY: 12, marginX: 0 }, colId);
+    } else if (b.kind === "heading") {
+      nodes[cid] = node("EmailHeading", { text: b.html, fontSize: 24, color: "#111827", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 }, colId);
+    } else if (b.kind === "footer") {
+      nodes[cid] = node("EmailText", { text: b.html, fontSize: 12, color: "#9ca3af", align: "center", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 }, colId);
+    } else {
+      nodes[cid] = node("EmailText", { text: b.html, fontSize: 14, color: "#374151", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 }, colId);
     }
+    kids.push(cid);
   }
-
-  return JSON.stringify({ type: "doc", content });
+  nodes.ROOT = node("Page", { width: 600, breakpoint: 480, bgColor: "#f3f4f6", fontFamily: "Arial" }, undefined, ["s0"], true);
+  nodes.s0 = node("Section", { bgColor: "#ffffff", paddingY: 10, paddingX: 10, bgImage: "", bgDisplay: "cover", bgPosition: "center center", borderRadius: 0, disableStacking: false, reverseOnMobile: false }, "ROOT", [colId], true);
+  nodes[colId] = node("Column", { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "middle" }, "s0", kids, true);
+  return JSON.stringify(nodes);
 }
 
-// Rich email body — structured spec → Maily TipTap JSON with heading,
-// paragraphs, optional CTA button, optional footer. Mirrors the shape of
-// system templates in scripts_test/email-templates.seed.json so AI-generated
-// emails feel polished, not bare paragraphs.
+// Convert AI's plain text body → Craft doc. Splits on blank lines → paragraphs.
+export function textToCraftDoc(text: string): string {
+  const trimmed = (text ?? "").trim();
+  const blocks: CBlock[] = trimmed
+    ? trimmed.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean).map((p) => ({ kind: "text" as const, html: escHtml(p) }))
+    : [];
+  return craftEmailDoc(blocks);
+}
+
+// Rich email body — structured spec → Craft doc with heading, paragraphs,
+// optional CTA button, optional footer.
 export type RichEmailBody = {
   heading?: string;
-  paragraphs: string[];                              // each = 1 <p> block
+  paragraphs: string[];                              // each = 1 text block
   cta?: { text: string; url: string };               // call-to-action button
   footer?: string;                                   // small centered text
 };
 
-export function richBodyToMailyDoc(body: RichEmailBody): string {
-  const content: any[] = [];
-
-  if (body.heading?.trim()) {
-    content.push({
-      type: "heading",
-      attrs: { level: 2, textAlign: "left", textDirection: "ltr", showIfKey: null },
-      content: [{ type: "text", text: body.heading.trim() }],
-    });
-  }
-
+export function richBodyToCraftDoc(body: RichEmailBody): string {
+  const blocks: CBlock[] = [];
+  if (body.heading?.trim()) blocks.push({ kind: "heading", html: escHtml(body.heading.trim()) });
   for (const p of body.paragraphs) {
     const t = p.trim();
-    if (!t) continue;
-    content.push({
-      type: "paragraph",
-      attrs: { textAlign: "left", textDirection: "ltr", showIfKey: null },
-      content: [{ type: "text", text: t }],
-    });
+    if (t) blocks.push({ kind: "text", html: escHtml(t) });
   }
-
-  if (body.cta?.text?.trim()) {
-    content.push({ type: "spacer", attrs: { height: 16, showIfKey: null } });
-    content.push({
-      type: "button",
-      attrs: {
-        text: body.cta.text.trim(),
-        isTextVariable: false,
-        url: body.cta.url || "#",
-        isUrlVariable: false,
-        alignment: "center",
-        variant: "filled",
-        borderRadius: "smooth",
-        buttonColor: "#2563eb",
-        textColor: "#ffffff",
-        paddingTop: 10, paddingRight: 32, paddingBottom: 10, paddingLeft: 32,
-        showIfKey: null,
-      },
-    });
-  }
-
-  if (body.footer?.trim()) {
-    content.push({ type: "spacer", attrs: { height: 24, showIfKey: null } });
-    content.push({
-      type: "footer",
-      attrs: { textAlign: "center", textDirection: "ltr", showIfKey: null },
-      content: [{ type: "text", text: body.footer.trim() }],
-    });
-  }
-
-  // Guard against empty doc — Maily rejects truly empty content arrays
-  if (content.length === 0) {
-    content.push({
-      type: "paragraph",
-      attrs: { textAlign: "left", textDirection: "ltr", showIfKey: null },
-      content: [{ type: "text", text: " " }],
-    });
-  }
-
-  return JSON.stringify({ type: "doc", content });
+  if (body.cta?.text?.trim()) blocks.push({ kind: "button", text: body.cta.text.trim(), href: body.cta.url || "#" });
+  if (body.footer?.trim()) blocks.push({ kind: "footer", html: escHtml(body.footer.trim()) });
+  return craftEmailDoc(blocks);
 }

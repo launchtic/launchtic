@@ -212,35 +212,90 @@ export default function WorkflowEmailEditor({
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Top bar — back link + Save button. No autosave indicator since
-          saves are explicit; busy state surfaces inside the Save button. */}
-      <div className="border-b border-gray-200 bg-white px-4 py-2.5 flex items-center gap-3 shrink-0">
+      {/* Single action bar — back · from · subject · template · save · done */}
+      <div className="border-b border-gray-200 bg-white px-3 sm:px-4 py-2.5 flex items-center gap-2 shrink-0">
         <Link
           href={`/${workspaceSlug}/workflows/${workflow.id}`}
+          title={workflow.name}
           className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 shrink-0"
         >
-          <ArrowLeft size={14} />
-          <span>{workflow.name}</span>
+          <ArrowLeft size={16} />
+          <span className="hidden lg:inline max-w-[120px] truncate">{workflow.name}</span>
         </Link>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-semibold text-gray-900 truncate flex-1 min-w-0">
-          {isCreate
-            ? <span className="italic text-gray-500 font-normal">New email</span>
-            : subject.trim() || <span className="italic text-gray-400 font-normal">Untitled email</span>}
-        </span>
-        {dirty && !busy && !isLocked && (
-          <span className="text-[11px] text-amber-600 shrink-0">Unsaved changes</span>
+
+        <select
+          value={senderId ?? ""}
+          onChange={(e) => onSenderChange(e.target.value)}
+          disabled={isLocked}
+          title="From sender"
+          className="shrink-0 w-36 hidden md:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">From…</option>
+          {senders.map((s) => <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>)}
+        </select>
+
+        <div className="relative flex-1 min-w-0">
+          <input
+            ref={subjectRef}
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            disabled={isLocked}
+            placeholder="Subject — Hi {{contact.firstName}}…"
+            className={`${inputCls} pr-9`}
+          />
+          <button
+            type="button"
+            onClick={() => setVarsOpen((o) => !o)}
+            title="Insert variable into subject"
+            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+          >
+            <Braces size={14} />
+          </button>
+          {varsOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setVarsOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5">
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 px-1.5 py-1">Insert into subject</p>
+                <div className="max-h-56 overflow-y-auto">
+                  {STANDARD_VARIABLES.map((v) => (
+                    <button
+                      key={v.key}
+                      type="button"
+                      onClick={() => { insertVariable(v.key); setVarsOpen(false); }}
+                      className="w-full flex items-center justify-between gap-2 px-1.5 py-1.5 text-left rounded-md hover:bg-blue-50 group"
+                    >
+                      <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate">{v.label}</span>
+                      <span className="text-[10px] font-mono text-gray-400 group-hover:text-blue-600 shrink-0">{`{{${v.key}}}`}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {templates.length > 0 && !isLocked && (
+          <select
+            value=""
+            disabled={templateBusy}
+            onChange={(e) => applyTemplate(e.target.value)}
+            title="Start from a template"
+            className="shrink-0 w-32 hidden lg:block border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Template…</option>
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
         )}
-        {/* Save hidden when the parent workflow is ACTIVE — PATCH would
-            409. The lock banner directs the operator to pause to edit. */}
+
         {!isLocked && (
           <button
             onClick={onSave}
             disabled={busy || (!isCreate && !dirty)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 shrink-0"
           >
             {busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            {isCreate ? "Create email" : "Save"}
+            {isCreate ? "Create" : "Save"}
           </button>
         )}
         <button
@@ -284,94 +339,6 @@ export default function WorkflowEmailEditor({
           into mly to persist when Save is hidden.) */}
       <fieldset disabled={isLocked} className="contents">
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Compact field row above the editor. Three columns on wide
-            screens: From | Subject (stretchy) | Template (optional, only
-            when templates exist). Stacks on narrow screens. */}
-        <div className={`bg-white border-b border-gray-200 px-4 sm:px-5 py-3 grid grid-cols-1 gap-3 shrink-0 ${
-          templates.length > 0
-            ? "lg:grid-cols-[180px_1fr_180px]"
-            : "sm:grid-cols-[180px_1fr]"
-        }`}>
-          <div>
-            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">From</label>
-            <select
-              className={inputCls}
-              value={senderId ?? ""}
-              onChange={(e) => onSenderChange(e.target.value)}
-            >
-              <option value="">— pick sender —</option>
-              {senders.map((s) => (
-                <option key={s.id} value={s.id}>{s.name} &lt;{s.email}&gt;</option>
-              ))}
-            </select>
-          </div>
-          <div className="relative">
-            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Subject</label>
-            <div className="relative">
-              <input
-                ref={subjectRef}
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Hi {{contact.firstName}}…"
-                className={`${inputCls} pr-9`}
-              />
-              <button
-                type="button"
-                onClick={() => setVarsOpen((o) => !o)}
-                title="Insert variable into subject"
-                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              >
-                <Braces size={14} />
-              </button>
-            </div>
-            {varsOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setVarsOpen(false)} />
-                <div className="absolute left-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5">
-                  <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 px-1.5 py-1">Insert into subject</p>
-                  <div className="max-h-56 overflow-y-auto">
-                    {STANDARD_VARIABLES.map((v) => (
-                      <button
-                        key={v.key}
-                        type="button"
-                        onClick={() => { insertVariable(v.key); setVarsOpen(false); }}
-                        className="w-full flex items-center justify-between gap-2 px-1.5 py-1.5 text-left rounded-md hover:bg-blue-50 group"
-                      >
-                        <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate">{v.label}</span>
-                        <span className="text-[10px] font-mono text-gray-400 group-hover:text-blue-600 shrink-0">{`{{${v.key}}}`}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-          {templates.length > 0 && (
-            <div>
-              <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Template</label>
-              <select
-                value=""
-                disabled={templateBusy}
-                onChange={(e) => {
-                  // Controlled with value="" means React always snaps the
-                  // visible selection back to "— None —" after each pick, so
-                  // re-picking the same template re-fires onChange. No need
-                  // to manually reset e.target.value.
-                  applyTemplate(e.target.value);
-                }}
-                className={inputCls}
-                title="Start from a saved email template"
-              >
-                <option value="">— None —</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
         {/* Editor pane — scrollable, fills remaining height. Container has
             no overflow-hidden so maily's floating "+ / drag-handle" controls
             aren't clipped (see RichEmailEditor's wrapper comment).

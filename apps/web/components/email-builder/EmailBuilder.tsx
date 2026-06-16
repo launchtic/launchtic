@@ -449,6 +449,20 @@ function AutoWrap() {
   return null;
 }
 
+// Load a new value coming from OUTSIDE the editor (e.g. "apply template")
+// into Craft. <Frame data> only reads on mount, so a changed `value` prop is
+// otherwise ignored. Skips our own onChange round-trips (value === current
+// serialization) so it doesn't fight live edits or lose the cursor.
+function ExternalValueSync({ value }: { value?: string }) {
+  const { actions, query } = useEditor();
+  useEffect(() => {
+    if (!value || !value.trim().startsWith("{")) return;
+    try { if (query.serialize() !== value) actions.deserialize(value); } catch { /* ignore bad input */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return null;
+}
+
 // One left sidebar: element list (Toolbox) by default; the selected element's
 // settings (with a Back button) once something is selected.
 function LeftPanel() {
@@ -499,6 +513,7 @@ export default function EmailBuilder({ value, onChange }: { value?: string; onCh
   return (
     <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={(q) => onChangeRef.current(q.serialize())}>
       <AutoWrap />
+      <ExternalValueSync value={value} />
       <InlineToolbar />
       <DeviceContext.Provider value={device}>
         <div className="relative flex h-full min-h-0 border border-gray-200 rounded-lg overflow-hidden">

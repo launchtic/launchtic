@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { defineTool } from "./define";
-import { findOrSkipTag, getDefaultSender, richBodyToMailyDoc, textToMailyDoc, type RichEmailBody } from "./helpers";
+import { findOrSkipTag, getDefaultSender, richBodyToCraftDoc, textToCraftDoc, type RichEmailBody } from "./helpers";
 import { broadcastQueue, dispatchJobId } from "../../queue";
 
 const MIN_LEAD_TIME_MS = 10 * 60_000;
@@ -81,20 +81,18 @@ const richBodySchema = z.union([
   }),
 ]).describe("Email body. Provide as object {heading, paragraphs, cta, footer} for rich layout, or plain string as fallback.");
 
-// Convert either body shape to Maily TipTap JSON. Unsubscribe footer is
-// NOT injected here — the worker render step handles it (single source of
-// truth, workspace footer config). See packages/email/src/render.ts.
-function bodyToMaily(body: string | RichEmailBody): string {
-  return typeof body === "string" ? textToMailyDoc(body) : richBodyToMailyDoc(body);
+// Convert either body shape to a Craft email doc (new editor format).
+function bodyToCraft(body: string | RichEmailBody): string {
+  return typeof body === "string" ? textToCraftDoc(body) : richBodyToCraftDoc(body);
 }
 
 // ─── Reads ──────────────────────────────────────────────────────────────────
 
-// Best-effort extract of plain text + CTA from a Maily TipTap doc. Used by
-// get_broadcast_details so AI can SEE existing content before update_broadcast
-// (which is a full rewrite). Walks the doc tree picking out text nodes per
-// block. Output shape mirrors RichEmailBody so AI can edit-and-pass-back.
-function mailyDocToReadable(htmlBody: string): {
+// Best-effort extract of heading/paragraphs/CTA/footer from an email body so
+// get_broadcast_details lets AI SEE existing content before update_broadcast
+// (a full rewrite). Handles the new Craft format; falls back to legacy maily.
+// Output shape mirrors RichEmailBody so AI can edit-and-pass-back.
+function bodyToReadable(htmlBody: string): {
   heading: string | null;
   paragraphs: string[];
   cta: { text: string; url: string } | null;
@@ -103,6 +101,27 @@ function mailyDocToReadable(htmlBody: string): {
   let doc: any;
   try { doc = JSON.parse(htmlBody); } catch { return { heading: null, paragraphs: [], cta: null, footer: null }; }
   const out = { heading: null as string | null, paragraphs: [] as string[], cta: null as any, footer: null as string | null };
+  const stripHtml = (h: string) => String(h ?? "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+
+  // New Craft format — ROOT + resolvedName nodes (insertion order preserved).
+  if (doc?.ROOT) {
+    for (const k of Object.keys(doc)) {
+      const n = doc[k];
+      const rn = n?.type?.resolvedName;
+      const props = n?.props ?? {};
+      if (rn === "EmailHeading") out.heading = stripHtml(props.text);
+      else if (rn === "EmailButton") out.cta = { text: props.text ?? "", url: props.href ?? "" };
+      else if (rn === "EmailText") {
+        const t = stripHtml(props.text);
+        if (!t) continue;
+        if (props.align === "center" && (Number(props.fontSize) || 14) <= 12) out.footer = t;
+        else out.paragraphs.push(t);
+      }
+    }
+    return out;
+  }
+
+  // Legacy maily fallback.
   const flat = (n: any): string => {
     if (!n) return "";
     if (typeof n.text === "string") return n.text;
@@ -117,8 +136,6 @@ function mailyDocToReadable(htmlBody: string): {
     } else if (block.type === "button") {
       out.cta = { text: block.attrs?.text ?? "", url: block.attrs?.url ?? "" };
     } else if (block.type === "footer") {
-      // Body footer is now operator content only — unsubscribe is appended at
-      // worker render time, not stored in the DB. Surface as user content.
       out.footer = flat(block).trim();
     }
   }
@@ -208,7 +225,7 @@ const getBroadcastDetails = defineTool({
         excludeUnsubscribed: b.excludeUnsubscribed,
       },
       stats: { recipients: b.totalRecipients, sent: b.sentCount, failed: b.failedCount },
-      body: mailyDocToReadable(b.htmlBody),
+      body: bodyToReadable(b.htmlBody),
     };
   },
 });
@@ -285,7 +302,7 @@ const createBroadcastFromSpec = defineTool({
         workspaceId: ctx.workspaceId,
         name: args.name,
         subject: args.subject,
-        htmlBody: bodyToMaily(args.body),
+        htmlBody: bodyToCraft(args.body),
         fromName: sender.name,
         fromEmail: sender.email,
         status,
@@ -362,7 +379,7 @@ const updateBroadcast = defineTool({
     const data: Record<string, unknown> = {};
     if (args.name)    data.name = args.name;
     if (args.subject) data.subject = args.subject;
-    if (args.body)    data.htmlBody = bodyToMaily(args.body);
+    if (args.body)    data.htmlBody = bodyToCraft(args.body);
 
     // Reschedule: validate + check SMTP BEFORE writing DB. Auto-bump if
     // requested time is within MIN_LEAD_TIME (consistent with create flow).

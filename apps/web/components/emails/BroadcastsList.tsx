@@ -85,7 +85,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
         }),
       });
       const json = await res.json();
-      if (json.success) router.push(`/${slug}/emails/broadcasts/${json.data.id}`);
+      if (json.success) router.push(`/${slug}/broadcast-editor/${json.data.id}`);
       else toast.error(json.error ?? "Failed to create broadcast");
     });
   }
@@ -172,7 +172,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
                 : `Created ${new Date(b.createdAt).toLocaleDateString()}`;
             return (
               <div key={b.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-                <Link href={`/${slug}/emails/broadcasts/${b.id}`} className="flex-1 min-w-0">
+                <Link href={`/${slug}/broadcast-editor/${b.id}`} className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm font-medium text-gray-900 truncate">{b.name}</span>
                     <span className={`inline-flex items-center gap-1 text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded ${badge.cls} shrink-0`}>
