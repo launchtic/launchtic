@@ -57,66 +57,61 @@ const X_CENTER = 360;
 function y(i: number) { return 160 + i * Y_STEP; }
 function x(col: number = 0) { return X_CENTER + col * X_STEP; }
 
-// ─── maily.to JSON-doc DSL ──────────────────────────────────────────────────
-// Template emails ship as JSON-stringified TipTap docs (the format the email
-// worker's renderEmailContent expects + the mly editor opens for further
-// edits). The plain-HTML strings these templates used to carry would throw
-// at send time, so every email body now goes through this DSL.
+// ─── Email content DSL → Craft doc ──────────────────────────────────────────
+// Template emails ship as Craft serialized docs (Page → Section → Column →
+// blocks), the format the new email editor + renderEmailContent expect. Inline
+// helpers return rich HTML fragments; block helpers map to Craft nodes.
 
-type Inline = { type: string; text?: string; marks?: unknown[] };
-type Block  = { type: string; content?: unknown[]; attrs?: Record<string, unknown> };
+const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escAttr = (s: string) => esc(s).replace(/"/g, "&quot;");
 
-function t(text: string): Inline {
-  return { type: "text", text };
+type Frag = { __html: string };
+type Inline = string | Frag;
+const fragHtml = (x: Inline) => (typeof x === "string" ? esc(x) : x.__html);
+
+function t(text: string): Inline { return text; }
+function bold(text: string): Frag { return { __html: `<strong>${esc(text)}</strong>` }; }
+function code(text: string): Frag { return { __html: `<code>${esc(text)}</code>` }; }
+function link(text: string, href: string): Frag { return { __html: `<a href="${escAttr(href)}">${esc(text)}</a>` }; }
+
+type CB =
+  | { kind: "text"; html: string }
+  | { kind: "button"; text: string; href: string; danger?: boolean };
+
+function p(...inline: Inline[]): CB { return { kind: "text", html: inline.map(fragHtml).join("") }; }
+function listItem(content: Inline | Inline[]): string {
+  const arr = Array.isArray(content) ? content : [content];
+  return `<li>${arr.map(fragHtml).join("")}</li>`;
 }
-function bold(text: string): Inline {
-  return { type: "text", text, marks: [{ type: "bold" }] };
+function ul(...items: (Inline | Inline[])[]): CB { return { kind: "text", html: `<ul>${items.map(listItem).join("")}</ul>` }; }
+function ol(...items: (Inline | Inline[])[]): CB { return { kind: "text", html: `<ol>${items.map(listItem).join("")}</ol>` }; }
+function btn(text: string, href: string, opts: { danger?: boolean } = {}): CB {
+  return { kind: "button", text, href, danger: opts.danger };
 }
-function code(text: string): Inline {
-  return { type: "text", text, marks: [{ type: "code" }] };
-}
-function link(text: string, href: string): Inline {
-  return {
-    type: "text",
-    text,
-    marks: [{ type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer" } }],
-  };
-}
-function p(...inline: (string | Inline)[]): Block {
-  return {
-    type: "paragraph",
-    content: inline.map((i) => typeof i === "string" ? t(i) : i),
-  };
-}
-function listItem(content: string | Inline | (string | Inline)[]): Block {
-  const inline = Array.isArray(content) ? content : [content];
-  return { type: "listItem", content: [p(...inline)] };
-}
-function ul(...items: (string | Inline | (string | Inline)[])[]): Block {
-  return { type: "bulletList", content: items.map(listItem) };
-}
-function ol(...items: (string | Inline | (string | Inline)[])[]): Block {
-  return { type: "orderedList", content: items.map(listItem) };
-}
-function btn(text: string, href: string, opts: { danger?: boolean } = {}): Block {
-  // Defaults mirror the visual style the old plain-HTML CTAs had: filled
-  // pill button, dark or red background, white text, left-aligned (the
-  // editor surface defaults to centered which feels off for content emails).
-  return {
-    type: "button",
-    attrs: {
-      text,
-      url:          href,
-      alignment:    "left",
-      variant:      "filled",
-      borderRadius: "round",
-      buttonColor:  opts.danger ? "#dc2626" : "#111827",
-      textColor:    "#ffffff",
-    },
-  };
-}
-function doc(...blocks: Block[]): string {
-  return JSON.stringify({ type: "doc", content: blocks });
+
+// Build a Craft email doc. Node shape mirrors @launchtic/email render.ts seeds
+// and apps/web/components/email-builder/blocks.tsx craft props.
+function doc(...blocks: CB[]): string {
+  let i = 0;
+  const gid = (pfx: string) => `${pfx}${i++}`;
+  const node = (rn: string, props: any, parent?: string, kids: string[] = [], canvas = false) =>
+    ({ type: { resolvedName: rn }, isCanvas: canvas, props, displayName: rn, custom: {}, hidden: false, ...(parent ? { parent } : {}), nodes: kids, linkedNodes: {} });
+  const nodes: Record<string, any> = {};
+  const colId = "c0";
+  const kids: string[] = [];
+  for (const b of blocks) {
+    const cid = gid("b");
+    if (b.kind === "button") {
+      nodes[cid] = node("EmailButton", { text: b.text, href: b.href, bg: b.danger ? "#dc2626" : "#111827", color: "#ffffff", align: "left", radius: 0, fontSize: 14, fontWeight: 600, paddingY: 12, paddingX: 28, marginY: 12, marginX: 0 }, colId);
+    } else {
+      nodes[cid] = node("EmailText", { text: b.html, fontSize: 14, color: "#374151", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 }, colId);
+    }
+    kids.push(cid);
+  }
+  nodes.ROOT = node("Page", { width: 600, breakpoint: 480, bgColor: "#f3f4f6", fontFamily: "Arial" }, undefined, ["s0"], true);
+  nodes.s0 = node("Section", { bgColor: "#ffffff", paddingY: 10, paddingX: 10, bgImage: "", bgDisplay: "cover", bgPosition: "center center", borderRadius: 0, disableStacking: false, reverseOnMobile: false }, "ROOT", [colId], true);
+  nodes[colId] = node("Column", { bgColor: "transparent", paddingY: 0, paddingX: 8, verticalAlign: "middle" }, "s0", kids, true);
+  return JSON.stringify(nodes);
 }
 
 // ─── Node helpers ──────────────────────────────────────────────────────────

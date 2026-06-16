@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Save, AlertCircle, Braces } from "lucide-react";
 import EmailBuilder from "../email-builder/EmailBuilder";
 import { apiFetch } from "../../lib/api-client";
 import { STANDARD_VARIABLES, EMPTY_EMAIL_DOC } from "@launchtic/email";
@@ -87,6 +87,7 @@ export default function WorkflowEmailEditor({
   const [busy, setBusy] = useState(false);
   // Validation errors — keyed list. Empty = valid.
   const [errors, setErrors] = useState<string[]>([]);
+  const [varsOpen, setVarsOpen] = useState(false);
 
   // Dirty tracking — used to enable Save in edit mode (Save is always
   // active in create mode since we want first-write to land).
@@ -142,7 +143,7 @@ export default function WorkflowEmailEditor({
         // Replace the URL so back-button doesn't land on /emails/new.
         const newId = json?.data?.id;
         if (typeof newId === "string") {
-          router.replace(`/${workspaceSlug}/workflows/${workflow.id}/emails/${newId}/edit`);
+          router.replace(`/${workspaceSlug}/workflow-email-editor/${workflow.id}/${newId}`);
         } else {
           router.push(`/${workspaceSlug}/workflows/${workflow.id}/emails`);
         }
@@ -210,7 +211,7 @@ export default function WorkflowEmailEditor({
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-screen bg-gray-50">
       {/* Top bar — back link + Save button. No autosave indicator since
           saves are explicit; busy state surfaces inside the Save button. */}
       <div className="border-b border-gray-200 bg-white px-4 py-2.5 flex items-center gap-3 shrink-0">
@@ -242,6 +243,13 @@ export default function WorkflowEmailEditor({
             {isCreate ? "Create email" : "Save"}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => router.push(`/${workspaceSlug}/workflows/${workflow.id}`)}
+          className="text-xs font-semibold text-gray-700 px-3 py-1.5 hover:bg-gray-100 rounded-lg shrink-0"
+        >
+          Done
+        </button>
       </div>
 
       {/* Parent-workflow lock banner. Mirrors the workflow builder banner
@@ -297,16 +305,47 @@ export default function WorkflowEmailEditor({
               ))}
             </select>
           </div>
-          <div>
+          <div className="relative">
             <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Subject</label>
-            <input
-              ref={subjectRef}
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Hi {{contact.firstName}}…"
-              className={inputCls}
-            />
+            <div className="relative">
+              <input
+                ref={subjectRef}
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Hi {{contact.firstName}}…"
+                className={`${inputCls} pr-9`}
+              />
+              <button
+                type="button"
+                onClick={() => setVarsOpen((o) => !o)}
+                title="Insert variable into subject"
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              >
+                <Braces size={14} />
+              </button>
+            </div>
+            {varsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setVarsOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-20 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-1.5">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 px-1.5 py-1">Insert into subject</p>
+                  <div className="max-h-56 overflow-y-auto">
+                    {STANDARD_VARIABLES.map((v) => (
+                      <button
+                        key={v.key}
+                        type="button"
+                        onClick={() => { insertVariable(v.key); setVarsOpen(false); }}
+                        className="w-full flex items-center justify-between gap-2 px-1.5 py-1.5 text-left rounded-md hover:bg-blue-50 group"
+                      >
+                        <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate">{v.label}</span>
+                        <span className="text-[10px] font-mono text-gray-400 group-hover:text-blue-600 shrink-0">{`{{${v.key}}}`}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           {templates.length > 0 && (
             <div>
@@ -345,33 +384,6 @@ export default function WorkflowEmailEditor({
               scrollIntoView — leaves the same gap above the active block. */}
         <div className="flex-1 min-h-0 p-3 bg-white">
           <EmailBuilder value={bodyHtml} onChange={setBodyHtml} />
-        </div>
-
-        {/* Variables row — bottom, sticky. Click a chip → token inserted at
-            the cursor in whichever surface (subject / body) was last focused. */}
-        <div className="border-t border-gray-200 bg-white shrink-0">
-          <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium text-gray-500 mr-1">Subject variable:</span>
-            {STANDARD_VARIABLES.map((v) => (
-              <button
-                key={v.key}
-                type="button"
-                onClick={() => insertVariable(v.key)}
-                className="text-[11px] font-mono px-2 py-1 bg-gray-50 hover:bg-blue-50 hover:text-blue-700 text-gray-600 rounded-md transition-colors border border-gray-200"
-                title={`${v.label} — e.g. ${v.example}`}
-              >
-                {`{{${v.key}}}`}
-              </button>
-            ))}
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={() => router.push(`/${workspaceSlug}/workflows/${workflow.id}`)}
-              className="text-xs font-semibold text-gray-700 px-3 py-1.5 hover:bg-gray-100 rounded-md"
-            >
-              Done
-            </button>
-          </div>
         </div>
       </div>
       </fieldset>

@@ -2477,7 +2477,7 @@ function NodeConfigForm({
     // Broadcast where the listing links out to a fullscreen maily.to editor.
     const emailId = config.emailId as string | undefined;
     const email   = emailId ? workflowEmails.find((e) => e.id === emailId) : undefined;
-    const editUrl = (id: string) => `/${workspaceSlug}/workflows/${workflowId}/emails/${id}/edit`;
+    const editUrl = (id: string) => `/${workspaceSlug}/workflow-email-editor/${workflowId}/${id}`;
     const manageUrl = `/${workspaceSlug}/workflows/${workflowId}/emails`;
 
     return (
@@ -2552,7 +2552,7 @@ function NodeConfigForm({
         {!isLocked && (
           <div className="text-[11px] text-gray-500">
             <a
-              href={`/${workspaceSlug}/workflows/${workflowId}/emails/new`}
+              href={`/${workspaceSlug}/workflow-email-editor/${workflowId}/new`}
               className="font-medium text-gray-600 hover:text-gray-900 hover:underline"
             >
               + Create new email
