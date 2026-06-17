@@ -51,10 +51,14 @@ function block(n: SNode): string {
       return `<mj-spacer height="${Number(p.height) || 16}px"${p.bgColor && p.bgColor !== "transparent" ? ` container-background-color="${attr(p.bgColor)}"` : ""} />`;
     case "EmailNavbar": {
       const items: { text: string; href: string }[] = Array.isArray(p.items) ? p.items : [];
-      const links = items.map((it) =>
-        `<a href="${attr(it.href || "#")}" style="display:inline-block;text-decoration:none;color:${attr(p.color || "#374151")};font-size:${Number(p.fontSize) || 14}px;line-height:${p.lineHeight ?? 1.5};letter-spacing:${Number(p.letterSpacing) || 0}px;padding:0 ${Number(p.itemPadding) || 12}px">${esc(it.text)}</a>`,
+      const gap = Number(p.itemGap ?? p.itemPaddingX ?? p.itemPadding ?? 16); // back-compat
+      const deco = p.underline ? "underline" : "none";
+      const fw = p.bold ? 700 : 400;
+      const fs = p.italic ? "italic" : "normal";
+      const links = items.map((it, i) =>
+        `<a href="${attr(it.href || "#")}" style="display:inline-block;text-decoration:${deco};font-weight:${fw};font-style:${fs};color:${attr(p.color || "#374151")};font-size:${Number(p.fontSize) || 14}px;line-height:${p.lineHeight ?? 1.5};letter-spacing:${Number(p.letterSpacing) || 0}px;padding-right:${i < items.length - 1 ? gap : 0}px">${esc(it.text)}</a>`,
       ).join("");
-      return `<mj-text align="${attr(p.align || "center")}" padding="${Number(p.paddingY) || 8}px 0">${links}</mj-text>`;
+      return `<mj-text align="${attr(p.align || "center")}" padding="${mPad(p, 8)}">${links}</mj-text>`;
     }
     default:
       return "";

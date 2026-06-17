@@ -165,20 +165,22 @@ export function EmailSpacer({ height, bgColor }: any) {
 }
 EmailSpacer.craft = { displayName: "Spacer", props: { height: 24, bgColor: "transparent" } };
 
-export function EmailNavbar({ items, align, paddingY, itemPadding, fontSize, color, lineHeight, letterSpacing }: any) {
+export function EmailNavbar({ items, align, marginY = 8, marginX = 0, itemGap = 16, fontSize, color, lineHeight, letterSpacing, bold = false, italic = false, underline = false }: any) {
   const ref = useBlockRef();
   const list: { text: string; href: string }[] = Array.isArray(items) ? items : [];
   return (
-    <div ref={ref as any} style={{ textAlign: align, padding: `${paddingY}px 0`, cursor: "move" }}>
+    <div ref={ref as any} style={{ textAlign: align, margin: `${marginY}px ${marginX}px`, cursor: "move" }}>
       {list.map((it, i) => (
-        <span key={i} style={{ display: "inline-block", color, fontSize, lineHeight, letterSpacing: `${letterSpacing}px`, padding: `0 ${itemPadding}px`, textDecoration: "none" }}>{it.text}</span>
+        // Gap between items (padding-right), so the first item is flush with the
+        // section edge and the last has no trailing space.
+        <span key={i} style={{ display: "inline-block", color, fontSize, lineHeight, letterSpacing: `${letterSpacing}px`, paddingRight: i < list.length - 1 ? `${itemGap}px` : 0, fontWeight: bold ? 700 : 400, fontStyle: italic ? "italic" : "normal", textDecoration: underline ? "underline" : "none" }}>{it.text}</span>
       ))}
     </div>
   );
 }
 EmailNavbar.craft = {
   displayName: "Navbar",
-  props: { items: [{ text: "Home", href: "#" }, { text: "About", href: "#" }, { text: "Contact", href: "#" }], align: "center", paddingY: 8, itemPadding: 12, fontSize: 14, color: "#374151", lineHeight: 1.5, letterSpacing: 0 },
+  props: { items: [{ text: "Home", href: "#" }, { text: "About", href: "#" }, { text: "Contact", href: "#" }], align: "center", marginY: 8, marginX: 0, itemGap: 16, fontSize: 14, color: "#374151", lineHeight: 1.5, letterSpacing: 0, bold: false, italic: false, underline: false },
 };
 
 export const EMAIL_RESOLVER = { Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar };

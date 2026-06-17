@@ -7,10 +7,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
-import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2 } from "lucide-react";
+import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus } from "lucide-react";
 import { STANDARD_VARIABLES, EMAIL_FONTS } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";
 import { ColorSwatchButton, ColorPickerPopup } from "./ColorPicker";
+import { SavedBlocksProvider, useSavedBlocks, extractSubtree, insertSavedBlock } from "./SavedBlocks";
 import {
   EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar, DeviceContext,
 } from "./blocks";
@@ -50,6 +51,15 @@ function RenderNode({ render }: { render: React.ReactElement }) {
     deletable: query.node(node.id).isDeletable(),
     parent: node.data.parent,
   }));
+  const sb = useSavedBlocks();
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [blockName, setBlockName] = useState("");
+  const saveBlock = async () => {
+    const nm = blockName.trim();
+    if (!nm || !sb) return;
+    const okSaved = await sb.save(nm, extractSubtree(JSON.parse(query.serialize()), id));
+    if (okSaved) { setSaveOpen(false); setBlockName(""); }
+  };
   const [, force] = useState(0);
   useEffect(() => {
     const h = () => force((n) => n + 1);
@@ -78,6 +88,7 @@ function RenderNode({ render }: { render: React.ReactElement }) {
             <span className="px-1 font-medium">{name}</span>
             {parent && <button title="Select parent" onMouseDown={stop} onClick={() => (actions as any).selectNode(parent)} className="p-0.5 hover:bg-blue-600 rounded"><ArrowUp size={12} /></button>}
             <button title="Duplicate" onMouseDown={stop} onClick={() => duplicateNode(query, actions, id)} className="p-0.5 hover:bg-blue-600 rounded"><Copy size={12} /></button>
+            {name === "Section" && sb?.available && <button title="Save as block" onMouseDown={stop} onClick={() => { setBlockName(""); setSaveOpen(true); }} className="p-0.5 hover:bg-blue-600 rounded"><BookmarkPlus size={12} /></button>}
             {deletable && <button title="Delete" onMouseDown={stop} onClick={() => actions.delete(id)} className="p-0.5 hover:bg-blue-600 rounded"><Trash2 size={12} /></button>}
           </div>
         ) : (
@@ -87,6 +98,29 @@ function RenderNode({ render }: { render: React.ReactElement }) {
             {name}
           </div>
         ),
+        document.body,
+      )}
+      {saveOpen && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onMouseDown={() => setSaveOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <Bookmark size={16} className="text-blue-600" />
+              <h2 className="text-sm font-semibold text-gray-900">Save section as block</h2>
+            </div>
+            <input
+              autoFocus
+              value={blockName}
+              onChange={(e) => setBlockName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveBlock(); if (e.key === "Escape") setSaveOpen(false); }}
+              placeholder="Block name (e.g. Hero, Footer)"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button type="button" onClick={() => setSaveOpen(false)} className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button type="button" onClick={saveBlock} disabled={!blockName.trim()} className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-40">Save block</button>
+            </div>
+          </div>
+        </div>,
         document.body,
       )}
       {render}
@@ -217,6 +251,40 @@ function Toolbox() {
           <div ref={ref(<EmailNavbar />)} className={cell}><Menu size={20} />Navbar</div>
         </div>
       </div>
+      <SavedBlocksList />
+    </div>
+  );
+}
+
+// Saved blocks — click to append the section to the page (fresh ids).
+function SavedBlocksList() {
+  const sb = useSavedBlocks();
+  const { query, actions } = useEditor();
+  if (!sb || !sb.available) return null;
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Saved blocks</p>
+      {sb.blocks.length === 0 ? (
+        <p className="text-xs text-gray-400 leading-relaxed">Select a section, then <span className="font-medium text-gray-500">“Save as block”</span> to reuse it here.</p>
+      ) : (
+      <div className="space-y-1.5">
+        {sb.blocks.map((b) => (
+          <div key={b.id} className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => insertSavedBlock(query, actions, b.contentJson)}
+              className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-700 hover:border-blue-300 hover:bg-blue-50 text-left"
+            >
+              <Bookmark size={14} className="text-gray-400 shrink-0" />
+              <span className="truncate">{b.name}</span>
+            </button>
+            <button type="button" onClick={() => sb.remove(b.id)} title="Delete block" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md shrink-0">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
+      )}
     </div>
   );
 }
@@ -231,14 +299,38 @@ const LABEL: Record<string, string> = {
 };
 const FONT_WEIGHTS = [{ v: "400", l: "Normal" }, { v: "500", l: "Medium" }, { v: "600", l: "Semibold" }, { v: "700", l: "Bold" }];
 const COLOR_KEYS = ["color", "bg", "bgColor", "contentBg", "textColor"];
-const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius", "thickness", "itemPadding", "lineHeight", "letterSpacing", "marginY", "marginX"];
+const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius", "thickness", "lineHeight", "letterSpacing", "marginY", "marginX"];
 // Keys rendered by dedicated controls, not the generic field loop.
-const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX", "disableStacking", "reverseOnMobile"];
+const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX", "disableStacking", "reverseOnMobile", "itemPadding", "itemPaddingY", "itemPaddingX", "itemGap", "underline", "bold", "italic"];
 const BG_DISPLAY = [{ v: "cover", l: "Cover" }, { v: "contain", l: "Contain (no crop)" }, { v: "repeat", l: "Repeat" }, { v: "actual", l: "Actual size" }];
 const BG_POSITION = ["top left", "top center", "top right", "center left", "center center", "center right", "bottom left", "bottom center", "bottom right"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block"><span className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-1">{label}</span>{children}</label>;
+}
+
+// Number input with a responsive local value + debounced commit, so typing a
+// width/padding doesn't resize the canvas on every keystroke (avoids reflow
+// jank). Empty → null (caller decides the fallback).
+function NumberInput({ value, onCommit, placeholder, className }: { value: number | null | undefined; onCommit: (v: number | null) => void; placeholder?: string; className?: string }) {
+  const [local, setLocal] = useState(value == null ? "" : String(value));
+  const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { setLocal(value == null ? "" : String(value)); }, [value]);
+  useEffect(() => () => { if (tRef.current) clearTimeout(tRef.current); }, []);
+  return (
+    <input
+      type="number"
+      value={local}
+      placeholder={placeholder}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setLocal(raw);
+        if (tRef.current) clearTimeout(tRef.current);
+        tRef.current = setTimeout(() => onCommit(raw === "" ? null : Number(raw)), 250);
+      }}
+      className={className ?? inputCls}
+    />
+  );
 }
 
 // Shared image control — preview + Replace/Remove (Library picker) OR a Choose
@@ -268,8 +360,8 @@ function AxisRow({ label, yKey, xKey, props, set }: { label: string; yKey: strin
   const cell = (k: string, ax: string) =>
     k in props ? (
       <div className="relative">
-        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 pointer-events-none">{ax}</span>
-        <input type="number" value={props[k] ?? 0} onChange={(e) => set(k, Number(e.target.value))} className={`${inputCls} pl-6`} />
+        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 pointer-events-none z-10">{ax}</span>
+        <NumberInput value={props[k]} onCommit={(n) => set(k, n ?? 0)} className={`${inputCls} pl-6`} />
       </div>
     ) : <div />;
   return (
@@ -315,9 +407,9 @@ function SettingsPanel() {
         </div>
       </Field>;
     }
-    if (k === "width" && isImage) return <Field key={k} label={LABEL[k]}><input type="number" placeholder="auto" value={v ?? ""} onChange={(e) => set(k, e.target.value === "" ? null : Number(e.target.value))} className={inputCls} /></Field>;
-    if (k === "width") return <Field key={k} label="Email width (px)"><input type="number" value={v} onChange={(e) => set(k, Number(e.target.value))} className={inputCls} /></Field>;
-    if (NUM_KEYS.includes(k)) return <Field key={k} label={LABEL[k] ?? k}><input type="number" value={v ?? 0} onChange={(e) => set(k, Number(e.target.value))} className={inputCls} /></Field>;
+    if (k === "width" && isImage) return <Field key={k} label={LABEL[k]}><NumberInput value={v} placeholder="auto" onCommit={(n) => set(k, n)} /></Field>;
+    if (k === "width") return <Field key={k} label="Email width (px)"><NumberInput value={v} onCommit={(n) => set(k, n ?? 600)} /></Field>;
+    if (NUM_KEYS.includes(k)) return <Field key={k} label={LABEL[k] ?? k}><NumberInput value={v} onCommit={(n) => set(k, n ?? 0)} /></Field>;
     if (k === "text") return <Field key={k} label={LABEL[k]}><textarea value={v} onChange={(e) => set(k, e.target.value)} rows={3} className={inputCls} /></Field>;
     return <Field key={k} label={LABEL[k] ?? k}><input value={v ?? ""} onChange={(e) => set(k, e.target.value)} className={inputCls} /></Field>;
   };
@@ -400,6 +492,29 @@ function SettingsPanel() {
         </Field>
       )}
 
+      {isNavbar && (
+        <>
+          <Field label="Item spacing (px)">
+            <NumberInput value={props.itemGap ?? props.itemPaddingX ?? props.itemPadding ?? 16} onCommit={(n) => set("itemGap", n ?? 0)} />
+          </Field>
+          <Field label="Style">
+            <div className="flex items-center gap-1">
+              {([["bold", Bold], ["italic", Italic], ["underline", Underline]] as const).map(([k, Icon]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => set(k, !props[k])}
+                  title={k}
+                  className={`p-1.5 rounded-md border transition-colors ${props[k] ? "bg-blue-50 border-blue-300 text-blue-600" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                >
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
+          </Field>
+        </>
+      )}
+
       {Object.keys(props).filter((k) => !SKIP_GENERIC.includes(k) && !(isTextual && k === "text") && !(isPage && (k === "fontSize" || k === "textColor"))).map(renderField)}
       {("paddingY" in props || "paddingX" in props) && <AxisRow label="Padding" yKey="paddingY" xKey="paddingX" props={props} set={set} />}
       {("marginY" in props || "marginX" in props) && <AxisRow label="Margin" yKey="marginY" xKey="marginX" props={props} set={set} />}
@@ -451,13 +566,16 @@ function AutoWrap() {
 
 // Load a new value coming from OUTSIDE the editor (e.g. "apply template")
 // into Craft. <Frame data> only reads on mount, so a changed `value` prop is
-// otherwise ignored. Skips our own onChange round-trips (value === current
-// serialization) so it doesn't fight live edits or lose the cursor.
-function ExternalValueSync({ value }: { value?: string }) {
-  const { actions, query } = useEditor();
+// otherwise ignored. We compare against the last value WE emitted (cheap string
+// compare via the ref) instead of re-serializing the tree — so our own onChange
+// round-trips are skipped without the cost of an extra serialize per edit.
+function ExternalValueSync({ value, lastEmitted }: { value?: string; lastEmitted: React.MutableRefObject<string | undefined> }) {
+  const { actions } = useEditor();
   useEffect(() => {
     if (!value || !value.trim().startsWith("{")) return;
-    try { if (query.serialize() !== value) actions.deserialize(value); } catch { /* ignore bad input */ }
+    if (value === lastEmitted.current) return; // our own round-trip
+    lastEmitted.current = value;
+    try { actions.deserialize(value); } catch { /* ignore bad input */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   return null;
@@ -509,11 +627,13 @@ export default function EmailBuilder({ value, onChange }: { value?: string; onCh
   const hasData = !!value && value.trim().startsWith("{") && value.includes("ROOT");
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  const lastEmitted = useRef<string | undefined>(value);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   return (
-    <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={(q) => onChangeRef.current(q.serialize())}>
+    <SavedBlocksProvider>
+    <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={(q) => { const s = q.serialize(); lastEmitted.current = s; onChangeRef.current(s); }}>
       <AutoWrap />
-      <ExternalValueSync value={value} />
+      <ExternalValueSync value={value} lastEmitted={lastEmitted} />
       <InlineToolbar />
       <DeviceContext.Provider value={device}>
         <div className="relative flex h-full min-h-0 border border-gray-200 rounded-lg overflow-hidden">
@@ -538,5 +658,6 @@ export default function EmailBuilder({ value, onChange }: { value?: string; onCh
         </div>
       </DeviceContext.Provider>
     </Editor>
+    </SavedBlocksProvider>
   );
 }
