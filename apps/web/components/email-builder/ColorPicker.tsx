@@ -23,6 +23,34 @@ export function ColorPickerPopup({
   const [cur, setCur] = useState(() => normalize(color));
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const [ready, setReady] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Commit to the editor only when the drag ENDS (mouseup) — not on every Sketch
+  // change. Committing live would setProp → re-render the whole editor every
+  // frame, remounting the picker mid-drag (it loses pointer capture and appears
+  // to close). During the drag we only update local `cur`; the canvas updates
+  // once on release. A short debounce covers hex typing / keyboard input.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  const pending = useRef<string | null>(null);
+  const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commit = () => {
+    if (tRef.current) { clearTimeout(tRef.current); tRef.current = null; }
+    if (pending.current != null) { const v = pending.current; pending.current = null; onChangeRef.current(v); }
+  };
+  const handleChange = (c: any) => {
+    const hex = c.rgba ? rgbaObjToHex(c.rgba) : c.hex;
+    setCur(hex);
+    pending.current = hex;
+    if (tRef.current) clearTimeout(tRef.current);
+    tRef.current = setTimeout(commit, 400);
+  };
+  useEffect(() => {
+    const up = () => commit();
+    document.addEventListener("mouseup", up);
+    return () => { document.removeEventListener("mouseup", up); commit(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!anchorEl) return;
@@ -42,19 +70,31 @@ export function ColorPickerPopup({
     return () => document.removeEventListener("keydown", e);
   }, [onClose]);
 
+  // Close on a press that STARTS outside the picker (and not on the anchor,
+  // which toggles itself). Keying off mousedown — not click — means dragging a
+  // slider (mousedown inside, release outside) never closes it: the release is
+  // a mouseup, not a mousedown.
+  useEffect(() => {
+    const onDown = (ev: MouseEvent) => {
+      const t = ev.target as Node;
+      if (pickerRef.current?.contains(t)) return;
+      if (anchorEl?.contains(t)) return;
+      onClose();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [anchorEl, onClose]);
+
   useEffect(() => { setCur(normalize(color)); }, [color]);
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 70 }}>
-      <div style={{ position: "absolute", inset: 0 }} onMouseDown={onClose} />
-      <div style={{ position: "absolute", top: pos.top, left: pos.left, opacity: ready ? 1 : 0, boxShadow: "0 4px 20px rgba(0,0,0,.15)", borderRadius: 8, overflow: "hidden" }}>
-        <Sketch
-          color={cur}
-          disableAlpha={false}
-          onChange={(c: any) => { const hex = c.rgba ? rgbaObjToHex(c.rgba) : c.hex; setCur(hex); onChange(hex); }}
-          style={{ boxShadow: "none" }}
-        />
-      </div>
+    <div ref={pickerRef} style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 70, opacity: ready ? 1 : 0, boxShadow: "0 4px 20px rgba(0,0,0,.15)", borderRadius: 8, overflow: "hidden" }}>
+      <Sketch
+        color={cur}
+        disableAlpha={false}
+        onChange={handleChange}
+        style={{ boxShadow: "none" }}
+      />
     </div>,
     document.body,
   );
