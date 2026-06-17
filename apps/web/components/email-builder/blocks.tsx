@@ -183,5 +183,26 @@ EmailNavbar.craft = {
   props: { items: [{ text: "Home", href: "#" }, { text: "About", href: "#" }, { text: "Contact", href: "#" }], align: "center", marginY: 8, marginX: 0, itemGap: 16, fontSize: 14, color: "#374151", lineHeight: 1.5, letterSpacing: 0, bold: false, italic: false, underline: false },
 };
 
-export const EMAIL_RESOLVER = { Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar };
+// ── Social — row of clickable icon images (custom uploaded icons + links) ────
+export function EmailSocial({ items, align, iconSize = 24, itemGap = 12, radius = 0, marginY = 8, marginX = 0 }: any) {
+  const ref = useBlockRef();
+  const list: { iconSrc: string; url: string }[] = Array.isArray(items) ? items : [];
+  return (
+    <div ref={ref as any} style={{ textAlign: align, margin: `${marginY}px ${marginX}px`, cursor: "move" }}>
+      {list.map((it, i) => (
+        <span key={i} style={{ display: "inline-block", paddingRight: i < list.length - 1 ? `${itemGap}px` : 0, verticalAlign: "middle" }}>
+          {it.iconSrc
+            ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={it.iconSrc} alt="" style={{ width: iconSize, height: iconSize, borderRadius: radius, display: "inline-block" }} />
+            : <span style={{ display: "inline-block", width: iconSize, height: iconSize, borderRadius: radius, background: "#e5e7eb" }} />}
+        </span>
+      ))}
+    </div>
+  );
+}
+EmailSocial.craft = {
+  displayName: "Social",
+  props: { items: [{ iconSrc: "", url: "#" }, { iconSrc: "", url: "#" }, { iconSrc: "", url: "#" }], align: "center", iconSize: 24, itemGap: 12, radius: 0, marginY: 8, marginX: 0 },
+};
+
+export const EMAIL_RESOLVER = { Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar, EmailSocial };
 export { Element };

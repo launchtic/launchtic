@@ -7,13 +7,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
-import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus } from "lucide-react";
+import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown } from "lucide-react";
 import { STANDARD_VARIABLES, EMAIL_FONTS } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";
 import { ColorSwatchButton, ColorPickerPopup } from "./ColorPicker";
 import { SavedBlocksProvider, useSavedBlocks, extractSubtree, insertSavedBlock } from "./SavedBlocks";
 import {
-  EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar, DeviceContext,
+  EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar, EmailSocial, DeviceContext,
 } from "./blocks";
 
 // Duplicate a node + its subtree (fresh ids), inserted right after it.
@@ -222,6 +222,8 @@ function InlineToolbar() {
 
 function Toolbox() {
   const { connectors: { create } } = useEditor();
+  const sb = useSavedBlocks();
+  const [tab, setTab] = useState<"elements" | "saved">("elements");
   const ref = (el: React.ReactElement) => (r: HTMLElement | null) => { if (r) create(r, el); };
   const cell = "flex flex-col items-center justify-center gap-1.5 py-3.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-700 hover:border-blue-300 hover:bg-blue-50 cursor-grab active:cursor-grabbing select-none";
   const sectionPreset = (n: number) => (
@@ -229,29 +231,54 @@ function Toolbox() {
       {Array.from({ length: n }).map((_, i) => <Element key={i} canvas is={Column} />)}
     </Element>
   );
+  const showTabs = !!sb?.available;
+  const active = showTabs ? tab : "elements";
   return (
-    <div className="p-4 space-y-4">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Sections</p>
-        <div className="grid grid-cols-3 gap-2">
-          <div ref={ref(sectionPreset(1))} className={cell}><Square size={20} />1 col</div>
-          <div ref={ref(sectionPreset(2))} className={cell}><Columns2 size={20} />2 col</div>
-          <div ref={ref(sectionPreset(3))} className={cell}><Columns3 size={20} />3 col</div>
+    <div>
+      {showTabs && (
+        <div className="flex items-center gap-1 p-2 border-b border-gray-200 bg-gray-50/60">
+          {([["elements", "Elements"], ["saved", "Saved blocks"]] as const).map(([k, l]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k)}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors ${active === k ? "bg-white text-gray-900 shadow-sm border border-gray-200" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              {l}
+            </button>
+          ))}
         </div>
-      </div>
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Content</p>
-        <div className="grid grid-cols-2 gap-2">
-          <div ref={ref(<EmailHeading />)} className={cell}><Heading1 size={20} />Heading</div>
-          <div ref={ref(<EmailText />)} className={cell}><Type size={20} />Text</div>
-          <div ref={ref(<EmailButton />)} className={cell}><MousePointerClick size={20} />Button</div>
-          <div ref={ref(<EmailImage />)} className={cell}><ImageIcon size={20} />Image</div>
-          <div ref={ref(<EmailDivider />)} className={cell}><Minus size={20} />Divider</div>
-          <div ref={ref(<EmailSpacer />)} className={cell}><MoveVertical size={20} />Spacer</div>
-          <div ref={ref(<EmailNavbar />)} className={cell}><Menu size={20} />Navbar</div>
+      )}
+
+      {active === "elements" ? (
+        <div className="p-4 space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Sections</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div ref={ref(sectionPreset(1))} className={cell}><Square size={20} />1 col</div>
+              <div ref={ref(sectionPreset(2))} className={cell}><Columns2 size={20} />2 col</div>
+              <div ref={ref(sectionPreset(3))} className={cell}><Columns3 size={20} />3 col</div>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Content</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div ref={ref(<EmailHeading />)} className={cell}><Heading1 size={20} />Heading</div>
+              <div ref={ref(<EmailText />)} className={cell}><Type size={20} />Text</div>
+              <div ref={ref(<EmailButton />)} className={cell}><MousePointerClick size={20} />Button</div>
+              <div ref={ref(<EmailImage />)} className={cell}><ImageIcon size={20} />Image</div>
+              <div ref={ref(<EmailDivider />)} className={cell}><Minus size={20} />Divider</div>
+              <div ref={ref(<EmailSpacer />)} className={cell}><MoveVertical size={20} />Spacer</div>
+              <div ref={ref(<EmailNavbar />)} className={cell}><Menu size={20} />Navbar</div>
+              <div ref={ref(<EmailSocial />)} className={cell}><Share2 size={20} />Social</div>
+            </div>
+          </div>
         </div>
-      </div>
-      <SavedBlocksList />
+      ) : (
+        <div className="p-4">
+          <SavedBlocksList />
+        </div>
+      )}
     </div>
   );
 }
@@ -260,28 +287,36 @@ function Toolbox() {
 function SavedBlocksList() {
   const sb = useSavedBlocks();
   const { query, actions } = useEditor();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   if (!sb || !sb.available) return null;
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">Saved blocks</p>
       {sb.blocks.length === 0 ? (
         <p className="text-xs text-gray-400 leading-relaxed">Select a section, then <span className="font-medium text-gray-500">“Save as block”</span> to reuse it here.</p>
       ) : (
       <div className="space-y-1.5">
         {sb.blocks.map((b) => (
-          <div key={b.id} className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => insertSavedBlock(query, actions, b.contentJson)}
-              className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-700 hover:border-blue-300 hover:bg-blue-50 text-left"
-            >
-              <Bookmark size={14} className="text-gray-400 shrink-0" />
-              <span className="truncate">{b.name}</span>
-            </button>
-            <button type="button" onClick={() => sb.remove(b.id)} title="Delete block" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md shrink-0">
-              <Trash2 size={13} />
-            </button>
-          </div>
+          confirmId === b.id ? (
+            <div key={b.id} className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-red-200 bg-red-50">
+              <span className="flex-1 min-w-0 text-xs text-red-700 truncate">Delete “{b.name}”?</span>
+              <button type="button" onClick={() => { sb.remove(b.id); setConfirmId(null); }} className="text-[11px] font-medium px-2 py-1 bg-red-600 text-white rounded-md shrink-0">Delete</button>
+              <button type="button" onClick={() => setConfirmId(null)} className="text-[11px] px-2 py-1 text-gray-600 hover:bg-gray-100 rounded-md shrink-0">Cancel</button>
+            </div>
+          ) : (
+            <div key={b.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => insertSavedBlock(query, actions, b.contentJson)}
+                className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-700 hover:border-blue-300 hover:bg-blue-50 text-left"
+              >
+                <Bookmark size={14} className="text-gray-400 shrink-0" />
+                <span className="truncate">{b.name}</span>
+              </button>
+              <button type="button" onClick={() => setConfirmId(b.id)} title="Delete block" className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md shrink-0">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          )
         ))}
       </div>
       )}
@@ -295,13 +330,13 @@ const LABEL: Record<string, string> = {
   align: "Align", width: "Width (px)", height: "Height (px)", radius: "Corner radius", bgColor: "Background", contentBg: "Content background",
   textColor: "Text color", breakpoint: "Mobile breakpoint", paddingY: "Padding Y", paddingX: "Padding X", verticalAlign: "Vertical align", fontFamily: "Font",
   borderRadius: "Corner radius", thickness: "Thickness", style: "Style", itemPadding: "Item padding", lineHeight: "Line height", letterSpacing: "Letter spacing",
-  marginY: "Margin Y", marginX: "Margin X", fontWeight: "Font weight",
+  marginY: "Margin Y", marginX: "Margin X", fontWeight: "Font weight", iconSize: "Icon size",
 };
 const FONT_WEIGHTS = [{ v: "400", l: "Normal" }, { v: "500", l: "Medium" }, { v: "600", l: "Semibold" }, { v: "700", l: "Bold" }];
 const COLOR_KEYS = ["color", "bg", "bgColor", "contentBg", "textColor"];
 const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius", "thickness", "lineHeight", "letterSpacing", "marginY", "marginX"];
 // Keys rendered by dedicated controls, not the generic field loop.
-const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX", "disableStacking", "reverseOnMobile", "itemPadding", "itemPaddingY", "itemPaddingX", "itemGap", "underline", "bold", "italic"];
+const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX", "disableStacking", "reverseOnMobile", "itemPadding", "itemPaddingY", "itemPaddingX", "itemGap", "underline", "bold", "italic", "iconSize"];
 const BG_DISPLAY = [{ v: "cover", l: "Cover" }, { v: "contain", l: "Contain (no crop)" }, { v: "repeat", l: "Repeat" }, { v: "actual", l: "Actual size" }];
 const BG_POSITION = ["top left", "top center", "top right", "center left", "center center", "center right", "bottom left", "bottom center", "bottom right"];
 
@@ -374,6 +409,7 @@ function AxisRow({ label, yKey, xKey, props, set }: { label: string; yKey: strin
 
 function SettingsPanel() {
   const [pickerKey, setPickerKey] = useState<string | null>(null);
+  const [socialPickerIndex, setSocialPickerIndex] = useState<number | null>(null);
   const { id, name, props, childCount, actions, query } = useEditor((state) => {
     const sid = Array.from(state.events.selected as Set<string>)[0];
     const node = sid ? state.nodes[sid] : null;
@@ -388,8 +424,22 @@ function SettingsPanel() {
   const isPage = name === "Page";
   const isSection = name === "Section";
   const isNavbar = name === "Navbar";
+  const isSocial = name === "Social";
   const isTextual = name === "Heading" || name === "Text";
   const itemsSet = (next: any[]) => actions.history.throttle(500).setProp(id, (p: any) => { p.items = next; });
+  const moveItem = (i: number, dir: -1 | 1) => {
+    const arr = [...(props.items ?? [])];
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    itemsSet(arr);
+  };
+  const reorderBtns = (i: number, n: number) => (
+    <div className="flex flex-col shrink-0">
+      <button type="button" disabled={i === 0} onClick={() => moveItem(i, -1)} title="Move up" className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-25"><ChevronUp size={12} /></button>
+      <button type="button" disabled={i === n - 1} onClick={() => moveItem(i, 1)} title="Move down" className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-25"><ChevronDown size={12} /></button>
+    </div>
+  );
 
   const renderField = (k: string) => {
     const v = props[k];
@@ -482,6 +532,7 @@ function SettingsPanel() {
           <div className="space-y-1.5">
             {(props.items ?? []).map((it: any, i: number) => (
               <div key={i} className="flex items-center gap-1">
+                {reorderBtns(i, props.items.length)}
                 <input value={it.text} onChange={(e) => itemsSet(props.items.map((x: any, j: number) => j === i ? { ...x, text: e.target.value } : x))} placeholder="Label" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs" />
                 <input value={it.href} onChange={(e) => itemsSet(props.items.map((x: any, j: number) => j === i ? { ...x, href: e.target.value } : x))} placeholder="URL" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs" />
                 <button type="button" onClick={() => itemsSet(props.items.filter((_: any, j: number) => j !== i))} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
@@ -515,6 +566,37 @@ function SettingsPanel() {
         </>
       )}
 
+      {isSocial && (
+        <>
+          <Field label="Icons">
+            <div className="space-y-1.5">
+              {(props.items ?? []).map((it: any, i: number) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  {reorderBtns(i, props.items.length)}
+                  <button
+                    type="button"
+                    onClick={() => setSocialPickerIndex(i)}
+                    title="Choose / upload icon"
+                    className="w-9 h-9 shrink-0 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 hover:border-blue-300"
+                  >
+                    {it.iconSrc
+                      ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={it.iconSrc} alt="" className="w-full h-full object-contain" />
+                      : <ImagePlus size={14} className="text-gray-400" />}
+                  </button>
+                  <input value={it.url ?? ""} onChange={(e) => itemsSet(props.items.map((x: any, j: number) => j === i ? { ...x, url: e.target.value } : x))} placeholder="Link URL" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1.5 text-xs" />
+                  <button type="button" onClick={() => itemsSet(props.items.filter((_: any, j: number) => j !== i))} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => itemsSet([...(props.items ?? []), { iconSrc: "", url: "#" }])} className="text-xs px-2 py-1 rounded border border-dashed border-gray-300 text-gray-600 hover:bg-gray-50 w-full">+ Add icon</button>
+            </div>
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Icon size"><NumberInput value={props.iconSize ?? 24} onCommit={(n) => set("iconSize", n ?? 0)} /></Field>
+            <Field label="Spacing (px)"><NumberInput value={props.itemGap ?? 12} onCommit={(n) => set("itemGap", n ?? 0)} /></Field>
+          </div>
+        </>
+      )}
+
       {Object.keys(props).filter((k) => !SKIP_GENERIC.includes(k) && !(isTextual && k === "text") && !(isPage && (k === "fontSize" || k === "textColor"))).map(renderField)}
       {("paddingY" in props || "paddingX" in props) && <AxisRow label="Padding" yKey="paddingY" xKey="paddingX" props={props} set={set} />}
       {("marginY" in props || "marginX" in props) && <AxisRow label="Margin" yKey="marginY" xKey="marginX" props={props} set={set} />}
@@ -529,6 +611,7 @@ function SettingsPanel() {
         </div>
       )}
       {pickerKey && <MediaLibraryPicker onSelect={(url) => { set(pickerKey, url); setPickerKey(null); }} onClose={() => setPickerKey(null)} />}
+      {socialPickerIndex !== null && <MediaLibraryPicker onSelect={(url) => { itemsSet(props.items.map((x: any, j: number) => j === socialPickerIndex ? { ...x, iconSrc: url } : x)); setSocialPickerIndex(null); }} onClose={() => setSocialPickerIndex(null)} />}
     </div>
   );
 }

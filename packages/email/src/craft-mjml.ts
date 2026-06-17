@@ -60,6 +60,18 @@ function block(n: SNode): string {
       ).join("");
       return `<mj-text align="${attr(p.align || "center")}" padding="${mPad(p, 8)}">${links}</mj-text>`;
     }
+    case "EmailSocial": {
+      const list: { iconSrc: string; url: string }[] = Array.isArray(p.items) ? p.items : [];
+      const withIcon = list.filter((it) => it.iconSrc);
+      if (!withIcon.length) return "";
+      const size = Number(p.iconSize) || 24;
+      const gap = Number(p.itemGap ?? 12);
+      const radius = Number(p.radius) || 0;
+      const icons = withIcon.map((it, i) =>
+        `<a href="${attr(it.url || "#")}" style="display:inline-block;padding-right:${i < withIcon.length - 1 ? gap : 0}px"><img src="${attr(it.iconSrc)}" alt="" width="${size}" height="${size}" style="border-radius:${radius}px;display:inline-block" /></a>`,
+      ).join("");
+      return `<mj-text align="${attr(p.align || "center")}" padding="${mPad(p)}">${icons}</mj-text>`;
+    }
     default:
       return "";
   }
