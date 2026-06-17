@@ -34,11 +34,11 @@ function block(n: SNode): string {
     case "EmailHeading": {
       // text is rich HTML from the inline editor — emit as-is (wrap for inner padding).
       const inner = padWrap(p, p.text || "Heading");
-      return `<mj-text font-size="${Number(p.fontSize) || 24}px" font-weight="bold" color="${attr(p.color || "#111827")}" align="${attr(p.align || "left")}" line-height="1.3" padding="${mPad(p)}">${inner}</mj-text>`;
+      return `<mj-text font-size="${Number(p.fontSize) || 24}px" font-weight="bold" color="${attr(p.color || "#111827")}" align="${attr(p.align || "left")}" line-height="${p.lineHeight ?? 1.3}" letter-spacing="${Number(p.letterSpacing) || 0}px" padding="${mPad(p)}">${inner}</mj-text>`;
     }
     case "EmailText": {
       const inner = padWrap(p, p.text || "");
-      return `<mj-text font-size="${Number(p.fontSize) || 14}px" color="${attr(p.color || "#374151")}" align="${attr(p.align || "left")}" line-height="1.6" padding="${mPad(p)}">${inner}</mj-text>`;
+      return `<mj-text font-size="${Number(p.fontSize) || 14}px" color="${attr(p.color || "#374151")}" align="${attr(p.align || "left")}" line-height="${p.lineHeight ?? 1.6}" letter-spacing="${Number(p.letterSpacing) || 0}px" padding="${mPad(p)}">${inner}</mj-text>`;
     }
     case "EmailButton":
       return `<mj-button background-color="${attr(p.bg || "#2563eb")}" color="${attr(p.color || "#ffffff")}" href="${attr(p.href || "#")}" border-radius="${Number(p.radius) || 0}px" font-size="${Number(p.fontSize) || 14}px" font-weight="${attr(p.fontWeight ?? 600)}" align="${attr(p.align || "center")}" padding="${mPad(p, 12)}" inner-padding="${Number(p.paddingY ?? 12)}px ${Number(p.paddingX ?? 28)}px">${esc(p.text || "Button")}</mj-button>`;

@@ -121,17 +121,17 @@ Column.craft = {
 };
 
 // ── Content blocks ───────────────────────────────────────────────────────────
-export function EmailHeading({ text, fontSize = 24, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0 }: any) {
+export function EmailHeading({ text, fontSize = 24, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0, lineHeight = 1.3, letterSpacing = 0 }: any) {
   const { connectors: { connect }, actions: { setProp } } = useNode();
-  return <RichEditable as="h1" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, fontWeight: 700, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap" }} />;
+  return <RichEditable as="h1" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, fontWeight: 700, lineHeight, letterSpacing: `${letterSpacing}px`, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap" }} />;
 }
-EmailHeading.craft = { displayName: "Heading", props: { text: "Your heading", fontSize: 24, color: "#111827", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 } };
+EmailHeading.craft = { displayName: "Heading", props: { text: "Your heading", fontSize: 24, color: "#111827", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0, lineHeight: 1.3, letterSpacing: 0 } };
 
-export function EmailText({ text, fontSize = 14, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0 }: any) {
+export function EmailText({ text, fontSize = 14, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0, lineHeight = 1.6, letterSpacing = 0 }: any) {
   const { connectors: { connect }, actions: { setProp } } = useNode();
-  return <RichEditable as="p" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, lineHeight: 1.6, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap" }} />;
+  return <RichEditable as="p" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, lineHeight, letterSpacing: `${letterSpacing}px`, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap" }} />;
 }
-EmailText.craft = { displayName: "Text", props: { text: "Some body text.", fontSize: 14, color: "#374151", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0 } };
+EmailText.craft = { displayName: "Text", props: { text: "Some body text.", fontSize: 14, color: "#374151", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0, lineHeight: 1.6, letterSpacing: 0 } };
 
 export function EmailButton({ text, href, bg, color, align, radius, fontSize = 14, fontWeight = 600, paddingY = 12, paddingX = 28, marginY = 12, marginX = 0 }: any) {
   const ref = useBlockRef();
