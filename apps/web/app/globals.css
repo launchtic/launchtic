@@ -18,3 +18,39 @@ body {
 }
 
 /* (Maily.to editor CSS removed — replaced by the Craft.js + MJML email builder.) */
+
+/* Minimal slider used in the email builder settings panel. Borderless, thicker
+   rounded track; the filled portion is set inline via a linear-gradient. */
+.lt-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: #e5e7eb;
+  cursor: pointer;
+  outline: none;
+}
+.lt-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.1s ease;
+}
+.lt-slider::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.lt-slider:active::-webkit-slider-thumb { transform: scale(1.12); }
+.lt-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  background: #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.lt-slider::-moz-range-track { background: transparent; }
+.lt-slider::-moz-range-progress { background: #2563eb; height: 6px; border-radius: 9999px; }

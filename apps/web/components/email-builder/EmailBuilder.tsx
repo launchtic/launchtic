@@ -7,8 +7,8 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
-import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown } from "lucide-react";
-import { STANDARD_VARIABLES, EMAIL_FONTS } from "@launchtic/email";
+import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { STANDARD_VARIABLES, EMAIL_FONTS, emailFontCss } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";
 import { ColorSwatchButton, ColorPickerPopup } from "./ColorPicker";
 import { SavedBlocksProvider, useSavedBlocks, extractSubtree, insertSavedBlock } from "./SavedBlocks";
@@ -332,7 +332,9 @@ const LABEL: Record<string, string> = {
   borderRadius: "Corner radius", thickness: "Thickness", style: "Style", itemPadding: "Item padding", lineHeight: "Line height", letterSpacing: "Letter spacing",
   marginY: "Margin Y", marginX: "Margin X", fontWeight: "Font weight", iconSize: "Icon size",
 };
-const FONT_WEIGHTS = [{ v: "400", l: "Normal" }, { v: "500", l: "Medium" }, { v: "600", l: "Semibold" }, { v: "700", l: "Bold" }];
+// Web-safe fonts only ship Regular + Bold — intermediate weights (500/600) map
+// to one of those, so they look identical. Offer only the two that visibly differ.
+const FONT_WEIGHTS = [{ v: "400", l: "Normal" }, { v: "700", l: "Bold" }];
 const COLOR_KEYS = ["color", "bg", "bgColor", "contentBg", "textColor"];
 const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius", "thickness", "lineHeight", "letterSpacing", "marginY", "marginX"];
 // Keys rendered by dedicated controls, not the generic field loop.
@@ -347,24 +349,167 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // Number input with a responsive local value + debounced commit, so typing a
 // width/padding doesn't resize the canvas on every keystroke (avoids reflow
 // jank). Empty → null (caller decides the fallback).
-function NumberInput({ value, onCommit, placeholder, className }: { value: number | null | undefined; onCommit: (v: number | null) => void; placeholder?: string; className?: string }) {
+function NumberInput({ value, onCommit, placeholder, className, min, max }: { value: number | null | undefined; onCommit: (v: number | null) => void; placeholder?: string; className?: string; min?: number; max?: number }) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
   const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { setLocal(value == null ? "" : String(value)); }, [value]);
   useEffect(() => () => { if (tRef.current) clearTimeout(tRef.current); }, []);
+  const clamp = (n: number) => {
+    if (typeof min === "number") n = Math.max(min, n);
+    if (typeof max === "number") n = Math.min(max, n);
+    return n;
+  };
   return (
     <input
       type="number"
       value={local}
       placeholder={placeholder}
+      min={min}
+      max={max}
       onChange={(e) => {
         const raw = e.target.value;
         setLocal(raw);
         if (tRef.current) clearTimeout(tRef.current);
-        tRef.current = setTimeout(() => onCommit(raw === "" ? null : Number(raw)), 250);
+        tRef.current = setTimeout(() => onCommit(raw === "" ? null : clamp(Number(raw))), 250);
       }}
       className={className ?? inputCls}
     />
+  );
+}
+
+// Range slider + number box on one row. The slider drags within [min,max]; the
+// box allows precise entry and is clamped to the same bounds. Empty box → null.
+function SliderInput({ value, onCommit, min = 0, max = 100, step = 1, placeholder }: { value: number | null | undefined; onCommit: (v: number | null) => void; min?: number; max?: number; step?: number; placeholder?: string }) {
+  const clamped = typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
+  // The range MUST be driven by local state that updates synchronously in
+  // onChange. If it read the prop directly while the commit is deferred, React
+  // would re-assert the old value each tick and the thumb would fight the drag
+  // (values jump → the element reflows wildly). Sync from the prop only when the
+  // user isn't actively dragging.
+  const [pos, setPos] = useState(clamped);
+  const draggingRef = useRef(false);
+  const pendRef = useRef<number | null>(null);
+  const lastCommitRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { if (!draggingRef.current) setPos(clamped); }, [clamped]);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  // The thumb is local (instant), but each canvas commit re-renders + reserializes
+  // the whole tree — doing that every frame saturates the main thread and the
+  // drag feels laggy. Throttle commits to ~12/sec; flush the final value on drop.
+  const COMMIT_MS = 80;
+  const flush = () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (pendRef.current == null) return;
+    lastCommitRef.current = Date.now();
+    const v = pendRef.current;
+    pendRef.current = null;
+    onCommit(v);
+  };
+  const onRange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const n = Number(e.target.value);
+    setPos(n);
+    pendRef.current = n;
+    const since = Date.now() - lastCommitRef.current;
+    if (since >= COMMIT_MS) flush();
+    else if (!timerRef.current) timerRef.current = setTimeout(flush, COMMIT_MS - since);
+  };
+  const endDrag = () => { draggingRef.current = false; flush(); };
+  // Fill the track up to the thumb (Chrome/Safari read the inline gradient).
+  const pct = max > min ? ((pos - min) / (max - min)) * 100 : 0;
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={pos}
+        onPointerDown={() => { draggingRef.current = true; }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onChange={onRange}
+        className="lt-slider flex-1"
+        style={{ background: `linear-gradient(to right, #2563eb ${pct}%, #e5e7eb ${pct}%)` }}
+      />
+      <div className="w-12 shrink-0">
+        <NumberInput value={value} onCommit={onCommit} placeholder={placeholder} min={min} max={max} className="w-full bg-gray-100 rounded-md px-1.5 py-1 text-xs text-center tabular-nums text-gray-700 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+      </div>
+    </div>
+  );
+}
+
+// Custom font dropdown — each option renders in its own typeface so users can
+// preview. A native <select> can't do this on macOS (the OS popup ignores CSS
+// on <option>), so we render our own listbox.
+function FontSelect({ value, onChange, includeInherit }: { value: string; onChange: (v: string) => void; includeInherit?: boolean }) {
+  const [rect, setRect] = useState<DOMRect | null>(null); // non-null = open
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const open = !!rect;
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setRect(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setRect(null); };
+    // The fixed-positioned menu detaches from the button when the page/panel
+    // scrolls, so close it then — but NOT when the scroll is the font list's own
+    // internal scroll (that would shut the menu the moment you wheel through it).
+    const onScroll = (e: Event) => {
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      setRect(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [open]);
+  const label = value || "Default (page font)";
+  const opts: { v: string; l: string }[] = [
+    ...(includeInherit ? [{ v: "", l: "Default (page font)" }] : []),
+    ...EMAIL_FONTS.map((f) => ({ v: f.name, l: f.name })),
+  ];
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setRect(open ? null : btnRef.current!.getBoundingClientRect())}
+        className={`${inputCls} flex items-center justify-between text-left`}
+        style={{ fontFamily: value ? emailFontCss(value) : undefined }}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown size={14} className="shrink-0 text-gray-400" />
+      </button>
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[60] max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg py-1"
+          style={{ top: rect!.bottom + 4, left: rect!.left, width: rect!.width }}
+        >
+          {opts.map((o) => (
+            <button
+              key={o.v || "_inherit"}
+              type="button"
+              onClick={() => { onChange(o.v); setRect(null); }}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 ${o.v === value ? "bg-blue-50 text-blue-700" : "text-gray-700"}`}
+              style={{ fontFamily: o.v ? emailFontCss(o.v) : undefined }}
+            >
+              {o.l}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -390,19 +535,20 @@ function ImagePickerField({ value, onPick, onChange }: { value?: string; onPick:
   );
 }
 
-// Two-axis numeric control (Y | X) on one compact row — used for Padding/Margin.
-function AxisRow({ label, yKey, xKey, props, set }: { label: string; yKey: string; xKey: string; props: any; set: (k: string, v: any) => void }) {
-  const cell = (k: string, ax: string) =>
+// Two-axis control (Y / X) for Padding/Margin — each axis a slider + number box.
+// min/max bound both (Padding/Margin pass min 0 so values can't go negative).
+function AxisRow({ label, yKey, xKey, props, set, min = 0, max = 100 }: { label: string; yKey: string; xKey: string; props: any; set: (k: string, v: any) => void; min?: number; max?: number }) {
+  const row = (k: string, ax: string) =>
     k in props ? (
-      <div className="relative">
-        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-gray-400 pointer-events-none z-10">{ax}</span>
-        <NumberInput value={props[k]} onCommit={(n) => set(k, n ?? 0)} className={`${inputCls} pl-6`} />
+      <div className="flex items-center gap-2">
+        <span className="w-3 shrink-0 text-[10px] font-semibold text-gray-400">{ax}</span>
+        <div className="flex-1"><SliderInput value={props[k]} onCommit={(n) => set(k, n ?? 0)} min={min} max={max} /></div>
       </div>
-    ) : <div />;
+    ) : null;
   return (
     <div>
       <span className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-1">{label}</span>
-      <div className="grid grid-cols-2 gap-2">{cell(yKey, "Y")}{cell(xKey, "X")}</div>
+      <div className="space-y-1.5">{row(yKey, "Y")}{row(xKey, "X")}</div>
     </div>
   );
 }
@@ -447,10 +593,28 @@ function SettingsPanel() {
 
   const renderField = (k: string) => {
     const v = props[k];
-    if (k === "align") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></Field>;
+    if (k === "align") return (
+      <Field key={k} label={LABEL[k]}>
+        <div className="flex items-center gap-1">
+          {([["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]] as const).map(([val, Icon]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => set(k, val)}
+              title={val}
+              className={`flex-1 flex items-center justify-center py-1.5 rounded-md border transition-colors ${v === val ? "bg-blue-50 border-blue-300 text-blue-600" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+            >
+              <Icon size={15} />
+            </button>
+          ))}
+        </div>
+      </Field>
+    );
     if (k === "verticalAlign") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></Field>;
     if (k === "style") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></Field>;
-    if (k === "fontWeight") return <Field key={k} label={LABEL[k]}><select value={String(v)} onChange={(e) => set(k, e.target.value)} className={inputCls}>{FONT_WEIGHTS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>;
+    // Coerce legacy 500/600 to the nearest visible weight so the select reflects
+    // what actually renders (web-safe fonts only have 400/700).
+    if (k === "fontWeight") return <Field key={k} label={LABEL[k]}><select value={Number(v) >= 600 ? "700" : "400"} onChange={(e) => set(k, e.target.value)} className={inputCls}>{FONT_WEIGHTS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>;
     if (COLOR_KEYS.includes(k)) {
       const transparent = v === "transparent";
       return <Field key={k} label={LABEL[k]}>
@@ -460,7 +624,26 @@ function SettingsPanel() {
         </div>
       </Field>;
     }
-    if (k === "width" && isImage) return <Field key={k} label={LABEL[k]}><NumberInput value={v} placeholder="auto" onCommit={(n) => set(k, n)} /></Field>;
+    if (k === "lineHeight") return <Field key={k} label={LABEL[k]}><SliderInput value={v} onCommit={(n) => set(k, n ?? 0)} min={1} max={3} step={0.1} /></Field>;
+    if (k === "letterSpacing") return <Field key={k} label={LABEL[k]}><SliderInput value={v} onCommit={(n) => set(k, n ?? 0)} min={-3} max={15} step={0.5} /></Field>;
+    if (k === "width" && isImage) {
+      // Auto (null) = fill the column, responsive (MJML caps at natural size via
+      // max-width:100%). Custom = explicit px, bounded by the email content width
+      // (the image still can't exceed its column, so this is just an upper rail).
+      const emailWidth = (() => { try { return Number(query.node("ROOT").get().data.props.width) || 600; } catch { return 600; } })();
+      const isAuto = v == null;
+      return (
+        <Field key={k} label="Width">
+          <div className="space-y-2">
+            <label className="flex items-center justify-between gap-2 text-xs text-gray-600 cursor-pointer">
+              <span>Auto (fit column)</span>
+              <input type="checkbox" checked={isAuto} onChange={(e) => set(k, e.target.checked ? null : emailWidth)} className="h-4 w-4 accent-blue-600" />
+            </label>
+            {!isAuto && <SliderInput value={v} onCommit={(n) => set(k, n)} min={8} max={emailWidth} />}
+          </div>
+        </Field>
+      );
+    }
     if (k === "width") return <Field key={k} label="Email width (px)"><NumberInput value={v} onCommit={(n) => set(k, n ?? 600)} /></Field>;
     if (NUM_KEYS.includes(k)) return <Field key={k} label={LABEL[k] ?? k}><NumberInput value={v} onCommit={(n) => set(k, n ?? 0)} /></Field>;
     if (k === "text") return <Field key={k} label={LABEL[k]}><textarea value={v} onChange={(e) => set(k, e.target.value)} rows={3} className={inputCls} /></Field>;
@@ -602,15 +785,12 @@ function SettingsPanel() {
 
       {hasFont && (
         <Field label="Font">
-          <select value={props.fontFamily ?? ""} onChange={(e) => set("fontFamily", e.target.value)} className={inputCls}>
-            {!isPage && <option value="">Default (page font)</option>}
-            {EMAIL_FONTS.map((f) => <option key={f.name} value={f.name} style={{ fontFamily: f.fontFamily }}>{f.name}</option>)}
-          </select>
+          <FontSelect value={props.fontFamily ?? ""} includeInherit={!isPage} onChange={(val) => set("fontFamily", val)} />
         </Field>
       )}
       {Object.keys(props).filter((k) => !SKIP_GENERIC.includes(k) && !(isTextual && k === "text") && !(isPage && (k === "fontSize" || k === "textColor"))).map(renderField)}
-      {("paddingY" in props || "paddingX" in props) && <AxisRow label="Padding" yKey="paddingY" xKey="paddingX" props={props} set={set} />}
-      {("marginY" in props || "marginX" in props) && <AxisRow label="Margin" yKey="marginY" xKey="marginX" props={props} set={set} />}
+      {("paddingY" in props || "paddingX" in props) && <AxisRow label="Padding" yKey="paddingY" xKey="paddingX" props={props} set={set} min={0} max={120} />}
+      {("marginY" in props || "marginX" in props) && <AxisRow label="Margin" yKey="marginY" xKey="marginX" props={props} set={set} min={0} max={120} />}
       {isTextual && (
         <div className="pt-2 border-t border-gray-100">
           <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1">Insert variable (at cursor)</p>
