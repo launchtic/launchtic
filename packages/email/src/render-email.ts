@@ -8,7 +8,18 @@
 import { render, type RenderVars } from "./render";
 import { craftToMjml, isCraftDoc } from "./craft-mjml";
 
-export async function renderEmailContent(content: string, vars: RenderVars): Promise<string> {
+// Email clients can't resolve root-relative URLs (e.g. /uploads/icon.svg) — they
+// have no page origin. Rewrite src/href/background + CSS url() that start with a
+// single "/" to absolute using the app's public base URL. Skips //-protocol and
+// already-absolute (http) URLs.
+function absolutizeUrls(html: string, baseUrl: string): string {
+  const b = baseUrl.replace(/\/+$/, "");
+  return html
+    .replace(/(\s(?:src|href|background)=)(["'])(\/(?!\/)[^"']*)\2/gi, (_m, pre, q, path) => `${pre}${q}${b}${path}${q}`)
+    .replace(/url\((['"]?)(\/(?!\/)[^'")]*)\1\)/gi, (_m, q, path) => `url(${q}${b}${path}${q})`);
+}
+
+export async function renderEmailContent(content: string, vars: RenderVars, baseUrl?: string): Promise<string> {
   const trimmed = (content ?? "").trim();
 
   // Pre-migration (legacy maily) docs are no longer renderable — return a
@@ -24,5 +35,6 @@ export async function renderEmailContent(content: string, vars: RenderVars): Pro
   // @ts-ignore — mjml ships no type declarations
   const mjml2html = (await import("mjml")).default as (m: string, o?: any) => Promise<{ html: string }>;
   const { html } = await mjml2html(mjmlStr, { validationLevel: "soft" }); // mjml v5 is async
-  return render(html, vars);
+  const out = render(html, vars);
+  return baseUrl ? absolutizeUrls(out, baseUrl) : out;
 }

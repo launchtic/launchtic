@@ -12,6 +12,7 @@ import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { getAppUrl } from "../../../../../lib/system-config";
 import { isCraftDoc, sampleVars } from "@launchtic/email";
 import { renderEmailContent } from "@launchtic/email/server";
 
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Stored body is a Craft doc (JSON) — render it to HTML first so the same
     // href="…" links the tracker rewrites at send time are what we extract.
     // Legacy raw-HTML bodies are parsed as-is.
-    const rendered = isCraftDoc(html) ? await renderEmailContent(html, sampleVars()) : html;
+    const rendered = isCraftDoc(html) ? await renderEmailContent(html, sampleVars(), await getAppUrl()) : html;
     return ok({ urls: extractLinks(rendered) });
   } catch (error) {
     return handleError(error);

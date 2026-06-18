@@ -4,6 +4,7 @@ import { render, sampleVars } from "@launchtic/email";
 import { renderEmailContent } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { getAppUrl } from "../../../../../lib/system-config";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const workspaceName = workspace?.name ?? "Your Workspace";
     const vars = { ...sampleVars(), workspace: { name: workspaceName } };
     const subject = render(template.subject, vars);
-    const html = await renderEmailContent(template.htmlBody, vars);
+    const html = await renderEmailContent(template.htmlBody, vars, await getAppUrl());
 
     return ok({ subject, html });
   } catch (error) {

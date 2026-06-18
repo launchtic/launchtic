@@ -85,7 +85,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
           unsubscribeUrl: buildUnsubscribeUrl(contact.id, appUrl),
         };
         const subject = render(broadcast.subject, vars);
-        const html = await renderEmailContent(broadcast.htmlBody, vars);
+        const html = await renderEmailContent(broadcast.htmlBody, vars, await getAppUrl());
 
         sendIdsToRequeue.push(send.id);
         sendUpdates.push(

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   Plus, Megaphone, Loader2, Search, Trash2, Clock, CheckCircle, AlertCircle, Send, FileEdit, Ban,
+  Pencil, Check, X,
 } from "lucide-react";
 import { WELCOME_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
@@ -57,6 +58,9 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
   const [search, setSearch] = useState("");
   const [creating, startCreate] = useTransition();
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
   const { canManageBroadcasts } = useRole();
 
   const filtered = useMemo(() => {
@@ -105,6 +109,33 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
     setDeleting(null);
     if (json.success) setItems((prev) => prev.filter((x) => x.id !== b.id));
     else toast.error(json.error ?? "Failed to delete");
+  }
+
+  function startRename(b: Row) {
+    setRenamingId(b.id);
+    setRenameValue(b.name);
+  }
+
+  async function saveRename(b: Row) {
+    const name = renameValue.trim();
+    if (!name || name === b.name) {
+      setRenamingId(null);
+      return;
+    }
+    setSavingRename(true);
+    const res = await apiFetch(`/api/broadcasts/${b.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const json = await res.json();
+    setSavingRename(false);
+    if (json.success) {
+      setItems((prev) => prev.map((x) => (x.id === b.id ? { ...x, name } : x)));
+      setRenamingId(null);
+    } else {
+      toast.error(json.error ?? "Failed to rename");
+    }
   }
 
   return (
@@ -172,28 +203,71 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
                 : `Created ${new Date(b.createdAt).toLocaleDateString()}`;
             return (
               <div key={b.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors">
-                <Link href={`/${slug}/broadcast-editor/${b.id}`} className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium text-gray-900 truncate">{b.name}</span>
-                    <span className={`inline-flex items-center gap-1 text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded ${badge.cls} shrink-0`}>
-                      <badge.Icon size={10} className={b.status === "SENDING" ? "animate-spin" : ""} />
-                      {badge.label}
-                    </span>
+                {renamingId === b.id ? (
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveRename(b);
+                        if (e.key === "Escape") setRenamingId(null);
+                      }}
+                      disabled={savingRename}
+                      className="flex-1 min-w-0 border border-blue-500 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    />
+                    <button
+                      onClick={() => saveRename(b)}
+                      disabled={savingRename}
+                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                      title="Save"
+                    >
+                      {savingRename ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    </button>
+                    <button
+                      onClick={() => setRenamingId(null)}
+                      disabled={savingRename}
+                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                      title="Cancel"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{b.subject}</p>
-                </Link>
-                <div className="hidden md:flex flex-col items-end gap-0.5 shrink-0">
-                  <span className="text-xs text-gray-400">{dateLabel}</span>
-                  {b.status === "SENT" && (
-                    <span className="text-xs text-gray-500">
-                      {b.sentCount.toLocaleString()} / {b.totalRecipients.toLocaleString()} sent
-                      {b.failedCount > 0 && (
-                        <span className="text-red-500 ml-1">({b.failedCount} failed)</span>
-                      )}
-                    </span>
-                  )}
-                </div>
-                {canManageBroadcasts && (b.status === "DRAFT" || b.status === "SCHEDULED" || b.status === "CANCELED" || b.status === "FAILED") && (
+                ) : (
+                  <Link href={`/${slug}/broadcast-editor/${b.id}`} className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-medium text-gray-900 truncate">{b.name}</span>
+                      <span className={`inline-flex items-center gap-1 text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded ${badge.cls} shrink-0`}>
+                        <badge.Icon size={10} className={b.status === "SENDING" ? "animate-spin" : ""} />
+                        {badge.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{b.subject}</p>
+                  </Link>
+                )}
+                {renamingId !== b.id && (
+                  <div className="hidden md:flex flex-col items-end gap-0.5 shrink-0">
+                    <span className="text-xs text-gray-400">{dateLabel}</span>
+                    {b.status === "SENT" && (
+                      <span className="text-xs text-gray-500">
+                        {b.sentCount.toLocaleString()} / {b.totalRecipients.toLocaleString()} sent
+                        {b.failedCount > 0 && (
+                          <span className="text-red-500 ml-1">({b.failedCount} failed)</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {canManageBroadcasts && renamingId !== b.id && b.status !== "SENDING" && (
+                  <button
+                    onClick={() => startRename(b)}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0"
+                    title="Rename"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {canManageBroadcasts && renamingId !== b.id && b.status !== "SENDING" && (
                   <button
                     onClick={() => handleDelete(b)}
                     disabled={deleting === b.id}

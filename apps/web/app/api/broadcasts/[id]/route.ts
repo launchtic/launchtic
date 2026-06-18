@@ -44,11 +44,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const existing = await db.broadcast.findFirst({ where: { id, workspaceId } });
     if (!existing) return err("Broadcast not found", 404);
-    if (existing.status !== "DRAFT" && existing.status !== "SCHEDULED") {
-      return err(`Cannot edit broadcast with status ${existing.status}`, 400);
-    }
-
     const data = updateSchema.parse(await req.json());
+    if (existing.status !== "DRAFT" && existing.status !== "SCHEDULED") {
+      // Sent / finished broadcasts: only the name (a label) may be changed —
+      // content/audience are locked once it's out the door.
+      const keys = Object.keys(data);
+      if (!(keys.length === 1 && keys[0] === "name" && typeof data.name === "string")) {
+        return err(`Cannot edit broadcast with status ${existing.status}`, 400);
+      }
+    }
     const broadcast = await db.broadcast.update({ where: { id }, data });
     return ok(broadcast);
   } catch (error) {
@@ -65,7 +69,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const { id } = await params;
     const existing = await db.broadcast.findFirst({ where: { id, workspaceId } });
     if (!existing) return err("Broadcast not found", 404);
-    if (existing.status === "SENDING" || existing.status === "SENT") {
+    // Only block deletion mid-flight. SENT broadcasts can be removed — email
+    // logs keep their own snapshot (sourceLabel) so history survives.
+    if (existing.status === "SENDING") {
       return err(`Cannot delete broadcast with status ${existing.status}`, 400);
     }
 

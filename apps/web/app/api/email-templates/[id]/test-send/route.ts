@@ -4,6 +4,7 @@ import { z } from "zod";
 import { sendEmail, render, sampleVars, renderEmailContent, type SmtpConfig } from "@launchtic/email/server";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { getAppUrl } from "../../../../../lib/system-config";
 
 const schema = z.object({ sendTo: z.string().email() });
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const workspaceName = workspace?.name ?? "Your Workspace";
     const vars = { ...sampleVars(), workspace: { name: workspaceName } };
     const subject = render(template.subject, vars);
-    const html = await renderEmailContent(template.htmlBody, vars);
+    const html = await renderEmailContent(template.htmlBody, vars, await getAppUrl());
 
     await sendEmail(smtp, {
       to: sendTo,

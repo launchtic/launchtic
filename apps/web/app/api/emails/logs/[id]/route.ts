@@ -110,7 +110,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         unsubscribeUrl: c ? buildUnsubscribeUrl(c.id, await getAppUrl()) : "#unsubscribe",
       };
       previewSubject = render(liveSourceSubject, vars);
-      previewHtml = await renderEmailContent(liveSourceHtml, vars);
+      previewHtml = await renderEmailContent(liveSourceHtml, vars, await getAppUrl());
       previewAvailable = true;
       previewWarning = c
         ? "Re-rendered from source — diverges if the source was edited after send."

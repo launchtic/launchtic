@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { getAppUrl } from "../../../lib/system-config";
 import { sampleVars } from "@launchtic/email";
 import { renderEmailContent } from "@launchtic/email/server";
 
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!r.ok) return r.response;
     const { body } = await req.json();
     if (typeof body !== "string") return err("Missing body", 400);
-    const html = await renderEmailContent(body, sampleVars());
+    const html = await renderEmailContent(body, sampleVars(), await getAppUrl());
     return ok({ html });
   } catch (e: any) {
     return handleError(e);

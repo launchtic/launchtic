@@ -80,7 +80,8 @@ function block(n: SNode): string {
 function column(nodes: SNodes, id: string): string {
   const n = nodes[id]; if (!n) return "";
   const p = n.props ?? {};
-  const inner = (n.nodes ?? []).map((b) => block(nodes[b])).join("") || `<mj-text>&nbsp;</mj-text>`;
+  const inner = (n.nodes ?? []).map((b) => block(nodes[b])).join("");
+  if (!inner) return ""; // empty column (no rendered content) — omit from the email
   const bg = p.bgColor && p.bgColor !== "transparent" ? ` background-color="${attr(p.bgColor)}"` : "";
   return `<mj-column${bg} vertical-align="${attr(p.verticalAlign || "top")}" padding="${Number(p.paddingY) || 0}px ${Number(p.paddingX) ?? 8}px">${inner}</mj-column>`;
 }
@@ -94,7 +95,8 @@ function section(nodes: SNodes, id: string): string {
   // skipped) when stacking is disabled — grouped columns never stack.
   const reverse = !!p.reverseOnMobile && !p.disableStacking;
   const order = reverse ? [...colIds].reverse() : colIds;
-  const cols = order.map((c) => column(nodes, c)).join("") || `<mj-column><mj-text>&nbsp;</mj-text></mj-column>`;
+  const cols = order.map((c) => column(nodes, c)).filter(Boolean).join("");
+  if (!cols) return ""; // section with no content columns — omit from the email
   const inner = p.disableStacking ? `<mj-group>${cols}</mj-group>` : cols;
   const a: string[] = [];
   if (p.bgColor && p.bgColor !== "transparent") a.push(`background-color="${attr(p.bgColor)}"`);

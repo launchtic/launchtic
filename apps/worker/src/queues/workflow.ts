@@ -358,7 +358,7 @@ async function execSendEmail(node: WorkflowNode, ctx: RunCtx): Promise<void> {
   };
 
   const renderedSubject = render(subject, vars);
-  const renderedHtml    = await renderEmailContent(bodyHtml, vars);
+  const renderedHtml    = await renderEmailContent(bodyHtml, vars, appUrl);
 
   // Persist EmailSend FIRST then enqueue — if enqueue fails we mark the
   // send FAILED so it's not stuck QUEUED forever. The generic source columns
