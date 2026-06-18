@@ -13,7 +13,6 @@ const createSchema = z.object({
   fromName: z.string().optional(),
   targetType: z.enum(["ALL_CONTACTS", "TAG"]).default("ALL_CONTACTS"),
   targetTagIds: z.array(z.string()).default([]),
-  excludeUnsubscribed: z.boolean().default(true),
 });
 
 export async function GET(req: NextRequest) {

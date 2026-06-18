@@ -1,87 +1,75 @@
 # Public Demo — Runbook
 
-How `demo.launchtic.com` is set up and reset. The demo is a **shared sandbox**:
-visitors are auto-signed-in as one demo account, risky actions are blocked, and
-the box resets to a fixed baseline on a schedule.
+`demo.launchtic.com` là sandbox dùng chung: khách tự đăng nhập 1 tài khoản demo, action nguy hiểm bị chặn, box tự reset về baseline mỗi 2h.
 
-## How DEMO_MODE behaves
+## DEMO_MODE làm gì
+Bật `DEMO_MODE=true` trong `.env` → app:
+- **Auto-login** bằng `DEMO_EMAIL`/`DEMO_PASSWORD` (bỏ qua form login).
+- **Chặn outbound email** — `sendEmail()` thành no-op.
+- **Chặn action rủi ro** (403 "disabled in the live demo"): đổi password, đổi license, payment, storage/S3, AI key, custom domain, team, xoá/clone workspace. Còn lại (funnel, page, contacts, draft email) vẫn chạy.
 
-Set `DEMO_MODE=true` in the install `.env`. Then the app:
-
-- **Auto-login** — visitors hitting the app are signed in as the demo user
-  (`DEMO_EMAIL` / `DEMO_PASSWORD`); the login form is skipped.
-- **No outbound email** — `sendEmail()` is a no-op (covers broadcasts,
-  automations, invites, test sends) — nothing real is ever delivered.
-- **Blocked actions** (return 403 "disabled in the live demo"): change password,
-  activate a different license, payment config + provider tests, storage (S3)
-  config + test, AI key save/delete, add custom domain (SSL), team role/remove,
-  delete/clone workspace. Everything else (build funnels, edit pages, add
-  contacts, draft emails) works so the product feels real.
-
-Building funnels/contacts/pages is allowed — that's the point — so it gets messy
-between resets. The 2-hour reset cleans it up.
-
-## One-time setup
-
-1. **Comp license** — on launchtic.com create an **AGENCY** license with no
-   expiry (perpetual updates so the demo never shows "updates lapsed"):
-   ```bash
-   curl -X POST https://launchtic.com/api/admin/licenses \
-     -H "Authorization: Bearer $LICENSE_API_SECRET" \
-     -H "Content-Type: application/json" \
-     -d '{"email":"demo@launchtic.com","plan":"AGENCY","expiresAt":null}'
-   ```
-   Note the returned `key`.
-
-2. **Install on the demo VPS** with that key:
-   ```bash
-   curl -fsSL https://launchtic.com/install | bash -s -- --license <DEMO_KEY>
-   ```
-
-3. **Enable demo mode** — add to the install `.env`, then recreate:
+## Cài đặt lần đầu
+1. **Comp license AGENCY** không hết hạn trên launchtic.com, lấy `key`.
+2. **Install** trên VPS demo: `curl -fsSL https://launchtic.com/install | bash -s -- --license <DEMO_KEY>`
+3. **Bật demo mode** — thêm vào `.env` rồi recreate:
    ```
    DEMO_MODE=true
    DEMO_EMAIL=demo@launchtic.com
    DEMO_PASSWORD=launchtic-demo
    ```
-   ```bash
-   cd launchtic && docker compose up -d --force-recreate
-   ```
-
-4. **Run the wizard** at `http://<demo-ip>` (or `https://demo.launchtic.com`):
-   - Create the admin using **the same** `DEMO_EMAIL` + `DEMO_PASSWORD` — this is
-     the account auto-login signs into. (The wizard runs before auto-login kicks
-     in, because the login page sends a userless install to `/setup` first.)
-   - Set the domain to `demo.launchtic.com`; the AGENCY license auto-activates.
-
-5. **Build the demo content** — import templates, build a sample funnel or two,
-   add sample contacts, draft a broadcast, etc. This is the "marketing account"
-   visitors land in.
-
-6. **Capture the baseline** — copy the reset script into the install dir and run:
+   `cd launchtic && docker compose up -d --force-recreate`
+4. **Chạy wizard** tại `https://demo.launchtic.com`: tạo admin bằng **đúng** `DEMO_EMAIL`+`DEMO_PASSWORD` (đây là account auto-login), set domain `demo.launchtic.com`.
+5. **Dựng content demo** (funnel/contacts/email mẫu) — tài khoản marketing khách thấy.
+6. **Chụp baseline:**
    ```bash
    cp /path/to/demo/demo-reset.sh ~/launchtic/ && chmod +x ~/launchtic/demo-reset.sh
    cd ~/launchtic && ./demo-reset.sh snapshot
    ```
 
-## Scheduled reset
+## Cơ chế reset
+`demo-reset.sh` chỉ quản **DB (Postgres) + thư mục `uploads`**.
+- `snapshot` (tay, 1 lần): `pg_dump` + nén `uploads` → `demo-baseline/`. Đây là bản gốc sạch.
+- `restore` (cron): dừng web/worker/renderer → `pg_restore --clean` → giải nén lại uploads → khởi động lại. Rác khách biến mất. `.env`/cert/volume khác không đụng.
 
-Restore the baseline every 2 hours via cron:
+Cron mỗi 2h:
 ```cron
 0 */2 * * * cd /root/launchtic && ./demo-reset.sh restore >> /var/log/demo-reset.log 2>&1
 ```
-`restore` stops web/worker/renderer, `pg_restore --clean` the baseline, restores
-uploads, and starts the services again (clearing in-process caches). `.env`,
-SSL certs, and Docker volumes other than the DB are untouched.
+Đổi content mẫu → dựng lại rồi `./demo-reset.sh snapshot`.
 
-To refresh the baseline after improving the demo content, rebuild it then re-run
-`./demo-reset.sh snapshot`.
+## Update app
+Update chỉ pull image mới + refresh compose/Caddyfile; `.env` + volume giữ nguyên. Migration chạy khi `web` khởi động.
 
-## Notes / limits
+**Không migration** — 1 lệnh: `cd ~/launchtic && curl -fsSL https://launchtic.com/update | bash`
 
-- **Renderer checkout** isn't separately gated, but it's safe: payment config is
-  blocked and never seeded, so a demo funnel has no live provider to charge.
-- Shared sandbox = visitors see each other's edits between resets. Per-visitor
-  isolation is a future upgrade.
-- To take the demo offline, unset `DEMO_MODE` (or stop the stack); the box
-  reverts to a normal licensed install.
+**Có migration** (hoặc không chắc → cứ làm cách này): baseline cũ mang schema cũ, cron `restore` sau update sẽ đắp schema cũ lên app mới → vỡ. Phải chụp lại baseline:
+```bash
+cd ~/launchtic
+crontab -l | grep -v demo-reset | crontab -      # tạm gỡ cron
+./demo-reset.sh restore                           # 1. content sạch (schema cũ)
+curl -fsSL https://launchtic.com/update | bash    # 2. app mới migrate data sạch
+#                                                    3. verify demo chạy OK
+./demo-reset.sh snapshot                           # 4. baseline mới = sạch + schema mới
+#                                                    5. gắn lại dòng cron
+```
+
+## App design (VPS riêng)
+Demo bị wipe mỗi 2h → không phải chỗ designer dựng content. Chạy **instance riêng trên VPS riêng** (cô lập hoàn toàn, reset demo không đụng tới):
+1. Trỏ DNS `app.launchtic.com` → VPS mới.
+2. Install chuẩn, `DEMO_MODE` để **false** (login/settings/email thật): `curl -fsSL https://launchtic.com/install | bash -s -- --license <DESIGN_KEY>` (cần instance/license riêng).
+3. **Không** `demo-reset.sh`, **không** cron trên box này.
+
+Promote content design → demo (design = nguồn gốc, demo = bản clone):
+```bash
+# trên VPS design: xuất
+docker compose exec -T postgres pg_dump -U postgres -Fc launchtic > content.dump
+tar -czf content-uploads.tar.gz uploads
+# scp 2 file sang VPS demo → demo-baseline/db.dump + giải nén uploads, rồi:
+cd ~/launchtic && ./demo-reset.sh restore   # demo hiện content designer
+#                 ./demo-reset.sh snapshot  # đóng băng làm baseline mới
+```
+
+## Lưu ý
+- Renderer checkout không chặn riêng nhưng an toàn: payment bị chặn, không seed → funnel demo không có provider thật để charge.
+- Sandbox dùng chung: khách thấy edit của nhau giữa 2 lần reset.
+- Tắt demo: bỏ `DEMO_MODE` (hoặc stop stack) → về install thường.

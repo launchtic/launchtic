@@ -196,7 +196,7 @@ const getBroadcastDetails = defineTool({
         id: true, name: true, subject: true, status: true,
         scheduledAt: true, sentAt: true,
         fromName: true, fromEmail: true,
-        targetType: true, targetTagIds: true, excludeUnsubscribed: true,
+        targetType: true, targetTagIds: true,
         totalRecipients: true, sentCount: true, failedCount: true,
         htmlBody: true,
       },
@@ -222,7 +222,6 @@ const getBroadcastDetails = defineTool({
       audience: {
         type: b.targetType,
         tagNames,
-        excludeUnsubscribed: b.excludeUnsubscribed,
       },
       stats: { recipients: b.totalRecipients, sent: b.sentCount, failed: b.failedCount },
       body: bodyToReadable(b.htmlBody),
@@ -245,7 +244,6 @@ const createBroadcastFromSpec = defineTool({
     audience: z.object({
       type: z.enum(["ALL_CONTACTS", "TAG"]).default("ALL_CONTACTS").describe("ALL_CONTACTS = entire workspace. TAG = only contacts with specified tags."),
       tagNames: z.array(z.string()).optional().describe("Required if type=TAG. Auto-created if missing."),
-      excludeUnsubscribed: z.boolean().default(true).describe("Skip contacts who unsubscribed (recommended)."),
     }),
     scheduledAt: z.string().datetime().optional().describe("ISO 8601 datetime. Must be ≥10 minutes in future. Omit for DRAFT (operator schedules later)."),
   }),
@@ -309,7 +307,6 @@ const createBroadcastFromSpec = defineTool({
         scheduledAt,
         targetType: args.audience.type,
         targetTagIds,
-        excludeUnsubscribed: args.audience.excludeUnsubscribed ?? true,
       },
     });
 

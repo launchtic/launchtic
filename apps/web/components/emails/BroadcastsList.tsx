@@ -84,7 +84,7 @@ export default function BroadcastsList({ initial }: { initial: Row[] }) {
           name: "Untitled broadcast",
           subject: "Subject line",
           htmlBody: WELCOME_EMAIL_DOC,
-          targetType: "ALL_CONTACTS",
+          targetType: "TAG",
           targetTagIds: [],
         }),
       });

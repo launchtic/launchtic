@@ -51,14 +51,16 @@ async function processBroadcastDispatch(job: Job<BroadcastDispatchJobData>) {
   const workspace = await db.workspace.findUnique({ where: { id: workspaceId } });
   const workspaceName = workspace?.name ?? "Your Workspace";
 
-  // Build target query
+  // Build target query.
+  // Unsubscribed and bounced contacts are ALWAYS excluded — honoring an
+  // unsubscribe is a legal requirement (CAN-SPAM / GDPR), not an option, and
+  // mailing known-bounced addresses wrecks sender reputation. This is the
+  // single enforcement point: no audience setting can bypass it.
   const where: any = {
     workspaceId,
+    unsubscribedAt: null,
+    bouncedAt: null,
   };
-  if (broadcast.excludeUnsubscribed) {
-    where.unsubscribedAt = null;
-    where.bouncedAt = null;
-  }
   if (broadcast.targetType === "TAG" && broadcast.targetTagIds.length > 0) {
     where.tags = { some: { tagId: { in: broadcast.targetTagIds } } };
   }

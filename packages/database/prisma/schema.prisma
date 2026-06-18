@@ -940,9 +940,8 @@ model Broadcast {
   sentAt      DateTime?
 
   // Targeting
-  targetType          BroadcastTarget @default(ALL_CONTACTS)
-  targetTagIds        String[]        @default([])
-  excludeUnsubscribed Boolean         @default(true)
+  targetType   BroadcastTarget @default(ALL_CONTACTS)
+  targetTagIds String[]        @default([])
 
   // Stats
   totalRecipients Int @default(0)

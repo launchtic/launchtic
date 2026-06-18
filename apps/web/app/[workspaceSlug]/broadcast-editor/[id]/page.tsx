@@ -55,7 +55,6 @@ export default async function BroadcastEditorPage({ params }: PageProps) {
               sentAt: broadcast.sentAt?.toISOString() ?? null,
               targetType: broadcast.targetType,
               targetTagIds: broadcast.targetTagIds,
-              excludeUnsubscribed: broadcast.excludeUnsubscribed,
               totalRecipients: broadcast.totalRecipients,
               sentCount: broadcast.sentCount,
               failedCount: broadcast.failedCount,

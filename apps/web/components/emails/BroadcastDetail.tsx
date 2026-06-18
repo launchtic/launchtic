@@ -31,7 +31,6 @@ type Initial = {
   sentAt: string | null;
   targetType: Target;
   targetTagIds: string[];
-  excludeUnsubscribed: boolean;
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
@@ -69,7 +68,6 @@ export default function BroadcastDetail({
   const [fromName, setFromName] = useState<string>(initial.fromName);
   const [targetType, setTargetType] = useState<Target>(initial.targetType);
   const [targetTagIds, setTargetTagIds] = useState<string[]>(initial.targetTagIds);
-  const [excludeUnsubscribed, setExcludeUnsubscribed] = useState(initial.excludeUnsubscribed);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">(
     initial.scheduledAt ? "later" : "now",
   );
@@ -99,9 +97,8 @@ export default function BroadcastDetail({
         fromEmail !== initial.fromEmail ||
         fromName !== initial.fromName ||
         targetType !== initial.targetType ||
-        JSON.stringify(targetTagIds) !== JSON.stringify(initial.targetTagIds) ||
-        excludeUnsubscribed !== initial.excludeUnsubscribed),
-    [name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, excludeUnsubscribed, initial, isEditable],
+        JSON.stringify(targetTagIds) !== JSON.stringify(initial.targetTagIds)),
+    [name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, initial, isEditable],
   );
 
   // Audience preview — debounced
@@ -111,13 +108,13 @@ export default function BroadcastDetail({
       const res = await apiFetch("/api/broadcasts/audience", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetType, targetTagIds, excludeUnsubscribed }),
+        body: JSON.stringify({ targetType, targetTagIds }),
       });
       const json = await res.json();
       if (json.success) setAudience(json.data.count);
     }, 300);
     return () => clearTimeout(t);
-  }, [targetType, targetTagIds, excludeUnsubscribed, isEditable, isScheduled]);
+  }, [targetType, targetTagIds, isEditable, isScheduled]);
 
   // Live stats for SENDING/SENT broadcasts
   useEffect(() => {
@@ -145,7 +142,7 @@ export default function BroadcastDetail({
       body: JSON.stringify({
         name, subject, htmlBody,
         fromEmail, fromName,
-        targetType, targetTagIds, excludeUnsubscribed,
+        targetType, targetTagIds,
       }),
     });
     const json = await res.json();
@@ -157,7 +154,7 @@ export default function BroadcastDetail({
     setSave("saved");
     setTimeout(() => setSave("idle"), 2000);
     router.refresh();
-  }, [isEditable, initial.id, name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, excludeUnsubscribed, router]);
+  }, [isEditable, initial.id, name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, router]);
 
   // Cmd+S
   useEffect(() => {
@@ -514,16 +511,9 @@ export default function BroadcastDetail({
                         </div>
                       )}
 
-                      <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={excludeUnsubscribed}
-                          disabled={!isEditable}
-                          onChange={(e) => setExcludeUnsubscribed(e.target.checked)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        Exclude unsubscribed and bounced contacts (recommended)
-                      </label>
+                      <p className="text-xs text-gray-400">
+                        Unsubscribed and bounced contacts are always excluded.
+                      </p>
 
                       {audience !== null && (
                         <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700 flex items-center gap-2">

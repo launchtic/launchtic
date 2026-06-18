@@ -10,7 +10,6 @@ import { requireAccess } from "../../../../lib/permissions";
 const schema = z.object({
   targetType: z.enum(["ALL_CONTACTS", "TAG"]),
   targetTagIds: z.array(z.string()).default([]),
-  excludeUnsubscribed: z.boolean().default(true),
 });
 
 export async function POST(req: NextRequest) {
@@ -19,13 +18,11 @@ export async function POST(req: NextRequest) {
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
-    const { targetType, targetTagIds, excludeUnsubscribed } = schema.parse(await req.json());
+    const { targetType, targetTagIds } = schema.parse(await req.json());
 
-    const where: any = { workspaceId };
-    if (excludeUnsubscribed) {
-      where.unsubscribedAt = null;
-      where.bouncedAt = null;
-    }
+    // Mirror the worker: unsubscribed/bounced are always excluded, so the
+    // preview count matches what actually gets sent.
+    const where: any = { workspaceId, unsubscribedAt: null, bouncedAt: null };
     if (targetType === "TAG" && targetTagIds.length > 0) {
       where.tags = { some: { tagId: { in: targetTagIds } } };
     } else if (targetType === "TAG") {

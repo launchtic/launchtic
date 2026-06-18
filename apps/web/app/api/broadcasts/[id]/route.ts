@@ -14,7 +14,6 @@ const updateSchema = z.object({
   fromName: z.string().min(1).optional(),
   targetType: z.enum(["ALL_CONTACTS", "TAG"]).optional(),
   targetTagIds: z.array(z.string()).optional(),
-  excludeUnsubscribed: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
