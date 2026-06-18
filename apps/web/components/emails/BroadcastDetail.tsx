@@ -88,17 +88,26 @@ export default function BroadcastDetail({
   const [varsOpen, setVarsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Last-saved snapshot. `dirty` is measured against this (not the static
+  // `initial` prop) so autosave can reset it locally after a save — without it,
+  // dirty would stay true forever and autosave would re-fire every 1.5s.
+  const [baseline, setBaseline] = useState({
+    name: initial.name, subject: initial.subject, htmlBody: initial.htmlBody,
+    fromEmail: initial.fromEmail, fromName: initial.fromName,
+    targetType: initial.targetType, targetTagIds: initial.targetTagIds,
+  });
+
   const dirty = useMemo(
     () =>
       isEditable &&
-      (name !== initial.name ||
-        subject !== initial.subject ||
-        htmlBody !== initial.htmlBody ||
-        fromEmail !== initial.fromEmail ||
-        fromName !== initial.fromName ||
-        targetType !== initial.targetType ||
-        JSON.stringify(targetTagIds) !== JSON.stringify(initial.targetTagIds)),
-    [name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, initial, isEditable],
+      (name !== baseline.name ||
+        subject !== baseline.subject ||
+        htmlBody !== baseline.htmlBody ||
+        fromEmail !== baseline.fromEmail ||
+        fromName !== baseline.fromName ||
+        targetType !== baseline.targetType ||
+        JSON.stringify(targetTagIds) !== JSON.stringify(baseline.targetTagIds)),
+    [name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, baseline, isEditable],
   );
 
   // Audience preview — debounced
@@ -133,7 +142,7 @@ export default function BroadcastDetail({
     return () => { cancelled = true; };
   }, [isSent, initial.status, initial.id]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (opts?: { silent?: boolean }) => {
     if (!isEditable) return;
     setSave("saving"); setSaveErr(null);
     const res = await apiFetch(`/api/broadcasts/${initial.id}`, {
@@ -151,9 +160,15 @@ export default function BroadcastDetail({
       setSaveErr(json.error ?? "Failed to save");
       return;
     }
+    // Reset the dirty baseline to what we just saved so autosave settles (no
+    // dependence on router.refresh re-fetching `initial`).
+    setBaseline({ name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds });
     setSave("saved");
     setTimeout(() => setSave("idle"), 2000);
-    router.refresh();
+    // Autosave runs `silent` — `router.refresh()` re-renders the whole route, and
+    // if that lands mid drag-drop in the email builder it tears down the canvas
+    // and the drop is lost. Only an explicit save (Cmd+S / Save button) refreshes.
+    if (!opts?.silent) router.refresh();
   }, [isEditable, initial.id, name, subject, htmlBody, fromEmail, fromName, targetType, targetTagIds, router]);
 
   // Cmd+S
@@ -169,10 +184,10 @@ export default function BroadcastDetail({
     return () => window.removeEventListener("keydown", h);
   }, [isEditable, dirty, save, handleSave]);
 
-  // Autosave — debounced 1.5s while the broadcast is editable (DRAFT/SCHEDULED).
+  // Autosave — debounced 3s while the broadcast is editable (DRAFT/SCHEDULED).
   useEffect(() => {
     if (!isEditable || !dirty || save === "saving") return;
-    const t = setTimeout(() => { handleSave(); }, 1500);
+    const t = setTimeout(() => { handleSave({ silent: true }); }, 3000);
     return () => clearTimeout(t);
   }, [isEditable, dirty, save, handleSave]);
 
@@ -436,7 +451,7 @@ export default function BroadcastDetail({
 
         {isEditable && (
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={!dirty || save === "saving"}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-lg transition-colors"
           >

@@ -90,18 +90,30 @@ export default function WorkflowEmailEditor({
   const [varsOpen, setVarsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Last-saved snapshot — `dirty` is measured against this so a (silent) autosave
+  // can reset it locally. Comparing to the static `initial` prop instead would
+  // keep dirty true after save (initial only refreshed via router.refresh, which
+  // we drop on autosave) and re-fire autosave every 1.5s.
+  const [baseline, setBaseline] = useState({
+    subject:   initial?.subject   ?? "",
+    bodyHtml:  initial?.bodyHtml  ?? "",
+    senderId:  initial?.senderId  ?? null as string | null,
+    fromName:  initial?.fromName  ?? "",
+    fromEmail: initial?.fromEmail ?? "",
+  });
+
   // Dirty tracking — used to enable Save in edit mode (Save is always
   // active in create mode since we want first-write to land).
   const dirty = useMemo(
     () => {
       if (isCreate) return true; // first save always allowed
-      return subject   !== (initial?.subject   ?? "")
-          || bodyHtml  !== (initial?.bodyHtml  ?? "")
-          || senderId  !== (initial?.senderId  ?? null)
-          || fromName  !== (initial?.fromName  ?? "")
-          || fromEmail !== (initial?.fromEmail ?? "");
+      return subject   !== baseline.subject
+          || bodyHtml  !== baseline.bodyHtml
+          || senderId  !== baseline.senderId
+          || fromName  !== baseline.fromName
+          || fromEmail !== baseline.fromEmail;
     },
-    [isCreate, subject, bodyHtml, senderId, fromName, fromEmail, initial],
+    [isCreate, subject, bodyHtml, senderId, fromName, fromEmail, baseline],
   );
 
   // Validation mirrors the server-side validateWorkflowEmail rule so the
@@ -140,6 +152,9 @@ export default function WorkflowEmailEditor({
         throw new Error(json?.error ?? `HTTP ${res.status}`);
       }
       if (!silent) toast.success(isCreate ? "Email created." : "Email saved.");
+      // Settle the dirty baseline to what we saved (autosave no longer relies on
+      // router.refresh re-fetching `initial`).
+      setBaseline({ subject, bodyHtml, senderId, fromName, fromEmail });
       if (isCreate) {
         // Replace the URL so back-button doesn't land on /emails/new.
         const newId = json?.data?.id;
@@ -148,8 +163,10 @@ export default function WorkflowEmailEditor({
         } else {
           router.push(`/${workspaceSlug}/workflows/${workflow.id}/emails`);
         }
-      } else {
-        // Refresh server state so the next navigation shows the saved row.
+      } else if (!silent) {
+        // Refresh server state so the next navigation shows the saved row. Skip
+        // on autosave: router.refresh() re-renders the route and, if it lands mid
+        // drag-drop in the email builder, tears down the canvas and drops the drop.
         router.refresh();
       }
     } catch {
@@ -159,12 +176,12 @@ export default function WorkflowEmailEditor({
     }
   }
 
-  // Autosave — debounced 1.5s in EDIT mode once valid. Create mode stays manual
+  // Autosave — debounced 3s in EDIT mode once valid. Create mode stays manual
   // (no DB row until the first Save); locked (active) workflows don't save.
   useEffect(() => {
     if (isCreate || isLocked || busy || !dirty) return;
     if (runValidation().length > 0) return;
-    const t = setTimeout(() => { onSave(true); }, 1500);
+    const t = setTimeout(() => { onSave(true); }, 3000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirty, subject, bodyHtml, senderId, fromName, fromEmail, busy, isCreate, isLocked]);

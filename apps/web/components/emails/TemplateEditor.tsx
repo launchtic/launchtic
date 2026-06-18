@@ -77,7 +77,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (opts?: { silent?: boolean }) => {
     setSave({ status: "saving" });
     const body: Record<string, unknown> = { name, subject, htmlBody };
     if (!initial.isSystem) body.category = category;
@@ -95,13 +95,15 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
     setBaseline({ name, subject, htmlBody, category });
     setSave({ status: "saved" });
     setTimeout(() => setSave({ status: "idle" }), 2000);
-    router.refresh();
+    // Autosave runs `silent` — router.refresh() re-renders the route and, mid
+    // drag-drop in the email builder, tears down the canvas and loses the drop.
+    if (!opts?.silent) router.refresh();
   }, [name, subject, htmlBody, category, initial.id, initial.isSystem, router]);
 
-  // Autosave — debounced 1.5s after the last edit. Manual Save / Cmd+S still work.
+  // Autosave — debounced 3s after the last edit. Manual Save / Cmd+S still work.
   useEffect(() => {
     if (!dirty || save.status === "saving") return;
-    const t = setTimeout(() => { handleSave(); }, 1500);
+    const t = setTimeout(() => { handleSave({ silent: true }); }, 3000);
     return () => clearTimeout(t);
   }, [dirty, name, subject, htmlBody, category, save.status, handleSave]);
 
@@ -268,7 +270,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
         </span>
 
         <button
-          onClick={handleSave}
+          onClick={() => handleSave()}
           disabled={!dirty || save.status === "saving"}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 rounded-lg transition-colors shrink-0"
         >
