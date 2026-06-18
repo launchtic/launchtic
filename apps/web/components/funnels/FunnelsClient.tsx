@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
+import { useToast } from "../ui/Toast";
 import { useRole } from "../../lib/role";
 import { apiFetch, downloadFromApi } from "../../lib/api-client";
 
@@ -54,6 +55,7 @@ export default function FunnelsClient({
   const params = useParams();
   const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
+  const toast = useToast();
   const { canManageFunnels, canDeleteFunnels } = useRole();
 
   const fetchData = useCallback(async (q: string, p: number, v: View) => {
@@ -95,16 +97,26 @@ export default function FunnelsClient({
     });
     if (!ok) return;
     setBusyId(funnel.id);
-    await apiFetch(`/api/funnels/${funnel.id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/funnels/${funnel.id}`, { method: "DELETE" });
     setBusyId(null);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      toast.error(json.error ?? "Failed to move funnel to trash");
+      return;
+    }
     fetchData(search, page, view);
     router.refresh();
   }
 
   async function handleRestore(funnel: Funnel) {
     setBusyId(funnel.id);
-    await apiFetch(`/api/funnels/${funnel.id}/restore`, { method: "POST" });
+    const res = await apiFetch(`/api/funnels/${funnel.id}/restore`, { method: "POST" });
     setBusyId(null);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      toast.error(json.error ?? "Failed to restore funnel");
+      return;
+    }
     fetchData(search, page, view);
     router.refresh();
   }
@@ -118,8 +130,13 @@ export default function FunnelsClient({
     });
     if (!ok) return;
     setBusyId(funnel.id);
-    await apiFetch(`/api/funnels/${funnel.id}?permanent=1`, { method: "DELETE" });
+    const res = await apiFetch(`/api/funnels/${funnel.id}?permanent=1`, { method: "DELETE" });
     setBusyId(null);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      toast.error(json.error ?? "Failed to delete funnel");
+      return;
+    }
     fetchData(search, page, view);
     router.refresh();
   }

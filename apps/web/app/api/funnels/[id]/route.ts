@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -93,6 +94,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 //                   prevent accidental permanent loss with one click.
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
+
     const { id } = await params;
     const r = await requireAccess("funnels:delete");
     if (!r.ok) return r.response;
