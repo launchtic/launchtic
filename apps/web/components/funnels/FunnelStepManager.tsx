@@ -368,6 +368,7 @@ function ConfigurationTab({ step, steps, rendererUrl, primaryDomain, canUpsell, 
           {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
         </button>
       )}
+
     </form>
   );
 }
