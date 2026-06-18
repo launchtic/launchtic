@@ -4,7 +4,7 @@
 // Column → content. value/onChange = Craft serialized JSON (stored in the email
 // body); rendered to responsive HTML via MJML at preview/send time.
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
 import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown } from "lucide-react";
@@ -336,7 +336,7 @@ const FONT_WEIGHTS = [{ v: "400", l: "Normal" }, { v: "500", l: "Medium" }, { v:
 const COLOR_KEYS = ["color", "bg", "bgColor", "contentBg", "textColor"];
 const NUM_KEYS = ["fontSize", "height", "radius", "breakpoint", "paddingY", "paddingX", "borderRadius", "thickness", "lineHeight", "letterSpacing", "marginY", "marginX"];
 // Keys rendered by dedicated controls, not the generic field loop.
-const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX", "disableStacking", "reverseOnMobile", "itemPadding", "itemPaddingY", "itemPaddingX", "itemGap", "underline", "bold", "italic", "iconSize"];
+const SKIP_GENERIC = ["bgImage", "bgDisplay", "bgPosition", "items", "src", "paddingY", "paddingX", "marginY", "marginX", "disableStacking", "reverseOnMobile", "itemPadding", "itemPaddingY", "itemPaddingX", "itemGap", "underline", "bold", "italic", "iconSize", "size", "fontFamily"];
 const BG_DISPLAY = [{ v: "cover", l: "Cover" }, { v: "contain", l: "Contain (no crop)" }, { v: "repeat", l: "Repeat" }, { v: "actual", l: "Actual size" }];
 const BG_POSITION = ["top left", "top center", "top right", "center left", "center center", "center right", "bottom left", "bottom center", "bottom right"];
 
@@ -425,7 +425,11 @@ function SettingsPanel() {
   const isSection = name === "Section";
   const isNavbar = name === "Navbar";
   const isSocial = name === "Social";
+  const isButton = name === "Button";
   const isTextual = name === "Heading" || name === "Text";
+  // Font lives on the Page (global default) and can be overridden per text-bearing
+  // element (Heading/Text/Button/Navbar); empty override = inherit the Page font.
+  const hasFont = isPage || isTextual || isButton || isNavbar;
   const itemsSet = (next: any[]) => actions.history.throttle(500).setProp(id, (p: any) => { p.items = next; });
   const moveItem = (i: number, dir: -1 | 1) => {
     const arr = [...(props.items ?? [])];
@@ -446,7 +450,6 @@ function SettingsPanel() {
     if (k === "align") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></Field>;
     if (k === "verticalAlign") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select></Field>;
     if (k === "style") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></Field>;
-    if (k === "fontFamily") return <Field key={k} label={LABEL[k]}><select value={v} onChange={(e) => set(k, e.target.value)} className={inputCls}>{EMAIL_FONTS.map((f) => <option key={f.name} value={f.name} style={{ fontFamily: f.fontFamily }}>{f.name}</option>)}</select></Field>;
     if (k === "fontWeight") return <Field key={k} label={LABEL[k]}><select value={String(v)} onChange={(e) => set(k, e.target.value)} className={inputCls}>{FONT_WEIGHTS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select></Field>;
     if (COLOR_KEYS.includes(k)) {
       const transparent = v === "transparent";
@@ -597,6 +600,14 @@ function SettingsPanel() {
         </>
       )}
 
+      {hasFont && (
+        <Field label="Font">
+          <select value={props.fontFamily ?? ""} onChange={(e) => set("fontFamily", e.target.value)} className={inputCls}>
+            {!isPage && <option value="">Default (page font)</option>}
+            {EMAIL_FONTS.map((f) => <option key={f.name} value={f.name} style={{ fontFamily: f.fontFamily }}>{f.name}</option>)}
+          </select>
+        </Field>
+      )}
       {Object.keys(props).filter((k) => !SKIP_GENERIC.includes(k) && !(isTextual && k === "text") && !(isPage && (k === "fontSize" || k === "textColor"))).map(renderField)}
       {("paddingY" in props || "paddingX" in props) && <AxisRow label="Padding" yKey="paddingY" xKey="paddingX" props={props} set={set} />}
       {("marginY" in props || "marginX" in props) && <AxisRow label="Margin" yKey="marginY" xKey="marginX" props={props} set={set} />}
@@ -706,6 +717,104 @@ function DeviceBar({ device, setDevice }: { device: "desktop" | "mobile"; setDev
   );
 }
 
+// Drag handles at each internal boundary of a multi-column Section — the email
+// equivalent of the landing-page Resizer. Adjusts the two adjacent columns'
+// `size` weight (MJML normalizes to width %). Handles appear for the Section the
+// user is focused on (selected, hovered, or a column/content inside it). Hidden
+// in the mobile preview, where columns stack and width has no effect.
+function ColumnResizers() {
+  const device = useContext(DeviceContext);
+  const { nodes, selected, hovered, actions } = useEditor((state) => ({
+    nodes: state.nodes,
+    selected: Array.from(state.events.selected as Set<string>)[0] as string | undefined,
+    hovered: Array.from(state.events.hovered as Set<string>)[0] as string | undefined,
+  }));
+  const dragRef = useRef<string | null>(null);
+  const [, force] = useState(0);
+  useEffect(() => {
+    const h = () => force((n) => n + 1);
+    window.addEventListener("scroll", h, true);
+    window.addEventListener("resize", h);
+    return () => { window.removeEventListener("scroll", h, true); window.removeEventListener("resize", h); };
+  }, []);
+
+  // Walk up from a focused node to the Section that contains it.
+  const sectionOf = (nid?: string): string | null => {
+    let cur: string | undefined = nid;
+    while (cur && nodes[cur]) {
+      if (nodes[cur].data.name === "Section") return cur;
+      cur = nodes[cur].data.parent ?? undefined;
+    }
+    return null;
+  };
+
+  const sectionId = sectionOf(selected) ?? sectionOf(hovered) ?? dragRef.current;
+  if (device === "mobile" || !sectionId || !nodes[sectionId]) return null;
+  const colIds = (nodes[sectionId].data.nodes ?? []).filter((c) => nodes[c]?.data.name === "Column");
+  if (colIds.length < 2) return null;
+  const rects = colIds.map((c) => nodes[c]?.dom?.getBoundingClientRect());
+  if (rects.some((r) => !r)) return null;
+
+  const onDown = (e: React.MouseEvent, i: number) => {
+    e.preventDefault();
+    e.stopPropagation(); // don't change selection when grabbing the handle
+    dragRef.current = sectionId;
+    const ids = colIds;
+    const widths = ids.map((c) => nodes[c]!.dom!.getBoundingClientRect().width);
+    const totalPx = widths.reduce((a, b) => a + b, 0) || 1;
+    const base = widths.map((w) => (w / totalPx) * 100);
+    const pairPct = base[i] + base[i + 1];
+    const startX = e.clientX;
+    const MIN = 10; // each side keeps ≥10% of the section
+    let started = false;
+
+    const onMove = (ev: MouseEvent) => {
+      // On the first actual movement, snapshot every column to an explicit %
+      // weight so scales stay consistent (a 3-col row keeps the untouched
+      // column's width). Deferred to here so a stray click leaves props clean.
+      if (!started) {
+        started = true;
+        ids.forEach((c, k) => actions.history.throttle(1000).setProp(c, (p: any) => { p.size = Math.round(base[k]); }));
+      }
+      let aPct = base[i] + ((ev.clientX - startX) / totalPx) * 100;
+      aPct = Math.max(MIN, Math.min(pairPct - MIN, aPct));
+      const a = Math.round(aPct);
+      actions.history.throttle(1000).setProp(ids[i], (p: any) => { p.size = a; });
+      actions.history.throttle(1000).setProp(ids[i + 1], (p: any) => { p.size = Math.round(pairPct) - a; });
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      dragRef.current = null;
+      force((n) => n + 1);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  return createPortal(
+    <>
+      {colIds.slice(0, -1).map((cid, i) => {
+        const r = rects[i]!, rNext = rects[i + 1]!;
+        const x = (r.right + rNext.left) / 2; // midpoint of the inter-column gap
+        return (
+          <div
+            key={cid}
+            onMouseDown={(e) => onDown(e, i)}
+            title="Drag to resize columns"
+            className="group fixed flex items-center justify-center"
+            style={{ top: r.top, height: r.height, left: x - 5, width: 10, cursor: "col-resize", zIndex: 39 }}
+          >
+            <span className="w-[2px] h-full bg-blue-400/40 group-hover:bg-blue-500 transition-colors" />
+            <span className="absolute h-6 w-1.5 rounded-full bg-blue-500 opacity-60 group-hover:opacity-100 shadow-sm" />
+          </div>
+        );
+      })}
+    </>,
+    document.body,
+  );
+}
+
 export default function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: string) => void }) {
   const hasData = !!value && value.trim().startsWith("{") && value.includes("ROOT");
   const onChangeRef = useRef(onChange);
@@ -738,6 +847,7 @@ export default function EmailBuilder({ value, onChange }: { value?: string; onCh
             )}
           </div>
           <DeviceBar device={device} setDevice={setDevice} />
+          <ColumnResizers />
         </div>
       </DeviceContext.Provider>
     </Editor>

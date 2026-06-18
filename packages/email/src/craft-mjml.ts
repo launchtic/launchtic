@@ -23,6 +23,9 @@ const mPad = (p: Record<string, any>, defY = 8) => `${Number(p.marginY ?? defY)}
 // (keeps the common no-padding case as raw passthrough).
 const padWrap = (p: Record<string, any>, html: string) =>
   (Number(p.paddingY) || Number(p.paddingX)) ? `<div style="padding:${Number(p.paddingY) || 0}px ${Number(p.paddingX) || 0}px">${html}</div>` : html;
+// Per-element font override → font-family attr; empty inherits the Page font
+// (the <mj-all> default emitted in the head). Absent on legacy nodes = inherit.
+const fontAttr = (p: Record<string, any>) => (p.fontFamily ? ` font-family="${attr(emailFontCss(p.fontFamily))}"` : "");
 
 export function isCraftDoc(serialized: string): boolean {
   try { const o = JSON.parse(serialized); return !!o && typeof o === "object" && !!o.ROOT; } catch { return false; }
@@ -34,14 +37,14 @@ function block(n: SNode): string {
     case "EmailHeading": {
       // text is rich HTML from the inline editor — emit as-is (wrap for inner padding).
       const inner = padWrap(p, p.text || "Heading");
-      return `<mj-text font-size="${Number(p.fontSize) || 24}px" font-weight="bold" color="${attr(p.color || "#111827")}" align="${attr(p.align || "left")}" line-height="${p.lineHeight ?? 1.3}" letter-spacing="${Number(p.letterSpacing) || 0}px" padding="${mPad(p)}">${inner}</mj-text>`;
+      return `<mj-text${fontAttr(p)} font-size="${Number(p.fontSize) || 24}px" font-weight="bold" color="${attr(p.color || "#111827")}" align="${attr(p.align || "left")}" line-height="${p.lineHeight ?? 1.3}" letter-spacing="${Number(p.letterSpacing) || 0}px" padding="${mPad(p)}">${inner}</mj-text>`;
     }
     case "EmailText": {
       const inner = padWrap(p, p.text || "");
-      return `<mj-text font-size="${Number(p.fontSize) || 14}px" color="${attr(p.color || "#374151")}" align="${attr(p.align || "left")}" line-height="${p.lineHeight ?? 1.6}" letter-spacing="${Number(p.letterSpacing) || 0}px" padding="${mPad(p)}">${inner}</mj-text>`;
+      return `<mj-text${fontAttr(p)} font-size="${Number(p.fontSize) || 14}px" color="${attr(p.color || "#374151")}" align="${attr(p.align || "left")}" line-height="${p.lineHeight ?? 1.6}" letter-spacing="${Number(p.letterSpacing) || 0}px" padding="${mPad(p)}">${inner}</mj-text>`;
     }
     case "EmailButton":
-      return `<mj-button background-color="${attr(p.bg || "#2563eb")}" color="${attr(p.color || "#ffffff")}" href="${attr(p.href || "#")}" border-radius="${Number(p.radius) || 0}px" font-size="${Number(p.fontSize) || 14}px" font-weight="${attr(p.fontWeight ?? 600)}" align="${attr(p.align || "center")}" padding="${mPad(p, 12)}" inner-padding="${Number(p.paddingY ?? 12)}px ${Number(p.paddingX ?? 28)}px">${esc(p.text || "Button")}</mj-button>`;
+      return `<mj-button${fontAttr(p)} background-color="${attr(p.bg || "#2563eb")}" color="${attr(p.color || "#ffffff")}" href="${attr(p.href || "#")}" border-radius="${Number(p.radius) || 0}px" font-size="${Number(p.fontSize) || 14}px" font-weight="${attr(p.fontWeight ?? 600)}" align="${attr(p.align || "center")}" padding="${mPad(p, 12)}" inner-padding="${Number(p.paddingY ?? 12)}px ${Number(p.paddingX ?? 28)}px">${esc(p.text || "Button")}</mj-button>`;
     case "EmailImage":
       if (!p.src) return "";
       return `<mj-image src="${attr(p.src)}" alt="${attr(p.alt || "")}" align="${attr(p.align || "center")}"${p.width ? ` width="${Number(p.width)}px"` : ""}${p.href ? ` href="${attr(p.href)}"` : ""} padding="${mPad(p)}" />`;
@@ -55,8 +58,9 @@ function block(n: SNode): string {
       const deco = p.underline ? "underline" : "none";
       const fw = p.bold ? 700 : 400;
       const fs = p.italic ? "italic" : "normal";
+      const navFont = p.fontFamily ? `font-family:${emailFontCss(p.fontFamily)};` : ""; // empty → inherit Page font
       const links = items.map((it, i) =>
-        `<a href="${attr(it.href || "#")}" style="display:inline-block;text-decoration:${deco};font-weight:${fw};font-style:${fs};color:${attr(p.color || "#374151")};font-size:${Number(p.fontSize) || 14}px;line-height:${p.lineHeight ?? 1.5};letter-spacing:${Number(p.letterSpacing) || 0}px;padding-right:${i < items.length - 1 ? gap : 0}px">${esc(it.text)}</a>`,
+        `<a href="${attr(it.href || "#")}" style="display:inline-block;text-decoration:${deco};font-weight:${fw};font-style:${fs};color:${attr(p.color || "#374151")};${navFont}font-size:${Number(p.fontSize) || 14}px;line-height:${p.lineHeight ?? 1.5};letter-spacing:${Number(p.letterSpacing) || 0}px;padding-right:${i < items.length - 1 ? gap : 0}px">${esc(it.text)}</a>`,
       ).join("");
       return `<mj-text align="${attr(p.align || "center")}" padding="${mPad(p, 8)}">${links}</mj-text>`;
     }
@@ -77,13 +81,9 @@ function block(n: SNode): string {
   }
 }
 
-function column(nodes: SNodes, id: string): string {
-  const n = nodes[id]; if (!n) return "";
-  const p = n.props ?? {};
-  const inner = (n.nodes ?? []).map((b) => block(nodes[b])).join("");
-  if (!inner) return ""; // empty column (no rendered content) — omit from the email
+function columnTag(p: any, inner: string, widthAttr: string): string {
   const bg = p.bgColor && p.bgColor !== "transparent" ? ` background-color="${attr(p.bgColor)}"` : "";
-  return `<mj-column${bg} vertical-align="${attr(p.verticalAlign || "top")}" padding="${Number(p.paddingY) || 0}px ${Number(p.paddingX) ?? 8}px">${inner}</mj-column>`;
+  return `<mj-column${widthAttr}${bg} vertical-align="${attr(p.verticalAlign || "top")}" padding="${Number(p.paddingY) || 0}px ${Number(p.paddingX) ?? 8}px">${inner}</mj-column>`;
 }
 
 function section(nodes: SNodes, id: string): string {
@@ -95,8 +95,26 @@ function section(nodes: SNodes, id: string): string {
   // skipped) when stacking is disabled — grouped columns never stack.
   const reverse = !!p.reverseOnMobile && !p.disableStacking;
   const order = reverse ? [...colIds].reverse() : colIds;
-  const cols = order.map((c) => column(nodes, c)).filter(Boolean).join("");
-  if (!cols) return ""; // section with no content columns — omit from the email
+  // Render each column's content first so empties (no content) can be dropped
+  // before widths are computed — width % must be normalized over what ships.
+  const rendered = order
+    .map((c) => nodes[c])
+    .filter((cn): cn is SNode => !!cn)
+    .map((cn) => ({ p: cn.props ?? {}, inner: (cn.nodes ?? []).map((b) => block(nodes[b])).join("") }))
+    .filter((c) => c.inner);
+  if (!rendered.length) return ""; // section with no content columns — omit from the email
+  // Emit explicit width % only when the user has resized columns (non-uniform
+  // sizes). Uniform → omit width so MJML auto-distributes — keeps output byte-
+  // identical for every email authored before the resizer existed.
+  const sizes = rendered.map((c) => Number(c.p.size) || 1);
+  const uniform = sizes.every((s) => s === sizes[0]);
+  let pcts: number[] = [];
+  if (!uniform && rendered.length > 1) {
+    const total = sizes.reduce((a, b) => a + b, 0) || 1;
+    pcts = sizes.map((s) => Math.round((s / total) * 100));
+    pcts[pcts.length - 1] = 100 - pcts.slice(0, -1).reduce((a, b) => a + b, 0); // last absorbs rounding → sums to 100
+  }
+  const cols = rendered.map((c, i) => columnTag(c.p, c.inner, pcts.length ? ` width="${pcts[i]}%"` : "")).join("");
   const inner = p.disableStacking ? `<mj-group>${cols}</mj-group>` : cols;
   const a: string[] = [];
   if (p.bgColor && p.bgColor !== "transparent") a.push(`background-color="${attr(p.bgColor)}"`);

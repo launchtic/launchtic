@@ -102,11 +102,14 @@ Section.craft = {
 };
 
 // ── Column — holds content blocks ────────────────────────────────────────────
-export function Column({ children, bgColor, paddingY, paddingX, verticalAlign }: any) {
+export function Column({ children, bgColor, paddingY, paddingX, verticalAlign, size }: any) {
   const { connectors: { connect }, empty } = useNode((n) => ({ empty: n.data.nodes.length === 0 }));
+  // `size` is a width weight (set by the column resizer); absent → 1 = equal share.
+  // flex-grow proportional so the inter-column gap never overflows the row.
+  const w = Number(size) || 1;
   return (
     <div ref={(r) => { if (r) connect(r); }}
-      style={{ flex: 1, minWidth: 0, background: bgColor, padding: `${paddingY}px ${paddingX}px`, display: "flex", flexDirection: "column", justifyContent: verticalAlign === "middle" ? "center" : verticalAlign === "bottom" ? "flex-end" : "flex-start", border: empty ? "1px dashed #818cf8" : "none", borderRadius: 4, minHeight: 36 }}>
+      style={{ flex: `${w} ${w} 0%`, minWidth: 0, background: bgColor, padding: `${paddingY}px ${paddingX}px`, display: "flex", flexDirection: "column", justifyContent: verticalAlign === "middle" ? "center" : verticalAlign === "bottom" ? "flex-end" : "flex-start", border: empty ? "1px dashed #818cf8" : "none", borderRadius: 4, minHeight: 36 }}>
       {children}
       {empty && (
         <div style={{ textAlign: "center", color: "#a5b4fc", fontSize: 12, padding: "12px 4px", pointerEvents: "none" }}>Drop content here</div>
@@ -121,23 +124,24 @@ Column.craft = {
 };
 
 // ── Content blocks ───────────────────────────────────────────────────────────
-export function EmailHeading({ text, fontSize = 24, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0, lineHeight = 1.3, letterSpacing = 0 }: any) {
+export function EmailHeading({ text, fontSize = 24, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0, lineHeight = 1.3, letterSpacing = 0, fontFamily }: any) {
   const { connectors: { connect }, actions: { setProp } } = useNode();
-  return <RichEditable as="h1" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, fontWeight: 700, lineHeight, letterSpacing: `${letterSpacing}px`, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap" }} />;
+  // fontFamily empty → inherit the Page font (set on the Page wrapper).
+  return <RichEditable as="h1" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, fontWeight: 700, lineHeight, letterSpacing: `${letterSpacing}px`, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap", fontFamily: fontFamily ? emailFontCss(fontFamily) : undefined }} />;
 }
 EmailHeading.craft = { displayName: "Heading", props: { text: "Your heading", fontSize: 24, color: "#111827", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0, lineHeight: 1.3, letterSpacing: 0 } };
 
-export function EmailText({ text, fontSize = 14, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0, lineHeight = 1.6, letterSpacing = 0 }: any) {
+export function EmailText({ text, fontSize = 14, color, align, marginY = 8, marginX = 0, paddingY = 0, paddingX = 0, lineHeight = 1.6, letterSpacing = 0, fontFamily }: any) {
   const { connectors: { connect }, actions: { setProp } } = useNode();
-  return <RichEditable as="p" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, lineHeight, letterSpacing: `${letterSpacing}px`, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap" }} />;
+  return <RichEditable as="p" html={text} connectRef={connect} onInput={(h: string) => setProp((p: any) => { p.text = h; })} style={{ fontSize, color, textAlign: align, lineHeight, letterSpacing: `${letterSpacing}px`, margin: `${marginY}px ${marginX}px`, padding: `${paddingY}px ${paddingX}px`, whiteSpace: "pre-wrap", fontFamily: fontFamily ? emailFontCss(fontFamily) : undefined }} />;
 }
 EmailText.craft = { displayName: "Text", props: { text: "Some body text.", fontSize: 14, color: "#374151", align: "left", marginY: 8, marginX: 0, paddingY: 0, paddingX: 0, lineHeight: 1.6, letterSpacing: 0 } };
 
-export function EmailButton({ text, href, bg, color, align, radius, fontSize = 14, fontWeight = 600, paddingY = 12, paddingX = 28, marginY = 12, marginX = 0 }: any) {
+export function EmailButton({ text, href, bg, color, align, radius, fontSize = 14, fontWeight = 600, paddingY = 12, paddingX = 28, marginY = 12, marginX = 0, fontFamily }: any) {
   const ref = useBlockRef();
   return (
     <div style={{ textAlign: align, margin: `${marginY}px ${marginX}px` }}>
-      <span ref={ref as any} style={{ display: "inline-block", background: bg, color, padding: `${paddingY}px ${paddingX}px`, borderRadius: radius, fontSize, fontWeight, cursor: "move" }}>{text}</span>
+      <span ref={ref as any} style={{ display: "inline-block", background: bg, color, padding: `${paddingY}px ${paddingX}px`, borderRadius: radius, fontSize, fontWeight, cursor: "move", fontFamily: fontFamily ? emailFontCss(fontFamily) : undefined }}>{text}</span>
     </div>
   );
 }
@@ -165,15 +169,16 @@ export function EmailSpacer({ height, bgColor }: any) {
 }
 EmailSpacer.craft = { displayName: "Spacer", props: { height: 24, bgColor: "transparent" } };
 
-export function EmailNavbar({ items, align, marginY = 8, marginX = 0, itemGap = 16, fontSize, color, lineHeight, letterSpacing, bold = false, italic = false, underline = false }: any) {
+export function EmailNavbar({ items, align, marginY = 8, marginX = 0, itemGap = 16, fontSize, color, lineHeight, letterSpacing, bold = false, italic = false, underline = false, fontFamily }: any) {
   const ref = useBlockRef();
   const list: { text: string; href: string }[] = Array.isArray(items) ? items : [];
+  const ff = fontFamily ? emailFontCss(fontFamily) : undefined; // empty → inherit Page font
   return (
     <div ref={ref as any} style={{ textAlign: align, margin: `${marginY}px ${marginX}px`, cursor: "move" }}>
       {list.map((it, i) => (
         // Gap between items (padding-right), so the first item is flush with the
         // section edge and the last has no trailing space.
-        <span key={i} style={{ display: "inline-block", color, fontSize, lineHeight, letterSpacing: `${letterSpacing}px`, paddingRight: i < list.length - 1 ? `${itemGap}px` : 0, fontWeight: bold ? 700 : 400, fontStyle: italic ? "italic" : "normal", textDecoration: underline ? "underline" : "none" }}>{it.text}</span>
+        <span key={i} style={{ display: "inline-block", color, fontSize, fontFamily: ff, lineHeight, letterSpacing: `${letterSpacing}px`, paddingRight: i < list.length - 1 ? `${itemGap}px` : 0, fontWeight: bold ? 700 : 400, fontStyle: italic ? "italic" : "normal", textDecoration: underline ? "underline" : "none" }}>{it.text}</span>
       ))}
     </div>
   );
