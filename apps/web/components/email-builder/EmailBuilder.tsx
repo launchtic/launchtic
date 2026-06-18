@@ -748,7 +748,9 @@ function ColumnResizers() {
     return null;
   };
 
-  const sectionId = sectionOf(selected) ?? sectionOf(hovered) ?? dragRef.current;
+  // dragRef takes priority so an in-progress drag stays locked to its section
+  // even as the mouse passes over other nodes (which would change `hovered`).
+  const sectionId = dragRef.current ?? sectionOf(selected) ?? sectionOf(hovered);
   if (device === "mobile" || !sectionId || !nodes[sectionId]) return null;
   const colIds = (nodes[sectionId].data.nodes ?? []).filter((c) => nodes[c]?.data.name === "Column");
   if (colIds.length < 2) return null;
@@ -759,32 +761,72 @@ function ColumnResizers() {
     e.preventDefault();
     e.stopPropagation(); // don't change selection when grabbing the handle
     dragRef.current = sectionId;
+    const handleEl = e.currentTarget as HTMLElement;
     const ids = colIds;
-    const widths = ids.map((c) => nodes[c]!.dom!.getBoundingClientRect().width);
+    const doms = ids.map((c) => nodes[c]!.dom!);
+    const widths = doms.map((d) => d.getBoundingClientRect().width);
     const totalPx = widths.reduce((a, b) => a + b, 0) || 1;
     const base = widths.map((w) => (w / totalPx) * 100);
     const pairPct = base[i] + base[i + 1];
     const startX = e.clientX;
     const MIN = 10; // each side keeps ≥10% of the section
-    let started = false;
 
+    // Resize is previewed by writing the columns' flex DIRECTLY (no setProp), so
+    // the drag never re-renders/reserializes the tree — that storm (one onChange
+    // per frame → parent setState) was the source of the jank + scroll jump. The
+    // craft props are committed once, on release.
+    // Pin every column to its starting weight so untouched columns hold still.
+    doms.forEach((d, k) => { d.style.flex = `${base[k]} ${base[k]} 0%`; });
+    // Freeze the handle's vertical box for the whole drag. Otherwise, as a
+    // narrowed column's text rewraps and the row grows taller, recomputing
+    // top/height makes the bar jump — exactly the glitch the user saw.
+    const sec0 = nodes[sectionId]!.dom!.getBoundingClientRect();
+    handleEl.style.top = `${sec0.top}px`;
+    handleEl.style.height = `${sec0.height}px`;
+
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    let moved = false;
+    let latestX = startX;
+    let raf = 0;
+    const sizeAt = (x: number) => Math.round(Math.max(MIN, Math.min(pairPct - MIN, base[i] + ((x - startX) / totalPx) * 100)));
+    const apply = () => {
+      raf = 0;
+      const a = sizeAt(latestX);
+      const b = Math.round(pairPct) - a;
+      doms[i].style.flex = `${a} ${a} 0%`;
+      doms[i + 1].style.flex = `${b} ${b} 0%`;
+      // Keep the handle on the (now reflowed) boundary, horizontally only.
+      const rA = doms[i].getBoundingClientRect();
+      const rB = doms[i + 1].getBoundingClientRect();
+      handleEl.style.left = `${(rA.right + rB.left) / 2 - 5}px`;
+    };
     const onMove = (ev: MouseEvent) => {
-      // On the first actual movement, snapshot every column to an explicit %
-      // weight so scales stay consistent (a 3-col row keeps the untouched
-      // column's width). Deferred to here so a stray click leaves props clean.
-      if (!started) {
-        started = true;
-        ids.forEach((c, k) => actions.history.throttle(1000).setProp(c, (p: any) => { p.size = Math.round(base[k]); }));
-      }
-      let aPct = base[i] + ((ev.clientX - startX) / totalPx) * 100;
-      aPct = Math.max(MIN, Math.min(pairPct - MIN, aPct));
-      const a = Math.round(aPct);
-      actions.history.throttle(1000).setProp(ids[i], (p: any) => { p.size = a; });
-      actions.history.throttle(1000).setProp(ids[i + 1], (p: any) => { p.size = Math.round(pairPct) - a; });
+      ev.preventDefault();
+      latestX = ev.clientX;
+      moved = true;
+      if (!raf) raf = requestAnimationFrame(apply);
     };
     const onUp = () => {
+      if (raf) cancelAnimationFrame(raf);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      if (moved) {
+        // Commit once: snapshot all columns to explicit weights (so a 3-col row
+        // keeps the untouched column), then set the dragged pair. The re-render
+        // re-applies flex from props, overwriting our inline styles.
+        const a = sizeAt(latestX);
+        ids.forEach((c, k) => actions.history.throttle(1000).setProp(c, (p: any) => { p.size = Math.round(base[k]); }));
+        actions.history.throttle(1000).setProp(ids[i], (p: any) => { p.size = a; });
+        actions.history.throttle(1000).setProp(ids[i + 1], (p: any) => { p.size = Math.round(pairPct) - a; });
+      } else {
+        // A click without movement: drop the inline pins so the columns fall back
+        // to their prop-driven widths and props stay clean.
+        doms.forEach((d) => { d.style.flex = ""; });
+      }
       dragRef.current = null;
       force((n) => n + 1);
     };
