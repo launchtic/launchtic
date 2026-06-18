@@ -42,7 +42,7 @@ export async function PATCH(
 
     const role = await db.role.findFirst({
       where: { id, workspaceId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, permissions: true },
     });
     if (!role) return err("Role not found.", 404);
 
@@ -55,10 +55,15 @@ export async function PATCH(
       if (dup) return err("A role with this name already exists.", 409);
     }
 
-    // Guardrail: if changing permissions and this is the last role with
-    // `roles:manage`, prevent removing roles:manage from it (would lock the
-    // workspace out of role management; only Org owner could recover).
-    if (body.permissions && !body.permissions.includes("roles:manage")) {
+    // Guardrail: prevent removing `roles:manage` from the last role that has
+    // it (would lock the workspace out of role management; only Org owner
+    // could recover). Only relevant when this role CURRENTLY holds it and the
+    // update drops it — editing a role that never had it can't reduce the count.
+    if (
+      role.permissions.includes("roles:manage") &&
+      body.permissions &&
+      !body.permissions.includes("roles:manage")
+    ) {
       const others = await db.role.count({
         where: {
           workspaceId,

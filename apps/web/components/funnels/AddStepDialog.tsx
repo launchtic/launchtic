@@ -14,7 +14,7 @@ const STEP_TYPES = [
   { value: "UPSELL",   label: "Upsell" },
   { value: "DOWNSELL", label: "Downsell" },
   { value: "THANKYOU", label: "Thank You" },
-  { value: "CUSTOM",   label: "Custom page (About / Privacy / Terms)" },
+  { value: "CUSTOM",   label: "Custom page" },
 ];
 
 export default function AddStepDialog({ funnelId, fullWidth, canUpsell = false }: { funnelId: string; fullWidth?: boolean; canUpsell?: boolean }) {

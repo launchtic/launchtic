@@ -4,7 +4,7 @@
 # content, then let cron restore it on a schedule.
 #
 #   ./demo-reset.sh snapshot   # capture current DB + uploads as the baseline
-#   ./demo-reset.sh            # restore the baseline (run by cron, e.g. every 2h)
+#   ./demo-reset.sh            # restore the baseline (run by cron, e.g. daily)
 #
 # Run from the Launchtic install dir (where docker-compose.yml + .env live).
 set -euo pipefail
@@ -39,7 +39,12 @@ restore() {
 
   echo "▶ Restoring uploads..."
   if [ -f "$BASELINE_DIR/uploads.tar.gz" ]; then
-    rm -rf uploads
+    # Clear contents in place — do NOT `rm -rf uploads`. Caddy bind-mounts this
+    # dir and isn't restarted here; replacing the dir's inode leaves Caddy serving
+    # the old (deleted) inode → restored images 404. Emptying in place keeps the
+    # inode, so Caddy sees the new files live.
+    mkdir -p uploads
+    find uploads -mindepth 1 -delete 2>/dev/null || true
     tar -xzf "$BASELINE_DIR/uploads.tar.gz"
   fi
 

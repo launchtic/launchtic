@@ -1,6 +1,6 @@
 # Public Demo — Runbook
 
-`demo.launchtic.com` là sandbox dùng chung: khách tự đăng nhập 1 tài khoản demo, action nguy hiểm bị chặn, box tự reset về baseline mỗi 2h.
+`demo.launchtic.com` là sandbox dùng chung: khách tự đăng nhập 1 tài khoản demo, action nguy hiểm bị chặn, box tự reset về baseline 1 lần/ngày.
 
 ## DEMO_MODE làm gì
 Bật `DEMO_MODE=true` trong `.env` → app:
@@ -29,13 +29,36 @@ Bật `DEMO_MODE=true` trong `.env` → app:
 ## Cơ chế reset
 `demo-reset.sh` chỉ quản **DB (Postgres) + thư mục `uploads`**.
 - `snapshot` (tay, 1 lần): `pg_dump` + nén `uploads` → `demo-baseline/`. Đây là bản gốc sạch.
-- `restore` (cron): dừng web/worker/renderer → `pg_restore --clean` → giải nén lại uploads → khởi động lại. Rác khách biến mất. `.env`/cert/volume khác không đụng.
+- `restore` (cron): dừng web/worker/renderer → `pg_restore --clean` → giải nén lại uploads → restart caddy (re-resolve bind mount uploads) → khởi động lại app. Rác khách biến mất. `.env`/cert/volume khác không đụng.
 
-Cron mỗi 2h:
-```cron
-0 */2 * * * cd /root/launchtic && ./demo-reset.sh restore >> /var/log/demo-reset.log 2>&1
-```
 Đổi content mẫu → dựng lại rồi `./demo-reset.sh snapshot`.
+
+## Cron auto-reset
+
+**Chọn giờ theo ưu tiên US > EU > Á/Úc → 10:00 UTC, 1 lần/ngày.** Lúc đó US ngủ sâu (West ~02h, East ~05h) nên không cắt ngang ai, và demo tươi đúng đầu ngày làm việc US; đổi lại EU bị gián đoạn ~30s lúc trưa (chấp nhận, vì #2).
+
+**Cron chạy theo timezone server**, không phải UTC mặc nhiên. Kiểm tra và (nếu cần) ép về UTC:
+```bash
+timedatectl                          # xem dòng "Time zone:"
+timedatectl set-timezone UTC         # nếu chưa phải UTC
+```
+
+Thêm dòng cron (mở editor crontab của root):
+```bash
+crontab -e
+```
+Dán dòng này vào, lưu lại:
+```cron
+0 10 * * * cd /root/launchtic && ./demo-reset.sh restore >> /var/log/demo-reset.log 2>&1
+```
+
+Kiểm tra + theo dõi:
+```bash
+crontab -l                           # xác nhận dòng cron đã có
+tail -f /var/log/demo-reset.log      # xem log mỗi lần chạy
+./demo-reset.sh restore              # chạy tay 1 lần để test ngay, không đợi 10:00 UTC
+```
+Gỡ cron khi cần (vd trước khi update có migration): `crontab -l | grep -v demo-reset | crontab -`
 
 ## Update app
 Update chỉ pull image mới + refresh compose/Caddyfile; `.env` + volume giữ nguyên. Migration chạy khi `web` khởi động.
