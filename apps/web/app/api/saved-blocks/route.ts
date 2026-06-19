@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
     const kind = sp.get("kind");
     const tag = sp.get("tag")?.trim().toLowerCase();
 
-    const where: any = { workspaceId };
+    // Page-editor blocks only — email blocks live in the same table with
+    // kind="email" (see /api/email-blocks) and must never appear here.
+    const where: any = { workspaceId, kind: { in: ["section", "row"] } };
     if (kind === "section" || kind === "row") where.kind = kind;
     if (tag) where.tags = { has: tag };
 
@@ -57,7 +59,10 @@ export async function GET(req: NextRequest) {
     // Compute tag counts across the whole workspace (ignore current `tag`
     // filter so the chip row stays stable while a filter is active).
     const allForCounts = await db.savedBlock.findMany({
-      where: { workspaceId, ...(kind === "section" || kind === "row" ? { kind } : {}) },
+      where: {
+        workspaceId,
+        kind: kind === "section" || kind === "row" ? kind : { in: ["section", "row"] },
+      },
       select: { tags: true },
     });
     const tagCounts: Record<string, number> = {};
