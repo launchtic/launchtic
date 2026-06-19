@@ -4,7 +4,7 @@
 // Column → content. value/onChange = Craft serialized JSON (stored in the email
 // body); rendered to responsive HTML via MJML at preview/send time.
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { memo, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
 import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
@@ -1037,7 +1037,12 @@ function ColumnResizers() {
   );
 }
 
-export default function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: string) => void }) {
+// Memoized: the editor must NOT re-render when the parent re-renders for an
+// unrelated reason (autosave state, audience preview, stats polling…). Those
+// re-renders, if they reach <Editor>/<Frame> mid drag-drop, interrupt craft's
+// drag and the element fails to land. `value` only changes on a real edit and
+// `onChange` is a stable setState — so shallow-equal props skip the re-render.
+function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: string) => void }) {
   const hasData = !!value && value.trim().startsWith("{") && value.includes("ROOT");
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -1076,3 +1081,5 @@ export default function EmailBuilder({ value, onChange }: { value?: string; onCh
     </SavedBlocksProvider>
   );
 }
+
+export default memo(EmailBuilder);
