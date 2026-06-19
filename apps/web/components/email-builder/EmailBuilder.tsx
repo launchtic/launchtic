@@ -4,7 +4,7 @@
 // Column → content. value/onChange = Craft serialized JSON (stored in the email
 // body); rendered to responsive HTML via MJML at preview/send time.
 
-import { memo, useContext, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
 import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
@@ -1048,9 +1048,34 @@ function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: st
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   const lastEmitted = useRef<string | undefined>(value);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+
+  // Serializing the whole tree on EVERY craft change (every slider tick, every
+  // node move) is what made the canvas lag — and worse, emitting synchronously
+  // mid drag-drop changes `value` → re-renders <Editor> → recreates craft's drop
+  // handler → the drop is lost (prod only, where the scheduler flushes harder).
+  // So: just stash the query on change and serialize+emit on a 300ms debounce,
+  // out of the drag's way. Mirrors the landing-page editor's `markAsChanged`.
+  const queryRef = useRef<any>(null);
+  const emitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emitNow = () => {
+    if (emitTimer.current) { clearTimeout(emitTimer.current); emitTimer.current = null; }
+    const s = queryRef.current?.serialize();
+    if (s == null) return;
+    lastEmitted.current = s;
+    onChangeRef.current(s);
+  };
+  const onNodesChange = useCallback((q: any) => {
+    queryRef.current = q;
+    if (emitTimer.current) clearTimeout(emitTimer.current);
+    emitTimer.current = setTimeout(() => { emitTimer.current = null; emitNow(); }, 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Flush any pending edit on unmount so the last change isn't lost.
+  useEffect(() => () => { if (emitTimer.current) emitNow(); }, []);
+
   return (
     <SavedBlocksProvider>
-    <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={(q) => { const s = q.serialize(); lastEmitted.current = s; onChangeRef.current(s); }}>
+    <Editor resolver={EMAIL_RESOLVER} onRender={RenderNode} onNodesChange={onNodesChange}>
       <AutoWrap />
       <ExternalValueSync value={value} lastEmitted={lastEmitted} />
       <InlineToolbar />
