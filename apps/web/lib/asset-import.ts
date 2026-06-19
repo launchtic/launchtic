@@ -6,6 +6,22 @@ import { createHash } from "crypto";
 import { db } from "@launchtic/database";
 import { getDriver, getDriverName, buildKey } from "./storage";
 
+const MIME_EXT: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/svg+xml": ".svg",
+};
+
+// Some bundles carry a filename without an extension (e.g. an asset renamed to
+// "hero-image"). buildKey derives the stored ext from the filename, so a missing
+// ext means the file lands extensionless. Backfill it from the MIME type.
+function withExtension(filename: string, mimeType: string): string {
+  if (/\.[a-z0-9]+$/i.test(filename)) return filename;
+  return MIME_EXT[mimeType] ? `${filename}${MIME_EXT[mimeType]}` : filename;
+}
+
 export interface AssetManifestEntry {
   /** Source-side asset id (gallery's PublicTemplateAsset.id, or another
    *  workspace's Asset.id). Used as map key for content rewrites. */
@@ -84,14 +100,16 @@ export async function importAssets(
       continue;
     }
 
-    // Upload to the workspace's shared media folder (root).
-    const key = buildKey(workspaceId, entry.filename);
+    // Upload to the workspace's shared media folder (root). Ensure the filename
+    // has an extension so the stored key + served URL keep the right type.
+    const safeName = withExtension(entry.filename, entry.mimeType);
+    const key = buildKey(workspaceId, safeName);
     const newUrl = await driver.upload(key, buffer, entry.mimeType);
 
     const created = await db.asset.create({
       data: {
         workspaceId,
-        filename:    entry.filename,
+        filename:    safeName,
         mimeType:    entry.mimeType,
         sha256:      entry.sha256,
         bytes:       entry.bytes ?? buffer.length,
