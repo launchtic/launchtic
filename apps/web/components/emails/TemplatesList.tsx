@@ -4,12 +4,13 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  Plus, Lock, Mail, Pencil, Copy, Trash2, Loader2, Search, Download,
+  Plus, Lock, Mail, Pencil, Copy, Trash2, Loader2, Search,
 } from "lucide-react";
 import { EMPTY_EMAIL_DOC } from "@launchtic/email";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
-import { apiFetch, downloadFromApi } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
+import ExportButton from "../ui/ExportButton";
 
 type Category = "TRANSACTIONAL" | "MARKETING" | "SYSTEM";
 
@@ -186,13 +187,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
                 >
                   <Pencil size={14} />
                 </Link>
-                <button
-                  onClick={() => downloadFromApi(`/api/email-templates/${t.id}/export-bundle`, `${t.name}.ltbundle`).catch((e) => alert(e.message))}
-                  title="Export as .ltbundle"
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <Download size={14} />
-                </button>
+                <ExportButton url={`/api/email-templates/${t.id}/export-bundle`} filename={`${t.name}.ltbundle`} />
                 {canManageEmailTemplates && (
                   <button
                     onClick={() => handleDuplicate(t.id)}

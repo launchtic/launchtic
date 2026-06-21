@@ -6,10 +6,11 @@ import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
   FileText, TrendingUp, ShoppingCart, CheckCircle, ArrowUpCircle, ArrowDownCircle,
   Search, ChevronLeft, ChevronRight, Settings, Image as ImageIcon, Filter, Copy,
-  Power, Download, Sparkles,
+  Power, Sparkles,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
-import { apiFetch, downloadFromApi } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
+import ExportButton from "../ui/ExportButton";
 import { useRole } from "../../lib/role";
 
 type StepType = "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
@@ -773,13 +774,7 @@ export default function PageTemplatesPanel() {
                               >
                                 {cloning === t.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                               </button>
-                              <button
-                                onClick={() => downloadFromApi(`/api/page-templates/${t.id}/export-bundle`, `${t.name}.ltbundle`).catch((e) => alert(e.message))}
-                                title="Export as .ltbundle"
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              >
-                                <Download size={14} />
-                              </button>
+                              <ExportButton url={`/api/page-templates/${t.id}/export-bundle`} filename={`${t.name}.ltbundle`} />
                               <button
                                 onClick={() => handleDelete(t)}
                                 disabled={deleting === t.id}

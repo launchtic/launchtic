@@ -333,7 +333,7 @@ export default function TopNav({
           onClick={() => setMobileOpen(false)}
         >
           <div
-            className="absolute top-14 left-0 right-0 bg-white border-b border-gray-200 shadow-lg px-4 py-3 flex flex-col gap-1"
+            className="absolute top-14 left-0 right-0 max-h-[calc(100dvh-3.5rem)] overflow-y-auto overscroll-contain bg-white border-b border-gray-200 shadow-lg px-4 py-3 flex flex-col gap-1"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Workspace section — Agency-tier only (matches desktop). Below
@@ -349,31 +349,7 @@ export default function TopNav({
 
             {navItems.map((item) => {
               if (isGroup(item)) {
-                const activeHref = activeChildHref(item.children, pathname);
-                const groupActive = activeHref !== null;
-                return (
-                  <div key={item.label}>
-                    <div className={`flex items-center gap-3 px-4 py-2 text-xs font-semibold uppercase tracking-wider ${groupActive ? "text-blue-600" : "text-gray-400"}`}>
-                      <item.icon size={14} />
-                      {item.label}
-                    </div>
-                    {item.children.map(({ href, label, icon: Icon }) => {
-                      const active = href === activeHref;
-                      return (
-                        <Link
-                          key={href}
-                          href={href}
-                          className={`flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl text-sm transition-colors ${
-                            active ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                          }`}
-                        >
-                          <Icon size={15} strokeWidth={active ? 2 : 1.75} />
-                          {label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
+                return <MobileNavGroup key={item.label} item={item} pathname={pathname} />;
               }
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
@@ -393,6 +369,47 @@ export default function TopNav({
         </div>
       )}
     </>
+  );
+}
+
+// Collapsible parent group inside the mobile menu (Sales / Contacts / Emails).
+// Tapping the header toggles its children; it starts open only when the current
+// page is inside this group, so the menu isn't a wall of links on mobile.
+function MobileNavGroup({ item, pathname }: { item: NavGroup; pathname: string }) {
+  const activeHref = activeChildHref(item.children, pathname);
+  const groupActive = activeHref !== null;
+  const [expanded, setExpanded] = useState(groupActive);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${
+          groupActive ? "text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+        }`}
+      >
+        <item.icon size={16} strokeWidth={groupActive ? 2 : 1.75} />
+        <span className="flex-1 text-left">{item.label}</span>
+        <ChevronDown size={15} className={`text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+
+      {expanded && item.children.map(({ href, label, icon: Icon }) => {
+        const active = href === activeHref;
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={`flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl text-sm transition-colors ${
+              active ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            <Icon size={15} strokeWidth={active ? 2 : 1.75} />
+            {label}
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 

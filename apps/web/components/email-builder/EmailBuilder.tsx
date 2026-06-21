@@ -4,10 +4,10 @@
 // Column → content. value/onChange = Craft serialized JSON (stored in the email
 // body); rendered to responsive HTML via MJML at preview/send time.
 
-import { memo, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
-import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight, PanelLeft, PanelLeftClose } from "lucide-react";
 import { STANDARD_VARIABLES, EMAIL_FONTS, emailFontCss } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";
 import { ColorSwatchButton, ColorPickerPopup } from "./ColorPicker";
@@ -15,6 +15,10 @@ import { SavedBlocksProvider, useSavedBlocks, extractSubtree, insertSavedBlock }
 import {
   EMAIL_RESOLVER, Page, Section, Column, EmailHeading, EmailText, EmailButton, EmailImage, EmailDivider, EmailSpacer, EmailNavbar, EmailSocial, DeviceContext,
 } from "./blocks";
+
+// Runs before the browser paints on the client (so the mobile panel collapses
+// without a visible flash), and is a no-op effect on the server.
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // Duplicate a node + its subtree (fresh ids), inserted right after it.
 function duplicateNode(query: any, actions: any, id: string) {
@@ -857,18 +861,22 @@ function ExternalValueSync({ value, lastEmitted }: { value?: string; lastEmitted
 
 // One left sidebar: element list (Toolbox) by default; the selected element's
 // settings (with a Back button) once something is selected.
-function LeftPanel() {
+function LeftPanel({ onClose }: { onClose: () => void }) {
   const { hasSel } = useEditor((s) => ({ hasSel: (s.events.selected as Set<string>).size > 0 }));
   return (
-    <div className="w-80 shrink-0 border-r border-gray-200 bg-white overflow-y-auto">
-      {hasSel ? <SettingsPanel /> : <Toolbox />}
-    </div>
+    <>
+      {/* Mobile backdrop — tap to close. On desktop the panel is a static column. */}
+      <div className="md:hidden absolute inset-0 z-30 bg-black/20" onClick={onClose} />
+      <div className="absolute inset-y-0 left-0 z-40 w-80 max-w-[85%] shrink-0 border-r border-gray-200 bg-white overflow-y-auto md:static md:max-w-none md:z-auto">
+        {hasSel ? <SettingsPanel /> : <Toolbox />}
+      </div>
+    </>
   );
 }
 
 // Floating bottom-right control: undo/redo + switch the editable canvas between
 // desktop and (simulated) mobile width.
-function DeviceBar({ device, setDevice }: { device: "desktop" | "mobile"; setDevice: (d: "desktop" | "mobile") => void }) {
+function DeviceBar({ device, setDevice, panelOpen, onTogglePanel }: { device: "desktop" | "mobile"; setDevice: (d: "desktop" | "mobile") => void; panelOpen: boolean; onTogglePanel: () => void }) {
   const { canUndo, canRedo, actions } = useEditor((_, query) => ({ canUndo: query.history.canUndo(), canRedo: query.history.canRedo() }));
   // Ctrl/Cmd+Z / Shift+Z / Y — but leave inline text fields to native undo
   // (their input events keep Craft props in sync).
@@ -887,7 +895,9 @@ function DeviceBar({ device, setDevice }: { device: "desktop" | "mobile"; setDev
   const dbtn = (active: boolean) => `p-1.5 rounded-md transition-colors ${active ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`;
   const hbtn = "p-1.5 rounded-md text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-500 transition-colors";
   return (
-    <div className="absolute bottom-4 right-4 z-30 flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-lg p-1 shadow-md">
+    <div className="absolute bottom-4 right-4 z-50 flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-lg p-1 shadow-md">
+      <button type="button" onClick={onTogglePanel} className={hbtn} title={panelOpen ? "Hide panel" : "Show panel"}>{panelOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}</button>
+      <span className="w-px h-5 bg-gray-300 mx-0.5" />
       <button type="button" onClick={() => actions.history.undo()} disabled={!canUndo} className={hbtn} title="Undo (Ctrl+Z)"><Undo2 size={16} /></button>
       <button type="button" onClick={() => actions.history.redo()} disabled={!canRedo} className={hbtn} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16} /></button>
       <span className="w-px h-5 bg-gray-300 mx-0.5" />
@@ -1048,6 +1058,11 @@ function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: st
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   const lastEmitted = useRef<string | undefined>(value);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  // Left panel collapses on mobile so the canvas is usable; toggled from the
+  // DeviceBar. Default open (consistent SSR/first render → no hydration
+  // mismatch), then auto-collapse on small screens after mount.
+  const [panelOpen, setPanelOpen] = useState(true);
+  useIsomorphicLayoutEffect(() => { if (window.innerWidth < 768) setPanelOpen(false); }, []);
 
   // Serializing the whole tree on EVERY craft change (every slider tick, every
   // node move) is what made the canvas lag — and worse, emitting synchronously
@@ -1081,7 +1096,7 @@ function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: st
       <InlineToolbar />
       <DeviceContext.Provider value={device}>
         <div className="relative flex h-full min-h-0 border border-gray-200 rounded-lg overflow-hidden">
-          <LeftPanel />
+          {panelOpen && <LeftPanel onClose={() => setPanelOpen(false)} />}
           <div className="flex-1 min-w-0 overflow-y-auto bg-gray-100">
             {hasData ? (
               <Frame data={value!} />
@@ -1098,7 +1113,7 @@ function EmailBuilder({ value, onChange }: { value?: string; onChange: (json: st
               </Frame>
             )}
           </div>
-          <DeviceBar device={device} setDevice={setDevice} />
+          <DeviceBar device={device} setDevice={setDevice} panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((o) => !o)} />
           <ColumnResizers />
         </div>
       </DeviceContext.Provider>

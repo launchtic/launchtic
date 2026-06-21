@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import {
   Search, ChevronLeft, ChevronRight, Loader2, Zap, Eye, Settings, Trash2, Plus,
-  Undo2, Download,
+  Undo2,
 } from "lucide-react";
 import FunnelFormDrawer from "./FunnelFormDrawer";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToast } from "../ui/Toast";
 import { useRole } from "../../lib/role";
-import { apiFetch, downloadFromApi } from "../../lib/api-client";
+import { apiFetch } from "../../lib/api-client";
+import ExportButton from "../ui/ExportButton";
 
 type Domain = { domain: string; verified: boolean };
 type Funnel = {
@@ -273,13 +274,7 @@ export default function FunnelsClient({
                         )}
                         {view === "active" ? (
                           <>
-                            <button
-                              onClick={() => downloadFromApi(`/api/funnels/${f.id}/export-bundle`, `${f.name}.ltbundle`).catch((e) => alert(e.message))}
-                              title="Export as .ltbundle"
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            >
-                              <Download size={14} />
-                            </button>
+                            <ExportButton url={`/api/funnels/${f.id}/export-bundle`} filename={`${f.name}.ltbundle`} />
                             {canManageFunnels && (
                               <button
                                 onClick={() => setEditId(f.id)}
