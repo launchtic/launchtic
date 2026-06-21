@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useState, ReactNode, useContext } from "react";
+import React, { createContext, useState, ReactNode, useContext, useMemo } from "react";
 
 // Define the interface for DropIndicator
 interface DropIndicator {
@@ -36,6 +36,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Context Provider
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.appProvider++; } // DEBUG
   const [viewMode, setViewMode] = useState<"mobile" | "desktop">("desktop");
   const [isSidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
 
@@ -43,26 +44,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [dropTargets, setDropTargets] = useState<string[]>([]);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
 
-  const dragDrop: DragDropState = {
-    isDragging,
-    dropTargets,
-    dropIndicator
-  };
-
-  return (
-    <AppContext.Provider value={{
-      viewMode,
-      setViewMode,
-      isSidebarCollapsed,
-      setSidebarCollapsed,
-      dragDrop,
-      setIsDragging,
-      setDropTargets,
-      setDropIndicator
-    }}>
-      {children}
-    </AppContext.Provider>
+  // Memoized so consumers don't get a brand-new context object on every render.
+  const dragDrop = useMemo<DragDropState>(
+    () => ({ isDragging, dropTargets, dropIndicator }),
+    [isDragging, dropTargets, dropIndicator],
   );
+  const value = useMemo<AppContextType>(
+    () => ({ viewMode, setViewMode, isSidebarCollapsed, setSidebarCollapsed, dragDrop, setIsDragging, setDropTargets, setDropIndicator }),
+    [viewMode, isSidebarCollapsed, dragDrop],
+  );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 
 // Custom hook to use AppContext

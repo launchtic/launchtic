@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useRef, useCallback } from "react";
-import { Editor, Frame, Element } from "@craftjs/core";
+import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 
 // Elements from this package
 import {
@@ -113,8 +113,73 @@ function injectWindowData(
   };
 }
 
+// Debounced autosave. Lives inside <Editor> so it can read `query`. We only
+// serialize when actually saving (never per change), so this adds no per-edit
+// cost. `markAsChanged` flips hasUnsavedChanges → we save ~3s later; if you keep
+// editing, the in-flight guard rate-limits to one save per cycle, and the final
+// edit is saved within 3s of stopping.
+const AutoSave: React.FC = () => {
+  if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.autoSave++; } // DEBUG
+  const { query } = useEditor();
+  const { hasUnsavedChanges, isSaving, updatePage } = useEditorContext();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!hasUnsavedChanges || isSaving) return;
+    timerRef.current = setTimeout(() => {
+      updatePage(query.serialize()).catch(() => { /* surfaced by the Save button state */ });
+    }, 3000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [hasUnsavedChanges, isSaving, updatePage, query]);
+  return null;
+};
+
+// The canvas (Frame + node tree) is the heavy part. Memoize it so it does NOT
+// re-render when EditorInner re-renders for save-state changes (isSaving /
+// hasUnsavedChanges / autosave). Those used to cascade Frame → every node →
+// every BaseEditor (the `baseEditor:500+` render storms in the perf log). It
+// only re-renders when viewMode/pageFont/content actually change. Craft keeps the
+// live node state internally, so memoizing the wrapper never freezes editing.
+const EditorCanvas = React.memo(function EditorCanvas({
+  viewMode, pageFont, content,
+}: { viewMode: "mobile" | "desktop"; pageFont: any; content: string }) {
+  return (
+    <MobilePhoneUi $viewMode={viewMode}>
+      <DeviceWorkAreaUi $viewMode={viewMode}>
+        <PageUi>
+          <PageWrapper>
+            <BodyUI $viewMode={viewMode}>
+              <PageFontApplier font={pageFont}>
+                <Frame data={getValidCraftContent(content)}>
+                  <Element is={Page} canvas />
+                </Frame>
+              </PageFontApplier>
+            </BodyUI>
+          </PageWrapper>
+        </PageUi>
+      </DeviceWorkAreaUi>
+    </MobilePhoneUi>
+  );
+});
+
 // Inner component — reads context
 const EditorInner: React.FC = () => {
+  // ───── DEBUG perf counters ─────
+  if (typeof window !== "undefined") {
+    const w = window as any;
+    if (!w.__ltPerf) w.__ltPerf = { editorInner: 0, appProvider: 0, markChanged: 0, autoSave: 0, baseEditor: 0 };
+    w.__ltPerf.editorInner++;
+  }
+  useEffect(() => {
+    const id = setInterval(() => {
+      const p = (window as any).__ltPerf;
+      if (!p) return;
+      // eslint-disable-next-line no-console
+      console.log(`[perf/2s] EditorInner:${p.editorInner} AppProvider:${p.appProvider} markChanged:${p.markChanged} autoSave:${p.autoSave} baseEditor:${p.baseEditor}`);
+      p.editorInner = 0; p.appProvider = 0; p.markChanged = 0; p.autoSave = 0; p.baseEditor = 0;
+    }, 2000);
+    return () => clearInterval(id);
+  }, []);
+  // ───────────────────────────────
   const appContext = useAppContext();
   const { viewMode, isSidebarCollapsed } = appContext;
   const { isLoading, pageData, hasUnsavedChanges, markAsChanged, meta } = useEditorContext();
@@ -182,25 +247,12 @@ const EditorInner: React.FC = () => {
       resolver={resolver}
       onNodesChange={markAsChanged}
     >
+      <AutoSave />
       <LayoutUi $isSidebarCollapsed={isSidebarCollapsed}>
         <Header />
         <Sidebar />
         <ContentUi>
-          <MobilePhoneUi $viewMode={viewMode}>
-            <DeviceWorkAreaUi $viewMode={viewMode}>
-              <PageUi>
-                <PageWrapper>
-                  <BodyUI $viewMode={viewMode}>
-                    <PageFontApplier font={pageFont}>
-                      <Frame data={getValidCraftContent(pageData.content)}>
-                        <Element is={Page} canvas />
-                      </Frame>
-                    </PageFontApplier>
-                  </BodyUI>
-                </PageWrapper>
-              </PageUi>
-            </DeviceWorkAreaUi>
-          </MobilePhoneUi>
+          <EditorCanvas viewMode={viewMode} pageFont={pageFont} content={pageData.content} />
         </ContentUi>
       </LayoutUi>
     </Editor>

@@ -85,15 +85,17 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
   }, []);
 
   const markAsChanged = useCallback(() => {
+    if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.markChanged++; } // DEBUG
     if (!isInitializedRef.current) return;
     setHasUnsavedChanges(true);
   }, []);
 
   const updatePage = useCallback(async (content: string): Promise<void> => {
-    const updatedData = { ...pageData, content };
-    setPageData(updatedData);
-
-    if (!updatedData.code) {
+    // NOTE: deliberately NOT calling setPageData here. The live content lives in
+    // Craft; pageData.content is only the mount seed for <Frame>. Writing it back
+    // on every save changed the memoized canvas's `content` prop → re-rendered
+    // every node on each (auto)save. The API gets `content` directly.
+    if (!pageData.code) {
       console.warn('Page code is missing, cannot save to API');
       return;
     }
@@ -101,7 +103,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
     setIsSaving(true);
 
     try {
-      const response = await savePage(updatedData.code, updatedData.content);
+      const response = await savePage(pageData.code, content);
 
       if (response.success) {
         console.log('Page saved successfully:', response);
@@ -116,7 +118,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
     } finally {
       setIsSaving(false);
     }
-  }, [pageData]);
+  }, [pageData.code]);
 
   const saveMeta = useCallback(async (newMeta: Record<string, any>) => {
     setMeta(newMeta);

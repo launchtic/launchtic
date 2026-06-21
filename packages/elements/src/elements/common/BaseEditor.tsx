@@ -69,21 +69,24 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
     id: node.id,
   }));
 
-  const { craftIsActive, enabled, selectedElement } = useCraftEditor((state, query) => {
-    const selectedNodeId = query.getEvent("selected").first();
-    return {
-      craftIsActive: selectedNodeId === id,
-      enabled: state.options.enabled,
-      selectedElement: selectedNodeId ? query.node(selectedNodeId).get().data.displayName : null,
-    };
-  });
+  if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.baseEditor++; } // DEBUG
+  // Only subscribe to whether THIS node is selected (+ enabled). Previously this
+  // also returned the globally-selected element's name, so EVERY rich-text block
+  // re-rendered on every selection change → O(N) work on each click/mousedown
+  // (the 158ms handler). `craftIsActive` already implies this node is selected,
+  // and a selected node's displayName equals our `displayName`, so the old
+  // `selectedElement !== displayName` checks were redundant.
+  const { craftIsActive, enabled } = useCraftEditor((state, query) => ({
+    craftIsActive: query.getEvent("selected").first() === id,
+    enabled: state.options.enabled,
+  }));
 
   useEffect(() => {
-    if (!craftIsActive || selectedElement !== displayName) {
+    if (!craftIsActive) {
       setShowLinkSettings(false);
       setLinkUrl('');
     }
-  }, [craftIsActive, selectedElement, displayName]);
+  }, [craftIsActive]);
 
   const initialContent = rawContentState
     ? jsonToHtml(JSON.parse(rawContentState))
@@ -321,7 +324,7 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
     editor?.chain().focus().setColor(rgba).run();
   };
 
-  if (!craftIsActive || !enabled || selectedElement !== displayName || !editor) {
+  if (!craftIsActive || !enabled || !editor) {
     return <div dangerouslySetInnerHTML={{ __html: initialContent }} />;
   }
 
