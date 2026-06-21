@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   Eye,
   Pencil,
+  Copy,
   Trash2,
   Loader2,
   FileText,
@@ -128,17 +129,21 @@ function SortableStepItem({
   step,
   isSelected,
   deleting,
+  cloning,
   canManage,
   canDelete,
   onSelect,
+  onClone,
   onDelete,
 }: {
   step: Step;
   isSelected: boolean;
   deleting: boolean;
+  cloning: boolean;
   canManage: boolean;
   canDelete: boolean;
   onSelect: () => void;
+  onClone: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -183,7 +188,7 @@ function SortableStepItem({
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0 pr-8">
+      <div className="flex-1 min-w-0 pr-14">
         <p className={`text-sm font-medium truncate leading-tight ${isSelected ? "text-blue-700" : "text-gray-800"}`}>
           {step.name}
         </p>
@@ -192,20 +197,31 @@ function SortableStepItem({
         </p>
       </div>
 
-      {/* Delete — hover on desktop, always visible on mobile */}
-      {canDelete && (
-        <button
-          onClick={onDelete}
-          disabled={deleting}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all disabled:opacity-40 sm:opacity-0 sm:group-hover/item:opacity-100"
-          title="Delete step"
-        >
-          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-        </button>
+      {/* Row actions — hover-reveal on desktop, always visible on mobile */}
+      {(canManage || canDelete) && (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 transition-opacity sm:opacity-0 sm:group-hover/item:opacity-100">
+          {canManage && (
+            <button
+              onClick={onClone}
+              disabled={cloning}
+              className="p-1.5 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-40"
+              title="Duplicate step"
+            >
+              {cloning ? <Loader2 size={13} className="animate-spin" /> : <Copy size={13} />}
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-40"
+              title="Delete step"
+            >
+              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            </button>
+          )}
+        </div>
       )}
-
-      {/* Arrow hint for mobile */}
-      <ChevronRight size={14} className="text-gray-300 shrink-0 sm:hidden" />
     </div>
   );
 }
@@ -411,6 +427,7 @@ export default function FunnelStepManager({
   const [selectedId, setSelectedId] = useState<string | null>(initialSteps[0]?.id ?? null);
   const [activeTab, setActiveTab] = useState("configuration");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [cloning, setCloning] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [changeTemplateOpen, setChangeTemplateOpen] = useState(false);
   // mobile: 'list' shows sidebar, 'detail' shows right panel
@@ -474,6 +491,29 @@ export default function FunnelStepManager({
     router.refresh();
   }
 
+  async function handleClone(e: React.MouseEvent, stepId: string) {
+    e.stopPropagation();
+    setCloning(stepId);
+    const res = await apiFetch(`/api/funnel-steps/${stepId}/clone`, { method: "POST" });
+    const json = await res.json();
+    setCloning(null);
+    if (!res.ok) {
+      alert(json.error ?? "Failed to duplicate step");
+      return;
+    }
+    const newStep: Step = json.data;
+    // Insert the copy right after the original, then renumber order locally.
+    setSteps((prev) => {
+      const idx = prev.findIndex((s) => s.id === stepId);
+      const next = [...prev];
+      next.splice(idx < 0 ? prev.length : idx + 1, 0, newStep);
+      return next.map((s, i) => ({ ...s, order: i + 1 }));
+    });
+    setSelectedId(newStep.id);
+    setActiveTab("configuration");
+    router.refresh();
+  }
+
   function handleStepSelect(stepId: string) {
     setSelectedId(stepId);
     setActiveTab("configuration");
@@ -518,9 +558,11 @@ export default function FunnelStepManager({
                 step={step}
                 isSelected={step.id === selectedId}
                 deleting={deleting === step.id}
+                cloning={cloning === step.id}
                 canManage={canManageFunnels}
                 canDelete={canDeleteFunnels}
                 onSelect={() => handleStepSelect(step.id)}
+                onClone={(e) => handleClone(e, step.id)}
                 onDelete={(e) => handleDelete(e, step.id)}
               />
             ))}
