@@ -119,7 +119,6 @@ function injectWindowData(
 // editing, the in-flight guard rate-limits to one save per cycle, and the final
 // edit is saved within 3s of stopping.
 const AutoSave: React.FC = () => {
-  if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.autoSave++; } // DEBUG
   const { query } = useEditor();
   const { hasUnsavedChanges, isSaving, updatePage } = useEditorContext();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -163,23 +162,6 @@ const EditorCanvas = React.memo(function EditorCanvas({
 
 // Inner component — reads context
 const EditorInner: React.FC = () => {
-  // ───── DEBUG perf counters ─────
-  if (typeof window !== "undefined") {
-    const w = window as any;
-    if (!w.__ltPerf) w.__ltPerf = { editorInner: 0, appProvider: 0, markChanged: 0, autoSave: 0, baseEditor: 0 };
-    w.__ltPerf.editorInner++;
-  }
-  useEffect(() => {
-    const id = setInterval(() => {
-      const p = (window as any).__ltPerf;
-      if (!p) return;
-      // eslint-disable-next-line no-console
-      console.log(`[perf/2s] EditorInner:${p.editorInner} AppProvider:${p.appProvider} markChanged:${p.markChanged} autoSave:${p.autoSave} baseEditor:${p.baseEditor}`);
-      p.editorInner = 0; p.appProvider = 0; p.markChanged = 0; p.autoSave = 0; p.baseEditor = 0;
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
-  // ───────────────────────────────
   const appContext = useAppContext();
   const { viewMode, isSidebarCollapsed } = appContext;
   const { isLoading, pageData, hasUnsavedChanges, markAsChanged, meta } = useEditorContext();

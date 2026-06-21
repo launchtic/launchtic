@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Elements } from '@stripe/react-stripe-js';
-import { Stripe } from '@stripe/stripe-js';
+// TYPE-only: a value import of `@stripe/stripe-js` auto-injects the 1MB js.stripe.com
+// <script> as a side effect — which made the editor load Stripe even though the card
+// field never renders there (`!enabled`). `Stripe` is used only as a type here, and
+// the real loading happens in PageRenderApp via loadStripe() on the published page.
+import type { Stripe } from '@stripe/stripe-js';
 import { StripeInstanceStore } from './StripeInstanceStore';
 import { StripeCardInput } from './StripeCardInput';
 

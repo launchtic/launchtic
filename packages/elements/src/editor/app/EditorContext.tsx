@@ -85,7 +85,6 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
   }, []);
 
   const markAsChanged = useCallback(() => {
-    if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.markChanged++; } // DEBUG
     if (!isInitializedRef.current) return;
     setHasUnsavedChanges(true);
   }, []);

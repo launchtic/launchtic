@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useEffect, useRef, useCallback } from "react";
-import { Editor, Frame, Element } from "@craftjs/core";
+import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 
 import {
   Page, Section, Row, Column, Text, Headline, Button, Image, Icon, Video,
@@ -37,6 +37,45 @@ function injectWindowData(templateId: string, pageJson: string, workspaceSlug: s
     backUrl: `/${workspaceSlug}/settings/page-templates`,
   };
 }
+
+// Debounced autosave — serializes only when saving (never per change), so it
+// adds no per-edit cost. Saves ~3s after a change settles.
+const AutoSave: React.FC = () => {
+  const { query } = useEditor();
+  const { hasUnsavedChanges, isSaving, updatePage } = useEditorContext();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!hasUnsavedChanges || isSaving) return;
+    timerRef.current = setTimeout(() => {
+      updatePage(query.serialize()).catch(() => { /* surfaced by Save button state */ });
+    }, 3000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [hasUnsavedChanges, isSaving, updatePage, query]);
+  return null;
+};
+
+// Memoized canvas so save-state changes (isSaving/hasUnsavedChanges/autosave)
+// don't cascade Frame → every node → every editor. Re-renders only on
+// viewMode/content change. Craft keeps live node state internally.
+const EditorCanvas = React.memo(function EditorCanvas({
+  viewMode, content,
+}: { viewMode: "mobile" | "desktop"; content: string }) {
+  return (
+    <MobilePhoneUi $viewMode={viewMode}>
+      <DeviceWorkAreaUi $viewMode={viewMode}>
+        <PageUi>
+          <PageWrapper>
+            <BodyUI $viewMode={viewMode}>
+              <Frame data={getValidCraftContent(content)}>
+                <Element is={Page} canvas />
+              </Frame>
+            </BodyUI>
+          </PageWrapper>
+        </PageUi>
+      </DeviceWorkAreaUi>
+    </MobilePhoneUi>
+  );
+});
 
 const EditorInner: React.FC = () => {
   const appContext = useAppContext();
@@ -94,23 +133,12 @@ const EditorInner: React.FC = () => {
       resolver={resolver}
       onNodesChange={markAsChanged}
     >
+      <AutoSave />
       <LayoutUi $isSidebarCollapsed={isSidebarCollapsed}>
         <Header />
         <Sidebar />
         <ContentUi>
-          <MobilePhoneUi $viewMode={viewMode}>
-            <DeviceWorkAreaUi $viewMode={viewMode}>
-              <PageUi>
-                <PageWrapper>
-                  <BodyUI $viewMode={viewMode}>
-                    <Frame data={getValidCraftContent(pageData.content)}>
-                      <Element is={Page} canvas />
-                    </Frame>
-                  </BodyUI>
-                </PageWrapper>
-              </PageUi>
-            </DeviceWorkAreaUi>
-          </MobilePhoneUi>
+          <EditorCanvas viewMode={viewMode} content={pageData.content} />
         </ContentUi>
       </LayoutUi>
     </Editor>

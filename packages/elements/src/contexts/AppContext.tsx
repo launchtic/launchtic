@@ -36,7 +36,6 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Context Provider
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.appProvider++; } // DEBUG
   const [viewMode, setViewMode] = useState<"mobile" | "desktop">("desktop");
   const [isSidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
 

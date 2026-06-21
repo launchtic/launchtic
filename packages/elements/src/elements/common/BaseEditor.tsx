@@ -38,13 +38,43 @@ export interface BaseEditorProps {
   onUpdate?: (editor: Editor, setProp: any) => void;
 }
 
-const BaseEditor: React.FC<BaseEditorProps> = ({
-  rawContentState,
-  defaultContent,
-  displayName,
+// Thin wrapper. A rich-text element is interactive ONLY while it's the selected
+// node; the rest of the time it's static HTML. So we mount the heavy TipTap
+// editor (LiveEditor) ONLY for the selected element and render plain HTML for
+// every other one. Previously every element created a TipTap instance on mount,
+// so a page with N text blocks span up N ProseMirror editors → slow load + high
+// memory. Now it's 0–1.
+const BaseEditor: React.FC<BaseEditorProps> = (props) => {
+  const { rawContentState, defaultContent } = props;
+  const { actions: { setProp }, id } = useNode((node) => ({ id: node.id }));
+
+  // Subscribe ONLY to whether this node is selected (+ enabled) — not to the
+  // global selection — so selecting another element doesn't re-render this one.
+  const { craftIsActive, enabled } = useCraftEditor((state, query) => ({
+    craftIsActive: query.getEvent("selected").first() === id,
+    enabled: state.options.enabled,
+  }));
+
+  const initialContent = rawContentState
+    ? jsonToHtml(JSON.parse(rawContentState))
+    : defaultContent;
+
+  if (!craftIsActive || !enabled) {
+    return <div dangerouslySetInnerHTML={{ __html: initialContent }} />;
+  }
+
+  return <LiveEditor {...props} setProp={setProp} initialContent={initialContent} />;
+};
+
+// The actual TipTap editor + floating toolbar. Mounted only for the selected
+// element, so all the per-editor cost (ProseMirror view, plugins, listeners)
+// exists for at most one element at a time.
+const LiveEditor: React.FC<BaseEditorProps & { setProp: (cb: (props: any) => void) => void; initialContent: string }> = ({
   additionalExtensions = [],
   renderToolbarCustomButtons,
-  onCreate
+  onCreate,
+  setProp,
+  initialContent,
 }) => {
   const [showLinkSettings, setShowLinkSettings] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -54,43 +84,12 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const colorButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Toolbar floats above (or below if no room) the element currently being
-  // edited. Recomputed on scroll/resize/selection so it follows the cursor.
+  // Toolbar floats above (or below if no room) the element being edited.
   const [toolbarPos, setToolbarPos] = useState<{
     top: number;
     left: number;
     placement: "top" | "bottom";
   } | null>(null);
-
-  const {
-    actions: { setProp },
-    id,
-  } = useNode((node) => ({
-    id: node.id,
-  }));
-
-  if (typeof window !== "undefined") { const p = (window as any).__ltPerf; if (p) p.baseEditor++; } // DEBUG
-  // Only subscribe to whether THIS node is selected (+ enabled). Previously this
-  // also returned the globally-selected element's name, so EVERY rich-text block
-  // re-rendered on every selection change → O(N) work on each click/mousedown
-  // (the 158ms handler). `craftIsActive` already implies this node is selected,
-  // and a selected node's displayName equals our `displayName`, so the old
-  // `selectedElement !== displayName` checks were redundant.
-  const { craftIsActive, enabled } = useCraftEditor((state, query) => ({
-    craftIsActive: query.getEvent("selected").first() === id,
-    enabled: state.options.enabled,
-  }));
-
-  useEffect(() => {
-    if (!craftIsActive) {
-      setShowLinkSettings(false);
-      setLinkUrl('');
-    }
-  }, [craftIsActive]);
-
-  const initialContent = rawContentState
-    ? jsonToHtml(JSON.parse(rawContentState))
-    : defaultContent;
 
   const editor = useEditor({
     extensions: [
@@ -113,13 +112,12 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
     ],
     content: initialContent,
     immediatelyRender: false,
+    // Mounted on select → focus immediately so a single click lets you type
+    // (the click landed on the static HTML that this editor just replaced).
+    autofocus: 'end',
     editorProps: {
       // Strict plain-text paste: discard ALL formatting from external
-      // sources (Google Docs, Word, websites) so page design wins. We
-      // bypass ProseMirror's HTML parser entirely and use `tr.insertText`
-      // which inserts plain text at the cursor and AUTOMATICALLY applies
-      // the storedMarks (bold/italic/color active at cursor position) —
-      // so pasting into a bold word keeps the text bold.
+      // sources (Google Docs, Word, websites) so page design wins.
       handlePaste(view, event) {
         const text = event.clipboardData?.getData("text/plain") ?? "";
         if (!text) return false; // let TipTap handle non-text (images, files)
@@ -131,7 +129,6 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       const json = JSON.stringify(htmlToJson(html));
-
       setProp((props: any) => {
         props.rawContentState = json;
       });
@@ -148,11 +145,11 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
     return editor.isActive(type, options);
   }, [editor]);
 
-  // Track the element's position so the floating toolbar follows it. We
-  // measure the editor's root DOM (`editor.view.dom`) instead of using a
-  // wrapper ref because TipTap mounts its own contenteditable inside.
+  // Track the element's position so the floating toolbar follows it. We measure
+  // the editor's root DOM (`editor.view.dom`) — TipTap mounts its own
+  // contenteditable inside.
   useEffect(() => {
-    if (!editor || !craftIsActive) {
+    if (!editor) {
       setToolbarPos(null);
       return;
     }
@@ -165,15 +162,10 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
       const toolbarWidth  = toolbarRef.current?.offsetWidth  ?? 360;
       const gap = 8;
       const safeMargin = 8;
-      // The element's <Indicator> chrome (arrow/copy/delete bar) sits ~30px
-      // above the element while it's selected. Reserve that space when we
-      // place the toolbar above so it doesn't cover the action bar.
       const indicatorClearance = 32;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      // Always prefer above. Fall back to below only when there is truly
-      // no headroom (element near the top of the viewport).
       const spaceAbove = rect.top - safeMargin;
       const spaceBelow = vh - rect.bottom - safeMargin;
       const neededAbove = toolbarHeight + gap + indicatorClearance;
@@ -185,19 +177,14 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
       } else if (spaceBelow >= neededBelow) {
         placement = "bottom";
       } else {
-        // Neither side fits; clamp to whichever is larger.
         placement = spaceAbove >= spaceBelow ? "top" : "bottom";
       }
 
       let top = placement === "top"
         ? rect.top - toolbarHeight - gap - indicatorClearance
         : rect.bottom + gap;
-      // Clamp so toolbar never falls outside the viewport.
       top = Math.max(safeMargin, Math.min(top, vh - toolbarHeight - safeMargin));
 
-      // Horizontal: center on element, then clamp so the (50%-translated)
-      // toolbar stays inside the viewport even when the element is near
-      // an edge or the toolbar is wider than the element.
       const halfW = toolbarWidth / 2;
       const minLeft = safeMargin + halfW;
       const maxLeft = vw - safeMargin - halfW;
@@ -213,12 +200,9 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
 
     recalc();
 
-    // Capture-phase scroll listener catches scroll on any ancestor (canvas
-    // wrapper, page, etc.) — not only window.
     window.addEventListener("scroll", recalc, true);
     window.addEventListener("resize", recalc);
 
-    // Recalc when content size changes (typing makes element grow).
     const ro = typeof ResizeObserver !== "undefined"
       ? new ResizeObserver(recalc)
       : null;
@@ -229,7 +213,7 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
       window.removeEventListener("resize", recalc);
       ro?.disconnect();
     };
-  }, [editor, craftIsActive, showLinkSettings]);
+  }, [editor, showLinkSettings]);
 
   useEffect(() => {
     if (!editor) return;
@@ -324,16 +308,16 @@ const BaseEditor: React.FC<BaseEditorProps> = ({
     editor?.chain().focus().setColor(rgba).run();
   };
 
-  if (!craftIsActive || !enabled || !editor) {
+  // While TipTap initializes (immediatelyRender:false), keep showing the static
+  // HTML so there's no flash of empty content.
+  if (!editor) {
     return <div dangerouslySetInnerHTML={{ __html: initialContent }} />;
   }
 
   let colorValue = editor.getAttributes('textStyle').color;
 
-  // Render the inline-text toolbar via portal to <body>. Without this it
-  // would sit absolutely positioned inside the element's wrapper and overlap
-  // neighbouring content (the Headline above a Text, etc.). Portal keeps it
-  // pinned at the top of the viewport, never covering page content.
+  // Render the toolbar via portal to <body> so it never overlaps neighbouring
+  // content and stays pinned in the viewport.
   const toolbarPortalTarget = typeof document !== "undefined" ? document.body : null;
 
   const toolbarNode = (
