@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 
 declare global { interface Window { data?: any } }
 import { useEditor } from "@craftjs/core";
@@ -61,6 +61,28 @@ const Header: React.FC = () => {
       alert(error instanceof Error ? error.message : 'Save failed');
     }
   };
+
+  // Keyboard shortcuts: Ctrl/Cmd+S = save, Ctrl/Cmd+Z = undo, Shift+Z or Y = redo.
+  // Undo/redo defer to the focused text field's native undo (TipTap / inputs).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "s") {
+        e.preventDefault();
+        if (!isSaving) handleSave();
+        return;
+      }
+      if (k !== "z" && k !== "y") return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable || ae.closest?.(".ProseMirror"))) return;
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); if (canUndo) actions.history.undo(); }
+      else { e.preventDefault(); if (canRedo) actions.history.redo(); } // Shift+Z or Y
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSaving, canUndo, canRedo, actions]);
 
   const handleBack = () => {
     const backUrl = window.data?.backUrl;

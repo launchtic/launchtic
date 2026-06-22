@@ -31,7 +31,9 @@ export const FieldDetailSettings: React.FC<FieldDetailSettingsProps> = ({
 
   // Set default values if properties are undefined
   const inputType = inputDetail?.type || "email";
-  const placeholder = inputDetail?.placeholder || "Email";
+  // Use ?? not || so an explicitly-cleared placeholder ("") stays empty — with
+  // || the controlled input snapped back to "Email" the moment you deleted it.
+  const placeholder = inputDetail?.placeholder ?? "Email";
   const placeholderColor = inputDetail?.placeholderColor || "rgba(170, 170, 170, 1)";
   const isOptional = inputType === "email" ? false : (inputDetail?.isOptional || false);
 

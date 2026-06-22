@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import styled from "styled-components";
 
 // ✅ Wrapper for each settings section
@@ -146,6 +146,29 @@ export const SliderControl: React.FC<{
   onChange: (value: number) => void;
   hideLabel?: boolean;
 }> = ({ label, value, min = 8, max = 100, step = 1, onChange, hideLabel = false }) => {
+  // The thumb is driven by LOCAL state (updated synchronously) so it tracks the
+  // cursor smoothly, while the actual prop commit (which re-renders the node +
+  // settings panel) is coalesced to one per animation frame. Without this every
+  // pixel of drag fired a setProp → a stutter on heavier elements.
+  const [local, setLocal] = useState(value);
+  const draggingRef = useRef(false);
+  const rafRef = useRef(0);
+  const pendRef = useRef<number | null>(null);
+
+  useEffect(() => { if (!draggingRef.current) setLocal(value); }, [value]);
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+
+  const commit = (v: number) => {
+    setLocal(v);
+    pendRef.current = v;
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0;
+        if (pendRef.current != null) onChange(pendRef.current);
+      });
+    }
+  };
+
   return (
     <div>
       {!hideLabel && <Label>{label}</Label>}
@@ -155,17 +178,20 @@ export const SliderControl: React.FC<{
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(e) => onChange(parseInt(e.target.value))}
+          value={local}
+          onPointerDown={() => { draggingRef.current = true; }}
+          onPointerUp={() => { draggingRef.current = false; }}
+          onPointerCancel={() => { draggingRef.current = false; }}
+          onChange={(e) => commit(parseInt(e.target.value))}
         />
         <StyledInput
           type="number"
           min={min}
           max={max}
-          value={value}
+          value={local}
           onChange={(e) => {
             const newValue = parseInt(e.target.value) || min;
-            onChange(newValue > max ? max : newValue < min ? min : newValue);
+            commit(newValue > max ? max : newValue < min ? min : newValue);
           }}
         />
       </RangeWrapper>
