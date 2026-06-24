@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { MenuProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";

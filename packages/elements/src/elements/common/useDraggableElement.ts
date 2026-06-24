@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 import { v4 as uuidv4 } from "uuid";
 
 export const useDraggableElement = <T extends Record<string, any>>(prefix: string, propKey: keyof T) => {

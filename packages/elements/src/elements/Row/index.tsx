@@ -1,4 +1,4 @@
-import { UserComponent, useEditor } from "@craftjs/core";
+import { UserComponent, useEditor } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { RowProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";

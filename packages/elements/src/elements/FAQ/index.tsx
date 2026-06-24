@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { UserComponent, useNode } from "@craftjs/core";
+import { UserComponent, useNode } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { FAQProps, FAQItemProps, PaddingProps } from "../ElementProps";
 import { FAQAnswerEditor } from "./FAQAnswerEditor";

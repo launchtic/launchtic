@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Label, SettingsGroup, IconButton } from "../common/SettingsUI";
 import { HelpTooltip } from "../common/settings/HelpTooltip";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 
 export const IDAttributeSettings: React.FC = () => {
   const { htmlAttrId } = useNode((node) => ({

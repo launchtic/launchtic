@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 import { MenuProps, MenuItemProps, MenuSubmenuItemProps, MenuAlignment } from "../ElementProps";
 import { 
   SettingsGroupLarge, 

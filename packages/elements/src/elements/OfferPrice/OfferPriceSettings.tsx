@@ -1,5 +1,5 @@
 import React from "react";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 import { AppearanceSettings } from "../../editor/toolbar/AppearanceSettings";
 import { MarginSettings } from "../../editor/toolbar/MarginSettings";
 import { BackgroundColorSettings } from "../../editor/toolbar/BackgroundColorSettings";

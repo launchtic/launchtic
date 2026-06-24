@@ -1,4 +1,4 @@
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css, keyframes } from "styled-components";
 import ReactPlayer from "react-player";
 import { Indicator } from "../../editor/common/Indicator";

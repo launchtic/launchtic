@@ -1,4 +1,4 @@
-import { useEditor, UserComponent } from "@craftjs/core";
+import { useEditor, UserComponent } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { Indicator } from "../../editor/common/Indicator";
 import { CouponProps } from "../ElementProps";

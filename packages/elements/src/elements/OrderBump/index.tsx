@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css, keyframes } from "styled-components";
 import { OrderBumpProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";

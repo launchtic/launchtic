@@ -1,5 +1,5 @@
 import React from "react";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 import { CountdownProps, CountdownType, CountdownAction } from "../ElementProps";
 import { 
   SettingsGroup, 

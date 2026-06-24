@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { CountdownProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";

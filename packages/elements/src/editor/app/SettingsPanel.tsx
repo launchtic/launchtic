@@ -1,5 +1,5 @@
 import React from "react";
-import { useEditor } from "@craftjs/core";
+import { useEditor } from "@launchtic/editor-core";
 import styled from "styled-components";
 import { LightButton } from "./layout/EditorUI";
 

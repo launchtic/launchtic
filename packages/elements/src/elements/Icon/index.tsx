@@ -1,4 +1,4 @@
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { Indicator } from "../../editor/common/Indicator";
 import { IconElementProps } from "../ElementProps";

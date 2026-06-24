@@ -1,5 +1,5 @@
 import React from "react";
-import { useEditor, Element } from "@craftjs/core";
+import { useEditor, Element } from "@launchtic/editor-core";
 import { useEditorContext } from "./EditorContext";
 import {
   Field,

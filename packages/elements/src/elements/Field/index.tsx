@@ -1,4 +1,4 @@
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import { Indicator } from "../../editor/common/Indicator";
 import { FieldProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";

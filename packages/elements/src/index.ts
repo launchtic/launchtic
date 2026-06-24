@@ -49,7 +49,7 @@ export { EditorProvider, useEditorContext } from "./editor/app/EditorContext";
 
 // Published page render app (read-only Editor + Providers + Stripe init).
 // Consumers import this instead of hand-wiring <Editor>/<Frame>/<Element>,
-// which prevents @craftjs/core from being loaded twice (lib + consumer)
+// which prevents @launchtic/editor-core from being loaded twice (lib + consumer)
 // and breaking the useNode React Context.
 export { default as PageRenderApp } from "./render/PageRenderApp";
 export type { PageRenderAppPageData } from "./render/PageRenderApp";

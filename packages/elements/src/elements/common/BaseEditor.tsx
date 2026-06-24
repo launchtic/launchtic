@@ -7,7 +7,7 @@ import Link from '@tiptap/extension-link';
 import Color from '@tiptap/extension-color';
 import TextStyle from '@tiptap/extension-text-style';
 import { rgbaToString } from "../../utils/helpers";
-import { useNode, useEditor as useCraftEditor } from "@craftjs/core";
+import { useNode, useEditor as useCraftEditor } from "@launchtic/editor-core";
 
 import {
   EditorContainer,

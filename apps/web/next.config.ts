@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
     ],
   },
-  transpilePackages: ["@launchtic/ui", "@launchtic/types", "@launchtic/elements", "@launchtic/email", "styled-components"],
+  transpilePackages: ["@launchtic/ui", "@launchtic/types", "@launchtic/elements", "@launchtic/editor-core", "@launchtic/email", "styled-components"],
   compiler: {
     styledComponents: true,
   },

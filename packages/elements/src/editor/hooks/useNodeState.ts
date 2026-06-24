@@ -1,4 +1,4 @@
-import { useNode, useEditor } from "@craftjs/core";
+import { useNode, useEditor } from "@launchtic/editor-core";
 import { useAppContext } from "../../contexts/AppContext";
 
 export const useNodeState = () => {

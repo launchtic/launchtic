@@ -1,5 +1,5 @@
 import React from "react";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 import styled from "styled-components";
 import { useNodeState } from "../../editor/hooks/useNodeState";
 import ColumnDrag from "./ColumnDrag"; // Import ColumnDrag component

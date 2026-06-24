@@ -5,8 +5,8 @@ import DevTestFill from "./DevTestFill";
 import type { PageRenderAppPageData } from "@launchtic/elements";
 
 // Dynamic + ssr:false mirrors EditorAppDynamic in apps/web. The render tree
-// uses @craftjs/core which relies on browser-only APIs, and isolating the
-// import here ensures @craftjs/core is loaded exactly once — from inside
+// uses @launchtic/editor-core which relies on browser-only APIs, and isolating the
+// import here ensures @launchtic/editor-core is loaded exactly once — from inside
 // @launchtic/elements — so useNode and <Editor /> share the same React
 // Context instance.
 const PageRenderApp = dynamic(

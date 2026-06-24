@@ -4,7 +4,7 @@ import {
   NodeId,
   CreateHandlerOptions,
   Element
-} from '@craftjs/core';
+} from '@launchtic/editor-core';
 import { Section, Row, Column, DEFAULT_STYLES } from "../../index";
 import { useAppContext } from "../../index";
 

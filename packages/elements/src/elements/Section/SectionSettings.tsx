@@ -1,5 +1,5 @@
 import React from "react";
-import { useNode } from "@craftjs/core";
+import { useNode } from "@launchtic/editor-core";
 import { PaddingSettings } from "../../editor/toolbar/PaddingSettings";
 import { MarginSettings } from "../../editor/toolbar/MarginSettings";
 import { ContentWidthSettings } from "../../editor/toolbar/ContentWidthSettings";

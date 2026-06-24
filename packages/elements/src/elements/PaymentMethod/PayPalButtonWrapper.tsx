@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { collectFormData, validateFormData } from "../../utils/formHelpers";
-import { useEditor } from "@craftjs/core";
+import { useEditor } from "@launchtic/editor-core";
 import { usePageRender } from "../../contexts/PageRenderContext";
 import { useSafePayment } from "../../contexts/PaymentContext";
 

@@ -6,7 +6,7 @@
 
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
+import { Editor, Frame, Element, useEditor, useNode } from "@launchtic/editor-core";
 import { Heading1, Type, MousePointerClick, Image as ImageIcon, Minus, MoveVertical, Square, Columns2, Columns3, ImagePlus, Copy, Trash2, Move, ArrowUp, ArrowLeft, Menu, Bold, Italic, Underline, Strikethrough, Monitor, Smartphone, X, Link2, Palette, Undo2, Redo2, Bookmark, BookmarkPlus, Share2, ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight, PanelLeft, PanelLeftClose } from "lucide-react";
 import { STANDARD_VARIABLES, EMAIL_FONTS, emailFontCss } from "@launchtic/email";
 import MediaLibraryPicker from "../media/MediaLibraryPicker";

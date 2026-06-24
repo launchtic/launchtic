@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css, keyframes } from "styled-components";
 import { PhysicalProductProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";

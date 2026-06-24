@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useEditor } from "@craftjs/core";
+import { useEditor } from "@launchtic/editor-core";
 import { getRandomId } from "@craftjs/utils";
 import styled from "styled-components";
 import {

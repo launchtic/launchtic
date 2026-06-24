@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { getRandomId } from "@craftjs/utils";
 import { useNodeState } from "../hooks/useNodeState";
-import { Node } from "@craftjs/core";
+import { Node } from "@launchtic/editor-core";
 
 // Editor chrome must use the system font, not the page-level font
 // chosen via PageFontApplier (which wraps the canvas). Any styled component

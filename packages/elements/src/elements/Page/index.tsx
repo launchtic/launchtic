@@ -1,5 +1,5 @@
 import React from "react";
-import { useNode, UserComponent } from "@craftjs/core";
+import { useNode, UserComponent } from "@launchtic/editor-core";
 import styled from "styled-components";
 import { useNodeState } from "../../editor/hooks/useNodeState";
 

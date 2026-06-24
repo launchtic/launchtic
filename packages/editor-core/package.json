@@ -1,0 +1,32 @@
+{
+  "name": "@launchtic/editor-core",
+  "version": "0.2.12",
+  "private": true,
+  "description": "Launchtic's vendored fork of @craftjs/core 0.2.12 — readable source under our control (perf throttle on the onNodesChange serialize). Consumed as source via transpilePackages.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "main": "./src/index.tsx",
+  "module": "./src/index.tsx",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.tsx"
+    }
+  },
+  "dependencies": {
+    "@craftjs/utils": "^0.2.5",
+    "lodash": "^4.17.21",
+    "tiny-invariant": "^1.0.6"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.3"
+  }
+}

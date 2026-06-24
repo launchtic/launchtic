@@ -1,4 +1,4 @@
-import { UserComponent } from "@craftjs/core";
+import { UserComponent } from "@launchtic/editor-core";
 import styled, { css } from "styled-components";
 import { SectionSettings } from "./SectionSettings";
 import { useAppContext } from "../../contexts/AppContext";

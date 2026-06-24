@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { CollapsedButtonSideBar, SidebarUi, SidebarFooterUi, IconButton, SidebarContainerUi, SidebarContainer, DeviceSwitcherUi } from "./layout/EditorUI";
-import { useEditor } from "@craftjs/core";
+import { useEditor } from "@launchtic/editor-core";
 import { Toolbox } from "./Toolbox";
 import { SavedBlocksToolbox } from "./SavedBlocksToolbox";
 import { SettingsPanel } from "./SettingsPanel";

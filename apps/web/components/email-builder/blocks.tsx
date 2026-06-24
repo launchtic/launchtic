@@ -4,7 +4,7 @@
 // resolvedName + props MUST match the serializer in @launchtic/email
 // (craft-mjml.ts). Borders/toolbar on hover+select are handled by RenderNode.
 
-import { useNode, Element } from "@craftjs/core";
+import { useNode, Element } from "@launchtic/editor-core";
 import { createContext, useContext, useEffect, useRef } from "react";
 import { emailFontCss, DEFAULT_EMAIL_FONT } from "@launchtic/email";
 

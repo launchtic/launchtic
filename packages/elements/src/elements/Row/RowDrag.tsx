@@ -1,7 +1,7 @@
 import React from "react";
 import styled, { css } from "styled-components";
 import { useAppContext } from "../../contexts/AppContext";
-import { useNode, useEditor } from "@craftjs/core";
+import { useNode, useEditor } from "@launchtic/editor-core";
 
 interface DragWrapperStyledProps {
   $isDragging: boolean;

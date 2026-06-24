@@ -10,6 +10,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@launchtic/editor-core": "workspace:*",
     "libphonenumber-js": "^1.12.15",
     "lucide-react": "^1.8.0",
     "uuid": "^11.1.0",
@@ -18,7 +19,6 @@
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@craftjs/core": "^0.2.11",
     "@craftjs/utils": "*",
     "@stripe/react-stripe-js": "^5.3.0",
     "@stripe/stripe-js": "^9.0.0",

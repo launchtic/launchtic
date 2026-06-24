@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import styled from "styled-components";
-import { useEditor } from "@craftjs/core";
+import { useEditor } from "@launchtic/editor-core";
 
 const ResizerDiv = styled.div`
   width: 3px;

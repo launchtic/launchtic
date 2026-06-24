@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect } from "react";
 
 declare global { interface Window { data?: any } }
-import { useEditor } from "@craftjs/core";
+import { useEditor } from "@launchtic/editor-core";
 import { useEditorContext } from "./EditorContext";
 import {
   HeaderContainer,

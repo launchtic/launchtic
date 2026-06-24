@@ -2,7 +2,7 @@
 
 import React, { useMemo, useEffect } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { Editor, Frame, Element } from "@craftjs/core";
+import { Editor, Frame, Element } from "@launchtic/editor-core";
 
 import {
   Page,
