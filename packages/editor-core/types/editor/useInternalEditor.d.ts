@@ -1,4 +1,4 @@
-import { useCollectorReturnType, QueryCallbacksFor, EventHandlerConnectors } from '@craftjs/utils';
+import { useCollectorReturnType, QueryCallbacksFor, EventHandlerConnectors } from '@launchtic/editor-utils';
 import { QueryMethods } from './query';
 import { EditorStore } from './store';
 import { CoreEventHandlers } from '../events/CoreEventHandlers';

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useEditor } from "@launchtic/editor-core";
-import { getRandomId } from "@craftjs/utils";
+import { getRandomId } from "@launchtic/editor-utils";
 import styled from "styled-components";
 import {
   ToolboxSection,

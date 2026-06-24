@@ -1,4 +1,4 @@
-import { deprecationWarning } from '@craftjs/utils';
+import { deprecationWarning } from '@launchtic/editor-utils';
 import React, { useEffect } from 'react';
 
 import { Element, ElementProps } from './Element';

@@ -14,7 +14,7 @@
     }
   },
   "dependencies": {
-    "@craftjs/utils": "^0.2.5",
+    "@launchtic/editor-utils": "workspace:*",
     "lodash": "^4.17.21",
     "tiny-invariant": "^1.0.6"
   },

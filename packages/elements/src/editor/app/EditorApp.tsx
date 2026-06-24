@@ -2,7 +2,6 @@
 
 import React, { useMemo, useEffect, useRef, useCallback } from "react";
 import { Editor, Frame, Element, useEditor } from "@launchtic/editor-core";
-import "./historyLimit"; // caps the craft undo/redo timeline (memory)
 
 // Elements from this package
 import {

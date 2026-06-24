@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
-import { getRandomId } from "@craftjs/utils";
+import { getRandomId } from "@launchtic/editor-utils";
 import { useNodeState } from "../hooks/useNodeState";
 import { Node } from "@launchtic/editor-core";
 

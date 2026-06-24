@@ -1,4 +1,4 @@
-import { Overwrite, Delete, OverwriteFnReturnType } from '@craftjs/utils';
+import { Overwrite, Delete, OverwriteFnReturnType } from '@launchtic/editor-utils';
 import { useMemo } from 'react';
 
 import {

@@ -1,0 +1,35 @@
+{
+  "name": "@launchtic/editor-utils",
+  "version": "0.2.5",
+  "private": true,
+  "description": "Launchtic's vendored fork of @craftjs/utils 0.2.5 — readable source under our control (undo-history coalescing + depth cap live in History). Consumed as source via transpilePackages.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "immer": "^9.0.6",
+    "lodash": "^4.17.21",
+    "nanoid": "^3.1.23",
+    "shallowequal": "^1.1.0",
+    "tiny-invariant": "^1.0.6"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/shallowequal": "^1.1.5",
+    "typescript": "^5.8.3"
+  }
+}

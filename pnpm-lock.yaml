@@ -142,9 +142,6 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1032.0
         version: 3.1039.0
-      '@craftjs/utils':
-        specifier: '*'
-        version: 0.2.5(react@19.2.5)
       '@dagrejs/dagre':
         specifier: ^3.0.0
         version: 3.0.0
@@ -166,6 +163,9 @@ importers:
       '@launchtic/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
+      '@launchtic/editor-utils':
+        specifier: workspace:*
+        version: link:../../packages/editor-utils
       '@launchtic/elements':
         specifier: workspace:*
         version: link:../../packages/elements
@@ -358,9 +358,9 @@ importers:
 
   packages/editor-core:
     dependencies:
-      '@craftjs/utils':
-        specifier: ^0.2.5
-        version: 0.2.5(react@19.2.5)
+      '@launchtic/editor-utils':
+        specifier: workspace:*
+        version: link:../editor-utils
       lodash:
         specifier: ^4.17.21
         version: 4.18.1
@@ -390,14 +390,57 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  packages/editor-utils:
+    dependencies:
+      immer:
+        specifier: ^9.0.6
+        version: 9.0.21
+      lodash:
+        specifier: ^4.17.21
+        version: 4.18.1
+      nanoid:
+        specifier: ^3.1.23
+        version: 3.3.12
+      react:
+        specifier: ^19.0.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.5(react@19.2.5)
+      shallowequal:
+        specifier: ^1.1.0
+        version: 1.1.0
+      tiny-invariant:
+        specifier: ^1.0.6
+        version: 1.3.3
+    devDependencies:
+      '@types/lodash':
+        specifier: ^4.17.0
+        version: 4.17.24
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      '@types/shallowequal':
+        specifier: ^1.1.5
+        version: 1.1.5
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
   packages/elements:
     dependencies:
-      '@craftjs/utils':
-        specifier: '*'
-        version: 0.2.5(react@19.2.5)
       '@launchtic/editor-core':
         specifier: workspace:*
         version: link:../editor-core
+      '@launchtic/editor-utils':
+        specifier: workspace:*
+        version: link:../editor-utils
       '@stripe/react-stripe-js':
         specifier: ^5.3.0
         version: 5.6.1(@stripe/stripe-js@9.3.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -785,11 +828,6 @@ packages:
 
   '@colordx/core@5.4.3':
     resolution: {integrity: sha512-kIxYSfA5T8HXjav55UaaH/o/cKivF6jCCGIb8eqtcsfI46wsvlSiT8jMDyrl779qLec3c2c2oHBZo4oAhvbjrQ==}
-
-  '@craftjs/utils@0.2.5':
-    resolution: {integrity: sha512-ANzAkGmQBe6fi7F2x6dhiN2hN9yBDfW+mQ2XJv8bJMIx+0h5Kbv04U4WXaFfMhjcC7DzfPnGkdg7/9gFkd5qVA==}
-    peerDependencies:
-      react: ^16.8.0 || ^17 || ^18 || ^19
 
   '@dagrejs/dagre@3.0.0':
     resolution: {integrity: sha512-ZzhnTy1rfuoew9Ez3EIw4L2znPGnYYhfn8vc9c4oB8iw6QAsszbiU0vRhlxWPFnmmNSFAkrYeF1PhM5m4lAN0Q==}
@@ -2015,6 +2053,9 @@ packages:
 
   '@types/relateurl@0.2.33':
     resolution: {integrity: sha512-bTQCKsVbIdzLqZhLkF5fcJQreE4y1ro4DIyVrlDNSCJRRwHhB8Z+4zXXa8jN6eDvc2HbRsEYgbvrnGvi54EpSw==}
+
+  '@types/shallowequal@1.1.5':
+    resolution: {integrity: sha512-8afr1hbNqvZ/FBMY2mcfkkbk7xhlTZN4lVCgQf55YdjUQpWLemmrcvcHg94vjw+ZVIfPa3UZz/sOE6CkaMlDnQ==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -4708,15 +4749,6 @@ snapshots:
 
   '@colordx/core@5.4.3': {}
 
-  '@craftjs/utils@0.2.5(react@19.2.5)':
-    dependencies:
-      immer: 9.0.21
-      lodash: 4.18.1
-      nanoid: 3.3.12
-      react: 19.2.5
-      shallowequal: 1.1.0
-      tiny-invariant: 1.3.3
-
   '@dagrejs/dagre@3.0.0':
     dependencies:
       '@dagrejs/graphlib': 4.0.1
@@ -5894,6 +5926,8 @@ snapshots:
       csstype: 3.2.3
 
   '@types/relateurl@0.2.33': {}
+
+  '@types/shallowequal@1.1.5': {}
 
   '@types/unist@2.0.11': {}
 

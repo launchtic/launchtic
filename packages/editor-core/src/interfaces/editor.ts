@@ -1,4 +1,4 @@
-import { QueryCallbacksFor, Delete, PatchListenerAction } from '@craftjs/utils';
+import { QueryCallbacksFor, Delete, PatchListenerAction } from '@launchtic/editor-utils';
 
 import { Placement } from './events';
 import { Nodes, NodeEventTypes, NodeId, Node } from './nodes';

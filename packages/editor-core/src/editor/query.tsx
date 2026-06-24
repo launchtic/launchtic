@@ -5,7 +5,7 @@ import {
   deprecationWarning,
   DEPRECATED_ROOT_NODE,
   ROOT_NODE,
-} from '@craftjs/utils';
+} from '@launchtic/editor-utils';
 import React from 'react';
 import invariant from 'tiny-invariant';
 

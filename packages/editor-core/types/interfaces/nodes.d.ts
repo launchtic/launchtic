@@ -1,4 +1,4 @@
-import { QueryCallbacksFor } from '@craftjs/utils';
+import { QueryCallbacksFor } from '@launchtic/editor-utils';
 import React from 'react';
 import { QueryMethods } from '../editor/query';
 export type UserComponentConfig<T> = {

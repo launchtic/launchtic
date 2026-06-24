@@ -12,7 +12,7 @@ export declare function useNode<S = null>(collect?: (node: Node) => S): Omit<Omi
         setCustom: (cb: any, throttleRate?: number) => void;
         setHidden: (bool: boolean) => void;
     };
-    connectors: import("@craftjs/utils").ChainableConnectors<{
+    connectors: import("@launchtic/editor-utils").ChainableConnectors<{
         connect: (dom: HTMLElement) => HTMLElement;
         drag: (dom: HTMLElement) => HTMLElement;
     }, HTMLElement | import("react").ReactElement<unknown, string | import("react").JSXElementConstructor<any>>>;
@@ -26,7 +26,7 @@ export declare function useNode<S = null>(collect?: (node: Node) => S): Omit<Omi
     related: boolean;
     setProp: (cb: (props: Record<string, any>) => void, throttleRate?: number) => void;
     inNodeContext: boolean;
-    connectors: import("@craftjs/utils").ChainableConnectors<{
+    connectors: import("@launchtic/editor-utils").ChainableConnectors<{
         connect: (dom: HTMLElement) => HTMLElement;
         drag: (dom: HTMLElement) => HTMLElement;
     }, HTMLElement | import("react").ReactElement<unknown, string | import("react").JSXElementConstructor<any>>>;

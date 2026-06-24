@@ -2,7 +2,7 @@ import {
   useMethods,
   SubscriberAndCallbacksFor,
   PatchListener,
-} from '@craftjs/utils';
+} from '@launchtic/editor-utils';
 
 import { ActionMethods } from './actions';
 import { QueryMethods } from './query';

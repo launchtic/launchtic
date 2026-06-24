@@ -1,10 +1,10 @@
-import { SubscriberAndCallbacksFor, PatchListener } from '@craftjs/utils';
+import { SubscriberAndCallbacksFor, PatchListener } from '@launchtic/editor-utils';
 import { QueryMethods } from './query';
 import { EditorState, Options, NodeEventTypes, NodeId } from '../interfaces';
 export declare const editorInitialState: EditorState;
 export declare const ActionMethodsWithConfig: {
-    methods: (state: EditorState, query: import("@craftjs/utils").QueryCallbacksFor<typeof QueryMethods>) => {
-        setState(cb: (state: EditorState, actions: import("@craftjs/utils").Delete<import("@craftjs/utils").CallbacksFor<(state: EditorState, query: import("@craftjs/utils").QueryCallbacksFor<typeof QueryMethods>) => {
+    methods: (state: EditorState, query: import("@launchtic/editor-utils").QueryCallbacksFor<typeof QueryMethods>) => {
+        setState(cb: (state: EditorState, actions: import("@launchtic/editor-utils").Delete<import("@launchtic/editor-utils").CallbacksFor<(state: EditorState, query: import("@launchtic/editor-utils").QueryCallbacksFor<typeof QueryMethods>) => {
             addLinkedNodeFromTree(tree: import("../interfaces").NodeTree, parentId: NodeId, id: string): void;
             add(nodeToAdd: import("../interfaces").Node | import("../interfaces").Node[], parentId?: NodeId, index?: number): void;
             addNodeTree(tree: import("../interfaces").NodeTree, parentId?: NodeId, index?: number): void;
