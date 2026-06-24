@@ -207,7 +207,10 @@ export const Button: UserComponent<ButtonProps> = ({ ...props }) => {
     // Button specific props
     text: props.text || "",
     subText: props.subText,
-    subTextFontSize: props.subTextFontSize,
+    // Resolve by view mode like the main button fontSize (line above) so the
+    // editor's mobile preview shows the mobile size. mobileSubTextFontSize is
+    // still passed through for the published page's @media (max-width:800px) rule.
+    subTextFontSize: getValueByViewMode(viewMode, props.subTextFontSize, props.mobileSubTextFontSize),
     mobileSubTextFontSize: props.mobileSubTextFontSize,
     subTextColor: props.subTextColor,
     subTextFontFamily: props.subTextFontFamily,
