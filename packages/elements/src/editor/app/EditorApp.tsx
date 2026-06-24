@@ -127,7 +127,7 @@ const AutoSave: React.FC = () => {
     if (!hasUnsavedChanges || isSaving) return;
     timerRef.current = setTimeout(() => {
       updatePage(query.serialize()).catch(() => { /* surfaced by the Save button state */ });
-    }, 3000);
+    }, 6000); // serializing the whole tree is heavy on large pages — keep it infrequent
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [hasUnsavedChanges, isSaving, updatePage, query]);
   return null;

@@ -550,7 +550,10 @@ export default function FunnelStepManager({
 
       {/* Step list */}
       <div className="flex-1 overflow-y-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        {/* Stable id so dnd-kit's accessibility id (aria-describedby) is
+            deterministic — without it, its auto-increment counter differs
+            between SSR and client and React throws a hydration mismatch. */}
+        <DndContext id="funnel-steps" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             {steps.map((step) => (
               <SortableStepItem

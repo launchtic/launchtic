@@ -42,6 +42,10 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
 
   const isInitializedRef = useRef<boolean>(false);
   const initializationTimer = useRef<NodeJS.Timeout | null>(null);
+  // Last content actually persisted — lets us skip the (expensive) network save
+  // when an autosave fires but the serialized page is identical to what's stored
+  // (e.g. a "dirty" flag set by a no-op change like selecting a text element).
+  const lastSavedContentRef = useRef<string | null>(null);
 
   // Initialize data from window.data.pageData
   useEffect(() => {
@@ -54,12 +58,11 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
         const windowPageData = (window as any).data?.pageData;
 
         if (windowPageData) {
-          setPageData({
-            code:    windowPageData.code,
-            content: typeof windowPageData.content === 'string'
-              ? windowPageData.content
-              : JSON.stringify(windowPageData.content || {})
-          });
+          const content = typeof windowPageData.content === 'string'
+            ? windowPageData.content
+            : JSON.stringify(windowPageData.content || {});
+          setPageData({ code: windowPageData.code, content });
+          lastSavedContentRef.current = content; // baseline for the skip-if-unchanged check
           setStepType(windowPageData.stepType ?? "OPTIN");
           setMeta(windowPageData.meta ?? null);
           setHasUnsavedChanges(false);
@@ -99,13 +102,20 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
       return;
     }
 
+    // Nothing actually changed since the last persist — skip the network round
+    // trip (and the churn it causes); just clear the dirty flag so autosave stops.
+    if (content === lastSavedContentRef.current) {
+      setHasUnsavedChanges(false);
+      return;
+    }
+
     setIsSaving(true);
 
     try {
       const response = await savePage(pageData.code, content);
 
       if (response.success) {
-        console.log('Page saved successfully:', response);
+        lastSavedContentRef.current = content;
         setHasUnsavedChanges(false);
       } else {
         console.error('Failed to save page:', response.error ?? response.message);
