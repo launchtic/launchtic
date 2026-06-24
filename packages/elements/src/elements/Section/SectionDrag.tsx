@@ -1,6 +1,6 @@
 import React from "react";
 import styled, { css } from "styled-components";
-import { useAppContext } from "../../contexts/AppContext";
+import { useDragDrop } from "../../contexts/AppContext";
 import { useNode, useEditor } from "@launchtic/editor-core";
 
 interface DragWrapperStyledProps {
@@ -64,8 +64,7 @@ export const SectionDrag: React.FC<{
     enabled: state.options.enabled
   }));
 
-  const { dragDrop } = useAppContext();
-  const { isDragging, dropIndicator } = dragDrop;
+  const { isDragging, dropIndicator } = useDragDrop();
 
   // Determine the drop target based on the section ID, position, and index
   const isDropTarget = (() => {

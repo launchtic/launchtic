@@ -24,7 +24,7 @@ export { PhysicalProduct } from "./elements/PhysicalProduct";
 export { AcceptOfferButton, DeclineOfferButton } from "./elements/OfferButton";
 
 // Contexts
-export { AppProvider, useAppContext } from "./contexts/AppContext";
+export { AppProvider, useAppContext, useDragDrop } from "./contexts/AppContext";
 export { PageRenderProvider, usePageRender } from "./contexts/PageRenderContext";
 export { PaymentProvider, usePayment, useSafePayment } from "./contexts/PaymentContext";
 

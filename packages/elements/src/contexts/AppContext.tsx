@@ -10,29 +10,35 @@ interface DropIndicator {
   dropIndex: number;
 }
 
-// Group together the drag-drop related properties
+// Drag-drop state. Lives in its OWN context (see below) because `dropIndicator`
+// updates on every mousemove during a drag.
 interface DragDropState {
   isDragging: boolean;
   dropTargets: string[];
   dropIndicator: DropIndicator | null;
 }
 
-// Context type
+// Stable app/editor chrome state + the (referentially stable) drag setters.
 interface AppContextType {
   viewMode: "mobile" | "desktop";
   setViewMode: React.Dispatch<React.SetStateAction<"mobile" | "desktop">>;
   isSidebarCollapsed: boolean;
   setSidebarCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
 
-  // Group all drag/drop properties together into a single object
-  dragDrop: DragDropState;
   setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
   setDropTargets: React.Dispatch<React.SetStateAction<string[]>>;
   setDropIndicator: React.Dispatch<React.SetStateAction<DropIndicator | null>>;
 }
 
-// Create Context
+// Two separate contexts on purpose:
+//  - AppContext holds slowly-changing chrome (viewMode/sidebar) + the stable
+//    setters. Every element reads viewMode from here, so it MUST stay stable
+//    during a drag — otherwise the whole canvas re-renders per mousemove.
+//  - DragDropContext holds the per-mousemove drag state. Only the drag wrappers
+//    (ElementDrag/ColumnDrag/RowDrag) subscribe to it, so a dropIndicator update
+//    re-renders those light wrappers, not every element's content.
 const AppContext = createContext<AppContextType | undefined>(undefined);
+const DragDropContext = createContext<DragDropState | undefined>(undefined);
 
 // Context Provider
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -43,24 +49,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [dropTargets, setDropTargets] = useState<string[]>([]);
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
 
-  // Memoized so consumers don't get a brand-new context object on every render.
-  const dragDrop = useMemo<DragDropState>(
+  // Only changes on viewMode/sidebar (rare). setState setters keep a stable
+  // identity, so this value does NOT change while dragging.
+  const appValue = useMemo<AppContextType>(
+    () => ({
+      viewMode,
+      setViewMode,
+      isSidebarCollapsed,
+      setSidebarCollapsed,
+      setIsDragging,
+      setDropTargets,
+      setDropIndicator,
+    }),
+    [viewMode, isSidebarCollapsed],
+  );
+
+  const dragDropValue = useMemo<DragDropState>(
     () => ({ isDragging, dropTargets, dropIndicator }),
     [isDragging, dropTargets, dropIndicator],
   );
-  const value = useMemo<AppContextType>(
-    () => ({ viewMode, setViewMode, isSidebarCollapsed, setSidebarCollapsed, dragDrop, setIsDragging, setDropTargets, setDropIndicator }),
-    [viewMode, isSidebarCollapsed, dragDrop],
-  );
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={appValue}>
+      <DragDropContext.Provider value={dragDropValue}>
+        {children}
+      </DragDropContext.Provider>
+    </AppContext.Provider>
+  );
 };
 
-// Custom hook to use AppContext
+// Stable chrome + drag setters.
 export const useAppContext = () => {
   const context = useContext(AppContext);
   if (!context) {
     throw new Error("useAppContext must be used within an AppProvider");
+  }
+  return context;
+};
+
+// Per-mousemove drag state. Subscribe to this ONLY where the live drag values
+// are actually rendered (the drag wrappers).
+export const useDragDrop = () => {
+  const context = useContext(DragDropContext);
+  if (!context) {
+    throw new Error("useDragDrop must be used within an AppProvider");
   }
   return context;
 };
