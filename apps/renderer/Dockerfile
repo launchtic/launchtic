@@ -8,6 +8,8 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/database/package.json packages/database/
 COPY packages/database/prisma packages/database/prisma
 COPY packages/types/package.json packages/types/
+COPY packages/editor-utils/package.json packages/editor-utils/
+COPY packages/editor-core/package.json packages/editor-core/
 COPY packages/elements/package.json packages/elements/
 COPY apps/renderer/package.json apps/renderer/
 RUN pnpm install --frozen-lockfile --filter=@launchtic/renderer...
