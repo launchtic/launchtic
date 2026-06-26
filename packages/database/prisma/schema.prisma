@@ -655,6 +655,7 @@ model ContactNote {
   contactId String
   authorId  String? // User who wrote it; null if author deleted
   body      String
+  pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

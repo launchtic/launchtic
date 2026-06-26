@@ -9,12 +9,13 @@ type Params = { params: Promise<{ id: string }> };
 const noteSchema = z.object({ body: z.string().trim().min(1).max(5000) });
 
 function serialize(n: {
-  id: string; body: string; createdAt: Date; updatedAt: Date;
+  id: string; body: string; pinned: boolean; createdAt: Date; updatedAt: Date;
   author: { name: string | null; email: string } | null;
 }) {
   return {
     id: n.id,
     body: n.body,
+    pinned: n.pinned,
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
     authorName: n.author?.name ?? n.author?.email ?? null,
@@ -36,7 +37,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const notes = await db.contactNote.findMany({
       where: { contactId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       include: { author: { select: { name: true, email: true } } },
     });
 

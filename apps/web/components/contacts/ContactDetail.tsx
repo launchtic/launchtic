@@ -5,23 +5,16 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import {
   ChevronRight, ChevronLeft, Mail, Phone, Globe, Calendar, Tag as TagIcon,
-  Plus, X, Trash2, Loader2, ShoppingCart, FileText, Eye, Pencil,
-  MousePointer, CheckCircle, AlertCircle, Activity,
+  Plus, X, Trash2, Loader2, ShoppingCart, Pencil, Activity,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
-import ContactNotes from "./ContactNotes";
+import ContactActivityPanel from "./ContactActivityPanel";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
 type Tag = { id: string; name: string; color: string | null };
 type ContactTag = { tag: Tag; addedAt: string };
-type Event = {
-  id: string;
-  type: string;
-  data: Record<string, string> | null;
-  createdAt: string;
-};
 type Contact = {
   id: string;
   email: string;
@@ -31,30 +24,7 @@ type Contact = {
   country: string | null;
   createdAt: string;
   tags: ContactTag[];
-  events: Event[];
   _count: { orders: number };
-};
-
-const EVENT_ICON: Record<string, React.ReactNode> = {
-  PAGE_VIEW:    <Eye size={13} className="text-blue-500" />,
-  FORM_SUBMIT:  <FileText size={13} className="text-violet-500" />,
-  EMAIL_OPEN:   <Mail size={13} className="text-sky-500" />,
-  EMAIL_CLICK:  <MousePointer size={13} className="text-indigo-500" />,
-  PURCHASE:     <ShoppingCart size={13} className="text-green-600" />,
-  TAG_ADDED:    <TagIcon size={13} className="text-emerald-500" />,
-  TAG_REMOVED:  <TagIcon size={13} className="text-gray-400" />,
-  UNSUBSCRIBED: <AlertCircle size={13} className="text-red-500" />,
-};
-
-const EVENT_LABEL: Record<string, string> = {
-  PAGE_VIEW:    "Viewed page",
-  FORM_SUBMIT:  "Submitted form",
-  EMAIL_OPEN:   "Opened email",
-  EMAIL_CLICK:  "Clicked email",
-  PURCHASE:     "Made a purchase",
-  TAG_ADDED:    "Tag added",
-  TAG_REMOVED:  "Tag removed",
-  UNSUBSCRIBED: "Unsubscribed",
 };
 
 function TagBadge({ tag, onRemove, canRemove }: { tag: Tag; onRemove: () => void; canRemove: boolean }) {
@@ -76,9 +46,11 @@ function TagBadge({ tag, onRemove, canRemove }: { tag: Tag; onRemove: () => void
 export default function ContactDetail({
   contact: initial,
   allTags,
+  counts,
 }: {
   contact: Contact;
   allTags: Tag[];
+  counts: { activity: number; transactions: number; tags: number; workflows: number };
 }) {
   const { canManageContacts, canDeleteContacts } = useRole();
   const [contact, setContact] = useState(initial);
@@ -280,49 +252,10 @@ export default function ContactDetail({
           >
             <ChevronLeft size={18} />
           </button>
-          <span className="text-sm font-medium text-gray-900">Activity Timeline</span>
+          <span className="text-sm font-medium text-gray-900">Activity</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <ContactNotes contactId={contact.id} />
-
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Activity Timeline</p>
-
-        {contact.events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <CheckCircle size={32} className="text-gray-200 mb-3" />
-            <p className="text-sm text-gray-400">No activity yet</p>
-          </div>
-        ) : (
-          <div className="relative">
-            <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200" />
-            <div className="space-y-1">
-              {contact.events.map((ev) => (
-                <div key={ev.id} className="flex gap-4 relative">
-                  <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shrink-0 z-10">
-                    {EVENT_ICON[ev.type] ?? <CheckCircle size={13} className="text-gray-400" />}
-                  </div>
-                  <div className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-2.5 mb-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-gray-800">
-                        {EVENT_LABEL[ev.type] ?? ev.type}
-                      </p>
-                      <span className="text-xs text-gray-400 shrink-0">
-                        {new Date(ev.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    {ev.data && Object.keys(ev.data).length > 0 && (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {Object.entries(ev.data).map(([k, v]) => `${k}: ${v}`).join(" · ")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        </div>
+        <ContactActivityPanel contactId={contact.id} counts={counts} />
       </div>
 
       <ContactFormDrawer

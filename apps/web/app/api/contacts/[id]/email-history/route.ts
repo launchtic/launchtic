@@ -16,16 +16,18 @@ export async function GET(req: NextRequest, { params }: Params) {
     if (!contact) return err("Contact not found", 404);
 
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(100, parseInt(searchParams.get("limit") ?? "50"));
+    const cursor = searchParams.get("cursor");
+    const PAGE_SIZE = 25;
 
     // Pattern B: source info comes from the snapshot columns. Single query;
     // no FK include needed. Frontend reads sourceType/sourceId/sourceLabel
     // directly and renders the source name from sourceLabel (which survives
     // rename / delete of the underlying Broadcast / WorkflowEmail / Template).
-    const sends = await db.emailSend.findMany({
+    const rows = await db.emailSend.findMany({
       where: { contactId: id, workspaceId },
-      orderBy: { queuedAt: "desc" },
-      take: limit,
+      orderBy: [{ queuedAt: "desc" }, { id: "desc" }],
+      take: PAGE_SIZE + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
         id: true, subject: true, status: true,
         queuedAt: true, sentAt: true, failedAt: true,
@@ -34,7 +36,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       },
     });
 
-    return ok(sends);
+    const hasMore = rows.length > PAGE_SIZE;
+    const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+
+    return ok({ items, nextCursor: hasMore ? items[items.length - 1].id : null });
   } catch (error) {
     return handleError(error);
   }

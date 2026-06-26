@@ -13,13 +13,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import {
-  Mail, ExternalLink, X, Plus, Trash2, GripVertical, Loader2,
+  Mail, ExternalLink, X, Plus, Trash2, GripVertical, Loader2, StickyNote,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
 import { apiFetch } from "../../lib/api-client";
 import AddContactModal from "./AddContactModal";
 import StageColorPicker from "./StageColorPicker";
+import CardNotesModal from "./CardNotesModal";
 
 type Tag = { id: string; name: string; color: string | null };
 type Contact = {
@@ -41,9 +42,9 @@ function displayName(c: Contact): string {
 
 // ─── Card ──────────────────────────────────────────────────────────────────
 function ContactCard({
-  card, slug, onRemove, canManage,
+  card, slug, onRemove, onNotes, canManage,
 }: {
-  card: Card; slug: string; onRemove: (id: string) => void; canManage: boolean;
+  card: Card; slug: string; onRemove: (id: string) => void; onNotes: (contact: Contact) => void; canManage: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id, data: { type: "card" } });
@@ -71,19 +72,6 @@ function ContactCard({
           <p className="text-sm font-medium text-gray-900 truncate">{displayName(c)}</p>
           <p className="text-xs text-gray-500 truncate">{c.email}</p>
           {c.company && <p className="text-xs text-gray-400 truncate">{c.company}</p>}
-          {c.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {c.tags.map((t) => (
-                <span
-                  key={t.id}
-                  className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white"
-                  style={{ backgroundColor: t.color ?? "#6366f1" }}
-                >
-                  {t.name}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -102,6 +90,13 @@ function ContactCard({
         >
           <Mail size={13} />
         </a>
+        <button
+          onClick={() => onNotes(c)}
+          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+          title="Notes"
+        >
+          <StickyNote size={13} />
+        </button>
         {canManage && (
           <button
             onClick={() => onRemove(card.id)}
@@ -118,13 +113,14 @@ function ContactCard({
 
 // ─── Column ────────────────────────────────────────────────────────────────
 function Column({
-  stage, slug, canManage, onAddContact, onRemoveCard, onRenameStage, onDeleteStage, onSetColor,
+  stage, slug, canManage, onAddContact, onRemoveCard, onNotes, onRenameStage, onDeleteStage, onSetColor,
 }: {
   stage: Stage;
   slug: string;
   canManage: boolean;
   onAddContact: (stageId: string) => void;
   onRemoveCard: (cardId: string) => void;
+  onNotes: (contact: Contact) => void;
   onRenameStage: (stageId: string, name: string) => void;
   onDeleteStage: (stageId: string) => void;
   onSetColor: (stageId: string, color: string) => void;
@@ -197,7 +193,7 @@ function Column({
       >
         <SortableContext items={stage.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {stage.cards.map((card) => (
-            <ContactCard key={card.id} card={card} slug={slug} onRemove={onRemoveCard} canManage={canManage} />
+            <ContactCard key={card.id} card={card} slug={slug} onRemove={onRemoveCard} onNotes={onNotes} canManage={canManage} />
           ))}
         </SortableContext>
         {stage.cards.length === 0 && (
@@ -228,6 +224,7 @@ export default function PipelineBoard({ initialBoard }: { initialBoard: Board })
   const [stages, setStages] = useState<Stage[]>(initialBoard.stages);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [addStageId, setAddStageId] = useState<string | null>(null);
+  const [notesContact, setNotesContact] = useState<Contact | null>(null);
   const [addingStage, setAddingStage] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -313,7 +310,7 @@ export default function PipelineBoard({ initialBoard }: { initialBoard: Board })
   async function handleRemoveCard(cardId: string) {
     const ok = await confirm({
       title: "Remove from pipeline?",
-      description: "This removes the contact's card. The contact itself is not deleted.",
+      description: "This removes the contact's card.",
       confirmLabel: "Remove",
       variant: "warning",
     });
@@ -407,6 +404,7 @@ export default function PipelineBoard({ initialBoard }: { initialBoard: Board })
                 canManage={canManagePipelines}
                 onAddContact={setAddStageId}
                 onRemoveCard={handleRemoveCard}
+                onNotes={setNotesContact}
                 onRenameStage={handleRenameStage}
                 onDeleteStage={handleDeleteStage}
                 onSetColor={handleSetStageColor}
@@ -442,6 +440,10 @@ export default function PipelineBoard({ initialBoard }: { initialBoard: Board })
           onClose={() => setAddStageId(null)}
           onAdded={handleContactAdded}
         />
+      )}
+
+      {notesContact && (
+        <CardNotesModal contact={notesContact} onClose={() => setNotesContact(null)} />
       )}
     </>
   );

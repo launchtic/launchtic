@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Fragment } from "react";
-import { StickyNote, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
+import { StickyNote, Loader2, Pencil, Trash2, Check, X, Pin, PinOff } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
 import { apiFetch } from "../../lib/api-client";
@@ -9,10 +9,21 @@ import { apiFetch } from "../../lib/api-client";
 type Note = {
   id: string;
   body: string;
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
   authorName: string | null;
 };
+
+// Pinned notes first, then newest. Mirrors the server ordering so optimistic
+// updates stay consistent with a later refetch.
+function sortNotes(notes: Note[]): Note[] {
+  return [...notes].sort(
+    (a, b) =>
+      Number(b.pinned) - Number(a.pinned) ||
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
 
 // Render plain text with clickable http(s) links.
 function Linkified({ text }: { text: string }) {
@@ -64,8 +75,21 @@ export default function ContactNotes({ contactId }: { contactId: string }) {
     const json = await res.json();
     setSaving(false);
     if (res.ok) {
-      setNotes((prev) => [json.data, ...prev]);
+      setNotes((prev) => sortNotes([json.data, ...prev]));
       setDraft("");
+    }
+  }
+
+  async function togglePin(note: Note) {
+    const pinned = !note.pinned;
+    setNotes((prev) => sortNotes(prev.map((n) => (n.id === note.id ? { ...n, pinned } : n))));
+    const res = await apiFetch(`/api/contacts/${contactId}/notes/${note.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    });
+    if (!res.ok) {
+      setNotes((prev) => sortNotes(prev.map((n) => (n.id === note.id ? { ...n, pinned: note.pinned } : n))));
     }
   }
 
@@ -131,7 +155,12 @@ export default function ContactNotes({ contactId }: { contactId: string }) {
       ) : (
         <div className="space-y-2">
           {notes.map((n) => (
-            <div key={n.id} className="group bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+            <div
+              key={n.id}
+              className={`group rounded-xl px-4 py-3 shadow-sm border ${
+                n.pinned ? "bg-amber-50/60 border-amber-200" : "bg-white border-gray-100"
+              }`}
+            >
               {editingId === n.id ? (
                 <div>
                   <textarea
@@ -152,6 +181,11 @@ export default function ContactNotes({ contactId }: { contactId: string }) {
                 </div>
               ) : (
                 <>
+                  {n.pinned && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1">
+                      <Pin size={10} className="fill-amber-500 text-amber-500" /> Pinned
+                    </span>
+                  )}
                   <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
                     <Linkified text={n.body} />
                   </p>
@@ -162,17 +196,28 @@ export default function ContactNotes({ contactId }: { contactId: string }) {
                       {n.updatedAt !== n.createdAt ? " (edited)" : ""}
                     </span>
                     {canManageContacts && (
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => togglePin(n)}
+                          className={`p-1.5 rounded-lg transition-all ${
+                            n.pinned
+                              ? "text-amber-500 hover:bg-amber-100"
+                              : "text-gray-400 hover:text-amber-600 hover:bg-amber-50 opacity-0 group-hover:opacity-100"
+                          }`}
+                          title={n.pinned ? "Unpin" : "Pin"}
+                        >
+                          {n.pinned ? <PinOff size={12} /> : <Pin size={12} />}
+                        </button>
                         <button
                           onClick={() => { setEditingId(n.id); setEditBody(n.body); }}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                           title="Edit"
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={() => remove(n.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                           title="Delete"
                         >
                           <Trash2 size={12} />

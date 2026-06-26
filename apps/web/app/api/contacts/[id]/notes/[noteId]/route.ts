@@ -6,7 +6,14 @@ import { requireAccess } from "../../../../../../lib/permissions";
 
 type Params = { params: Promise<{ id: string; noteId: string }> };
 
-const updateSchema = z.object({ body: z.string().trim().min(1).max(5000) });
+const updateSchema = z
+  .object({
+    body: z.string().trim().min(1).max(5000).optional(),
+    pinned: z.boolean().optional(),
+  })
+  .refine((d) => d.body !== undefined || d.pinned !== undefined, {
+    message: "Nothing to update",
+  });
 
 // Confirm the note belongs to a contact in the caller's workspace.
 async function ownedNote(noteId: string, contactId: string, workspaceId: string) {
@@ -22,20 +29,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!r.ok) return r.response;
 
     const { id: contactId, noteId } = await params;
-    const { body } = updateSchema.parse(await req.json());
+    const { body, pinned } = updateSchema.parse(await req.json());
 
     const note = await ownedNote(noteId, contactId, r.workspaceId);
     if (!note) return err("Note not found", 404);
 
     const updated = await db.contactNote.update({
       where: { id: noteId },
-      data: { body },
+      data: {
+        ...(body !== undefined ? { body } : {}),
+        ...(pinned !== undefined ? { pinned } : {}),
+      },
       include: { author: { select: { name: true, email: true } } },
     });
 
     return ok({
       id: updated.id,
       body: updated.body,
+      pinned: updated.pinned,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
       authorName: updated.author?.name ?? updated.author?.email ?? null,
