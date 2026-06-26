@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox, Building2, Workflow,
+  Zap, Users, Mail, GitBranch, BarChart2, Settings, LogOut, ChevronDown, Package, Menu, X, ShoppingCart, Ticket, TrendingUp, Repeat, Receipt, Tag as TagIcon, LayoutDashboard, FileText, Megaphone, Inbox, Building2, Workflow, KanbanSquare,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -83,8 +83,9 @@ const NAV_ITEMS: NavItem[] = [
     label: "Contacts",
     icon: Users,
     children: [
-      { href: "/contacts",      label: "All contacts", icon: Users,   requirePerm: "contacts:read" },
-      { href: "/contacts/tags", label: "Tags",         icon: TagIcon, requirePerm: "tags:read"     },
+      { href: "/contacts",      label: "All contacts", icon: Users,        requirePerm: "contacts:read"  },
+      { href: "/pipelines",     label: "Pipelines",    icon: KanbanSquare, requirePerm: "pipelines:read" },
+      { href: "/contacts/tags", label: "Tags",         icon: TagIcon,      requirePerm: "tags:read"      },
     ],
   },
   {

@@ -68,6 +68,11 @@ export function useRole() {
     canManageTags:         hasPermission("tags:write"),
     canDeleteTags:         hasPermission("tags:delete"),
 
+    // CRM Pipelines (Kanban)
+    canReadPipelines:      hasPermission("pipelines:read"),
+    canManagePipelines:    hasPermission("pipelines:write"),
+    canDeletePipelines:    hasPermission("pipelines:delete"),
+
     // Emails — Broadcasts / Sequences / Templates / Logs
     canReadBroadcasts:     hasPermission("broadcasts:read"),
     canManageBroadcasts:   hasPermission("broadcasts:write"),

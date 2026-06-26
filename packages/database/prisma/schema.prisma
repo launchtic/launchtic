@@ -32,6 +32,7 @@ model User {
   memberships         WorkspaceMember[]
   passwordResetTokens PasswordResetToken[]
   refundedOrders      Order[]              @relation("OrderRefundedBy")
+  contactNotes        ContactNote[]
 }
 
 // The billing/org entity. Source of truth for plan + license. On self-host
@@ -129,6 +130,7 @@ model Workspace {
   pageTemplates    PageTemplate[]
   roles            Role[]
   assets           Asset[]
+  pipelines        Pipeline[]
 
   @@index([organizationId])
 }
@@ -587,9 +589,79 @@ model Contact {
   resourceAccesses ContactResourceAccess[]
   emailSends       EmailSend[]
   workflowRuns     WorkflowRun[]
+  pipelineCards    PipelineCard[]
+  notes            ContactNote[]
 
   @@unique([workspaceId, email])
   @@index([workspaceId, createdAt])
+}
+
+// ─────────────────────────────────────────
+// CRM PIPELINES (Kanban)
+// ─────────────────────────────────────────
+
+// A pipeline is a Kanban board (e.g. "Sales") owned by a workspace. It holds
+// ordered stages; a contact sits on exactly one stage of a given pipeline via
+// a PipelineCard. A contact may appear on multiple pipelines at once.
+model Pipeline {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  isDefault   Boolean  @default(false)
+  position    Int      @default(0) // order among the workspace's pipelines
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages    PipelineStage[]
+
+  @@index([workspaceId, position])
+}
+
+model PipelineStage {
+  id         String  @id @default(cuid())
+  pipelineId String
+  name       String
+  position   Int // column order, left → right
+  color      String?
+
+  pipeline Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  cards    PipelineCard[]
+
+  @@index([pipelineId, position])
+}
+
+// One contact placed on one stage. Unique per (stage, contact) so the same
+// contact can't be duplicated within a column. position orders cards top→bottom.
+model PipelineCard {
+  id        String   @id @default(cuid())
+  stageId   String
+  contactId String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  stage   PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  contact Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, contactId])
+  @@index([stageId, position])
+  @@index([contactId])
+}
+
+// Free-text notes a team member writes on a contact (distinct from the
+// automated ContactEvent timeline). Edited in the contact record.
+model ContactNote {
+  id        String   @id @default(cuid())
+  contactId String
+  authorId  String? // User who wrote it; null if author deleted
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([contactId, createdAt])
 }
 
 model Tag {

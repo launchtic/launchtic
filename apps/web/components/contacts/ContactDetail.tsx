@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import ContactFormDrawer from "./ContactFormDrawer";
+import ContactNotes from "./ContactNotes";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
@@ -283,6 +284,8 @@ export default function ContactDetail({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <ContactNotes contactId={contact.id} />
+
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Activity Timeline</p>
 
         {contact.events.length === 0 ? (

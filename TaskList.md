@@ -1,4 +1,5 @@
 
+Editor landing page icon font-size trong vimew mode ko hoat dong
 
 Ship xong cuoi thang nay. 20/6/2026:
 

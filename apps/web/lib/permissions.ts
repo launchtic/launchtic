@@ -80,6 +80,14 @@ export type Permission =
   | "tags:write"
   | "tags:delete"
 
+  // ── CRM Pipelines (Kanban) ──
+  // read  → view pipelines, stages, cards
+  // write → create/edit pipelines + stages, add/move/remove cards, notes
+  // delete → delete an entire pipeline (irreversible — loses card placements)
+  | "pipelines:read"
+  | "pipelines:write"
+  | "pipelines:delete"
+
   // ── Emails: Broadcasts ──
   | "broadcasts:read"
   | "broadcasts:write"       // create + edit drafts
@@ -177,6 +185,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   "coupons:read", "coupons:write", "coupons:delete",
   "contacts:read", "contacts:write", "contacts:delete", "contacts:import", "contacts:export",
   "tags:read", "tags:write", "tags:delete",
+  "pipelines:read", "pipelines:write", "pipelines:delete",
   "broadcasts:read", "broadcasts:write", "broadcasts:send", "broadcasts:delete",
   "email_templates:read", "email_templates:write", "email_templates:delete",
   "email_logs:read", "email_logs:resend",
