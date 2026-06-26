@@ -89,7 +89,7 @@ export default function PipelineDetailClient({ initialBoard }: { initialBoard: B
           initial={{
             id: board.id,
             name: board.name,
-            stages: board.stages.map((s) => ({ id: s.id, name: s.name })),
+            stages: board.stages.map((s) => ({ id: s.id, name: s.name, color: s.color })),
           }}
           onClose={() => setEditOpen(false)}
           onUpdated={(updated) => {

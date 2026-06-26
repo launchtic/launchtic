@@ -19,6 +19,7 @@ import { useConfirm } from "../ui/ConfirmDialog";
 import { useRole } from "../../lib/role";
 import { apiFetch } from "../../lib/api-client";
 import AddContactModal from "./AddContactModal";
+import StageColorPicker from "./StageColorPicker";
 
 type Tag = { id: string; name: string; color: string | null };
 type Contact = {
@@ -117,7 +118,7 @@ function ContactCard({
 
 // ─── Column ────────────────────────────────────────────────────────────────
 function Column({
-  stage, slug, canManage, onAddContact, onRemoveCard, onRenameStage, onDeleteStage,
+  stage, slug, canManage, onAddContact, onRemoveCard, onRenameStage, onDeleteStage, onSetColor,
 }: {
   stage: Stage;
   slug: string;
@@ -126,6 +127,7 @@ function Column({
   onRemoveCard: (cardId: string) => void;
   onRenameStage: (stageId: string, name: string) => void;
   onDeleteStage: (stageId: string) => void;
+  onSetColor: (stageId: string, color: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id, data: { type: "column" } });
   const [editing, setEditing] = useState(false);
@@ -148,7 +150,11 @@ function Column({
         className="flex items-center gap-2 px-3 py-2.5 shrink-0 border-b border-gray-100"
         style={{ backgroundColor: `${color}0f` }}
       >
-        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        {canManage ? (
+          <StageColorPicker color={stage.color} onChange={(hex) => onSetColor(stage.id, hex)} />
+        ) : (
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        )}
         {editing ? (
           <input
             autoFocus
@@ -327,6 +333,17 @@ export default function PipelineBoard({ initialBoard }: { initialBoard: Board })
     });
   }
 
+  async function handleSetStageColor(stageId: string, color: string) {
+    const snapshot = stages;
+    setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, color } : s)));
+    const res = await apiFetch(`/api/pipelines/stages/${stageId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color }),
+    });
+    if (!res.ok) setStages(snapshot);
+  }
+
   async function handleDeleteStage(stageId: string) {
     const stage = stages.find((s) => s.id === stageId);
     if (!stage) return;
@@ -392,6 +409,7 @@ export default function PipelineBoard({ initialBoard }: { initialBoard: Board })
                 onRemoveCard={handleRemoveCard}
                 onRenameStage={handleRenameStage}
                 onDeleteStage={handleDeleteStage}
+                onSetColor={handleSetStageColor}
               />
             ))}
 

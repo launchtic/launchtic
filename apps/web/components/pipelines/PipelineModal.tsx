@@ -10,19 +10,25 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { X, Plus, GripVertical, Loader2, Trash2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
+import { stageColor } from "../../lib/pipeline-colors";
+import StageColorPicker from "./StageColorPicker";
 import type { Board } from "./PipelineBoard";
 
 type PipelineMeta = { id: string; name: string; isDefault: boolean };
-type Row = { key: string; id?: string; name: string };
+type Row = { key: string; id?: string; name: string; color: string };
 
 const DEFAULT_ROWS = [
   "New leads", "Initial contact made", "Proposal sent", "Negotiation", "Deal won", "Deal lost",
 ];
 
 function StageRow({
-  row, onChange, onRemove, canRemove,
+  row, onChange, onColor, onRemove, canRemove,
 }: {
-  row: Row; onChange: (key: string, name: string) => void; onRemove: (key: string) => void; canRemove: boolean;
+  row: Row;
+  onChange: (key: string, name: string) => void;
+  onColor: (key: string, color: string) => void;
+  onRemove: (key: string) => void;
+  canRemove: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.key });
@@ -38,6 +44,7 @@ function StageRow({
       >
         <GripVertical size={16} />
       </button>
+      <StageColorPicker color={row.color} size={14} onChange={(hex) => onColor(row.key, hex)} />
       <input
         value={row.name}
         onChange={(e) => onChange(row.key, e.target.value)}
@@ -65,7 +72,7 @@ export default function PipelineModal({
 }: {
   onClose: () => void;
   /** Present → edit mode. */
-  initial?: { id: string; name: string; stages: { id: string; name: string }[] };
+  initial?: { id: string; name: string; stages: { id: string; name: string; color: string | null }[] };
   onCreated?: (meta: PipelineMeta) => void;
   onUpdated?: (board: Board) => void;
 }) {
@@ -76,8 +83,8 @@ export default function PipelineModal({
   const [name, setName] = useState(initial?.name ?? "");
   const [rows, setRows] = useState<Row[]>(() =>
     initial
-      ? initial.stages.map((s) => ({ key: s.id, id: s.id, name: s.name }))
-      : DEFAULT_ROWS.map((n) => ({ key: newKey(), name: n })),
+      ? initial.stages.map((s, i) => ({ key: s.id, id: s.id, name: s.name, color: s.color ?? stageColor(i) }))
+      : DEFAULT_ROWS.map((n, i) => ({ key: newKey(), name: n, color: stageColor(i) })),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -87,11 +94,14 @@ export default function PipelineModal({
   function updateRow(key: string, value: string) {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, name: value } : r)));
   }
+  function updateColor(key: string, color: string) {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, color } : r)));
+  }
   function removeRow(key: string) {
     setRows((prev) => prev.filter((r) => r.key !== key));
   }
   function addRow() {
-    setRows((prev) => [...prev, { key: newKey(), name: "" }]);
+    setRows((prev) => [...prev, { key: newKey(), name: "", color: stageColor(prev.length) }]);
   }
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
@@ -106,7 +116,7 @@ export default function PipelineModal({
   async function handleSave() {
     const trimmedName = name.trim();
     if (!trimmedName) { setError("Pipeline name is required"); return; }
-    const valid = rows.map((r) => ({ id: r.id, name: r.name.trim() })).filter((s) => s.name);
+    const valid = rows.map((r) => ({ id: r.id, name: r.name.trim(), color: r.color })).filter((s) => s.name);
     if (valid.length === 0) { setError("Add at least one stage"); return; }
 
     setSaving(true);
@@ -116,7 +126,7 @@ export default function PipelineModal({
       const res = await apiFetch(`/api/pipelines/${initial!.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmedName, stages: valid.map((s) => ({ id: s.id, name: s.name })) }),
+        body: JSON.stringify({ name: trimmedName, stages: valid.map((s) => ({ id: s.id, name: s.name, color: s.color })) }),
       });
       const json = await res.json();
       setSaving(false);
@@ -126,7 +136,7 @@ export default function PipelineModal({
       const res = await apiFetch("/api/pipelines", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmedName, stages: valid.map((s) => ({ name: s.name })) }),
+        body: JSON.stringify({ name: trimmedName, stages: valid.map((s) => ({ name: s.name, color: s.color })) }),
       });
       const json = await res.json();
       setSaving(false);
@@ -179,6 +189,7 @@ export default function PipelineModal({
                       key={row.key}
                       row={row}
                       onChange={updateRow}
+                      onColor={updateColor}
                       onRemove={removeRow}
                       canRemove={rows.length > 1}
                     />

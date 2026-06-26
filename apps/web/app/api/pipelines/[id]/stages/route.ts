@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { stageColor } from "../../../../../lib/pipeline-colors";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,9 +32,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       orderBy: { position: "desc" },
       select: { position: true },
     });
+    const position = (last?.position ?? -1) + 1;
 
     const stage = await db.pipelineStage.create({
-      data: { pipelineId, name, color, position: (last?.position ?? -1) + 1 },
+      data: { pipelineId, name, color: color ?? stageColor(position), position },
       select: { id: true, name: true, color: true, position: true },
     });
 

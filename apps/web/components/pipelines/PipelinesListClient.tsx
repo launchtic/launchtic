@@ -116,12 +116,6 @@ export default function PipelinesListClient({ items }: { items: Item[] }) {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <Link
-                            href={`/${workspaceSlug}/pipelines/${p.id}`}
-                            className="px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            Open
-                          </Link>
                           {canDeletePipelines && (
                             <button
                               onClick={() => handleDelete(p)}

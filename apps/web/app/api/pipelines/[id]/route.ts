@@ -12,7 +12,13 @@ const updateSchema = z.object({
   // Ordered stage list. Rows with an `id` are updated; rows without are
   // created; existing stages absent from the list are deleted (cards cascade).
   stages: z
-    .array(z.object({ id: z.string().optional(), name: z.string().trim().min(1).max(60) }))
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().trim().min(1).max(60),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      }),
+    )
     .min(1)
     .max(20)
     .optional(),
@@ -62,9 +68,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       db.pipeline.update({ where: { id }, data: { name } }),
       ...stages.map((s, i) =>
         s.id && existingIds.has(s.id)
-          ? db.pipelineStage.update({ where: { id: s.id }, data: { name: s.name, position: i } })
+          ? db.pipelineStage.update({
+              where: { id: s.id },
+              data: { name: s.name, position: i, ...(s.color ? { color: s.color } : {}) },
+            })
           : db.pipelineStage.create({
-              data: { pipelineId: id, name: s.name, position: i, color: stageColor(i) },
+              data: { pipelineId: id, name: s.name, position: i, color: s.color ?? stageColor(i) },
             }),
       ),
       ...(toDelete.length ? [db.pipelineStage.deleteMany({ where: { id: { in: toDelete } } })] : []),

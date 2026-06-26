@@ -1,13 +1,8 @@
 import { db } from "@launchtic/database";
 
-// Rotating palette for stages created without an explicit color (e.g. from
-// the "Create pipeline" dialog, which doesn't expose a color picker).
-export const STAGE_PALETTE = [
-  "#6366f1", "#0ea5e9", "#f59e0b", "#16a34a", "#ef4444",
-  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#64748b",
-];
-
-export const stageColor = (i: number) => STAGE_PALETTE[i % STAGE_PALETTE.length];
+// Rotating palette for stages created without an explicit color. Defined in a
+// client-safe module so the picker UI can share the exact same palette.
+export { STAGE_PALETTE, stageColor } from "./pipeline-colors";
 
 // Stages the default "Sales" pipeline ships with — mirrors the systeme.io
 // flow: cold lead → engaged → closing → terminal outcomes → nurture.
