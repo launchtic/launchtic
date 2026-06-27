@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 
-const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END"] as const;
+const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "ADD_TO_PIPELINE", "WEBHOOK", "DELAY", "CONDITION", "END"] as const;
 
 const nodeSchema = z.object({
   id:       z.string().min(1),

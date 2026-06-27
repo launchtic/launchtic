@@ -32,10 +32,18 @@ export default async function WorkflowEditorPage({
   //                    disambiguate emails with the same subject across
   //                    workflows). bodyHtml omitted for the same reason as
   //                    broadcasts above.
-  const [tags, senders, funnels, broadcasts, workflowEmails, workspaceEmails] = await Promise.all([
+  const [tags, pipelines, senders, funnels, broadcasts, workflowEmails, workspaceEmails] = await Promise.all([
     db.tag.findMany({
       where: { workspaceId }, orderBy: { name: "asc" },
       select: { id: true, name: true, color: true },
+    }),
+    // pipelines + stages: ADD_TO_PIPELINE action picker
+    db.pipeline.findMany({
+      where: { workspaceId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true, name: true,
+        stages: { select: { id: true, name: true, color: true }, orderBy: { position: "asc" } },
+      },
     }),
     db.senderIdentity.findMany({
       where: { workspaceId }, orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -91,6 +99,7 @@ export default async function WorkflowEditorPage({
         maxDurationDays: wf.maxDurationDays,
       }}
       tags={tags}
+      pipelines={pipelines}
       senders={senders}
       funnels={funnels}
       broadcasts={broadcasts}

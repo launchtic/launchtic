@@ -25,7 +25,7 @@ import {
   ArrowLeft, Plus, Play, Pause, Mail, Tag, TagIcon as TagOff, Globe, Clock,
   GitBranch, Square, Loader2, Save, History, Zap, X, ChevronDown,
   Trash2, ShoppingCart, ShoppingBag, CreditCard, Send, Undo2, MailOpen,
-  MousePointerClick, Eye, User, Repeat, UserCheck,
+  MousePointerClick, Eye, User, Repeat, UserCheck, KanbanSquare,
 } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
@@ -40,7 +40,7 @@ import {
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type NodeType =
-  | "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "WEBHOOK"
+  | "SEND_EMAIL" | "ADD_TAG" | "REMOVE_TAG" | "ADD_TO_PIPELINE" | "WEBHOOK"
   | "DELAY" | "CONDITION" | "END";
 type Status = "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
 
@@ -99,6 +99,7 @@ type WorkspaceEmailMini = {
 type Props = {
   workflow: Workflow;
   tags:     { id: string; name: string; color: string | null }[];
+  pipelines: { id: string; name: string; stages: { id: string; name: string; color: string | null }[] }[];
   senders:  { id: string; name: string; email: string; isDefault: boolean }[];
   funnels:  { id: string; name: string; steps: { id: string; name: string; type: string }[] }[];
   broadcasts: { id: string; name: string; subject: string; status: string; sentAt: Date | null }[];
@@ -219,6 +220,7 @@ const NODE_DEFS: Record<NodeType, { label: string; Icon: typeof Mail; color: str
   SEND_EMAIL: { label: "Send email",    Icon: Mail,        color: "#3b82f6", defaultConfig: { subject: "", bodyHtml: "" } },
   ADD_TAG:    { label: "Add tag",       Icon: Tag,         color: "#10b981", defaultConfig: { tagId: "" } },
   REMOVE_TAG: { label: "Remove tag",    Icon: TagOff,      color: "#f59e0b", defaultConfig: { tagId: "" } },
+  ADD_TO_PIPELINE: { label: "Add to a pipeline stage", Icon: KanbanSquare, color: "#6366f1", defaultConfig: { pipelineId: "", stageId: "" } },
   WEBHOOK:    { label: "Webhook",       Icon: Globe,       color: "#8b5cf6", defaultConfig: { url: "", method: "POST" } },
   DELAY:      { label: "Wait",          Icon: Clock,       color: "#6b7280", defaultConfig: { hours: 1 } },
   CONDITION:  { label: "If / else",     Icon: GitBranch,   color: "#f97316", defaultConfig: { kind: "contact_tag" } },
@@ -318,6 +320,7 @@ const NODE_TYPE_DESCRIPTIONS: Record<NodeType, string> = {
   SEND_EMAIL: "Personalised email with Mustache vars",
   ADD_TAG:    "Tag the contact",
   REMOVE_TAG: "Remove a tag from the contact",
+  ADD_TO_PIPELINE: "Add or move contact to a pipeline stage",
   WEBHOOK:    "Call any HTTP endpoint (Slack, CRM, custom)",
   DELAY:      "Wait minutes / hours / days before next step",
   CONDITION:  "Branch true / false (wire true → End for early exit)",
@@ -667,7 +670,7 @@ export default function WorkflowBuilder(props: Props) {
   );
 }
 
-function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEmails: initialEmails, workspaceEmails }: Props) {
+function InnerBuilder({ workflow: initial, tags, pipelines, funnels, broadcasts, workflowEmails: initialEmails, workspaceEmails }: Props) {
   const router  = useRouter();
   const params  = useParams();
   const slug    = params.workspaceSlug as string;
@@ -727,7 +730,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           // initialEmails (prop) here — workflowEmails state isn't declared
           // yet at this point in the function. Subsequent renders pick up
           // the state via the patchConfig path.
-          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, funnels, broadcasts, initialEmails),
+          subtitle: nodeSubtitle(n.type, n.config ?? {}, tags, pipelines, funnels, broadcasts, initialEmails),
         },
       } as Node)),
     ];
@@ -960,7 +963,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
     setConfigMap((prev) => ({ ...prev, [id]: newCfg }));
     setRfNodes((prev) => prev.concat({
       id, type: "workflowNode", position,
-      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, funnels, broadcasts, workflowEmails) },
+      data: { type, subtitle: nodeSubtitle(type, newCfg, tags, pipelines, funnels, broadcasts, workflowEmails) },
     }));
 
     if (sourceId === TRIGGER_ID) {
@@ -1116,7 +1119,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
       data: {
         ...n.data,
         type:     newType,
-        subtitle: nodeSubtitle(newType, newConfig, tags, funnels, broadcasts, workflowEmails),
+        subtitle: nodeSubtitle(newType, newConfig, tags, pipelines, funnels, broadcasts, workflowEmails),
       },
     } : n));
     setSwitchTarget(null);
@@ -1241,7 +1244,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
       // Update the subtitle in node data so the canvas reflects changes.
       setRfNodes((nodes) => nodes.map((n) => n.id === selectedNodeId ? {
         ...n,
-        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, funnels, broadcasts, workflowEmails) },
+        data: { ...n.data, subtitle: nodeSubtitle(selectedType!, next[selectedNodeId], tags, pipelines, funnels, broadcasts, workflowEmails) },
       } : n));
       return next;
     });
@@ -1422,6 +1425,7 @@ function InnerBuilder({ workflow: initial, tags, funnels, broadcasts, workflowEm
           onConfigChange={patchConfig}
           onDelete={deleteSelected}
           tags={tags}
+          pipelines={pipelines}
           funnels={funnels}
           broadcasts={broadcasts}
           workspaceEmails={workspaceEmails}
@@ -1654,7 +1658,7 @@ function NodeConfigModal({
   onClose, onTypeSwitch, onConfigChange, onDelete,
   triggerType, triggerConfig,
   onTriggerTypeChange, onTriggerConfigChange,
-  tags, funnels, broadcasts, workspaceEmails, workflowEmails,
+  tags, pipelines, funnels, broadcasts, workspaceEmails, workflowEmails,
   workflowId, workspaceSlug, isLocked,
 }: {
   isTrigger:        boolean;
@@ -1670,6 +1674,7 @@ function NodeConfigModal({
   onTriggerTypeChange:   (t: string) => void;
   onTriggerConfigChange: (c: Record<string, unknown>) => void;
   tags:             Props["tags"];
+  pipelines:        Props["pipelines"];
   funnels:          Props["funnels"];
   broadcasts:       Props["broadcasts"];
   workspaceEmails:  WorkspaceEmailMini[];
@@ -1813,6 +1818,7 @@ function NodeConfigModal({
                 config={selectedConfig}
                 onChange={onConfigChange}
                 tags={tags}
+                pipelines={pipelines}
                 funnels={funnels}
                 broadcasts={broadcasts}
                 workflowEmails={workflowEmails}
@@ -2447,13 +2453,14 @@ function truncateMiddle(s: string, n: number): string {
 // ─── Per-node-type config form ─────────────────────────────────────────────
 
 function NodeConfigForm({
-  type, config, onChange, tags, funnels, broadcasts,
+  type, config, onChange, tags, pipelines, funnels, broadcasts,
   workflowEmails, workspaceSlug, workflowId, workflowTriggerType, isLocked,
 }: {
   type: NodeType;
   config: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
   tags: Props["tags"];
+  pipelines: Props["pipelines"];
   funnels: Props["funnels"];
   broadcasts: Props["broadcasts"];
   workflowEmails:        WorkflowEmailMini[];
@@ -2571,6 +2578,39 @@ function NodeConfigForm({
           <option value="">— pick tag —</option>
           {tags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
+      </div>
+    );
+  }
+
+  if (type === "ADD_TO_PIPELINE") {
+    const pipelineId = (config.pipelineId as string) ?? "";
+    const stages = pipelines.find((p) => p.id === pipelineId)?.stages ?? [];
+    return (
+      <div className="space-y-3">
+        <div>
+          <label className={lbl}>Pipeline</label>
+          <select
+            className={inp}
+            value={pipelineId}
+            // Changing pipeline invalidates the stage pick — reset it.
+            onChange={(e) => onChange({ pipelineId: e.target.value, stageId: "" })}
+          >
+            <option value="">— select a pipeline —</option>
+            {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Pipeline stage</label>
+          <select
+            className={inp}
+            value={(config.stageId as string) ?? ""}
+            disabled={!pipelineId}
+            onChange={(e) => onChange({ stageId: e.target.value })}
+          >
+            <option value="">— select a pipeline stage —</option>
+            {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
       </div>
     );
   }
@@ -3043,6 +3083,7 @@ function nodeSubtitle(
   type: NodeType,
   config: Record<string, unknown>,
   tags: Props["tags"],
+  pipelines: Props["pipelines"],
   funnels: Props["funnels"],
   broadcasts: Props["broadcasts"],
   workflowEmails: WorkflowEmailMini[],
@@ -3056,6 +3097,12 @@ function nodeSubtitle(
     const id = config.tagId as string | undefined;
     const tag = tags.find((t) => t.id === id);
     return tag?.name;
+  }
+  if (type === "ADD_TO_PIPELINE") {
+    const pipeline = pipelines.find((p) => p.id === config.pipelineId);
+    if (!pipeline) return undefined;
+    const stage = pipeline.stages.find((s) => s.id === config.stageId);
+    return stage ? `${pipeline.name} · ${stage.name}` : pipeline.name;
   }
   if (type === "WEBHOOK") return (config.url as string) || undefined;
   if (type === "DELAY")   return totalDelayLabel(config);
@@ -3161,6 +3208,8 @@ function hasNodeContent(
     case "ADD_TAG":
     case "REMOVE_TAG":
       return !!(config.tagId && String(config.tagId).trim());
+    case "ADD_TO_PIPELINE":
+      return !!(config.pipelineId && String(config.pipelineId).trim());
     case "WEBHOOK":
       return !!(config.url && String(config.url).trim());
     case "DELAY":
@@ -3205,6 +3254,8 @@ function getDiscardSummary(
     case "ADD_TAG":
     case "REMOVE_TAG":
       return ["Tag selection"];
+    case "ADD_TO_PIPELINE":
+      return ["Pipeline + stage selection"];
     case "WEBHOOK": {
       const url = String(config.url ?? "");
       return [url ? `URL ${truncate(url, 36)}` : "Webhook config"];

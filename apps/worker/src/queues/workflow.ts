@@ -297,6 +297,7 @@ async function executeNode(node: WorkflowNode, ctx: RunCtx, _edges: WorkflowEdge
     case "SEND_EMAIL":   return execSendEmail(node, ctx);
     case "ADD_TAG":      return execAddTag(node, ctx);
     case "REMOVE_TAG":   return execRemoveTag(node, ctx);
+    case "ADD_TO_PIPELINE": return execAddToPipeline(node, ctx);
     case "WEBHOOK":      return execWebhook(node, ctx);
     case "DELAY":        return execDelay(node, ctx);
     case "CONDITION":    return execCondition(node, ctx);
@@ -450,6 +451,61 @@ async function execRemoveTag(node: WorkflowNode, ctx: RunCtx): Promise<void> {
     },
   });
   ctx.nodeOutput = { tagId };
+}
+
+// ─── ADD_TO_PIPELINE ────────────────────────────────────────────────────────
+
+// Add or move the contact to a pipeline stage. A contact sits on at most one
+// stage per pipeline, so an existing card is moved rather than duplicated.
+async function execAddToPipeline(node: WorkflowNode, ctx: RunCtx): Promise<void> {
+  if (!ctx.contact) throw new Error("ADD_TO_PIPELINE requires a contact");
+  const cfg = (node.config ?? {}) as Record<string, unknown>;
+  const pipelineId = (cfg.pipelineId as string | undefined)?.trim();
+  const stageId    = (cfg.stageId    as string | undefined)?.trim();
+  if (!pipelineId) throw new Error("ADD_TO_PIPELINE missing pipelineId");
+  if (!stageId)    throw new Error("ADD_TO_PIPELINE missing stageId");
+
+  // Stage must belong to the given pipeline AND this workspace.
+  const stage = await db.pipelineStage.findFirst({
+    where: { id: stageId, pipelineId, pipeline: { workspaceId: ctx.workspaceId } },
+    select: { id: true },
+  });
+  if (!stage) throw new Error(`Pipeline stage ${stageId} not found in workspace`);
+
+  const contactId = ctx.contact.id;
+  const existing = await db.pipelineCard.findFirst({
+    where: { contactId, stage: { pipelineId } },
+    select: { id: true, stageId: true },
+  });
+
+  const last = await db.pipelineCard.findFirst({
+    where: { stageId },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+  const position = (last?.position ?? -1) + 1;
+
+  let cardId: string;
+  if (existing) {
+    if (existing.stageId === stageId) {
+      cardId = existing.id; // already on this stage — no-op move
+    } else {
+      const card = await db.pipelineCard.update({
+        where: { id: existing.id },
+        data: { stageId, position },
+        select: { id: true },
+      });
+      cardId = card.id;
+    }
+  } else {
+    const card = await db.pipelineCard.create({
+      data: { stageId, contactId, position },
+      select: { id: true },
+    });
+    cardId = card.id;
+  }
+
+  ctx.nodeOutput = { pipelineId, stageId, cardId };
 }
 
 // ─── WEBHOOK ────────────────────────────────────────────────────────────────

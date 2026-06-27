@@ -191,7 +191,7 @@ export function validateTrigger(type: string, config: Record<string, unknown>): 
 // SPLIT / GOAL from older workflows) gets a clear "deprecated" validation
 // message + the canvas renders it as a deletable broken card.
 const SUPPORTED_NODE_TYPES = new Set([
-  "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END",
+  "SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "ADD_TO_PIPELINE", "WEBHOOK", "DELAY", "CONDITION", "END",
 ]);
 
 // RFC 7230 §3.2.6 token charset for HTTP header names. Slightly stricter than
@@ -230,6 +230,11 @@ export function validateNode(type: string, config: Record<string, unknown>): str
     case "ADD_TAG":
     case "REMOVE_TAG":
       if (!nonEmpty(config.tagId)) out.push("No tag selected.");
+      break;
+
+    case "ADD_TO_PIPELINE":
+      if (!nonEmpty(config.pipelineId)) out.push("No pipeline selected.");
+      if (!nonEmpty(config.stageId)) out.push("No pipeline stage selected.");
       break;
 
     case "WEBHOOK": {
@@ -399,6 +404,7 @@ export function nodeLabel(n: WorkflowNode, emails?: Map<string, WorkflowEmailMin
     }
     case "ADD_TAG":    return "Add tag";
     case "REMOVE_TAG": return "Remove tag";
+    case "ADD_TO_PIPELINE": return "Add to a pipeline stage";
     case "WEBHOOK":    return "Webhook";
     case "DELAY":      return "Wait";
     case "CONDITION":  return "If / else";

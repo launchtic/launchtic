@@ -25,7 +25,7 @@ const TRIGGER_TYPES = [
   "CHECKOUT_STARTED",
 ] as const;
 const STATUSES = ["DRAFT", "ACTIVE", "PAUSED", "ARCHIVED"] as const;
-const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "WEBHOOK", "DELAY", "CONDITION", "END"] as const;
+const NODE_TYPES = ["SEND_EMAIL", "ADD_TAG", "REMOVE_TAG", "ADD_TO_PIPELINE", "WEBHOOK", "DELAY", "CONDITION", "END"] as const;
 
 const nodeSchema = z.object({
   id:       z.string().min(1),
