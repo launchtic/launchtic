@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Activity, StickyNote, Mail, Receipt, Tag as TagIcon, Workflow as WorkflowIcon,
   Eye, FileText, MousePointer, ShoppingCart, AlertCircle, CheckCircle, Loader2,
-  CreditCard, Clock,
+  CreditCard, Clock, KanbanSquare,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import ContactNotes from "./ContactNotes";
@@ -83,6 +83,7 @@ const EVENT_ICON: Record<string, React.ReactNode> = {
   EMAIL_CLICKED:<MousePointer size={13} className="text-indigo-500" />,
   EMAIL_BOUNCED:<AlertCircle size={13} className="text-red-500" />,
   EMAIL_UNSUBSCRIBED: <AlertCircle size={13} className="text-red-500" />,
+  PIPELINE_STAGE_CHANGED: <KanbanSquare size={13} className="text-indigo-500" />,
 };
 const EVENT_LABEL: Record<string, string> = {
   PAGE_VIEW: "Viewed page", FORM_SUBMIT: "Submitted form", PURCHASE: "Made a purchase",
@@ -91,7 +92,59 @@ const EVENT_LABEL: Record<string, string> = {
   EMAIL_BOUNCED: "Email bounced", EMAIL_UNSUBSCRIBED: "Unsubscribed",
   SEQUENCE_ENROLLED: "Enrolled in sequence", SEQUENCE_COMPLETED: "Completed sequence",
   SEQUENCE_EXITED: "Exited sequence",
+  PIPELINE_STAGE_CHANGED: "Pipeline stage",
 };
+
+// Technical keys never worth showing a human: foreign keys, provider refs,
+// internal routing. Anything ending in "id" (emailSendId, funnelStepId,
+// providerMessageId, orderId, …) plus a small noise set.
+function isHiddenKey(k: string): boolean {
+  return /id$/i.test(k) || ["source", "to", "ip", "isRenewal"].includes(k);
+}
+function humanizeKey(k: string): string {
+  const s = k.replace(/([a-z])([A-Z])/g, "$1 $2");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Clean one-line detail under an event. Each known type renders a readable
+// summary; the generic fallback drops id-like keys so users never see raw
+// foreign keys like emailSendId / providerMessageId / funnelStepId.
+function eventDetail(ev: Event): string | null {
+  const d = ev.data;
+  if (!d) return null;
+
+  switch (ev.type) {
+    case "PIPELINE_STAGE_CHANGED": {
+      const via = d.source === "workflow" ? " · via workflow" : "";
+      return `${d.pipelineName ?? "pipeline"} → ${d.stageName ?? "stage"}${via}`;
+    }
+    case "PURCHASE": {
+      if (d.amount == null || !d.currency) return null;
+      const amount = money(Number(d.amount), String(d.currency));
+      return d.isRenewal ? `${amount} · renewal` : amount;
+    }
+    case "FORM_SUBMIT": {
+      if (!d.stepName) return null;
+      return d.funnelName ? `${d.funnelName} · ${d.stepName}` : String(d.stepName);
+    }
+    case "TAG_ADDED":
+    case "TAG_REMOVED":
+      return d.tagName ? `"${d.tagName}"` : null;
+    case "EMAIL_SENT":
+    case "EMAIL_BOUNCED": {
+      const parts: string[] = [];
+      if (d.subject) parts.push(`"${d.subject}"`);
+      if (d.error) parts.push(String(d.error));
+      return parts.length ? parts.join(" · ") : null;
+    }
+    default: {
+      const parts = Object.entries(d)
+        .filter(([k, v]) => !isHiddenKey(k) && v != null && v !== "")
+        .map(([k, v]) => `${humanizeKey(k)}: ${v}`);
+      return parts.length ? parts.join(" · ") : null;
+    }
+  }
+}
 
 function Badge({ label, color }: { label: string; color: string }) {
   return (
@@ -213,10 +266,8 @@ function ActivityTab({ contactId }: { contactId: string }) {
                   <p className="text-sm font-medium text-gray-800">{EVENT_LABEL[ev.type] ?? ev.type}</p>
                   <span className="text-xs text-gray-400 shrink-0">{new Date(ev.createdAt).toLocaleString()}</span>
                 </div>
-                {ev.data && Object.keys(ev.data).length > 0 && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {Object.entries(ev.data).map(([k, v]) => `${k}: ${v}`).join(" · ")}
-                  </p>
+                {eventDetail(ev) && (
+                  <p className="text-xs text-gray-500 mt-0.5">{eventDetail(ev)}</p>
                 )}
               </div>
             </div>

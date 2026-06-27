@@ -96,3 +96,33 @@ export async function getBoard(workspaceId: string, pipelineId: string) {
 }
 
 export type Board = NonNullable<Awaited<ReturnType<typeof getBoard>>>;
+
+// Records a PIPELINE_STAGE_CHANGED activity event on the contact timeline when
+// a contact enters a stage (manual board move/add). Looks up stage + pipeline
+// names so the timeline reads "Sales → Won" without extra joins at render time.
+// Best-effort: callers swallow errors so logging never breaks the move itself.
+export async function logStageChange(params: {
+  contactId: string;
+  stageId: string;
+  source: "manual" | "workflow";
+}) {
+  const stage = await db.pipelineStage.findUnique({
+    where: { id: params.stageId },
+    select: { id: true, name: true, pipelineId: true, pipeline: { select: { name: true } } },
+  });
+  if (!stage) return;
+
+  await db.contactEvent.create({
+    data: {
+      contactId: params.contactId,
+      type: "PIPELINE_STAGE_CHANGED",
+      data: {
+        pipelineId: stage.pipelineId,
+        pipelineName: stage.pipeline.name,
+        stageId: stage.id,
+        stageName: stage.name,
+        source: params.source,
+      },
+    },
+  });
+}

@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
+import { logStageChange } from "../../../../../lib/pipelines";
 
 type Params = { params: Promise<{ cardId: string }> };
 
@@ -16,7 +17,7 @@ const moveSchema = z.object({
 async function ownedCard(cardId: string, workspaceId: string) {
   return db.pipelineCard.findFirst({
     where: { id: cardId, stage: { pipeline: { workspaceId } } },
-    select: { id: true, stage: { select: { pipelineId: true } } },
+    select: { id: true, stageId: true, contactId: true, stage: { select: { pipelineId: true } } },
   });
 }
 
@@ -40,6 +41,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!target) return err("Target stage not found in this pipeline", 404);
 
     await db.pipelineCard.update({ where: { id: cardId }, data: { stageId, position } });
+
+    // Log only a genuine stage change — a same-stage reorder isn't a milestone.
+    if (card.stageId !== stageId) {
+      await logStageChange({ contactId: card.contactId, stageId, source: "manual" }).catch(() => {});
+    }
     return ok({ id: cardId, stageId, position });
   } catch (error) {
     return handleError(error);

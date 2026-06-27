@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { logStageChange } from "../../../../lib/pipelines";
 
 const addCardSchema = z.object({
   stageId: z.string().min(1),
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
         data: { stageId, position },
         select: { id: true },
       });
+      await logStageChange({ contactId, stageId, source: "manual" }).catch(() => {});
       return ok({ id: card.id, moved: true });
     }
 
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
       data: { stageId, contactId, position },
       select: { id: true },
     });
+    await logStageChange({ contactId, stageId, source: "manual" }).catch(() => {});
     return ok({ id: card.id, moved: false }, 201);
   } catch (error) {
     return handleError(error);

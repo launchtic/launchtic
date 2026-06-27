@@ -468,7 +468,7 @@ async function execAddToPipeline(node: WorkflowNode, ctx: RunCtx): Promise<void>
   // Stage must belong to the given pipeline AND this workspace.
   const stage = await db.pipelineStage.findFirst({
     where: { id: stageId, pipelineId, pipeline: { workspaceId: ctx.workspaceId } },
-    select: { id: true },
+    select: { id: true, name: true, pipeline: { select: { name: true } } },
   });
   if (!stage) throw new Error(`Pipeline stage ${stageId} not found in workspace`);
 
@@ -486,9 +486,11 @@ async function execAddToPipeline(node: WorkflowNode, ctx: RunCtx): Promise<void>
   const position = (last?.position ?? -1) + 1;
 
   let cardId: string;
+  let changed = true;
   if (existing) {
     if (existing.stageId === stageId) {
       cardId = existing.id; // already on this stage — no-op move
+      changed = false;
     } else {
       const card = await db.pipelineCard.update({
         where: { id: existing.id },
@@ -503,6 +505,25 @@ async function execAddToPipeline(node: WorkflowNode, ctx: RunCtx): Promise<void>
       select: { id: true },
     });
     cardId = card.id;
+  }
+
+  // Log the milestone on the contact timeline (only on a real add/move).
+  if (changed) {
+    await db.contactEvent.create({
+      data: {
+        contactId,
+        type: "PIPELINE_STAGE_CHANGED",
+        data: {
+          pipelineId,
+          pipelineName: stage.pipeline.name,
+          stageId,
+          stageName: stage.name,
+          source: "workflow",
+          workflowId: ctx.workflowId,
+          runId: ctx.runId,
+        },
+      },
+    });
   }
 
   ctx.nodeOutput = { pipelineId, stageId, cardId };
