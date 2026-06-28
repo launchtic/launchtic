@@ -34,6 +34,15 @@ export default async function FunnelDetailPage({ params }: Params) {
 
   if (!funnel) notFound();
 
+  // A step is "empty" until a template is applied or content is built — its
+  // pageJson is still the default canvas (ROOT with no child nodes). Drives
+  // the inline template picker in the step panel. pageJson itself is heavy
+  // (full Craft.js tree) so we compute the flag server-side and don't ship it.
+  const stepHasContent = (pageJson: unknown): boolean => {
+    const root = (pageJson as { ROOT?: { nodes?: unknown[] } } | null)?.ROOT;
+    return Array.isArray(root?.nodes) && root.nodes.length > 0;
+  };
+
   const steps = funnel.steps.map((s) => ({
     id: s.id,
     name: s.name,
@@ -42,6 +51,7 @@ export default async function FunnelDetailPage({ params }: Params) {
     order: s.order,
     acceptStepId: s.acceptStepId,
     declineStepId: s.declineStepId,
+    hasContent: stepHasContent(s.pageJson),
   }));
 
   const primaryDomain = funnel.domains[0]?.domain.verified

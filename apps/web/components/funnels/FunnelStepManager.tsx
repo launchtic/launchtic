@@ -46,7 +46,7 @@ import ProductsTab from "./ProductsTab";
 import FunnelAnalyticsView from "./FunnelAnalyticsView";
 import AbTestPanel from "./AbTestPanel";
 import FunnelFormDrawer from "./FunnelFormDrawer";
-import ChangeTemplateModal from "./ChangeTemplateModal";
+import TemplateGallery from "./TemplateGallery";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
 
@@ -59,6 +59,9 @@ type Step = {
   // One-click upsell/downsell branching targets (UPSELL/DOWNSELL steps only).
   acceptStepId?: string | null;
   declineStepId?: string | null;
+  // False until a template is applied or content is built (pageJson is still
+  // the empty canvas) — drives the inline template picker.
+  hasContent?: boolean;
 };
 
 type Funnel = {
@@ -429,7 +432,12 @@ export default function FunnelStepManager({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [cloning, setCloning] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [changeTemplateOpen, setChangeTemplateOpen] = useState(false);
+  // Inline template picker: shown automatically for a step with no content,
+  // or when the operator chooses to change an existing step's template.
+  const [pickingTemplate, setPickingTemplate] = useState(false);
+  // Steps where the operator opted to "Start from blank" this session — so we
+  // stop auto-showing the picker for them even though they're still empty.
+  const [blankDismissed, setBlankDismissed] = useState<Set<string>>(new Set());
   // mobile: 'list' shows sidebar, 'detail' shows right panel
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const router = useRouter();
@@ -445,6 +453,15 @@ export default function FunnelStepManager({
   }, [initialSteps]);
 
   const selectedStep = steps.find((s) => s.id === selectedId) ?? null;
+
+  // Auto-open the template picker for an empty step (unless the operator chose
+  // to start blank). Re-evaluates when the selected step or its content changes.
+  useEffect(() => {
+    setPickingTemplate(
+      !!selectedStep && !selectedStep.hasContent && !blankDismissed.has(selectedStep.id),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, selectedStep?.hasContent]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -501,7 +518,8 @@ export default function FunnelStepManager({
       alert(json.error ?? "Failed to duplicate step");
       return;
     }
-    const newStep: Step = json.data;
+    // A clone copies the source page, so it already has content.
+    const newStep: Step = { ...json.data, hasContent: true };
     // Insert the copy right after the original, then renumber order locally.
     setSteps((prev) => {
       const idx = prev.findIndex((s) => s.id === stepId);
@@ -522,6 +540,38 @@ export default function FunnelStepManager({
 
   function handleStepUpdate(updated: Step) {
     setSteps((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  }
+
+  // Open the inline picker. For a step that already has content, confirm first
+  // — applying a template replaces the current page.
+  async function handleChangeTemplate() {
+    if (!selectedStep) return;
+    if (selectedStep.hasContent) {
+      const ok = await confirm({
+        title: "Replace page content?",
+        description: "Applying a template overwrites this step's current page. This can't be undone.",
+        confirmLabel: "Choose a template",
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+    setPickingTemplate(true);
+  }
+
+  // Template applied → step now has content; leave the picker.
+  function handleTemplateApplied() {
+    if (selectedStep) handleStepUpdate({ ...selectedStep, hasContent: true });
+    setPickingTemplate(false);
+    setActiveTab("configuration");
+    router.refresh();
+  }
+
+  // "Start from blank" — dismiss the picker for this empty step and open the
+  // page editor so the operator builds from scratch.
+  function handleStartBlank() {
+    if (!selectedStep) return;
+    setBlankDismissed((prev) => new Set(prev).add(selectedStep.id));
+    setPickingTemplate(false);
   }
 
   /* ── Sidebar ── */
@@ -657,19 +707,20 @@ export default function FunnelStepManager({
                     Edit page
                   </a>
                 )}
-                {canManageFunnels && (
+                {canManageFunnels && !pickingTemplate && (
                   <button
-                    onClick={() => setChangeTemplateOpen(true)}
+                    onClick={handleChangeTemplate}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors"
                   >
                     <RefreshCw size={13} />
-                    Change template
+                    {selectedStep.hasContent ? "Change template" : "Choose template"}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Tabs */}
+            {/* Tabs (hidden while the template picker is open) */}
+            {!pickingTemplate && (
             <div className="flex items-center gap-0 overflow-x-auto">
               {ALL_TABS
                 .filter((tab) => !tab.types || tab.types.includes(selectedStep.type as any))
@@ -693,10 +744,25 @@ export default function FunnelStepManager({
                   </button>
                 ))}
             </div>
+            )}
           </div>
 
-          {/* Tab content */}
+          {/* Content: inline template picker for empty / change-template steps,
+              otherwise the active tab. */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {pickingTemplate ? (
+              <TemplateGallery
+                key={selectedStep.id}
+                stepId={selectedStep.id}
+                stepType={selectedStep.type as any}
+                funnelName={funnel.name}
+                title={selectedStep.hasContent ? "Change template" : "Choose a template to get started"}
+                subtitle={`For "${selectedStep.name}" — applying a template builds this page.`}
+                onApplied={handleTemplateApplied}
+                onBlank={selectedStep.hasContent ? undefined : handleStartBlank}
+              />
+            ) : (
+            <>
             {activeTab === "configuration" && (
               <ConfigurationTab key={selectedStep.id} step={selectedStep} steps={steps} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} canUpsell={canUpsell} onUpdate={handleStepUpdate} />
             )}
@@ -717,6 +783,8 @@ export default function FunnelStepManager({
                 canView={canViewAnalytics}
                 workspaceSlug={slug}
               />
+            )}
+            </>
             )}
           </div>
         </>
@@ -744,16 +812,6 @@ export default function FunnelStepManager({
         editId={funnel.id}
         onSuccess={() => { setSettingsOpen(false); router.refresh(); }}
       />
-
-      {changeTemplateOpen && selectedStep && (
-        <ChangeTemplateModal
-          stepId={selectedStep.id}
-          stepType={selectedStep.type as any}
-          funnelName={funnel.name}
-          onClose={() => setChangeTemplateOpen(false)}
-          onApplied={() => router.refresh()}
-        />
-      )}
     </div>
   );
 }

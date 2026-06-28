@@ -86,6 +86,14 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
     ],
   },
   {
+    label: "CRM Pipelines",
+    perms: [
+      { key: "pipelines:read",   label: "View pipelines and cards" },
+      { key: "pipelines:write",  label: "Create and edit pipelines, stages, and move contacts" },
+      { key: "pipelines:delete", label: "Delete pipelines" },
+    ],
+  },
+  {
     label: "Broadcasts",
     perms: [
       { key: "broadcasts:read",   label: "View broadcasts" },
