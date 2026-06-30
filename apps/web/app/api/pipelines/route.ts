@@ -3,7 +3,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
-import { ensureDefaultPipeline, DEFAULT_STAGES, stageColor } from "../../../lib/pipelines";
+import { DEFAULT_STAGES, stageColor } from "../../../lib/pipelines";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -28,12 +28,10 @@ export async function GET() {
     if (!r.ok) return r.response;
     const { workspaceId } = r;
 
-    await ensureDefaultPipeline(workspaceId);
-
     const pipelines = await db.pipeline.findMany({
       where: { workspaceId },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-      select: { id: true, name: true, isDefault: true },
+      select: { id: true, name: true },
     });
 
     return ok({ pipelines });
@@ -66,7 +64,7 @@ export async function POST(req: NextRequest) {
           })),
         },
       },
-      select: { id: true, name: true, isDefault: true },
+      select: { id: true, name: true },
     });
 
     return ok(pipeline, 201);

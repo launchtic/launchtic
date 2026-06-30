@@ -14,7 +14,7 @@ import { stageColor } from "../../lib/pipeline-colors";
 import StageColorPicker from "./StageColorPicker";
 import type { Board } from "./PipelineBoard";
 
-type PipelineMeta = { id: string; name: string; isDefault: boolean };
+type PipelineMeta = { id: string; name: string };
 type Row = { key: string; id?: string; name: string; color: string };
 
 const DEFAULT_ROWS = [

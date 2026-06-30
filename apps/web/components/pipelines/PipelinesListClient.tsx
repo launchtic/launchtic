@@ -12,7 +12,6 @@ import PipelineModal from "./PipelineModal";
 type Item = {
   id: string;
   name: string;
-  isDefault: boolean;
   stageCount: number;
   contactCount: number;
   createdAt: string;
@@ -100,9 +99,6 @@ export default function PipelinesListClient({ items }: { items: Item[] }) {
                           <span className="font-medium text-gray-900 group-hover:text-blue-700 transition-colors truncate">
                             {p.name}
                           </span>
-                          {p.isDefault && (
-                            <span className="text-[10px] text-gray-400 uppercase tracking-wide shrink-0">default</span>
-                          )}
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">

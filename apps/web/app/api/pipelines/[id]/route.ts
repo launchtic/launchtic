@@ -96,26 +96,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     const pipeline = await db.pipeline.findFirst({
       where: { id, workspaceId },
-      select: { id: true, isDefault: true },
+      select: { id: true },
     });
     if (!pipeline) return err("Pipeline not found", 404);
 
-    // A workspace must always keep at least one pipeline.
-    const count = await db.pipeline.count({ where: { workspaceId } });
-    if (count <= 1) return err("You must keep at least one pipeline", 400);
-
     await db.pipeline.delete({ where: { id } });
-
-    // If we removed the default, promote the next pipeline so one stays default.
-    if (pipeline.isDefault) {
-      const next = await db.pipeline.findFirst({
-        where: { workspaceId },
-        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-        select: { id: true },
-      });
-      if (next) await db.pipeline.update({ where: { id: next.id }, data: { isDefault: true } });
-    }
-
     return ok({ id });
   } catch (error) {
     return handleError(error);
