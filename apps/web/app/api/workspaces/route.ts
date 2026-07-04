@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const currentPlan  = getEffectivePlan(organization);
 
     if (!canCreateWorkspace(currentPlan, currentCount)) {
-      return err("Upgrade to Pro to create additional workspaces.", 403);
+      return err("Upgrade to Agency to run multiple workspaces.", 403);
     }
 
     const baseSlug = slugify(name) || "workspace";

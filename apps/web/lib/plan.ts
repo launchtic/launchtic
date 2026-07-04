@@ -1,23 +1,25 @@
 // Single source of truth for tier-gated features. Combines the plan enum,
 // feature matrix, and runtime predicates.
 //
-// Names match the DB enum (no free tier — Launchtic is one-time-license only):
-//   SOLO     — $199 · 1 user, 1 workspace, 3 domains, core features
-//   STARTER  — $449 · 5 team members, 10 domains, basic roles, A/B, upsells, analytics
-//   AGENCY   — $1,499 · unlimited workspaces/team/domains, advanced roles, white-label, reseller
-//   CUSTOM   — contact sales · SSO, audit logs, SLA
+// Two sellable tiers (one-time license, no free tier):
+//   LICENSE  — $197 · the full platform: unlimited team/domains, 1 workspace,
+//              premium templates, roles, A/B, upsells, analytics. Everything
+//              EXCEPT the agency-only features.
+//   AGENCY   — $497 · LICENSE + unlimited workspaces, white-label & workspace
+//              cloning.
+//
+// CUSTOM is a sales-assisted enterprise superset (SSO, audit logs) — not
+// self-serve.
 //
 // A `null` plan = NO valid license (pre-activation, revoked, or deactivated).
-// It resolves to the LOCKED feature set below — everything off. There is no
-// "Community"/free tier anymore; an unlicensed instance is locked, not degraded
-// to a usable free plan.
+// It resolves to the LOCKED feature set below — everything off. An unlicensed
+// instance is locked, not degraded to a usable free plan.
 //
 // The plan is authoritative on the launchtic.com side (License.plan) and
 // returned by license verification — it is NOT derived from the key. Keys are
-// tier-agnostic (legacy keys may carry an LT-SOL-/LT-AGY- word, but it's
-// cosmetic and ignored).
+// tier-agnostic.
 
-export type Plan = "SOLO" | "STARTER" | "AGENCY" | "CUSTOM";
+export type Plan = "LICENSE" | "AGENCY" | "CUSTOM";
 
 export type PlanFeatures = {
   maxWorkspaces:    number;
@@ -47,15 +49,10 @@ const LOCKED: PlanFeatures = {
 };
 
 export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
-  SOLO: {
-    maxWorkspaces: 1, maxTeamMembers: 1, maxDomains: 3,
-    premiumTemplates: false, teamRoles: false,
-    abTesting: false, upsells: false, funnelAnalytics: false,
-    whiteLabel: false, workspaceCloning: false,
-    sso: false, auditLogs: false,
-  },
-  STARTER: {
-    maxWorkspaces: 1, maxTeamMembers: 5, maxDomains: 10,
+  // Base license — everything unlocked except the agency-only trio
+  // (unlimited workspaces, white-label, workspace cloning).
+  LICENSE: {
+    maxWorkspaces: 1, maxTeamMembers: Infinity, maxDomains: Infinity,
     premiumTemplates: true, teamRoles: true,
     abTesting: true, upsells: true, funnelAnalytics: true,
     whiteLabel: false, workspaceCloning: false,
@@ -108,7 +105,7 @@ export function canAddDomain(plan: string | null | undefined, currentCount: numb
 
 /** Any valid paid tier (i.e. licensed). False when locked / null. */
 export function isPaidPlan(plan: string | null | undefined): boolean {
-  return plan === "SOLO" || plan === "STARTER" || plan === "AGENCY" || plan === "CUSTOM";
+  return plan === "LICENSE" || plan === "AGENCY" || plan === "CUSTOM";
 }
 
 /** Agency tier or above. Gates white-label, cloning, reseller, client billing. */
@@ -124,8 +121,7 @@ export function isCustomPlan(plan: string | null | undefined): boolean {
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
 const COLORS: Record<Plan, string> = {
-  SOLO:    "bg-emerald-100 text-emerald-700",
-  STARTER: "bg-blue-100 text-blue-700",
+  LICENSE: "bg-blue-100 text-blue-700",
   AGENCY:  "bg-purple-100 text-purple-700",
   CUSTOM:  "bg-amber-100 text-amber-700",
 };

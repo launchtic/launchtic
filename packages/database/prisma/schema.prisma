@@ -1160,10 +1160,10 @@ model SenderIdentity {
 //   AGENCY  — $1,499 · unlimited workspaces/team/domains, white-label, reseller
 //   CUSTOM  — contact sales · SSO, audit, SLA
 // A NULL Organization.plan = no valid license (pre-activation / revoked) → locked.
-// License key prefixes: LT-SOL-, LT-STR-, LT-AGY-, LT-CUS-.
+// Sellable tiers: LICENSE ($197 base) and AGENCY ($497). CUSTOM is a
+// sales-assisted enterprise superset (not self-serve).
 enum Plan {
-  SOLO
-  STARTER
+  LICENSE
   AGENCY
   CUSTOM
 }
