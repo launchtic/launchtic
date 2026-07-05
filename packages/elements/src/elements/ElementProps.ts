@@ -268,7 +268,9 @@ export type VideoProps = {
 // document. Height is either measured from content ("auto") or pinned ("fixed").
 export type EmbedProps = {
   html?: string;
+  // Height mode is per-device: desktop can auto-fit while mobile is fixed, etc.
   heightMode?: "auto" | "fixed";
+  mobileHeightMode?: "auto" | "fixed";
   height?: number;
   mobileHeight?: number;
 } & htmlIdProps &

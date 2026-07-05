@@ -185,6 +185,7 @@ export const DEFAULT_STYLES = {
   embed: {
     html: "",
     heightMode: "auto" as const,
+    mobileHeightMode: "auto" as const,
     height: 400,
     mobileHeight: 300,
     margin: { marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 },

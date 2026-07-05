@@ -14,6 +14,7 @@ export const EmbedSettings: React.FC = () => {
     actions: { setProp },
     html,
     heightMode,
+    mobileHeightMode,
     height,
     mobileHeight,
     appearance,
@@ -23,6 +24,7 @@ export const EmbedSettings: React.FC = () => {
   } = useNode<EmbedProps>((node) => ({
     html: node.data.props.html,
     heightMode: node.data.props.heightMode,
+    mobileHeightMode: node.data.props.mobileHeightMode,
     height: node.data.props.height,
     mobileHeight: node.data.props.mobileHeight,
     appearance: node.data.props.appearance,
@@ -37,13 +39,14 @@ export const EmbedSettings: React.FC = () => {
     });
   };
 
-  const mode = heightMode ?? "auto";
-
-  // Edit the height for whichever device is previewed in the editor — same
-  // view-mode pattern as MarginSettings.
+  // Both the mode and the value are per-device — edit whichever is previewed in
+  // the editor, same view-mode pattern as MarginSettings.
   const { viewMode } = useAppContext();
-  const currentHeight = viewMode === "mobile" ? mobileHeight : height;
-  const setCurrentHeight = viewMode === "mobile" ? updateProp("mobileHeight") : updateProp("height");
+  const isMobile = viewMode === "mobile";
+  const mode = (isMobile ? mobileHeightMode : heightMode) ?? "auto";
+  const setMode = isMobile ? updateProp("mobileHeightMode") : updateProp("heightMode");
+  const currentHeight = isMobile ? mobileHeight : height;
+  const setCurrentHeight = isMobile ? updateProp("mobileHeight") : updateProp("height");
 
   const parsePx = (v: string): number | undefined => (v ? parseInt(v, 10) : undefined);
 
@@ -63,20 +66,21 @@ export const EmbedSettings: React.FC = () => {
       </SettingsGroup>
 
       <SettingsGroup>
-        <Label>Height</Label>
-        <Select value={mode} onChange={(e) => updateProp("heightMode")(e.target.value as EmbedProps["heightMode"])}>
+        <Label>
+          Height <ViewModeIcon />
+        </Label>
+        <Select value={mode} onChange={(e) => setMode(e.target.value as EmbedProps["heightMode"])}>
           <option value="auto">Auto (fit content)</option>
           <option value="fixed">Fixed</option>
         </Select>
 
         {mode === "fixed" && (
           <>
-            <Label $small>
-              Height (px) <ViewModeIcon />
-            </Label>
+            <Label $small>Height (px)</Label>
             <Input
               type="number"
-              min="0"
+              min="20"
+              max="5000"
               value={currentHeight ?? ""}
               onChange={(e) => setCurrentHeight(parsePx(e.target.value))}
             />
