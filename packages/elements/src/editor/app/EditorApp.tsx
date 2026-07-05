@@ -15,6 +15,7 @@ import {
   Image,
   Icon,
   Video,
+  Embed,
   BulletedList,
   Field,
   Checkbox,
@@ -169,7 +170,7 @@ const EditorInner: React.FC = () => {
 
   const resolver = useMemo(() => ({
     OrderBump, PhysicalProduct, Field, Checkbox, Text, Button, Headline,
-    BulletedList, Image, Icon, Video, Section, Row, Column,
+    BulletedList, Image, Icon, Video, Embed, Section, Row, Column,
     Page, FAQ, Menu, Countdown, PaymentButton, PaymentMethod,
     Coupon, OfferPrice, AcceptOfferButton, DeclineOfferButton,
   }), []);

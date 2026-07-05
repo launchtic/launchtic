@@ -9,6 +9,7 @@ export { Button } from "./elements/Button";
 export { Image } from "./elements/Image";
 export { Icon } from "./elements/Icon";
 export { Video } from "./elements/Video";
+export { Embed } from "./elements/Embed";
 export { BulletedList } from "./elements/BulletedList";
 export { FAQ } from "./elements/FAQ";
 export { Menu } from "./elements/Menu";

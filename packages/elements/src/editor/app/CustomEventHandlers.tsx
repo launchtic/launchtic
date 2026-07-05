@@ -27,7 +27,7 @@ enum DropRule {
 }
 
 // List of content elements that can be dragged
-const CONTENT_ELEMENTS = ["AcceptOfferButton", "DeclineOfferButton", "PhysicalProduct", "OrderBump", "PaymentButton", "PaymentMethod", "Coupon", "OfferPrice", "Text", "Button", "Image", "Icon", "Field", "Checkbox", "Headline", "BulletedList", "Video", "FAQ", "Menu", "Countdown"];
+const CONTENT_ELEMENTS = ["AcceptOfferButton", "DeclineOfferButton", "PhysicalProduct", "OrderBump", "PaymentButton", "PaymentMethod", "Coupon", "OfferPrice", "Text", "Button", "Image", "Icon", "Video", "Embed", "Field", "Checkbox", "Headline", "BulletedList", "FAQ", "Menu", "Countdown"];
  
 export default class CustomEventHandlers extends DefaultEventHandlers {
   private appContext: ReturnType<typeof useAppContext>;

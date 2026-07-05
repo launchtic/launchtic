@@ -11,6 +11,7 @@ import {
   Image,
   Icon,
   Video,
+  Embed,
   Section,
   Row,
   Column,
@@ -384,6 +385,15 @@ export const Toolbox: React.FC = () => {
                 <img src={getIconPath('video')} alt="" />
               </IconWrapper>
               <ItemLabel>Video</ItemLabel>
+            </ToolboxItemContent>
+          </ToolboxItem>
+
+          <ToolboxItem ref={(ref) => createElement(ref, <Embed {...DEFAULT_STYLES.embed} />)}>
+            <ToolboxItemContent>
+              <IconWrapper>
+                <i className="fas fa-code" />
+              </IconWrapper>
+              <ItemLabel>HTML / Embed</ItemLabel>
             </ToolboxItemContent>
           </ToolboxItem>
         </ToolboxGrid>

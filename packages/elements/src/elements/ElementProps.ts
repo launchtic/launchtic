@@ -263,6 +263,17 @@ export type VideoProps = {
   BoxShadowProps &
   BorderProps;
 
+// Embed / Raw HTML element — injects arbitrary HTML/CSS/JS INLINE into the
+// published page (not sandboxed), mirroring systeme.io's "Raw HTML" block.
+// Scripts run in the page's own context. Rendered on the live page only; the
+// editor shows a placeholder (arbitrary user JS must never run inside the builder).
+export type EmbedProps = {
+  html?: string;
+} & htmlIdProps &
+  AppearanceProps &
+  DelayProps &
+  MarginProps;
+
 // Icon element — single FontAwesome / Bootstrap Icon glyph rendered via
 // className (e.g. "fas fa-check"). Vector, scales without loss; color
 // inherits via `color` CSS property.

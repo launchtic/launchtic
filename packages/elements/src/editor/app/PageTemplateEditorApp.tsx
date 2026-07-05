@@ -4,7 +4,7 @@ import React, { useMemo, useEffect, useRef, useCallback } from "react";
 import { Editor, Frame, Element, useEditor } from "@launchtic/editor-core";
 
 import {
-  Page, Section, Row, Column, Text, Headline, Button, Image, Icon, Video,
+  Page, Section, Row, Column, Text, Headline, Button, Image, Icon, Video, Embed,
   BulletedList, Field, Checkbox, FAQ, Menu, Countdown,
   PaymentButton, PaymentMethod, OfferPrice, Coupon, OrderBump, PhysicalProduct,
   AcceptOfferButton, DeclineOfferButton,
@@ -84,7 +84,7 @@ const EditorInner: React.FC = () => {
 
   const resolver = useMemo(() => ({
     OrderBump, PhysicalProduct, Field, Checkbox, Text, Button, Headline,
-    BulletedList, Image, Icon, Video, Section, Row, Column,
+    BulletedList, Image, Icon, Video, Embed, Section, Row, Column,
     Page, FAQ, Menu, Countdown, PaymentButton, PaymentMethod, Coupon, OfferPrice,
     AcceptOfferButton, DeclineOfferButton,
   }), []);

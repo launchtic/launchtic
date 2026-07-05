@@ -179,7 +179,13 @@ export const DEFAULT_STYLES = {
     mobileBoxShadow: undefined,
     border: undefined,
     mobileBorder: undefined,
-    
+
+    ...DEFAULT_COMMON_PROPS,
+  },
+  embed: {
+    html: "",
+    margin: { marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 },
+    mobileMargin: { marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 },
     ...DEFAULT_COMMON_PROPS,
   },
   headline: {
