@@ -1,6 +1,6 @@
 import { UserComponent } from "@launchtic/editor-core";
 import styled from "styled-components";
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Indicator } from "../../editor/common/Indicator";
 import { EmbedProps } from "../ElementProps";
 import { DEFAULT_STYLES } from "../DefaultStyles";
@@ -36,6 +36,42 @@ const Placeholder = styled.div`
   }
 `;
 
+// Renders the live embed. Kept as its OWN component so its injection effect
+// fires when THIS div mounts — the div lives inside <DelayedRender>, which
+// mounts it a tick after <Embed> itself, so an effect on the parent would run
+// while the ref is still null and never fill the container.
+const EmbedContent: React.FC<{ id: string; html?: string }> = ({ id, html }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Inject on the CLIENT, after mount — never during SSR. If the code were
+  // server-rendered, its inline <script>s would run while the browser parses
+  // the initial HTML (BEFORE React hydrates); any global DOM change they make
+  // (e.g. a library adding a class to <html>) then desyncs hydration. An empty
+  // server div keeps hydration clean; we fill it here in real page context.
+  //
+  // React/innerHTML never EXECUTES injected <script>s, so we swap each inert
+  // one for a freshly-created element — that is what actually runs cal.com /
+  // AI-generated JS.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.innerHTML = html || "";
+
+    const scripts = Array.from(container.querySelectorAll("script"));
+    scripts.forEach((oldScript) => {
+      const fresh = document.createElement("script");
+      for (const attr of Array.from(oldScript.attributes)) {
+        fresh.setAttribute(attr.name, attr.value);
+      }
+      fresh.textContent = oldScript.textContent;
+      oldScript.parentNode?.replaceChild(fresh, oldScript);
+    });
+  }, [html]);
+
+  return <div id={id} ref={containerRef} suppressHydrationWarning />;
+};
+
 export const Embed: UserComponent<EmbedProps> = ({ ...props }) => {
   const { viewMode } = useAppContext();
   const { ref, elementId, UUIDWrapper } = useDraggableElement("embed", "htmlAttrId");
@@ -48,36 +84,6 @@ export const Embed: UserComponent<EmbedProps> = ({ ...props }) => {
     mobileMargin: props.mobileMargin,
     html: props.html,
   };
-
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Published page only. We inject the markup on the CLIENT, after mount —
-  // never during SSR. If the code were server-rendered, its inline <script>s
-  // would run while the browser parses the initial HTML (BEFORE React
-  // hydrates); any global DOM change they make (e.g. a library adding a class
-  // to <html>) then desyncs hydration. Rendering an empty div on the server
-  // keeps hydration clean, and we fill it here in real page context.
-  //
-  // React/innerHTML never EXECUTES injected <script>s, so we swap each inert
-  // one for a freshly-created element — that is what actually runs cal.com /
-  // AI-generated JS. In the editor (`enabled`) we run nothing.
-  useEffect(() => {
-    if (enabled) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    container.innerHTML = resolvedProps.html || "";
-
-    const scripts = Array.from(container.querySelectorAll("script"));
-    scripts.forEach((oldScript) => {
-      const fresh = document.createElement("script");
-      for (const attr of Array.from(oldScript.attributes)) {
-        fresh.setAttribute(attr.name, attr.value);
-      }
-      fresh.textContent = oldScript.textContent;
-      oldScript.parentNode?.replaceChild(fresh, oldScript);
-    });
-  }, [enabled, resolvedProps.html]);
 
   return (
     <DelayedRender delay={resolvedProps.delay}>
@@ -101,11 +107,7 @@ export const Embed: UserComponent<EmbedProps> = ({ ...props }) => {
               <small style={{ fontSize: 11 }}>Visible on the live page only</small>
             </Placeholder>
           ) : (
-            <div
-              id={props.htmlAttrId || elementId}
-              ref={containerRef}
-              suppressHydrationWarning
-            />
+            <EmbedContent id={props.htmlAttrId || elementId} html={resolvedProps.html} />
           )}
         </ElementWrapper>
       </ElementDrag>
