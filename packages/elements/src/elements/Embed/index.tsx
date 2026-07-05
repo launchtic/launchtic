@@ -78,9 +78,13 @@ const buildSrcDoc = (
     `html{overflow-y:${desktopMode === "auto" ? "hidden" : "auto"};}` +
     `@media(max-width:801px){html{overflow-y:${mobileMode === "auto" ? "hidden" : "auto"};}}` +
     `</style>`;
+  // Measure body.scrollHeight (content height) — NOT documentElement.scrollHeight,
+  // which is floored to the iframe's viewport. When a fixed mode forces the frame
+  // taller than its content, documentElement would report that inflated height and
+  // auto mode would then get stuck at it (never shrinking back to fit content).
   const reporter =
     `<script>(function(){` +
-    `function send(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);` +
+    `function send(){var h=document.body.scrollHeight;` +
     `parent.postMessage({__embedResize:true,id:${JSON.stringify(frameId)},height:h},'*');}` +
     `window.addEventListener('load',send);` +
     `if(window.ResizeObserver){new ResizeObserver(send).observe(document.body);}else{setInterval(send,500);}` +
