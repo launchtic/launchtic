@@ -263,12 +263,14 @@ export type VideoProps = {
   BoxShadowProps &
   BorderProps;
 
-// Embed / Raw HTML element — injects arbitrary HTML/CSS/JS INLINE into the
-// published page (not sandboxed), mirroring systeme.io's "Raw HTML" block.
-// Scripts run in the page's own context. Rendered on the live page only; the
-// editor shows a placeholder (arbitrary user JS must never run inside the builder).
+// Embed / Raw HTML element — the user's HTML/CSS/JS runs inside a sandboxed
+// <iframe srcdoc>, isolated from the page. Accepts a full `<!DOCTYPE html>…`
+// document. Height is either measured from content ("auto") or pinned ("fixed").
 export type EmbedProps = {
   html?: string;
+  heightMode?: "auto" | "fixed";
+  height?: number;
+  mobileHeight?: number;
 } & htmlIdProps &
   AppearanceProps &
   DelayProps &

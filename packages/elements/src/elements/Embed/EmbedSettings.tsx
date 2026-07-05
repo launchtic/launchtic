@@ -1,46 +1,30 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useNode } from "@launchtic/editor-core";
 import { AppearanceSettings } from "../../editor/toolbar/AppearanceSettings";
 import { MarginSettings } from "../../editor/toolbar/MarginSettings";
 import { DelaySettings } from "../../editor/toolbar/DelaySettings";
 import { IDAttributeSettings } from "../../editor/toolbar/IDAttributeSettings";
-import { Label, SettingsGroup, Textarea, LightButton } from "../../editor/common/SettingsUI";
+import { Label, SettingsGroup, Textarea, Select, Input } from "../../editor/common/SettingsUI";
+import { ViewModeIcon } from "../../editor/common/settings/ViewModeIcon";
+import { useAppContext } from "../../contexts/AppContext";
 import { EmbedProps } from "../ElementProps";
-
-// Document-level tags aren't valid inside an embed fragment: the browser drops
-// the wrappers when the markup is injected, and any CSS in <head> leaks to the
-// whole page. Mirrors systeme.io, which rejects these outright.
-const FORBIDDEN_TAGS: { label: string; test: RegExp }[] = [
-  { label: "<!DOCTYPE>", test: /<!doctype/i },
-  { label: "<html>", test: /<html[\s/>]/i },
-  { label: "<head>", test: /<head[\s/>]/i },
-  { label: "<body>", test: /<body[\s/>]/i },
-];
-
-const findForbiddenTags = (code: string): string[] =>
-  FORBIDDEN_TAGS.filter((t) => t.test.test(code)).map((t) => t.label);
-
-// Strip ONLY the wrapper tags — keep everything inside (styles, links, scripts,
-// body content). Turns an AI-generated full document into a valid fragment
-// without losing any content.
-const cleanEmbedHtml = (code: string): string =>
-  code
-    .replace(/<!doctype[^>]*>/gi, "")
-    .replace(/<\/?html[^>]*>/gi, "")
-    .replace(/<\/?head[^>]*>/gi, "")
-    .replace(/<\/?body[^>]*>/gi, "")
-    .trim();
 
 export const EmbedSettings: React.FC = () => {
   const {
     actions: { setProp },
     html,
+    heightMode,
+    height,
+    mobileHeight,
     appearance,
     delay,
     margin,
     mobileMargin,
   } = useNode<EmbedProps>((node) => ({
     html: node.data.props.html,
+    heightMode: node.data.props.heightMode,
+    height: node.data.props.height,
+    mobileHeight: node.data.props.mobileHeight,
     appearance: node.data.props.appearance,
     delay: node.data.props.delay,
     margin: node.data.props.margin,
@@ -53,56 +37,50 @@ export const EmbedSettings: React.FC = () => {
     });
   };
 
-  // Local draft. Invalid code is NEVER committed to the craft prop, so it can't
-  // be saved or rendered — the block is on commit, not on typing. Re-syncs from
-  // the prop when a different Embed node is selected.
-  const [draft, setDraft] = useState(html ?? "");
-  useEffect(() => {
-    setDraft(html ?? "");
-  }, [html]);
+  const mode = heightMode ?? "auto";
 
-  const forbidden = findForbiddenTags(draft);
-  const isValid = forbidden.length === 0;
+  // Edit the height for whichever device is previewed in the editor — same
+  // view-mode pattern as MarginSettings.
+  const { viewMode } = useAppContext();
+  const currentHeight = viewMode === "mobile" ? mobileHeight : height;
+  const setCurrentHeight = viewMode === "mobile" ? updateProp("mobileHeight") : updateProp("height");
 
-  const handleChange = (value: string) => {
-    setDraft(value);
-    if (findForbiddenTags(value).length === 0) {
-      updateProp("html")(value); // commit only when valid
-    }
-  };
-
-  const handleAutoClean = () => {
-    const cleaned = cleanEmbedHtml(draft);
-    setDraft(cleaned);
-    updateProp("html")(cleaned);
-  };
+  const parsePx = (v: string): number | undefined => (v ? parseInt(v, 10) : undefined);
 
   return (
     <>
       <SettingsGroup>
+        {/* No validation needed — an iframe is a real document, so a full
+            `<!DOCTYPE html>…` is valid and stays isolated from the page. */}
         <Label>HTML / Embed code</Label>
         <Textarea
           spellCheck={false}
-          style={{
-            minHeight: 220,
-            fontFamily: "monospace",
-            fontSize: 12.5,
-            borderColor: isValid ? undefined : "#dc2626",
-          }}
-          placeholder={'<h2>HTML code</h2>'}
-          value={draft}
-          onChange={(e) => handleChange(e.target.value)}
+          style={{ minHeight: 220, fontFamily: "monospace", fontSize: 12.5 }}
+          placeholder={'Paste any HTML, CSS or JS code here.'}
+          value={html ?? ""}
+          onChange={(e) => updateProp("html")(e.target.value)}
         />
-        {!isValid && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ color: "#dc2626", fontSize: 12.5, marginBottom: 6 }}>
-              The code is not valid — remove: {forbidden.join(", ")}
-            </div>
-            <LightButton type="button" onClick={handleAutoClean}>
-              <i className="fas fa-wand-magic-sparkles" style={{ marginRight: 6 }} />
-              Auto-clean tags
-            </LightButton>
-          </div>
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <Label>Height</Label>
+        <Select value={mode} onChange={(e) => updateProp("heightMode")(e.target.value as EmbedProps["heightMode"])}>
+          <option value="auto">Auto (fit content)</option>
+          <option value="fixed">Fixed</option>
+        </Select>
+
+        {mode === "fixed" && (
+          <>
+            <Label $small>
+              Height (px) <ViewModeIcon />
+            </Label>
+            <Input
+              type="number"
+              min="0"
+              value={currentHeight ?? ""}
+              onChange={(e) => setCurrentHeight(parsePx(e.target.value))}
+            />
+          </>
         )}
       </SettingsGroup>
 
