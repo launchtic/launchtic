@@ -252,6 +252,7 @@ export type VideoDetailProps = {
   videoType?: string;
   autoPlay?: boolean;
   controls?: boolean;
+  aspectRatio?: "16:9" | "4:3" | "1:1" | "9:16";
 };
 
 export type VideoProps = {

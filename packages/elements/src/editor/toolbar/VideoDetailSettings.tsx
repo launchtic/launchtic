@@ -24,6 +24,7 @@ export const VideoDetailSettings: React.FC<VideoDetailSettingsProps> = ({
   const videoType = videoDetail?.videoType || "direct";
   const autoPlay = videoDetail?.autoPlay || false;
   const controls = videoDetail?.controls || false;
+  const aspectRatio = videoDetail?.aspectRatio || "16:9";
 
   // Update video properties
   const updateVideoProperty = (property: string, value: any) => {
@@ -64,6 +65,19 @@ export const VideoDetailSettings: React.FC<VideoDetailSettingsProps> = ({
           </UploadIcon>
         )}
       </InputWrapper>
+
+      <Divider />
+
+      <Label>Aspect ratio</Label>
+      <Select
+        value={aspectRatio}
+        onChange={(e) => updateVideoProperty("aspectRatio", e.target.value)}
+      >
+        <option value="16:9">16:9</option>
+        <option value="4:3">4:3</option>
+        <option value="1:1">1:1</option>
+        <option value="9:16">9:16</option>
+      </Select>
 
       <Divider />
 

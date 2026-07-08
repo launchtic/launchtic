@@ -16,16 +16,27 @@ import { useState, useEffect} from 'react';
 import { getImagePath } from "../../utils/helpers"; // Import helper
 
 
+// The frame ratio is set via padding-top (the classic intrinsic-ratio trick),
+// so the absolutely-positioned player fills whatever shape the user picks —
+// 16:9 landscape through 9:16 vertical.
+const ASPECT_PADDING: Record<string, string> = {
+  "16:9": "56.25%",
+  "4:3": "75%",
+  "1:1": "100%",
+  "9:16": "177.78%",
+};
+
 const VideoMain = styled.div<{
   $enabled?: boolean;
   $boxShadow?: string;
   $mobileBoxShadow?: string;
   $border?: VideoProps["border"];
   $mobileBorder?: VideoProps["mobileBorder"];
+  $aspectRatio?: string;
 }>`
   position: relative;
-  padding-top: 56.25%;
-  
+  padding-top: ${({ $aspectRatio }) => ASPECT_PADDING[$aspectRatio || "16:9"] || "56.25%"};
+
   ${({ $enabled }) => $enabled && `pointer-events: none;`}
 
   .react-player{
@@ -104,6 +115,39 @@ const UnmuteButton = styled.button`
   }
 `;
 
+// Center play button for a controls-off video. With controls disabled the
+// player (Vimeo/YouTube) hides its own play button, so we provide one; clicking
+// it starts playback.
+const PlayButton = styled.button`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  width: 68px;
+  height: 68px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.15s;
+
+  /* nudge the play glyph optically centered */
+  i {
+    margin-left: 4px;
+  }
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+`;
+
 const VideoPlaceholder = styled.div<{ $placeholderImage: string }>`
   position: absolute;
   top: 0;
@@ -142,6 +186,9 @@ export const Video: UserComponent<VideoProps> = ({ ...props }) => {
  
   // State that tracks whether the video is muted
   const [isMuted, setIsMuted] = useState(true);
+
+  // Click-to-play for a controls-off video (no built-in play button otherwise).
+  const [playing, setPlaying] = useState(false);
 
   // Reset muted state when autoPlay changes
   useEffect(() => {
@@ -182,6 +229,7 @@ export const Video: UserComponent<VideoProps> = ({ ...props }) => {
             $mobileBoxShadow={resolvedProps.mobileBoxShadow}
             $border={resolvedProps.border}
             $mobileBorder={resolvedProps.mobileBorder}
+            $aspectRatio={resolvedProps.videoDetail?.aspectRatio}
           >
             {resolvedProps.videoDetail?.url ? (
               <>
@@ -190,13 +238,21 @@ export const Video: UserComponent<VideoProps> = ({ ...props }) => {
                     <i className="fas fa-volume-mute"></i>
                   </UnmuteButton>
                 )}
+                {!enabled
+                  && !resolvedProps.videoDetail?.controls
+                  && !resolvedProps.videoDetail?.autoPlay
+                  && !playing && (
+                  <PlayButton onClick={() => setPlaying(true)} aria-label="Play video">
+                    <i className="fas fa-play"></i>
+                  </PlayButton>
+                )}
                 <ReactPlayer
                   className="react-player"
                   src={resolvedProps.videoDetail.url}
                   width="100%"
                   height="100%"
                   controls={resolvedProps.videoDetail?.controls}
-                  playing={!enabled && resolvedProps.videoDetail?.autoPlay}
+                  playing={!enabled && (resolvedProps.videoDetail?.autoPlay || playing)}
                   muted={isMuted && resolvedProps.videoDetail?.autoPlay}
                   playsInline
                 />

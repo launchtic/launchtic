@@ -186,12 +186,11 @@ export const Embed: UserComponent<EmbedProps> = ({ ...props }) => {
             <Placeholder>
               <i className="fas fa-code" />
               <div>Empty HTML block — paste your code in the panel</div>
-              <small style={{ fontSize: 11 }}>Runs sandboxed in an iframe</small>
             </Placeholder>
           ) : null}
         </ElementWrapper>
       </ElementDrag>
-    </DelayedRender>
+    </DelayedRender> 
   );
 };
 
