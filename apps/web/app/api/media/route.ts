@@ -4,6 +4,23 @@ import { ok, err } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
 import { getDriver } from "../../../lib/storage";
 
+// Shape an Asset DB row into the same file object the storage driver returns,
+// plus assetId + pinned. Used by search (DB-sourced) and the pinned list.
+const assetToFile = (a: {
+  id: string; filename: string; url: string; bytes: number; storagePath: string; pinned: boolean;
+}) => ({
+  key: a.storagePath,
+  name: a.filename,
+  url: a.url,
+  size: a.bytes,
+  assetId: a.id,
+  pinned: a.pinned,
+});
+
+const ASSET_FILE_SELECT = {
+  id: true, filename: true, url: true, bytes: true, storagePath: true, pinned: true,
+} as const;
+
 export async function GET(req: NextRequest) {
   try {
     const r = await requireAccess("media:upload");
@@ -13,29 +30,51 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
     const continuationToken = searchParams.get("continuation_token") ?? undefined;
+    const search = searchParams.get("search")?.trim() || "";
 
+    // Pinned assets always travel with the response so the caller can show them
+    // first, regardless of which storage page is loaded.
+    const pinnedRows = await db.asset.findMany({
+      where:   { workspaceId, pinned: true },
+      select:  ASSET_FILE_SELECT,
+      orderBy: { createdAt: "desc" },
+    });
+    const pinned = pinnedRows.map(assetToFile);
+
+    // ── Search mode: query the whole library from the DB (Asset table), not the
+    // paginated storage listing. Only Asset-tracked files are searchable; legacy
+    // files without a row are not (they remain browsable when not searching).
+    if (search) {
+      const rows = await db.asset.findMany({
+        where:   { workspaceId, filename: { contains: search, mode: "insensitive" } },
+        select:  ASSET_FILE_SELECT,
+        orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+        take:    200,
+      });
+      return ok({ files: rows.map(assetToFile), pinned, hasMore: false, nextToken: null, total: rows.length });
+    }
+
+    // ── Browse mode: paginated storage listing enriched with assetId + pinned.
     const driver = await getDriver(workspaceId);
     const result = await driver.list(workspaceId, limit, continuationToken);
 
-    // Enrich each file with its Asset row (assetId) when one exists.
-    // Files uploaded via the older flow without an Asset row come back with
-    // assetId: null — caller can still display/use them via url.
     const storagePaths = result.files.map((f) => f.key);
     const assets = storagePaths.length > 0
       ? await db.asset.findMany({
           where:  { workspaceId, storagePath: { in: storagePaths } },
-          select: { id: true, storagePath: true },
+          select: { id: true, storagePath: true, pinned: true },
         })
       : [];
-    const pathToId = new Map(assets.map((a) => [a.storagePath, a.id]));
+    const pathToAsset = new Map(assets.map((a) => [a.storagePath, a]));
 
-    const files = result.files.map((f) => ({
-      ...f,
-      assetId: pathToId.get(f.key) ?? null,
-    }));
+    const files = result.files.map((f) => {
+      const a = pathToAsset.get(f.key);
+      return { ...f, assetId: a?.id ?? null, pinned: a?.pinned ?? false };
+    });
 
     return ok({
       files,
+      pinned,
       hasMore:   result.hasMore,
       nextToken: result.nextToken,
       total:     result.total,

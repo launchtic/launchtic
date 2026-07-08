@@ -159,12 +159,17 @@ model Asset {
   // on local, some on S3 after a switch) read each file with the right driver.
   driver      String
 
+  // Pinned to the top of the Media Library. Per workspace (the whole team
+  // shares the same pins). Toggled via /api/media/pin.
+  pinned      Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, sha256])
   @@index([workspaceId, createdAt])
+  @@index([workspaceId, pinned])
 }
 
 // One-time tokens for the "forgot password" flow. Token itself is never

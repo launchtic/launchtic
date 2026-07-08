@@ -20,6 +20,9 @@ type BorderSettingsProps = {
   mobileBorder?: BorderProps['mobileBorder'];
   setBorder: (value: any) => void;
   setMobileBorder: (value: any) => void;
+  /** Hide the radius control — used where radius is owned by a separate setting
+   * (e.g. FAQ's "Border rounded corners" slider). */
+  hideRadius?: boolean;
 };
 
 export const BorderSettings: React.FC<BorderSettingsProps> = ({
@@ -38,7 +41,8 @@ export const BorderSettings: React.FC<BorderSettingsProps> = ({
     type: "fullBorder"
   },
   setBorder,
-  setMobileBorder
+  setMobileBorder,
+  hideRadius = false
 }) => {
   const { viewMode } = useAppContext();
   const [displayColorPicker, setDisplayColorPicker] = useState(false);
@@ -85,14 +89,18 @@ export const BorderSettings: React.FC<BorderSettingsProps> = ({
         Border <ViewModeIcon />
       </Label>
       <Divider/>
-      <Label $small>Border radius</Label>
-      <SliderControl
-        value={currentRadius}
-        min={0}
-        step={2}
-        max={200}
-        onChange={(value) => updateBorderProperty("radius", value)}
-      />
+      {!hideRadius && (
+        <>
+          <Label $small>Border radius</Label>
+          <SliderControl
+            value={currentRadius}
+            min={0}
+            step={2}
+            max={200}
+            onChange={(value) => updateBorderProperty("radius", value)}
+          />
+        </>
+      )}
       <Label $small>Style</Label>
       <Select
         value={currentStyle}

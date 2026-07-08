@@ -48,7 +48,8 @@ const FAQItem = styled.div<{
   ${({ $itemBorder }) => $itemBorder && css`
     ${$itemBorder.style && `border-style: ${$itemBorder.style};`}
     ${$itemBorder.color && `border-color: ${$itemBorder.color};`}
-    ${$itemBorder.radius !== undefined && `border-radius: ${$itemBorder.radius}px;`}
+    /* Radius is owned solely by the "Border rounded corners" slider
+       ($borderRadius above); the border control no longer sets it. */
 
     ${$itemBorder.type === "fullBorder"   && $itemBorder.width !== undefined && `border-width: ${$itemBorder.width}px;`}
     ${$itemBorder.type === "bottomOnly"   && $itemBorder.width !== undefined && `border-width: 0px 0px ${$itemBorder.width}px;`}
@@ -66,7 +67,6 @@ const FAQItem = styled.div<{
     ${({ $mobileItemBorder }) => $mobileItemBorder && css`
       ${$mobileItemBorder.style && `border-style: ${$mobileItemBorder.style};`}
       ${$mobileItemBorder.color && `border-color: ${$mobileItemBorder.color};`}
-      ${$mobileItemBorder.radius !== undefined && `border-radius: ${$mobileItemBorder.radius}px;`}
 
       ${$mobileItemBorder.type === "fullBorder"   && $mobileItemBorder.width !== undefined && `border-width: ${$mobileItemBorder.width}px;`}
       ${$mobileItemBorder.type === "bottomOnly"   && $mobileItemBorder.width !== undefined && `border-width: 0px 0px ${$mobileItemBorder.width}px;`}

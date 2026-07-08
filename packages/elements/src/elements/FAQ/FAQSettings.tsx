@@ -411,12 +411,15 @@ export const FAQSettings: React.FC = () => {
         }}
       />
 
-      {/* Border for each FAQ item card */}
+      {/* Border for each FAQ item card. Radius is owned by the "Border rounded
+          corners" slider above, so hide it here to avoid two conflicting radius
+          controls. */}
       <BorderSettings
         border={itemBorder}
         mobileBorder={mobileItemBorder}
         setBorder={updateProp("itemBorder")}
         setMobileBorder={updateProp("mobileItemBorder")}
+        hideRadius
       />
 
       {/* Advanced Settings */}

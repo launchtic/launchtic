@@ -49,29 +49,50 @@ export interface ImageFile {
   /** Asset id when the file has a tracked DB row (new uploads). null for legacy
    * files that exist on storage but were not registered as Asset. */
   assetId?: string | null;
+  /** Pinned to the top of the library (per workspace). Only Asset-tracked
+   * files can be pinned. */
+  pinned?: boolean;
 }
 
 export const getImages = async (
   folder?: string,
   limit = 20,
-  continuationToken?: string
-): Promise<{ success: boolean; files: ImageFile[]; has_more: boolean; next_token: string | null; total_count: number; folders: string[]; error?: string }> => {
+  continuationToken?: string,
+  search?: string,
+): Promise<{ success: boolean; files: ImageFile[]; pinned: ImageFile[]; has_more: boolean; next_token: string | null; total_count: number; folders: string[]; error?: string }> => {
   try {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (folder) params.append("folder", folder);
     if (continuationToken) params.append("continuation_token", continuationToken);
+    if (search?.trim()) params.append("search", search.trim());
 
     const result = await apiCall(`/api/media?${params}`, { method: "GET" });
     return {
       success: result.success ?? false,
       files: result.data?.files ?? [],
+      pinned: result.data?.pinned ?? [],
       has_more: result.data?.hasMore ?? false,
       next_token: result.data?.nextToken ?? null,
       total_count: result.data?.total ?? 0,
       folders: result.data?.folders ?? [],
     };
   } catch (error) {
-    return { success: false, files: [], has_more: false, next_token: null, total_count: 0, folders: [], error: String(error) };
+    return { success: false, files: [], pinned: [], has_more: false, next_token: null, total_count: 0, folders: [], error: String(error) };
+  }
+};
+
+export const pinImage = async (
+  assetId: string,
+  pinned: boolean,
+): Promise<{ success: boolean; message?: string }> => {
+  try {
+    const result = await apiCall("/api/media/pin", {
+      method: "POST",
+      body: JSON.stringify({ assetId, pinned }),
+    });
+    return { success: result.success ?? false, message: result.message };
+  } catch (error) {
+    return { success: false, message: String(error) };
   }
 };
 
