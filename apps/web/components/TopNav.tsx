@@ -69,6 +69,15 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard",   label: "Dashboard",          icon: LayoutDashboard },
   { href: "/funnels",     label: "Funnels",            icon: Zap,             requirePerm: "funnels:read"   },
   {
+    label: "CRM",
+    icon: Users,
+    children: [
+      { href: "/contacts",      label: "All contacts", icon: Users,        requirePerm: "contacts:read"  },
+      { href: "/pipelines",     label: "Pipelines",    icon: KanbanSquare, requirePerm: "pipelines:read" },
+      { href: "/contacts/tags", label: "Tags",         icon: TagIcon,      requirePerm: "tags:read"      },
+    ],
+  },
+  {
     label: "Sales",
     icon: TrendingUp,
     children: [
@@ -80,25 +89,15 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    label: "Contacts",
-    icon: Users,
-    children: [
-      { href: "/contacts",      label: "All contacts", icon: Users,        requirePerm: "contacts:read"  },
-      { href: "/pipelines",     label: "Pipelines",    icon: KanbanSquare, requirePerm: "pipelines:read" },
-      { href: "/contacts/tags", label: "Tags",         icon: TagIcon,      requirePerm: "tags:read"      },
-    ],
-  },
-  {
-    label: "Emails",
+    label: "Marketing",
     icon: Mail,
     children: [
       { href: "/emails/broadcasts", label: "Broadcasts",  icon: Megaphone, requirePerm: "broadcasts:read"      },
+      { href: "/workflows",         label: "Workflows",   icon: Workflow,  requirePerm: "workflows:read"       },
       { href: "/emails/templates",  label: "Templates",   icon: FileText,  requirePerm: "email_templates:read" },
       { href: "/emails/logs",       label: "Email Logs",  icon: Inbox,     requirePerm: "email_logs:read"      },
     ],
   },
-  { href: "/workflows",   label: "Workflows",   icon: Workflow,  requirePerm: "workflows:read" },
-  { href: "/settings",    label: "Settings",    icon: Settings                                   },
 ];
 
 function prefixItems(items: NavItem[], slug: string): NavItem[] {
@@ -286,7 +285,7 @@ export default function TopNav({
             (Sales / Contacts / Emails submenus rendered via NavDropdown).
             Use `overflow-x-clip` instead: clips horizontally without forcing
             the Y axis to auto, so vertical dropdowns escape the nav box. */}
-        <nav className="hidden md:flex items-center gap-1 flex-1 min-w-0 overflow-x-clip">
+        <nav className="hidden lg:flex items-center gap-1 flex-1 min-w-0 overflow-x-clip">
           {navItems.map((item) => {
             if (isGroup(item)) {
               return <NavDropdown key={item.label} item={item} pathname={pathname} />;
@@ -311,11 +310,25 @@ export default function TopNav({
           {/* Hamburger — mobile only */}
           <button
             onClick={() => setMobileOpen((o) => !o)}
-            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
             aria-label="Toggle menu"
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
+          {/* Settings — moved out of the nav to a fixed gear on the right so the
+              nav stays compact. Always visible (desktop + mobile). */}
+          <Link
+            href={`/${workspaceSlug}/settings`}
+            title="Settings"
+            aria-label="Settings"
+            className={`p-2 rounded-lg transition-colors ${
+              pathname.startsWith(`/${workspaceSlug}/settings`)
+                ? "bg-blue-50 text-blue-700"
+                : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            <Settings size={18} />
+          </Link>
           <UserMenu
             name={name}
             email={email}
@@ -330,7 +343,7 @@ export default function TopNav({
       {/* Mobile nav dropdown */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 z-20 bg-black/20"
+          className="lg:hidden fixed inset-0 z-20 bg-black/20"
           onClick={() => setMobileOpen(false)}
         >
           <div

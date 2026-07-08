@@ -117,7 +117,7 @@ export default function TemplatesList({ initial }: { initial: TemplateRow[] }) {
             <Mail size={20} className="text-gray-700" /> Email Templates
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Reusable email content for broadcasts, automations, and transactional sends.
+            Reusable email content for broadcasts, workflows.
           </p>
         </div>
         {canManageEmailTemplates && (
