@@ -144,6 +144,16 @@ export const ImageItem = styled.img`
   cursor: pointer;
   border-radius: 6px;
   transition: opacity 0.15s;
+  /* Checkerboard behind the image so transparent / white logos stay visible
+     instead of blending into the white tile. Opaque photos cover it. */
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #d9d9d9 25%, transparent 25%),
+    linear-gradient(-45deg, #d9d9d9 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d9d9d9 75%),
+    linear-gradient(-45deg, transparent 75%, #d9d9d9 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
   &:hover { opacity: 0.85; }
 `;
 

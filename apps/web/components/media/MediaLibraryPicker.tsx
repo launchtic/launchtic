@@ -1,12 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { X, Loader2, ImageOff, Search, UploadCloud, Pin } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
 type MediaFile = { key: string; name: string; url: string; size: number; assetId?: string | null; pinned?: boolean };
 
 const PAGE_SIZE = 30;
+
+// Checkerboard behind thumbnails so transparent / white logos stay visible
+// against the tile instead of blending into white. Opaque photos cover it.
+const CHECKERBOARD_STYLE: CSSProperties = {
+  backgroundColor: "#fff",
+  backgroundImage:
+    "linear-gradient(45deg,#d9d9d9 25%,transparent 25%),linear-gradient(-45deg,#d9d9d9 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d9d9d9 75%),linear-gradient(-45deg,transparent 75%,#d9d9d9 75%)",
+  backgroundSize: "16px 16px",
+  backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+};
 
 // Reusable modal to pick an existing image from the workspace Media Library
 // (instead of re-uploading). Calls onSelect(url) with the chosen image's URL.
@@ -180,6 +190,7 @@ export default function MediaLibraryPicker({
                       title={f.name}
                       loading="lazy"
                       onClick={() => { onSelect(f.url); onClose(); }}
+                      style={CHECKERBOARD_STYLE}
                       className="w-full h-full object-cover cursor-pointer"
                     />
                     {f.assetId && (

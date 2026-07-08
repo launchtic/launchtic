@@ -85,7 +85,11 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
   // Add CSS animation
   useEffect(() => {
     const style = document.createElement("style");
-    style.innerHTML = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
+    style.innerHTML = `
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      .lt-img-tile .lt-tile-btn { opacity: 0; transition: opacity 0.15s ease; }
+      .lt-img-tile:hover .lt-tile-btn { opacity: 1; }
+    `;
     document.head.appendChild(style);
     return () => { document.head.removeChild(style); };
   }, []);
@@ -271,7 +275,7 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
               <>
                 <ImageGrid>
                   {displayImages.length > 0 ? displayImages.map(image => (
-                    <div key={image.key} style={{ position: "relative" }}>
+                    <div key={image.key} className="lt-img-tile" style={{ position: "relative" }}>
                       <ImageItem
                         src={image.url}
                         alt={image.name}
@@ -284,17 +288,21 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
                           <SpinnerIcon size={20} />
                         </div>
                       )}
-                      <button
-                        onClick={e => { e.stopPropagation(); togglePin(image); }}
-                        disabled={!image.assetId || pinningKey === image.key}
-                        title={!image.assetId ? "Can't pin a legacy file" : isPinned(image.key) ? "Unpin" : "Pin to top"}
-                        style={{ position: "absolute", top: 4, left: 4, width: 20, height: 20, background: isPinned(image.key) ? "rgba(33,150,243,0.9)" : "rgba(0,0,0,0.45)", color: "#fff", border: "none", borderRadius: "50%", fontSize: 10, lineHeight: 1, cursor: image.assetId ? "pointer" : "not-allowed", opacity: image.assetId ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
-                      >
-                        <i className={pinningKey === image.key ? "fas fa-spinner fa-spin" : "fas fa-thumbtack"} />
-                      </button>
+                      {image.assetId && (
+                        <button
+                          onClick={e => { e.stopPropagation(); togglePin(image); }}
+                          disabled={pinningKey === image.key}
+                          className={isPinned(image.key) ? undefined : "lt-tile-btn"}
+                          title={isPinned(image.key) ? "Unpin" : "Pin to top"}
+                          style={{ position: "absolute", top: 4, left: 4, width: 20, height: 20, background: isPinned(image.key) ? "rgba(33,150,243,0.9)" : "rgba(0,0,0,0.45)", color: "#fff", border: "none", borderRadius: "50%", fontSize: 10, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        >
+                          <i className={pinningKey === image.key ? "fas fa-spinner fa-spin" : "fas fa-thumbtack"} />
+                        </button>
+                      )}
                       <button
                         onClick={e => { e.stopPropagation(); handleDeleteImage(image); }}
                         disabled={!!deletingKey}
+                        className="lt-tile-btn"
                         title="Delete"
                         style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, background: "rgba(220,38,38,0.85)", color: "#fff", border: "none", borderRadius: "50%", fontSize: 13, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                       >
