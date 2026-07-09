@@ -542,6 +542,18 @@ export default function FunnelStepManager({
     setSteps((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }
 
+  // Focus the newly added step (previously the selection stayed on the first
+  // step). Optimistically append + select so there's no flicker; the dialog's
+  // router.refresh() then reconciles the list with server data and the selection
+  // persists because this id now exists in initialSteps.
+  function handleStepAdded(newStep: Step) {
+    const step: Step = { ...newStep, hasContent: false };
+    setSteps((prev) => [...prev, step]);
+    setSelectedId(step.id);
+    setActiveTab("configuration");
+    setMobileView("detail");
+  }
+
   // Open the inline picker. For a step that already has content, confirm first
   // — applying a template replaces the current page.
   async function handleChangeTemplate() {
@@ -632,7 +644,7 @@ export default function FunnelStepManager({
       {/* Add step */}
       {canManageFunnels && (
         <div className="p-3 border-t border-gray-100">
-          <AddStepDialog funnelId={funnel.id} fullWidth canUpsell={canUpsell} />
+          <AddStepDialog funnelId={funnel.id} fullWidth canUpsell={canUpsell} onAdded={handleStepAdded} />
         </div>
       )}
     </div>

@@ -17,7 +17,7 @@ const STEP_TYPES = [
   { value: "CUSTOM",   label: "Custom page" },
 ];
 
-export default function AddStepDialog({ funnelId, fullWidth, canUpsell = false }: { funnelId: string; fullWidth?: boolean; canUpsell?: boolean }) {
+export default function AddStepDialog({ funnelId, fullWidth, canUpsell = false, onAdded }: { funnelId: string; fullWidth?: boolean; canUpsell?: boolean; onAdded?: (step: { id: string; name: string; slug: string; type: string; order: number; hasContent?: boolean }) => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +52,9 @@ export default function AddStepDialog({ funnelId, fullWidth, canUpsell = false }
 
     setOpen(false);
     setName(""); setType("OPTIN");
+    // Tell the parent which step was created so it can focus/select it. The
+    // refresh below then reconciles the list with server data.
+    onAdded?.(json.data);
     router.refresh();
   }
 
