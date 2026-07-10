@@ -27,13 +27,15 @@ type BackgroundImageSettingsProps = {
   setBackgroundImage: (updated: ViewMap) => void;
 };
 
+// "fullCenterFixed" is the default (cover) — first in the list. Its value name
+// is legacy; it no longer applies background-attachment: fixed.
 const DISPLAY_MODE_OPTIONS: { value: BackgroundImageDisplayMode; label: string }[] = [
-  { value: "default", label: "Default" },
-  { value: "fullCenterFixed", label: "Full Center (Fixed)" },
-  { value: "repeat", label: "Repeat" },
+  { value: "fullCenterFixed", label: "Full Center" },
+  { value: "default", label: "Original size" },
   { value: "fillWidth", label: "Fill 100% Width" },
   { value: "fillWidthHeight", label: "Fill 100% Width & Height" },
   { value: "contain", label: "Scales without cropping" },
+  { value: "repeat", label: "Repeat" },
 ];
 
 const POSITIONS: BackgroundImagePosition[] = [
@@ -172,7 +174,7 @@ export const BackgroundImageSettings: React.FC<BackgroundImageSettingsProps> = (
     update({ overlay: rgbaToString(color.rgba) });
   };
 
-  const displayMode = current.displayMode ?? "default";
+  const displayMode = current.displayMode ?? "fullCenterFixed";
   const position = current.position ?? "center-center";
   const overlayColor = current.overlay ?? "rgba(0, 0, 0, 0.5)";
   const activePreset = matchesPreset(current.overlay);

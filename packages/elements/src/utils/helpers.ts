@@ -149,16 +149,18 @@ export const getBackgroundImageCss = (bg?: BackgroundImageLike): string => {
     "bottom-right": "bottom right",
   };
 
-  const mode = bg.displayMode ?? "default";
+  // Default to cover ("fullCenterFixed") so a section image fills the width on
+  // every screen. NOTE: the value name is legacy — it no longer applies
+  // background-attachment: fixed (that caused an unwanted parallax and was janky
+  // on iOS Safari); it's now a plain scrolling cover.
+  const mode = bg.displayMode ?? "fullCenterFixed";
   const pos = positionMap[bg.position ?? "center-center"] ?? "center center";
-  const attachment = mode === "fullCenterFixed" ? "background-attachment: fixed;" : "";
 
   return `
     background-image: url("${bg.url}");
     background-size: ${sizeMap[mode] ?? "auto"};
     background-repeat: ${repeatMap[mode] ?? "no-repeat"};
     background-position: ${pos};
-    ${attachment}
   `;
 };
 
