@@ -224,7 +224,7 @@ export const CountdownSettings: React.FC = () => {
           label="Space between units"
           min={1}
           max={50}
-          step={2}
+          step={1}
         />
       </SettingsGroupLarge>
       {/* Labels Settings */}

@@ -22,6 +22,7 @@ const HeadlineMain = styled.div<{
   $backgroundColor?: string;
   $mobileBackgroundColor?: string;
   $textAlign?: string;
+  $mobileTextAlign?: string;
   $lineHeight?: number;
   $mobileLineHeight?: number;
   $letterSpacing?: number;
@@ -47,8 +48,9 @@ const HeadlineMain = styled.div<{
   `}
 
   @media (max-width: 800px) {
-    ${({ $mobilePadding, $mobileFontSize, $mobileBackgroundColor, $mobileLineHeight, $mobileLetterSpacing }) => css`
+    ${({ $mobilePadding, $mobileFontSize, $mobileBackgroundColor, $mobileTextAlign, $mobileLineHeight, $mobileLetterSpacing }) => css`
       ${$mobileFontSize && `font-size: ${$mobileFontSize}px;`}
+      ${$mobileTextAlign && `text-align: ${$mobileTextAlign};`}
       ${$mobileBackgroundColor && `background-color: ${$mobileBackgroundColor};`}
       ${$mobileLineHeight && `line-height: ${$mobileLineHeight}px;`}
       ${$mobileLetterSpacing !== undefined && `letter-spacing: ${$mobileLetterSpacing}px;`}
@@ -109,6 +111,7 @@ export const Headline: UserComponent<HeadlineProps> = ({ ...props }) => {
               $backgroundColor={resolvedProps.backgroundColor}
               $mobileBackgroundColor={resolvedProps.mobileBackgroundColor}
               $textAlign={resolvedProps.textAlign}
+              $mobileTextAlign={resolvedProps.mobileTextAlign}
               $lineHeight={resolvedProps.lineHeight}
               $mobileLineHeight={resolvedProps.mobileLineHeight}
               $letterSpacing={resolvedProps.letterSpacing}

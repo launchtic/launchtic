@@ -84,7 +84,10 @@ export const Icon: UserComponent<IconElementProps> = ({ ...props }) => {
     mobileColor: props.mobileColor,
 
     iconClass: props.iconClass,
-    size: props.size,
+    // viewMode-resolved so the editor's mobile preview reflects the mobile size
+    // (the @media rule alone only fires on a real device, not in the wide-viewport
+    // editor). The media query in StyledIcon still handles real mobile devices.
+    size: getValueByViewMode(viewMode, props.size, props.mobileSize),
     mobileSize: props.mobileSize,
     hoverColor: props.hoverColor,
     action: props.action,

@@ -151,15 +151,23 @@ export const SliderControl: React.FC<{
   // settings panel) is coalesced to one per animation frame. Without this every
   // pixel of drag fired a setProp → a stutter on heavier elements.
   const [local, setLocal] = useState(value);
+  // Raw editable text for the number box. Kept separate from `local` so the user
+  // can type transient values (empty, or below min like the "1" of "18") without
+  // it snapping to min on every keystroke. Clamped on blur.
+  const [text, setText] = useState(String(value));
   const draggingRef = useRef(false);
+  const editingRef = useRef(false);
   const rafRef = useRef(0);
   const pendRef = useRef<number | null>(null);
 
-  useEffect(() => { if (!draggingRef.current) setLocal(value); }, [value]);
+  useEffect(() => {
+    if (!draggingRef.current && !editingRef.current) { setLocal(value); setText(String(value)); }
+  }, [value]);
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
   const commit = (v: number) => {
     setLocal(v);
+    setText(String(v));
     pendRef.current = v;
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -188,10 +196,20 @@ export const SliderControl: React.FC<{
           type="number"
           min={min}
           max={max}
-          value={local}
+          value={text}
+          onFocus={() => { editingRef.current = true; }}
           onChange={(e) => {
-            const newValue = parseInt(e.target.value) || min;
-            commit(newValue > max ? max : newValue < min ? min : newValue);
+            setText(e.target.value);
+            // Commit only fully valid in-range numbers; leave transient values
+            // (empty / out of range) in the box until the user finishes.
+            const n = parseInt(e.target.value, 10);
+            if (!isNaN(n) && n >= min && n <= max) commit(n);
+          }}
+          onBlur={() => {
+            editingRef.current = false;
+            let n = parseInt(text, 10);
+            if (isNaN(n)) n = min;
+            commit(Math.min(max, Math.max(min, n))); // clamp to range on blur
           }}
         />
       </RangeWrapper>
