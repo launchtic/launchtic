@@ -9,14 +9,15 @@
 #        :YYYY.MM.DD     ← the concrete dated version (annual-update pinning)
 #        :sha-<7chars>
 #
-# Annual-update enforcement: launchtic.com/api/install/authorize hands each
-# license the dated tag it's entitled to (frozen once its update window ends),
-# and the VPS .env pins LAUNCHTIC_VERSION to it. So a RELEASE here must be paired
-# with bumping LAUNCHTIC_CURRENT_VERSION on launchtic.com to the SAME date tag.
+# Updates are free for every self-hosted instance, Free or Agency — no
+# license/entitlement gate on versions. A RELEASE here must be paired with
+# bumping LAUNCHTIC_CURRENT_VERSION on launchtic.com to the SAME date tag, so
+# /api/version (public, unauthenticated) advertises it to install.sh/update.sh.
 #
-# Image visibility: KEEP THESE PACKAGES PRIVATE. The license gate works by
-# vending GHCR pull tokens from /api/install/authorize — making the packages
-# Public would let anyone pull them and defeat the gate.
+# Image visibility: these packages MUST be Public on GHCR. install.sh/update.sh
+# pull with no `docker login` — Free self-hosting never talks to launchtic.com
+# beyond the version check. Set visibility once per package (Package settings →
+# Change visibility) after the first push under the new org.
 
 name: Build & Push
 

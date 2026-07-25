@@ -1,7 +1,7 @@
 services:
   # ─── Apps ──────────────────────────────────────────────
   web:
-    image: ghcr.io/techfago/launchtic-web:${LAUNCHTIC_VERSION:-latest}
+    image: ghcr.io/launchtic/launchtic-web:${LAUNCHTIC_VERSION:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
 
   renderer:
-    image: ghcr.io/techfago/launchtic-renderer:${LAUNCHTIC_VERSION:-latest}
+    image: ghcr.io/launchtic/launchtic-renderer:${LAUNCHTIC_VERSION:-latest}
     build:
       context: .
       dockerfile: apps/renderer/Dockerfile
@@ -51,7 +51,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/techfago/launchtic-worker:${LAUNCHTIC_VERSION:-latest}
+    image: ghcr.io/launchtic/launchtic-worker:${LAUNCHTIC_VERSION:-latest}
     build:
       context: .
       dockerfile: apps/worker/Dockerfile

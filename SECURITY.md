@@ -14,7 +14,7 @@ Instead, email **security@launchtic.com** with:
 - Affected version (e.g. `v0.1.0`) or commit hash
 - Your name (if you want public credit) or "anonymous"
 
-You can also use [GitHub's private vulnerability reporting](https://github.com/TechFago/launchtic/security/advisories/new)
+You can also use [GitHub's private vulnerability reporting](https://github.com/launchtic/launchtic/security/advisories/new)
 if you have a GitHub account.
 
 ## What to expect

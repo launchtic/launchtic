@@ -48,7 +48,7 @@ Without prior written permission from the licensor, you may not:
 This license does not grant any rights to use the licensor's trademarks,
 service marks, trade names, logos, or branding.
 
-"Launchtic" and the Launchtic logo are trademarks of TechFago LLC.
+"Launchtic" and the Launchtic logo are trademarks of Launchtic.
 
 ---
 
@@ -116,7 +116,7 @@ OR THE USE OF THE SOFTWARE.
 
 ## Definitions
 
-The **"licensor"** is TechFago LLC and its successors or assigns.
+The **"licensor"** is Launchtic and its successors or assigns.
 
 The **"software"** means the Launchtic software made available under these
 terms, including any portion of it in source or compiled form.
@@ -143,7 +143,7 @@ You **may**:
 * Contribute improvements back to the upstream project.
 * Share the software for free under this same license.
 
-You **may not** (without a separate commercial agreement from TechFago LLC):
+You **may not** (without a separate commercial agreement from Launchtic):
 
 * Offer Launchtic as a hosted or managed SaaS platform for third parties.
 * Create a competing commercial product or hosted service using Launchtic.
@@ -153,4 +153,4 @@ You **may not** (without a separate commercial agreement from TechFago LLC):
 
 ---
 
-Copyright © 2026-present TechFago LLC. All rights reserved.
+Copyright © 2026-present Launchtic. All rights reserved.

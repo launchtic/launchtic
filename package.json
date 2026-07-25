@@ -7,10 +7,10 @@
   "homepage": "https://launchtic.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TechFago/launchtic.git"
+    "url": "https://github.com/launchtic/launchtic.git"
   },
   "author": {
-    "name": "TechFago LLC",
+    "name": "Launchtic",
     "email": "hello@launchtic.com",
     "url": "https://launchtic.com"
   },

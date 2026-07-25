@@ -41,7 +41,7 @@ The installer validates your license, installs Docker, and starts everything. Th
 ## Local development
 
 ```bash
-git clone https://github.com/TechFago/launchtic.git
+git clone https://github.com/launchtic/launchtic.git
 cd launchtic
 
 # Install
@@ -89,8 +89,8 @@ For commercial licensing, OEM, or partnership inquiries: **hello@launchtic.com**
 
 ## Trademark
 
-"Launchtic" and the Launchtic logo are trademarks of **TechFago LLC**. The Sustainable Use License does not grant trademark rights — see [LICENSE.md](LICENSE.md) for details.
+"Launchtic" and the Launchtic logo are trademarks of **Launchtic**. The Sustainable Use License does not grant trademark rights — see [LICENSE.md](LICENSE.md) for details.
 
 ---
 
-Made with care by [TechFago LLC](https://launchtic.com).
+Made with care by [Launchtic](https://launchtic.com).

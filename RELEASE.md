@@ -20,7 +20,7 @@ value: `LAUNCHTIC_CURRENT_VERSION` must equal a published `:YYYY.MM.DD` tag.
 
 - [ ] Merge `main` → CI tự build `:latest` → test trên demo.launchtic.com.
 - [ ] GitHub → **Actions → "Build & Push" → Run workflow**, nhập **version** = `YYYY.MM.DD`.
-- [ ] Đợi 3 job (web/renderer/worker) xanh → check tag tại `github.com/orgs/techfago/packages`.
+- [ ] Đợi 3 job (web/renderer/worker) xanh → check tag tại `github.com/orgs/launchtic/packages`.
 - [ ] Trên `launchtic-com`: `.env` set `LAUNCHTIC_CURRENT_VERSION=<đúng ngày đó>` → `docker compose up -d`.
 - [ ] **Có sửa `docker-compose.yml` / `Caddyfile` / `install.sh` / `update.sh`?** → copy sang `launchtic-com/public/` (install.sh) hoặc `public/dist/` (compose, Caddyfile, update.sh) → **redeploy site** → verify `curl -fsSL https://launchtic.com/dist/docker-compose.yml | head`.
 
