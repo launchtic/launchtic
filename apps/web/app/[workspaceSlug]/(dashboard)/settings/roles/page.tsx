@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getEffectivePlan } from "../../../../../lib/organization";
-import { isPaidPlan } from "../../../../../lib/plan";
+import { isAgencyPlan } from "../../../../../lib/plan";
 import RolesPanel from "../../../../../components/settings/RolesPanel";
 
 export const metadata = { title: "Roles" };
@@ -22,7 +22,7 @@ export default async function Page({
     where:  { id: workspaceId },
     select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
   });
-  if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+  if (!isAgencyPlan(getEffectivePlan(planRow?.organization))) {
     redirect(`/${workspaceSlug}/settings/license`);
   }
 

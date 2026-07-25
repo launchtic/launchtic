@@ -5,7 +5,7 @@ import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess, ALL_PERMISSIONS } from "../../../lib/permissions";
 import { demoGuard } from "../../../lib/demo";
 import { getEffectivePlan } from "../../../lib/organization";
-import { isPaidPlan } from "../../../lib/plan";
+import { isAgencyPlan } from "../../../lib/plan";
 
 // GET /api/roles — list all roles in the current workspace + member count.
 // Available to any workspace member (`members:read`) so the TeamPanel
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       where:  { id: workspaceId },
       select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
     });
-    if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+    if (!isAgencyPlan(getEffectivePlan(planRow?.organization))) {
       return err("Custom roles require a paid plan.", 402);
     }
 

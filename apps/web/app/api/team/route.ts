@@ -7,7 +7,7 @@ import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
 import { demoGuard } from "../../../lib/demo";
 import { getEffectivePlan } from "../../../lib/organization";
-import { isPaidPlan, canInviteTeamMember } from "../../../lib/plan";
+import { isAgencyPlan, canInviteTeamMember } from "../../../lib/plan";
 
 // GET /api/team — list workspace members + their role info. Includes a
 // computed `isOwner` flag (true for the Organization owner — who isn't a
@@ -67,15 +67,14 @@ export async function POST(req: NextRequest) {
     const { workspaceId, userId: callerId } = r;
 
     // Plan gate. Belt-and-suspenders against the sidebar hide: an attacker
-    // hitting this endpoint directly on SOLO (or unlicensed) would otherwise
-    // create a WorkspaceMember row that violates the 1-seat limit.
-    // Also enforces the per-tier seat cap (Starter = 5 total incl. owner).
+    // hitting this endpoint directly on Free would otherwise create a
+    // WorkspaceMember row that violates the 1-seat limit.
     const planRow = await db.workspace.findUnique({
       where:  { id: workspaceId },
       select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
     });
     const plan = getEffectivePlan(planRow?.organization);
-    if (!isPaidPlan(plan)) {
+    if (!isAgencyPlan(plan)) {
       return err("Team management requires a paid plan. Upgrade to invite members.", 402);
     }
     const existingMembers = await db.workspaceMember.count({ where: { workspaceId } });

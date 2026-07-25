@@ -62,7 +62,7 @@ export async function reVerifyIfStale(organizationId: string): Promise<void> {
   const result = await verifyLicenseKey(organization.licenseKey, organization.instanceId ?? organizationId);
 
   if (result.valid) {
-    // Sync plan (may have changed, e.g. STARTER → AGENCY upgrade) AND the
+    // Sync plan (may have changed, e.g. AGENCY → CUSTOM upgrade) AND the
     // update window (extended by a renewal) + reset timer. Missing expiresAt
     // here meant renewals never reflected in-app until reinstall.
     await db.organization.update({

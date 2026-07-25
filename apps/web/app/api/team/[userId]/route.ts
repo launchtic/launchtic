@@ -5,7 +5,7 @@ import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { demoGuard } from "../../../../lib/demo";
 import { getEffectivePlan } from "../../../../lib/organization";
-import { isPaidPlan } from "../../../../lib/plan";
+import { isAgencyPlan } from "../../../../lib/plan";
 
 const patchSchema = z.object({
   roleId: z.string().min(1),
@@ -34,7 +34,7 @@ export async function PATCH(
       where:  { id: workspaceId },
       select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
     });
-    if (!isPaidPlan(getEffectivePlan(planRow?.organization))) {
+    if (!isAgencyPlan(getEffectivePlan(planRow?.organization))) {
       return err("Team role management requires a paid plan.", 402);
     }
 

@@ -29,14 +29,15 @@ export async function getOrganizationForOwner(userId: string) {
 /**
  * Resolve the effective plan for feature gating.
  *
- * PERPETUAL LICENSE MODEL: the license never expires. `licenseExpiresAt` is the
- * end of the free-UPDATES window, NOT an access cutoff — so we do NOT downgrade
- * when it passes. A customer past their update window keeps every feature of
- * their tier; they just stop receiving new versions (enforced at install/update
- * time, not here).
+ * AGENCY SUBSCRIPTION MODEL: `licenseExpiresAt` is informational only — this
+ * function does not compare it locally. Enforcement happens via
+ * `reVerifyIfStale` (lib/license.ts), which periodically re-checks the
+ * subscription against the license server and nulls `plan` out the moment the
+ * server reports it lapsed/cancelled.
  *
- * Returns `null` when there is no valid license (pre-activation or revoked) —
- * the locked state. `getPlanFeatures(null)` resolves that to the LOCKED set.
+ * Returns `null` when there is no active Agency subscription (never
+ * subscribed, cancelled, or revoked) — `getPlanFeatures(null)` resolves that
+ * to the FREE tier, not a locked state.
  */
 export function getEffectivePlan(organization: {
   plan: string | null;

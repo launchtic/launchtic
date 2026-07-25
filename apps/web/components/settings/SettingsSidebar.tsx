@@ -12,7 +12,7 @@ import {
   Image as ImageIcon, Upload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { isAgencyPlan, isPaidPlan } from "../../lib/plan";
+import { isAgencyPlan } from "../../lib/plan";
 import { useRole } from "../../lib/role";
 
 type NavItemDef = {
@@ -89,8 +89,7 @@ export default function SettingsSidebar({
   const pathname = usePathname();
   const router   = useRouter();
   const { hasPermission, isOwner } = useRole();
-  const isPaid   = isPaidPlan(workspacePlan);    // STARTER | AGENCY | CUSTOM
-  const isAgency = isAgencyPlan(workspacePlan);  // AGENCY  | CUSTOM
+  const isAgency = isAgencyPlan(workspacePlan);  // AGENCY | CUSTOM
 
   // Filter items by plan tier + permission + owner-only flag. Owner bypasses
   // every perm check via WorkspaceRoleProvider, but ownerOnly is the inverse
@@ -99,7 +98,7 @@ export default function SettingsSidebar({
     ...section,
     items: section.items.filter((item) => {
       if (item.ownerOnly   && !isOwner)  return false;
-      if (item.starterPlus && !isPaid)   return false;
+      if (item.starterPlus && !isAgency) return false;
       if (item.agencyPlus  && !isAgency) return false;
       if (item.freeOnly    &&  isAgency) return false;
       if (item.requirePerm && !hasPermission(item.requirePerm)) return false;

@@ -19,7 +19,13 @@ export async function POST(req: NextRequest) {
     if (!r.ok) return r.response;
     if (!r.isOwner) return err("Owner-only", 403);
 
-    const form = await req.formData();
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch {
+      // Malformed multipart body (e.g. missing boundary) — client error, not a server fault.
+      return err("Invalid upload", 400);
+    }
     const file = form.get("file");
     if (!(file instanceof File)) return err("No file provided", 400);
 

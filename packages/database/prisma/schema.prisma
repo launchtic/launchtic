@@ -51,9 +51,10 @@ model Organization {
   id   String @id @default(cuid())
   name String
 
-  // Plan + license. NULL = no valid license yet (locked). The license-gated
-  // installer activates a plan on first boot; reVerifyIfStale sets it back to
-  // NULL if the license server revokes the key.
+  // Plan + license. NULL = FREE tier (default — no license needed). Only
+  // AGENCY/CUSTOM require a license; reVerifyIfStale sets plan back to NULL
+  // (i.e. downgrades to FREE) if the license server revokes or the Agency
+  // subscription lapses.
   plan              Plan?
   licenseKey        String?
   licenseExpiresAt  DateTime?
@@ -1159,16 +1160,11 @@ model SenderIdentity {
 // ENUMS
 // ─────────────────────────────────────────
 
-// Plan tiers — one-time license, no free tier. Names match UI labels exactly:
-//   SOLO    — $199 · 1 user, 1 workspace, 3 domains
-//   STARTER — $449 · 5 team members, 10 domains, A/B, upsells, analytics
-//   AGENCY  — $1,499 · unlimited workspaces/team/domains, white-label, reseller
-//   CUSTOM  — contact sales · SSO, audit, SLA
-// A NULL Organization.plan = no valid license (pre-activation / revoked) → locked.
-// Sellable tiers: LICENSE ($197 base) and AGENCY ($497). CUSTOM is a
-// sales-assisted enterprise superset (not self-serve).
+// Plan tiers. A NULL Organization.plan = FREE — self-host default, no
+// license needed (see getPlanFeatures(null) in lib/plan.ts). Sellable tier is
+// AGENCY (annual subscription — unlimited workspaces/team, white-label,
+// cloning). CUSTOM is a sales-assisted enterprise superset (not self-serve).
 enum Plan {
-  LICENSE
   AGENCY
   CUSTOM
 }

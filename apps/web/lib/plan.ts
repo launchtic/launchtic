@@ -1,35 +1,36 @@
 // Single source of truth for tier-gated features. Combines the plan enum,
 // feature matrix, and runtime predicates.
 //
-// Two sellable tiers (one-time license, no free tier):
-//   LICENSE  — $197 · the full platform: unlimited team/domains, 1 workspace,
-//              premium templates, roles, A/B, upsells, analytics. Everything
-//              EXCEPT the agency-only features.
-//   AGENCY   — $497 · LICENSE + unlimited workspaces, white-label & workspace
-//              cloning.
+// Self-host is free forever — no license needed. Two tiers sit above it:
+//   FREE     — 1 workspace, 1 admin (no team invites). Everything else
+//              (funnels, checkout, CRM, workflows, analytics, A/B, AI) is
+//              fully unlocked. This is Organization.plan = null.
+//   AGENCY   — $997/yr subscription. FREE + unlimited workspaces/team,
+//              advanced roles & permissions, white-label & workspace cloning.
 //
 // CUSTOM is a sales-assisted enterprise superset (SSO, audit logs) — not
 // self-serve.
 //
-// A `null` plan = NO valid license (pre-activation, revoked, or deactivated).
-// It resolves to the LOCKED feature set below — everything off. An unlicensed
-// instance is locked, not degraded to a usable free plan.
-//
 // The plan is authoritative on the launchtic.com side (License.plan) and
 // returned by license verification — it is NOT derived from the key. Keys are
 // tier-agnostic.
+//
+// A `null` plan is NOT an error/locked state — it's the FREE tier. It also
+// covers a lapsed/revoked Agency subscription (reVerifyIfStale nulls the
+// plan), which correctly falls back to FREE rather than locking the instance
+// out entirely.
 
-export type Plan = "LICENSE" | "AGENCY" | "CUSTOM";
+export type Plan = "AGENCY" | "CUSTOM";
 
 export type PlanFeatures = {
   maxWorkspaces:    number;
   maxTeamMembers:   number;
   maxDomains:       number;
   premiumTemplates: boolean;
-  teamRoles:        boolean;   // full roles & permissions (Starter+ — single tier, not basic/advanced)
-  abTesting:        boolean;   // Starter+
-  upsells:          boolean;   // 1-click upsells & downsells (Starter+)
-  funnelAnalytics:  boolean;   // Starter+
+  teamRoles:        boolean;   // full roles & permissions (Agency+)
+  abTesting:        boolean;
+  upsells:          boolean;   // 1-click upsells & downsells
+  funnelAnalytics:  boolean;
   whiteLabel:       boolean;   // Agency+
   workspaceCloning: boolean;   // Agency+
   sso:              boolean;   // Custom
@@ -38,26 +39,18 @@ export type PlanFeatures = {
 
 // ─── Feature matrix ─────────────────────────────────────────────────────────
 
-// No valid license. Every capability off, every limit zero. An instance in
-// this state shows the activation prompt instead of degraded functionality.
-const LOCKED: PlanFeatures = {
-  maxWorkspaces: 0, maxTeamMembers: 0, maxDomains: 0,
-  premiumTemplates: false, teamRoles: false,
-  abTesting: false, upsells: false, funnelAnalytics: false,
+// No license (self-host default). Single workspace, solo admin — no team
+// invites — but every other capability (funnels, checkout, CRM, workflows,
+// analytics, A/B, AI assistant) is fully unlocked.
+const FREE: PlanFeatures = {
+  maxWorkspaces: 1, maxTeamMembers: 1, maxDomains: Infinity,
+  premiumTemplates: true, teamRoles: false,
+  abTesting: true, upsells: true, funnelAnalytics: true,
   whiteLabel: false, workspaceCloning: false,
   sso: false, auditLogs: false,
 };
 
 export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
-  // Base license — everything unlocked except the agency-only trio
-  // (unlimited workspaces, white-label, workspace cloning).
-  LICENSE: {
-    maxWorkspaces: 1, maxTeamMembers: Infinity, maxDomains: Infinity,
-    premiumTemplates: true, teamRoles: true,
-    abTesting: true, upsells: true, funnelAnalytics: true,
-    whiteLabel: false, workspaceCloning: false,
-    sso: false, auditLogs: false,
-  },
   AGENCY: {
     maxWorkspaces: Infinity, maxTeamMembers: Infinity, maxDomains: Infinity,
     premiumTemplates: true, teamRoles: true,
@@ -74,10 +67,10 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
   },
 };
 
-/** Feature set for a plan. Unknown / null / undefined → LOCKED (no license). */
+/** Feature set for a plan. Null / undefined / unrecognized → FREE. */
 export function getPlanFeatures(plan: string | null | undefined): PlanFeatures {
   if (plan && plan in PLAN_FEATURES) return PLAN_FEATURES[plan as Plan];
-  return LOCKED;
+  return FREE;
 }
 
 // ─── Capability predicates ──────────────────────────────────────────────────
@@ -103,12 +96,7 @@ export function canAddDomain(plan: string | null | undefined, currentCount: numb
 
 // ─── Tier predicates ────────────────────────────────────────────────────────
 
-/** Any valid paid tier (i.e. licensed). False when locked / null. */
-export function isPaidPlan(plan: string | null | undefined): boolean {
-  return plan === "LICENSE" || plan === "AGENCY" || plan === "CUSTOM";
-}
-
-/** Agency tier or above. Gates white-label, cloning, reseller, client billing. */
+/** Agency tier or above. Gates white-label, cloning, roles/team, reseller, client billing. */
 export function isAgencyPlan(plan: string | null | undefined): boolean {
   return plan === "AGENCY" || plan === "CUSTOM";
 }
@@ -121,22 +109,21 @@ export function isCustomPlan(plan: string | null | undefined): boolean {
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
 const COLORS: Record<Plan, string> = {
-  LICENSE: "bg-blue-100 text-blue-700",
-  AGENCY:  "bg-purple-100 text-purple-700",
-  CUSTOM:  "bg-amber-100 text-amber-700",
+  AGENCY: "bg-purple-100 text-purple-700",
+  CUSTOM: "bg-amber-100 text-amber-700",
 };
 
-const LOCKED_COLOR = "bg-gray-100 text-gray-500";
+const FREE_COLOR = "bg-gray-100 text-gray-500";
 
-/** Tailwind classes for plan-tier badges. Null/locked → muted gray. */
+/** Tailwind classes for plan-tier badges. Null/FREE → muted gray. */
 export function planColor(plan: string | null | undefined): string {
-  if (!plan) return LOCKED_COLOR;
-  return COLORS[plan as Plan] ?? LOCKED_COLOR;
+  if (!plan) return FREE_COLOR;
+  return COLORS[plan as Plan] ?? FREE_COLOR;
 }
 
 /** Render-ready label. Title-case for the badge; enum is already SHOUTY. */
 export function planLabel(plan: string | null | undefined): string {
-  if (!plan) return "Unlicensed";
+  if (!plan) return "Free";
   if (plan === "CUSTOM") return "Enterprise";
   const v = plan.toUpperCase();
   return v.charAt(0) + v.slice(1).toLowerCase();
