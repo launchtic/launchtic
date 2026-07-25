@@ -1,16 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, ExternalLink, ShieldCheck, ShieldOff, Sparkles } from "lucide-react";
+import { Loader2, ExternalLink, ShieldCheck, ShieldOff } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { planLabel, planColor } from "../../lib/plan";
 import { useRole } from "../../lib/role";
 
 type LicenseStatus = {
-  plan: string | null;          // null = no valid license (locked)
+  plan: string | null;          // null = Free tier (no Agency subscription)
   licenseKey: string | null;
-  expiresAt: string | null;     // free-updates deadline, not an access cutoff
-  updatesCurrent: boolean;      // false = updates lapsed (renew optional; features stay on)
+  expiresAt: string | null;     // Agency subscription's current paid-through date
 };
 
 export default function LicensePanel() {
@@ -63,13 +62,8 @@ function StatusHero({
 }) {
   if (!status) return null;
 
-  // Perpetual license model: three states.
-  //   locked         — no valid license → get a license
-  //   updates lapsed — license valid forever, but free-updates window ended
-  //                    (features stay ON; renewing only resumes new updates)
-  //   active         — licensed + updates current
-  const isLocked       = !status.plan;
-  const updatesLapsed  = !isLocked && !status.updatesCurrent;
+  // Two states: no Agency subscription (Free) or an active one.
+  const isLocked = !status.plan;
 
   const variant = isLocked ? {
         bg:       "bg-gray-50",
@@ -82,21 +76,7 @@ function StatusHero({
         title:    "Unlicensed",
         subtitle: "No license detected on this instance. Get a license to unlock Launchtic.",
       }
-    : updatesLapsed ? {
-        bg:       "bg-amber-50",
-        border:   "border-amber-200",
-        iconBg:   "bg-amber-100",
-        iconFg:   "text-amber-600",
-        accent:   "text-amber-900",
-        Icon:     Sparkles,
-        eyebrow:  "Updates ended",
-        title:    `${planLabel(status.plan)} plan`,
-        subtitle: status.expiresAt
-          ? `Free updates ended ${new Date(status.expiresAt).toLocaleDateString()}. Your license stays active forever — renew to get new updates.`
-          : "Your license stays active forever — renew to get new updates.",
-      }
     : {
-        // active + updates current
         bg:       "bg-green-50",
         border:   "border-green-200",
         iconBg:   "bg-green-100",
@@ -106,8 +86,8 @@ function StatusHero({
         eyebrow:  "License active",
         title:    `${planLabel(status.plan)} plan`,
         subtitle: status.expiresAt
-          ? `Free updates included until ${new Date(status.expiresAt).toLocaleDateString()}.`
-          : "Perpetual license — yours forever.",
+          ? `Renews ${new Date(status.expiresAt).toLocaleDateString()}.`
+          : "Active.",
       };
 
   const Icon = variant.Icon;
@@ -143,16 +123,6 @@ function StatusHero({
             className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-900 hover:bg-black text-white rounded-lg leading-none"
           >
             <span>Get a license</span>
-            <ExternalLink size={11} />
-          </a>
-        ) : updatesLapsed ? (
-          <a
-            href="https://launchtic.com/account"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg leading-none"
-          >
-            <span>Renew updates</span>
             <ExternalLink size={11} />
           </a>
         ) : isOwner && (

@@ -4,8 +4,11 @@
 //   pin it into the VPS .env as LAUNCHTIC_VERSION; docker-compose passes it into
 //   the web container. Unset in local dev → "dev".
 // latest:  the current release-channel value from launchtic.com /api/version.
-//   Cached per-process (1h) behind a short timeout so a slow/unreachable license
-//   server never blocks the settings page.
+//   Cached per-process (1h) behind a short timeout so a slow/unreachable server
+//   never blocks the settings page.
+//
+// Updates are free for every instance, Free or Agency — no license/entitlement
+// check here.
 
 const LICENSE_SERVER_URL = process.env.LICENSE_SERVER_URL ?? "https://launchtic.com";
 
@@ -16,7 +19,6 @@ export type VersionInfo = {
   current: string;                       // "2026.06.13" | "stable" | "dev"
   latest: string | null;                 // null = couldn't reach the server
   updateAvailable: boolean;              // newer release exists AND it's installable
-  updatesLapsed: boolean;                // newer release exists BUT update window ended
   channel: "dated" | "rolling" | "dev";  // how `current` is pinned
 };
 
@@ -53,10 +55,7 @@ async function getLatestVersion(): Promise<string | null> {
   }
 }
 
-// `updatesCurrent` = is the license's free-update window still open? When it has
-// lapsed, the license server freezes the entitled version, so the updater can't
-// actually pull a newer build — we must surface "renew", not "update".
-export async function getVersionInfo(updatesCurrent = true): Promise<VersionInfo> {
+export async function getVersionInfo(): Promise<VersionInfo> {
   const current = getCurrentVersion();
   const latest = await getLatestVersion();
 
@@ -73,11 +72,5 @@ export async function getVersionInfo(updatesCurrent = true): Promise<VersionInfo
     DATE_TAG.test(latest) &&
     latest > current;
 
-  return {
-    current,
-    latest,
-    channel,
-    updateAvailable: newerExists && updatesCurrent,
-    updatesLapsed:   newerExists && !updatesCurrent,
-  };
+  return { current, latest, channel, updateAvailable: newerExists };
 }

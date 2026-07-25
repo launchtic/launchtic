@@ -71,19 +71,13 @@ export async function GET() {
     });
     if (!organization) return err("Organization not found", 404);
 
-    // Perpetual license: the plan stays valid forever. licenseExpiresAt is the
-    // free-UPDATES deadline, not an access cutoff — so we never downgrade the
-    // plan here. `updatesCurrent` tells the UI whether new updates are still
-    // included (false = offer a renewal, but all features stay unlocked).
-    const updatesCurrent =
-      organization.licenseExpiresAt == null ||
-      organization.licenseExpiresAt >= new Date();
-
+    // licenseExpiresAt is the Agency subscription's current paid-through date.
+    // reVerifyIfStale (lib/license.ts) is what actually enforces it — nulling
+    // the plan out once the subscription lapses — so this is display-only.
     return ok({
       plan: organization.plan,
       licenseKey: organization.licenseKey ? maskKey(organization.licenseKey) : null,
       expiresAt: organization.licenseExpiresAt?.toISOString() ?? null,
-      updatesCurrent,
     });
   } catch (error) {
     return handleError(error);

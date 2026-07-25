@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, ArrowUpCircle, AlertCircle, Sparkles, ExternalLink, Copy, Check } from "lucide-react";
+import { Loader2, CheckCircle2, ArrowUpCircle, AlertCircle, Copy, Check } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
 type VersionInfo = {
   current: string;
   latest: string | null;
   updateAvailable: boolean;
-  updatesLapsed: boolean;
   channel: "dated" | "rolling" | "dev";
   updateCommand: string;
 };
@@ -50,32 +49,21 @@ export default function VersionPanel() {
   // release, a rolling channel (always re-pullable), or we couldn't check
   // (let the operator update anyway). A dated build that's up to date hides it.
   const unknown = info.channel !== "dev" && info.latest == null;
-  // Hide the SSH command when there's nothing to pull: a lapsed update window
-  // (renew first — the updater would be a no-op), a current dated build, or dev.
-  const showCommand =
-    !info.updatesLapsed && (info.updateAvailable || info.channel === "rolling" || unknown);
+  const showCommand = info.updateAvailable || info.channel === "rolling" || unknown;
 
   // Variant picks the icon + colour + copy for the status card.
   const variant = info.updateAvailable
     ? { Icon: ArrowUpCircle, iconBg: "bg-blue-100", iconFg: "text-blue-600", border: "border-blue-200", bg: "bg-blue-50" }
-    : info.updatesLapsed
-    ? { Icon: Sparkles, iconBg: "bg-amber-100", iconFg: "text-amber-600", border: "border-amber-200", bg: "bg-amber-50" }
     : unknown
     ? { Icon: AlertCircle, iconBg: "bg-gray-100", iconFg: "text-gray-500", border: "border-gray-200", bg: "bg-white" }
     : { Icon: CheckCircle2, iconBg: "bg-green-100", iconFg: "text-green-600", border: "border-gray-200", bg: "bg-white" };
 
   const Icon = variant.Icon;
 
-  const title = info.updateAvailable
-    ? "Update available"
-    : info.updatesLapsed
-    ? "Renew to update"
-    : "Up to date";
+  const title = info.updateAvailable ? "Update available" : "Up to date";
 
   const subtitle = info.updateAvailable
     ? `A newer release (${info.latest}) is available.`
-    : info.updatesLapsed
-    ? `A newer release (${info.latest}) exists — renew your updates to install it. Your license keeps running on ${info.current}.`
     : unknown
     ? "Couldn't reach launchtic.com to check for updates."
     : info.channel === "dev"
@@ -128,18 +116,6 @@ export default function VersionPanel() {
               </button>
             </div>
           </div>
-        )}
-
-        {info.updatesLapsed && (
-          <a
-            href="https://launchtic.com/account"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg leading-none"
-          >
-            <span>Renew updates</span>
-            <ExternalLink size={11} />
-          </a>
         )}
       </div>
     </div>

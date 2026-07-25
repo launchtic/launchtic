@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 // POST /api/license/refresh — force an immediate license re-verify against
 // launchtic.com, bypassing the 24h staleness gate in reVerifyIfStale. Lets an
-// owner pull a fresh plan + update-window right after renewing/upgrading on
+// owner pull a fresh plan right after subscribing to/cancelling Agency on
 // launchtic.com instead of waiting up to a day for the automatic re-check.
 export async function POST() {
   try {
