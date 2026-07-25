@@ -166,6 +166,9 @@ importers:
       '@launchtic/editor-utils':
         specifier: workspace:*
         version: link:../../packages/editor-utils
+      '@launchtic/ee':
+        specifier: workspace:*
+        version: link:../../packages/ee
       '@launchtic/elements':
         specifier: workspace:*
         version: link:../../packages/elements
@@ -429,6 +432,31 @@ importers:
       '@types/shallowequal':
         specifier: ^1.1.5
         version: 1.1.5
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
+  packages/ee:
+    dependencies:
+      '@launchtic/database':
+        specifier: workspace:*
+        version: link:../database
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.3
+      react:
+        specifier: ^19.0.0
+        version: 19.2.5
+      zod:
+        specifier: ^3.24.4
+        version: 3.25.76
+    devDependencies:
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@launchtic/database";
 import LoginForm from "./LoginForm";
 import { isDemoMode, DEMO_EMAIL, DEMO_PASSWORD } from "../../../lib/demo";
-import { getInstallationBranding } from "../../../lib/branding";
+import { getInstallationBranding } from "@launchtic/ee";
 
 // First-run gate: a fresh install has no users in the DB. Redirect callers
 // to the wizard at /setup where they create the admin account + workspace;

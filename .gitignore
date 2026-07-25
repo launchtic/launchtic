@@ -54,3 +54,4 @@ apps/web/public/uploads/*
 
 scripts_test/
 package-lock.json
+TaskList.md

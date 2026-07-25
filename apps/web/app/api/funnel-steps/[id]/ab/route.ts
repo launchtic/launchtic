@@ -1,8 +1,6 @@
 import { db } from "@launchtic/database";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAccess } from "../../../../../lib/permissions";
-import { getOrganizationForWorkspace, getEffectivePlan } from "../../../../../lib/organization";
-import { getPlanFeatures } from "../../../../../lib/plan";
 import { getAbResults } from "../../../../../lib/ab-results";
 
 type Props = { params: Promise<{ id: string }> };
@@ -16,17 +14,6 @@ async function verifyStep(stepId: string, workspaceId: string) {
   return step;
 }
 
-async function planGate(workspaceId: string): Promise<NextResponse | null> {
-  const org = await getOrganizationForWorkspace(workspaceId);
-  if (!getPlanFeatures(getEffectivePlan(org)).abTesting) {
-    return NextResponse.json(
-      { error: "A/B testing is a Starter feature. Upgrade to unlock.", code: "PLAN_LIMIT" },
-      { status: 402 },
-    );
-  }
-  return null;
-}
-
 // GET /api/funnel-steps/:id/ab — variants + results (all-time over the test).
 export async function GET(_req: NextRequest, { params }: Props) {
   const r = await requireAccess("funnels:read");
@@ -35,9 +22,6 @@ export async function GET(_req: NextRequest, { params }: Props) {
 
   const step = await verifyStep(id, r.workspaceId);
   if (!step) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const gate = await planGate(r.workspaceId);
-  if (gate) return gate;
 
   const results = await getAbResults(id, new Date(0), new Date());
   return NextResponse.json(results);
@@ -52,9 +36,6 @@ export async function POST(_req: NextRequest, { params }: Props) {
 
   const step = await verifyStep(id, r.workspaceId);
   if (!step) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const gate = await planGate(r.workspaceId);
-  if (gate) return gate;
 
   if (step.abTestActive) {
     return NextResponse.json({ error: "A test is already running on this step." }, { status: 400 });

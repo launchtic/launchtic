@@ -1,16 +1,19 @@
 # Releasing Launchtic
 
-How a new version reaches self-hosted customers. Two repos are involved:
+How a new version reaches self-hosted instances. Two repos are involved:
 
 - **`launchtic`** (this repo) — the app. CI builds 3 Docker images (web /
-  renderer / worker) and publishes them to **private** GHCR.
-- **`launchtic-com`** — the marketing site + license server. It vends the
-  registry token via `/api/install/authorize`, serves `install.sh` / `update.sh`
-  / `docker-compose.yml` / `Caddyfile` at `/dist`, and holds the
-  `LAUNCHTIC_CURRENT_VERSION` env that decides which tag in-window licenses get.
+  renderer / worker) and publishes them **publicly** to GHCR — no auth needed
+  to pull them.
+- **`launchtic-com`** — the marketing site (+ Agency billing/license API). It
+  serves `install.sh` / `update.sh` / `docker-compose.yml` / `Caddyfile` at
+  `/dist`, and holds the `LAUNCHTIC_CURRENT_VERSION` env that `/api/version`
+  (public, unauthenticated) advertises.
 
-The two are independent codebases. They only meet at **release time**, via one
-value: `LAUNCHTIC_CURRENT_VERSION` must equal a published `:YYYY.MM.DD` tag.
+Updates are free for every self-hosted instance, Free or Agency — there is no
+license/entitlement gate on versions. The two repos only meet at **release
+time**, via one value: `LAUNCHTIC_CURRENT_VERSION` must equal a published
+`:YYYY.MM.DD` tag.
 
 ---
 
@@ -35,23 +38,21 @@ Chi tiết từng phần ở dưới.
 
 | Trigger | Tags published | Who pulls it |
 |---|---|---|
-| **Push to `main`** | `:latest`, `:sha-<short>` | You — dev / dogfood (e.g. demo.launchtic.com). **Customers never get this.** |
-| **Run workflow** (`workflow_dispatch`) | `:stable`, `:<version>`, `:sha-<short>` | Customers, via the dated `:<version>` tag they're pinned to. |
+| **Push to `main`** | `:latest`, `:sha-<short>` | You — dev / dogfood (e.g. demo.launchtic.com). Not advertised to instances. |
+| **Run workflow** (`workflow_dispatch`) | `:stable`, `:<version>`, `:sha-<short>` | Everyone, via `install.sh`/`update.sh` reading `/api/version`. |
 
-Customers are pinned to a concrete dated tag (not `:latest`/`:stable`) by
-`install.sh` / `update.sh`, which write `LAUNCHTIC_VERSION=<entitled>` into the
-VPS `.env`. The entitled version comes from `/api/install/authorize`:
-- **Update window valid** → the current release (`LAUNCHTIC_CURRENT_VERSION`).
-- **Expired** → frozen at the last version they were entitled to (perpetual use,
-  no newer pulls).
+Instances pull a concrete dated tag (not `:latest`) resolved by `install.sh` /
+`update.sh`, which write `LAUNCHTIC_VERSION=<version>` into the VPS `.env`.
+The version comes from `GET /api/version` on `launchtic-com` — public, no
+license key required, always returns `LAUNCHTIC_CURRENT_VERSION`.
 
 ---
 
 ## Cutting a release — checklist
 
 > **Order matters.** Publish the image tag FIRST, bump the site env SECOND.
-> Bumping the env before the tag exists makes `authorize` hand out a tag that
-> isn't in the registry → customer pulls fail.
+> Bumping the env before the tag exists makes `/api/version` advertise a tag
+> that isn't in the registry yet → pulls fail.
 
 1. **Land + test the code.** Merge to `main`. Push auto-builds `:latest`; verify
    it on a staging/demo box (demo.launchtic.com) before cutting the release.
@@ -68,9 +69,8 @@ VPS `.env`. The entitled version comes from `/api/install/authorize`:
    then `docker compose up -d` (env-only change — no rebuild needed).
    Use the **same string** you typed in step 2.
 
-4. **Done.** In-window customers get `:2026.07.01` on their next
-   `curl -fsSL https://launchtic.com/update | bash`. Expired customers stay
-   frozen at their entitled version.
+4. **Done.** Everyone gets `:2026.07.01` on their next
+   `curl -fsSL https://launchtic.com/update | bash`.
 
 ---
 
@@ -80,8 +80,8 @@ VPS `.env`. The entitled version comes from `/api/install/authorize`:
   box blank — it auto-uses today's UTC date, and a 2nd release the same day is
   auto-suffixed `-2`, `-3`, … (the `resolve-version` job checks GHCR for the
   existing tag). Only type a version to override.
-- Keep old dated tags forever (don't delete them) — expired customers reinstall
-  the exact version they're frozen at, and `:sha-…` tags back rollbacks.
+- Keep old dated tags forever (don't delete them) — `:sha-…` tags and dated
+  tags both back rollbacks.
 
 ---
 
@@ -89,14 +89,14 @@ VPS `.env`. The entitled version comes from `/api/install/authorize`:
 
 A bad release went out:
 
-1. **Stop new customers getting it:** set `LAUNCHTIC_CURRENT_VERSION` back to the
+1. **Stop new pulls of it:** set `LAUNCHTIC_CURRENT_VERSION` back to the
    previous good date tag on `launchtic-com`, `docker compose up -d`. New
    installs/updates now serve the old version again.
-2. **Customers already on the bad version:** tell them to set
+2. **Instances already on the bad version:** tell operators to set
    `LAUNCHTIC_VERSION=<previous tag>` in their `.env` and run
-   `docker compose up -d` (it's local — no token needed thanks to
-   `pull_policy: missing`). Or push a fixed release (step "Cutting a release")
-   with a new date tag and have them update normally.
+   `docker compose up -d` (it's local — no token needed, images are public).
+   Or push a fixed release (step "Cutting a release") with a new date tag and
+   have them update normally.
 
 ---
 
@@ -104,5 +104,5 @@ A bad release went out:
 
 `install.sh`, `update.sh`, `docker-compose.yml`, `Caddyfile` are served from
 `launchtic-com/public` + `/public/dist`. Editing them and **deploying the site**
-takes effect for customers immediately (each install/update fetches them live) —
-that is a *site deploy*, separate from an *app release* above.
+takes effect immediately (each install/update fetches them live) — that is a
+*site deploy*, separate from an *app release* above.

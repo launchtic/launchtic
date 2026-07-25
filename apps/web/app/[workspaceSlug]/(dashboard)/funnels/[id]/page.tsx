@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
-import { db } from "@launchtic/database";
+import { db, getOrganizationForWorkspace, getEffectivePlan, getPlanFeatures } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
 import { getRendererUrl } from "../../../../../lib/system-config";
-import { getOrganizationForWorkspace, getEffectivePlan } from "../../../../../lib/organization";
-import { getPlanFeatures } from "../../../../../lib/plan";
 import FunnelStepManager from "../../../../../components/funnels/FunnelStepManager";
 
 type Params = { params: Promise<{ id: string; workspaceSlug: string }> };

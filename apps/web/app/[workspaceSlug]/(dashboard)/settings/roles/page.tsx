@@ -1,10 +1,8 @@
 // RolesPanel fetches its own data via /api/roles — no server props needed.
 
 import { redirect } from "next/navigation";
-import { db } from "@launchtic/database";
+import { db, getEffectivePlan, isAgencyPlan } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
-import { getEffectivePlan } from "../../../../../lib/organization";
-import { isAgencyPlan } from "../../../../../lib/plan";
 import RolesPanel from "../../../../../components/settings/RolesPanel";
 
 export const metadata = { title: "Roles" };

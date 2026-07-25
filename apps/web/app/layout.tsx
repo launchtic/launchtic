@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import SessionProviderWrapper from "../components/SessionProviderWrapper";
-import { getInstallationBranding } from "../lib/branding";
+import { getInstallationBranding } from "@launchtic/ee";
 
 // Root metadata — applies to EVERY page (auth, dashboard, editor, errors).
 // Self-host invariant: one Organization per install, so a single read here

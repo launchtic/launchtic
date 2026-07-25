@@ -5,8 +5,6 @@ import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { defaultPageJson } from "../../../../../lib/default-page-json";
 import { generateUniqueSlug } from "../../../../../lib/funnels/slug-validation";
-import { getOrganizationForWorkspace, getEffectivePlan } from "../../../../../lib/organization";
-import { getPlanFeatures } from "../../../../../lib/plan";
 
 const createStepSchema = z.object({
   name: z.string().min(1).max(100),
@@ -62,14 +60,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { id: true, workspaceId: true },
     });
     if (!funnel) return err("Funnel not found", 404);
-
-    // Plan gate: one-click upsell/downsell steps require the `upsells` feature.
-    if (data.type === "UPSELL" || data.type === "DOWNSELL") {
-      const org = await getOrganizationForWorkspace(funnel.workspaceId);
-      if (!getPlanFeatures(getEffectivePlan(org)).upsells) {
-        return err("One-click upsells & downsells are a paid feature. Upgrade to unlock.", 402);
-      }
-    }
 
     // Auto-resolve slug: use provided slug as the base when given, otherwise
     // slugify the step name. Either way, suffixes (-2, -3...) are appended

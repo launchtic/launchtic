@@ -19,13 +19,16 @@
 // covers a lapsed/revoked Agency subscription (reVerifyIfStale nulls the
 // plan), which correctly falls back to FREE rather than locking the instance
 // out entirely.
+//
+// Lives in @launchtic/database (not apps/web) because both the core app AND
+// @launchtic/ee need it — packages can't import from apps, so the shared
+// plan/organization primitives sit here as the common dependency root.
 
-export type Plan = "AGENCY" | "CUSTOM";
+export type PlanTier = "AGENCY" | "CUSTOM";
 
 export type PlanFeatures = {
   maxWorkspaces:    number;
   maxTeamMembers:   number;
-  maxDomains:       number;
   premiumTemplates: boolean;
   teamRoles:        boolean;   // full roles & permissions (Agency+)
   abTesting:        boolean;
@@ -43,23 +46,23 @@ export type PlanFeatures = {
 // invites — but every other capability (funnels, checkout, CRM, workflows,
 // analytics, A/B, AI assistant) is fully unlocked.
 const FREE: PlanFeatures = {
-  maxWorkspaces: 1, maxTeamMembers: 1, maxDomains: Infinity,
+  maxWorkspaces: 1, maxTeamMembers: 1,
   premiumTemplates: true, teamRoles: false,
   abTesting: true, upsells: true, funnelAnalytics: true,
   whiteLabel: false, workspaceCloning: false,
   sso: false, auditLogs: false,
 };
 
-export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
+export const PLAN_FEATURES: Record<PlanTier, PlanFeatures> = {
   AGENCY: {
-    maxWorkspaces: Infinity, maxTeamMembers: Infinity, maxDomains: Infinity,
+    maxWorkspaces: Infinity, maxTeamMembers: Infinity,
     premiumTemplates: true, teamRoles: true,
     abTesting: true, upsells: true, funnelAnalytics: true,
     whiteLabel: true, workspaceCloning: true,
     sso: false, auditLogs: false,
   },
   CUSTOM: {
-    maxWorkspaces: Infinity, maxTeamMembers: Infinity, maxDomains: Infinity,
+    maxWorkspaces: Infinity, maxTeamMembers: Infinity,
     premiumTemplates: true, teamRoles: true,
     abTesting: true, upsells: true, funnelAnalytics: true,
     whiteLabel: true, workspaceCloning: true,
@@ -69,7 +72,7 @@ export const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
 
 /** Feature set for a plan. Null / undefined / unrecognized → FREE. */
 export function getPlanFeatures(plan: string | null | undefined): PlanFeatures {
-  if (plan && plan in PLAN_FEATURES) return PLAN_FEATURES[plan as Plan];
+  if (plan && plan in PLAN_FEATURES) return PLAN_FEATURES[plan as PlanTier];
   return FREE;
 }
 
@@ -89,11 +92,6 @@ export function canInviteTeamMember(plan: string | null | undefined, currentCoun
   return currentCount < getPlanFeatures(plan).maxTeamMembers;
 }
 
-/** currentCount = custom domains already configured on the instance. */
-export function canAddDomain(plan: string | null | undefined, currentCount: number): boolean {
-  return currentCount < getPlanFeatures(plan).maxDomains;
-}
-
 // ─── Tier predicates ────────────────────────────────────────────────────────
 
 /** Agency tier or above. Gates white-label, cloning, roles/team, reseller, client billing. */
@@ -108,7 +106,7 @@ export function isCustomPlan(plan: string | null | undefined): boolean {
 
 // ─── Display helpers ──────────────────────────────────────────────────────────
 
-const COLORS: Record<Plan, string> = {
+const COLORS: Record<PlanTier, string> = {
   AGENCY: "bg-purple-100 text-purple-700",
   CUSTOM: "bg-amber-100 text-amber-700",
 };
@@ -118,7 +116,7 @@ const FREE_COLOR = "bg-gray-100 text-gray-500";
 /** Tailwind classes for plan-tier badges. Null/FREE → muted gray. */
 export function planColor(plan: string | null | undefined): string {
   if (!plan) return FREE_COLOR;
-  return COLORS[plan as Plan] ?? FREE_COLOR;
+  return COLORS[plan as PlanTier] ?? FREE_COLOR;
 }
 
 /** Render-ready label. Title-case for the badge; enum is already SHOUTY. */

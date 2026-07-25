@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { db } from "@launchtic/database";
-import { getPlanFeatures } from "../../../../../lib/plan";
+import { db, getPlanFeatures } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
-import { getBranding } from "../../../../../lib/branding";
+import { getBranding } from "@launchtic/ee";
 import BrandingPanel from "../../../../../components/settings/BrandingPanel";
 
 export const metadata = { title: "White Label" };

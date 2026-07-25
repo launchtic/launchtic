@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db } from "@launchtic/database";
+import { listRoles, createRole, EeError } from "@launchtic/ee";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess, ALL_PERMISSIONS } from "../../../lib/permissions";
 import { demoGuard } from "../../../lib/demo";
-import { getEffectivePlan } from "../../../lib/organization";
-import { isAgencyPlan } from "../../../lib/plan";
 
 // GET /api/roles — list all roles in the current workspace + member count.
 // Available to any workspace member (`members:read`) so the TeamPanel
@@ -14,22 +12,8 @@ export async function GET() {
   try {
     const r = await requireAccess("members:read");
     if (!r.ok) return r.response;
-    const { workspaceId } = r;
-
-    const roles = await db.role.findMany({
-      where: { workspaceId },
-      include: { _count: { select: { members: true } } },
-      orderBy: { createdAt: "asc" },
-    });
-
-    return ok(roles.map((role) => ({
-      id:          role.id,
-      name:        role.name,
-      description: role.description,
-      permissions: role.permissions,
-      memberCount: role._count.members,
-      createdAt:   role.createdAt.toISOString(),
-    })));
+    const roles = await listRoles(r.workspaceId);
+    return ok(roles);
   } catch (error) {
     return handleError(error);
   }
@@ -50,45 +34,12 @@ export async function POST(req: NextRequest) {
     if (blocked) return blocked;
     const r = await requireAccess("roles:manage");
     if (!r.ok) return r.response;
-    const { workspaceId } = r;
-
-    // Plan gate. Custom roles are a paid-tier feature.
-    const planRow = await db.workspace.findUnique({
-      where:  { id: workspaceId },
-      select: { organization: { select: { plan: true, licenseExpiresAt: true } } },
-    });
-    if (!isAgencyPlan(getEffectivePlan(planRow?.organization))) {
-      return err("Custom roles require a paid plan.", 402);
-    }
 
     const body = createSchema.parse(await req.json());
-
-    // Reject duplicate role name in this workspace
-    const existing = await db.role.findFirst({
-      where: { workspaceId, name: body.name },
-      select: { id: true },
-    });
-    if (existing) return err("A role with this name already exists.", 409);
-
-    const role = await db.role.create({
-      data: {
-        workspaceId,
-        name:        body.name,
-        description: body.description ?? null,
-        permissions: body.permissions,
-      },
-      include: { _count: { select: { members: true } } },
-    });
-
-    return ok({
-      id:          role.id,
-      name:        role.name,
-      description: role.description,
-      permissions: role.permissions,
-      memberCount: role._count.members,
-      createdAt:   role.createdAt.toISOString(),
-    }, 201);
+    const role = await createRole(r.workspaceId, body);
+    return ok(role, 201);
   } catch (error) {
+    if (error instanceof EeError) return err(error.message, error.status);
     return handleError(error);
   }
 }

@@ -12,7 +12,7 @@ import {
   Image as ImageIcon, Upload,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { isAgencyPlan } from "../../lib/plan";
+import { isAgencyPlan } from "@launchtic/database";
 import { useRole } from "../../lib/role";
 
 type NavItemDef = {

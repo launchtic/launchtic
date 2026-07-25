@@ -10,15 +10,17 @@
 // Reads are owner-only too for consistency (admins don't browse the
 // branding config). If we want admins to PREVIEW the branding later, this
 // can be relaxed — UI-only impact, no security delta.
+//
+// Business logic (plan gate + persistence) lives in @launchtic/ee — this
+// route only handles auth/ownership + HTTP shape.
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db } from "@launchtic/database";
-import { getPlanFeatures } from "../../../lib/plan";
+import { getBranding, saveBranding, resetBranding } from "@launchtic/ee";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
 import { demoGuard } from "../../../lib/demo";
-import { getBranding, saveBranding, resetBranding } from "../../../lib/branding";
+import { db, getPlanFeatures } from "@launchtic/database";
 
 // Patch schema — every field optional, UI sends only what changed.
 // URLs: returned from /api/media/upload OR pasted by the operator (CDN).

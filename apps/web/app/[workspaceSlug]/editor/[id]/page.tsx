@@ -1,5 +1,5 @@
 import { db } from "@launchtic/database";
-import { getActiveBranding } from "../../../../lib/branding";
+import { getActiveBranding } from "@launchtic/ee";
 import { getRendererUrl } from "../../../../lib/system-config";
 import EditorAppDynamic from "../../../../components/editor/EditorAppDynamic";
 

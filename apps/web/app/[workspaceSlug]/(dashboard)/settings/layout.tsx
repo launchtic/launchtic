@@ -3,9 +3,8 @@
 // performs its own gate via requireWorkspaceFromSlug(slug, "<perm>:read")
 // — if denied, the page redirects to the in-workspace 403 page.
 
-import { db } from "@launchtic/database";
+import { db, getEffectivePlan } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../lib/permissions";
-import { getEffectivePlan } from "../../../../lib/organization";
 import SettingsShell from "../../../../components/settings/SettingsShell";
 
 export const metadata = { title: { template: "%s · Settings", default: "Settings" } };

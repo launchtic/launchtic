@@ -9,7 +9,7 @@ import {
   buildResetEmailHtml,
   RESET_TOKEN_TTL_MS,
 } from "../../../../lib/password-reset";
-import { getInstallationBranding } from "../../../../lib/branding";
+import { getInstallationBranding } from "@launchtic/ee";
 import { absolutizeBrandUrl } from "../../../../lib/email-layout";
 
 const schema = z.object({

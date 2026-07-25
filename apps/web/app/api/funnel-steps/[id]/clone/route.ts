@@ -3,8 +3,6 @@ import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { generateUniqueSlug } from "../../../../../lib/funnels/slug-validation";
-import { getOrganizationForWorkspace, getEffectivePlan } from "../../../../../lib/organization";
-import { getPlanFeatures } from "../../../../../lib/plan";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,14 +29,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
       },
     });
     if (!src || src.funnel.workspaceId !== workspaceId) return err("Step not found", 404);
-
-    // Plan gate mirrors step creation: upsell/downsell steps need the feature.
-    if (src.type === "UPSELL" || src.type === "DOWNSELL") {
-      const org = await getOrganizationForWorkspace(workspaceId);
-      if (!getPlanFeatures(getEffectivePlan(org)).upsells) {
-        return err("One-click upsells & downsells are a paid feature. Upgrade to unlock.", 402);
-      }
-    }
 
     const slug = await generateUniqueSlug({
       workspaceId,

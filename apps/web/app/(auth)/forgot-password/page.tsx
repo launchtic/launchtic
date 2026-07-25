@@ -1,5 +1,5 @@
 import ForgotForm from "./ForgotForm";
-import { getInstallationBranding } from "../../../lib/branding";
+import { getInstallationBranding } from "@launchtic/ee";
 
 // Tab title = "Forgot password — {brandName}" via root's metadata template.
 // Favicon + brand title come from root layout (single-tenant install).

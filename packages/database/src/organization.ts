@@ -6,7 +6,7 @@
 // logged-in user — so a team member invited into an Agency workspace sees
 // Agency-tier features even if they have no Organization of their own.
 
-import { db } from "@launchtic/database";
+import { db } from "./index";
 
 /** Fetch the Organization that owns the given Workspace. */
 export async function getOrganizationForWorkspace(workspaceId: string) {

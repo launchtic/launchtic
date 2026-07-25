@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { isAgencyPlan } from "../lib/plan";
+import { isAgencyPlan } from "@launchtic/database";
 import { useRole } from "../lib/role";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 

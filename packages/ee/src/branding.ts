@@ -13,9 +13,7 @@
 // Enforced in the API route, not here — this lib is pure data.
 
 import { cache } from "react";
-import { db } from "@launchtic/database";
-import { getPlanFeatures } from "./plan";
-import { getEffectivePlan } from "./organization";
+import { db, getPlanFeatures, getEffectivePlan } from "@launchtic/database";
 
 // Shape persisted in Organization.brandingConfig JSON. All fields optional;
 // missing values resolve to LAUNCHTIC_DEFAULTS at render time.

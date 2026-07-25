@@ -1,9 +1,8 @@
 import { auth } from "../../../lib/auth";
 import { redirect } from "next/navigation";
-import { db } from "@launchtic/database";
+import { db, getEffectivePlan } from "@launchtic/database";
 import { reVerifyIfStale } from "../../../lib/license";
-import { getEffectivePlan } from "../../../lib/organization";
-import { getActiveBranding } from "../../../lib/branding";
+import { getActiveBranding } from "@launchtic/ee";
 import { requireWorkspaceFromSlug } from "../../../lib/permissions";
 import TopNav from "../../../components/TopNav";
 import DemoBanner from "../../../components/DemoBanner";

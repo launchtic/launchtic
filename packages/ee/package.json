@@ -1,0 +1,22 @@
+{
+  "name": "@launchtic/ee",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Agency/Custom-tier feature logic (team management, roles, workspaces, white-label branding). Gated at runtime by Organization.plan — see @launchtic/database's plan.ts for the feature matrix.",
+  "dependencies": {
+    "@launchtic/database": "workspace:*",
+    "bcryptjs": "^3.0.2",
+    "zod": "^3.24.4"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.8.3"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

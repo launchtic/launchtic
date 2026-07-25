@@ -3,8 +3,6 @@ import { db } from "@launchtic/database";
 import { requireAccess } from "../../../lib/permissions";
 import { demoGuard } from "../../../lib/demo";
 import { ensureDefaultDomain } from "../../../lib/domains/default-domain";
-import { getOrganizationForWorkspace, getEffectivePlan } from "../../../lib/organization";
-import { canAddDomain, getPlanFeatures } from "../../../lib/plan";
 
 export async function GET() {
   const r = await requireAccess("settings:domains:read");
@@ -44,24 +42,6 @@ export async function POST(req: NextRequest) {
   const existing = await db.domain.findUnique({ where: { domain: normalized } });
   if (existing) {
     return NextResponse.json({ error: "Domain already exists" }, { status: 409 });
-  }
-
-  // Per-tier custom-domain cap (Solo 3, Starter 10, Agency/Enterprise ∞).
-  // The default domain doesn't count — only operator-added custom domains.
-  // Counting within the workspace is equivalent to org-wide for the limited
-  // tiers (Solo/Starter have a single workspace).
-  const org  = await getOrganizationForWorkspace(workspaceId);
-  const plan = getEffectivePlan(org);
-  const customCount = await db.domain.count({ where: { workspaceId, isDefault: false } });
-  if (!canAddDomain(plan, customCount)) {
-    const limit = getPlanFeatures(plan).maxDomains;
-    return NextResponse.json(
-      {
-        error: `Your plan includes ${limit} custom domain${limit === 1 ? "" : "s"}. Upgrade to add more.`,
-        code:  "PLAN_LIMIT",
-      },
-      { status: 402 },
-    );
   }
 
   const record = await db.domain.create({

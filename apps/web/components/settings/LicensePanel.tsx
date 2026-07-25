@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, ExternalLink, ShieldCheck, ShieldOff } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
-import { planLabel, planColor } from "../../lib/plan";
+import { planLabel, planColor } from "@launchtic/database";
 import { useRole } from "../../lib/role";
 
 type LicenseStatus = {

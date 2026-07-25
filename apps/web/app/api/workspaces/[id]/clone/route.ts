@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { db } from "@launchtic/database";
+import { db, canCloneWorkspace, canCreateWorkspace, getOrganizationForOwner, getEffectivePlan } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
 import { demoGuard } from "../../../../../lib/demo";
-import { canCloneWorkspace, canCreateWorkspace } from "../../../../../lib/plan";
-import { getOrganizationForOwner, getEffectivePlan } from "../../../../../lib/organization";
 import { cloneAssets, rewriteWorkspaceContentAssets } from "../../../../../lib/asset-clone";
 
 // POST /api/workspaces/[id]/clone — duplicate a workspace's "blueprint" content

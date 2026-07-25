@@ -1,8 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { db } from "@launchtic/database";
+import { db, getEffectivePlan, isAgencyPlan } from "@launchtic/database";
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
-import { getEffectivePlan } from "../../../../../lib/organization";
-import { isAgencyPlan } from "../../../../../lib/plan";
 import WorkspacePanel from "../../../../../components/settings/WorkspacePanel";
 
 export const metadata = { title: "Workspaces" };
