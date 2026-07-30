@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import type { FunnelAnalytics, FunnelStepStat } from "../../lib/funnel-analytics";
 
@@ -48,21 +47,15 @@ function dash(value: string, show: boolean): string {
 export default function FunnelAnalyticsView({
   funnelId,
   initial,
-  canView = true,
-  workspaceSlug,
 }: {
   funnelId: string;
   /** Server-provided data (standalone page). When omitted, the component
    *  fetches the default 30-day range on mount — used inside the editor tab. */
   initial?: FunnelAnalytics;
-  /** funnelAnalytics plan gate. false → upgrade prompt. */
-  canView?: boolean;
-  /** Needed for the upgrade link when gated. */
-  workspaceSlug?: string;
 }) {
   const [data, setData] = useState<FunnelAnalytics | null>(initial ?? null);
   const [preset, setPreset] = useState<PresetId>("30d");
-  const [loading, setLoading] = useState(canView && !initial);
+  const [loading, setLoading] = useState(!initial);
 
   async function applyPreset(id: PresetId) {
     setPreset(id);
@@ -80,32 +73,10 @@ export default function FunnelAnalyticsView({
 
   // Self-fetch the default range when no server data was provided (tab usage).
   useEffect(() => {
-    if (!canView || initial) return;
+    if (initial) return;
     applyPreset("30d");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [funnelId, canView]);
-
-  if (!canView) {
-    return (
-      <div className="max-w-md mx-auto text-center py-12">
-        <div className="w-12 h-12 mx-auto rounded-xl bg-gray-100 flex items-center justify-center mb-4">
-          <Lock size={20} className="text-gray-400" />
-        </div>
-        <h3 className="text-base font-semibold text-gray-900 mb-1">Analytics is a Starter feature</h3>
-        <p className="text-sm text-gray-500 mb-6">
-          See views, conversion, drop-off, and revenue for every step. Available on Starter and above.
-        </p>
-        {workspaceSlug && (
-          <Link
-            href={`/${workspaceSlug}/settings/license`}
-            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-black transition-colors"
-          >
-            Upgrade to unlock
-          </Link>
-        )}
-      </div>
-    );
-  }
+  }, [funnelId]);
 
   if (!data) {
     return (

@@ -125,8 +125,6 @@ const ALL_TABS = [
   { id: "analytics",     label: "Analytics",     types: null },
 ] as const;
 
-const UPSELL_TYPES = ["UPSELL", "DOWNSELL"];
-
 /* ─── Sortable step row ─── */
 function SortableStepItem({
   step,
@@ -230,7 +228,7 @@ function SortableStepItem({
 }
 
 /* ─── Configuration tab ─── */
-function ConfigurationTab({ step, steps, rendererUrl, primaryDomain, canUpsell, onUpdate }: { step: Step; steps: Step[]; funnelId: string; rendererUrl: string; primaryDomain: string | null; canUpsell: boolean; onUpdate: (updated: Step) => void }) {
+function ConfigurationTab({ step, steps, rendererUrl, primaryDomain, onUpdate }: { step: Step; steps: Step[]; funnelId: string; rendererUrl: string; primaryDomain: string | null; onUpdate: (updated: Step) => void }) {
   const urlPrefix = stepUrlPrefix(rendererUrl, primaryDomain);
   const { canManageFunnels } = useRole();
   const [name, setName] = useState(step.name);
@@ -242,7 +240,7 @@ function ConfigurationTab({ step, steps, rendererUrl, primaryDomain, canUpsell, 
   const [error, setError] = useState<string | null>(null);
 
   const isUpsell = step.type === "UPSELL" || step.type === "DOWNSELL";
-  const showBranching = isUpsell && canUpsell;
+  const showBranching = isUpsell;
   // Branch targets: any other step in this funnel.
   const branchOptions = steps.filter((s) => s.id !== step.id);
 
@@ -410,20 +408,10 @@ export default function FunnelStepManager({
   funnel,
   initialSteps,
   rendererUrl,
-  canViewAnalytics = false,
-  canAbTest = false,
-  canUpsell = false,
 }: {
   funnel: Funnel;
   initialSteps: Step[];
   rendererUrl: string;
-  // funnelAnalytics plan feature (Starter+) — gates the Analytics tab content.
-  canViewAnalytics?: boolean;
-  // abTesting plan feature (Starter+) — gates the A/B Test tab content.
-  canAbTest?: boolean;
-  // upsells plan feature — gates the Products + branching config on
-  // UPSELL/DOWNSELL steps.
-  canUpsell?: boolean;
 }) {
   const { canManageFunnels, canDeleteFunnels } = useRole();
   const [steps, setSteps] = useState(initialSteps);
@@ -644,7 +632,7 @@ export default function FunnelStepManager({
       {/* Add step */}
       {canManageFunnels && (
         <div className="p-3 border-t border-gray-100">
-          <AddStepDialog funnelId={funnel.id} fullWidth canUpsell={canUpsell} onAdded={handleStepAdded} />
+          <AddStepDialog funnelId={funnel.id} fullWidth onAdded={handleStepAdded} />
         </div>
       )}
     </div>
@@ -736,12 +724,6 @@ export default function FunnelStepManager({
             <div className="flex items-center gap-0 overflow-x-auto">
               {ALL_TABS
                 .filter((tab) => !tab.types || tab.types.includes(selectedStep.type as any))
-                // Hide plan-gated tabs entirely when the license lacks the feature.
-                .filter((tab) => (tab.id === "analytics" ? canViewAnalytics : true))
-                .filter((tab) => (tab.id === "ab" ? canAbTest : true))
-                // Products on UPSELL/DOWNSELL is the upsell offer config — gated
-                // by `upsells`. On CHECKOUT it's always available.
-                .filter((tab) => (tab.id === "products" && UPSELL_TYPES.includes(selectedStep.type) ? canUpsell : true))
                 .map((tab) => (
                   <button
                     key={tab.id}
@@ -776,7 +758,7 @@ export default function FunnelStepManager({
             ) : (
             <>
             {activeTab === "configuration" && (
-              <ConfigurationTab key={selectedStep.id} step={selectedStep} steps={steps} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} canUpsell={canUpsell} onUpdate={handleStepUpdate} />
+              <ConfigurationTab key={selectedStep.id} step={selectedStep} steps={steps} funnelId={funnel.id} rendererUrl={rendererUrl} primaryDomain={funnel.primaryDomain} onUpdate={handleStepUpdate} />
             )}
             {activeTab === "products"      && <ProductsTab key={selectedStep.id} stepId={selectedStep.id} stepType={selectedStep.type} />}
             {activeTab === "ab"            && (
@@ -784,17 +766,12 @@ export default function FunnelStepManager({
                 key={selectedStep.id}
                 stepId={selectedStep.id}
                 workspaceSlug={slug}
-                canAbTest={canAbTest}
               />
             )}
             {activeTab === "analytics"     && (
               // Funnel-level analytics — same view on every step (no per-step key
               // so it stays mounted while switching steps).
-              <FunnelAnalyticsView
-                funnelId={funnel.id}
-                canView={canViewAnalytics}
-                workspaceSlug={slug}
-              />
+              <FunnelAnalyticsView funnelId={funnel.id} />
             )}
             </>
             )}

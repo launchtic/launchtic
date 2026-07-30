@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Lock, FlaskConical, Trophy, Pencil, Play, Square } from "lucide-react";
+import { Loader2, FlaskConical, Trophy, Pencil, Play, Square } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { useConfirm } from "../ui/ConfirmDialog";
 
@@ -27,15 +27,13 @@ function money(c: number) {
 export default function AbTestPanel({
   stepId,
   workspaceSlug,
-  canAbTest,
 }: {
   stepId: string;
   workspaceSlug: string;
-  canAbTest: boolean;
 }) {
   const confirm = useConfirm();
   const [data, setData] = useState<AbResults | null>(null);
-  const [loading, setLoading] = useState(canAbTest);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -45,10 +43,9 @@ export default function AbTestPanel({
   }
 
   useEffect(() => {
-    if (!canAbTest) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepId, canAbTest]);
+  }, [stepId]);
 
   async function startTest() {
     setBusy(true);
@@ -86,26 +83,6 @@ export default function AbTestPanel({
       });
       if (res.ok) setData({ stepId, active: false, variants: [] });
     } finally { setBusy(false); }
-  }
-
-  if (!canAbTest) {
-    return (
-      <div className="max-w-md mx-auto text-center py-12">
-        <div className="w-12 h-12 mx-auto rounded-xl bg-gray-100 flex items-center justify-center mb-4">
-          <Lock size={20} className="text-gray-400" />
-        </div>
-        <h3 className="text-base font-semibold text-gray-900 mb-1">A/B testing is a Starter feature</h3>
-        <p className="text-sm text-gray-500 mb-6">
-          Split-test page variants and let the data pick the winner. Available on Starter and above.
-        </p>
-        <a
-          href={`/${workspaceSlug}/settings/license`}
-          className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-black transition-colors"
-        >
-          Upgrade to unlock
-        </a>
-      </div>
-    );
   }
 
   if (loading) {
