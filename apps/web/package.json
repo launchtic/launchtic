@@ -47,7 +47,7 @@
     "next": "^15.5.18",
     "next-auth": "^5.0.0-beta.28",
     "nextjs-toploader": "^3.9.17",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^9.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.5",
