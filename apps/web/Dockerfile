@@ -13,6 +13,7 @@ COPY packages/types/package.json packages/types/
 COPY packages/editor-utils/package.json packages/editor-utils/
 COPY packages/editor-core/package.json packages/editor-core/
 COPY packages/elements/package.json packages/elements/
+COPY packages/ee/package.json packages/ee/
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter=@launchtic/web...
 
