@@ -287,6 +287,7 @@ export const FAQ: UserComponent<FAQProps> = ({ ...props }) => {
     // Question props
     questionColor: getValueByViewMode(viewMode, props.questionColor, props.mobileQuestionColor),
     questionFontSize: getValueByViewMode(viewMode, props.questionFontSize, props.mobileQuestionFontSize),
+    mobileQuestionFontSize: props.mobileQuestionFontSize,
     questionBackgroundColor: getValueByViewMode(viewMode, props.questionBackgroundColor, props.mobileQuestionBackgroundColor),
     answerBackgroundColor: getValueByViewMode(viewMode, props.answerBackgroundColor, props.mobileAnswerBackgroundColor),
 
@@ -389,7 +390,7 @@ export const FAQ: UserComponent<FAQProps> = ({ ...props }) => {
                     ) : (
                       <FAQQuestion
                         $questionFontSize={resolvedProps.questionFontSize}
-                        $mobileQuestionFontSize={resolvedProps.questionFontSize}
+                        $mobileQuestionFontSize={resolvedProps.mobileQuestionFontSize}
                         $questionColor={resolvedProps.questionColor}
                         $mobileQuestionColor={resolvedProps.questionColor}
                         $questionFontFamily={resolvedProps.questionFontFamily}

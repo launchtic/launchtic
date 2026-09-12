@@ -187,7 +187,12 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
     setError(null);
     try {
       const result = await deleteImage(image.key);
-      if (result.success) await loadImages(false); // server drops the Asset row → also unpins
+      if (result.success) {
+        // Remove locally instead of refetching — avoids resetting pagination/search state.
+        setUserImages(prev => prev.filter(img => img.key !== image.key));
+        setPinnedImages(prev => prev.filter(img => img.key !== image.key));
+        setTotalCount(prev => Math.max(0, prev - 1));
+      }
       else setError(result.message || "Delete failed");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
