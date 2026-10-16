@@ -81,7 +81,7 @@ const CountrySelect: React.FC<CountrySelectProps> = ({
           $config={selectConfig}
           $hasError={hasError}
         >
-          <option value="">Choose a country</option>
+          <option value="">{placeholder || "Choose a country"}</option>
         </StyledSelect>
         {error && <ErrorMessage>{error}</ErrorMessage>}
       </>
@@ -106,7 +106,7 @@ const CountrySelect: React.FC<CountrySelectProps> = ({
         $config={selectConfig}
         $hasError={hasError}
       >
-        <option value="">Select a country</option>
+        <option value="">{placeholder || "Select a country"}</option>
         {countries.map((country) => (
           <option key={country.code} value={country.code}>
             {country.name}
