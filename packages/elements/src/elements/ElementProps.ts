@@ -333,6 +333,9 @@ export type RowProps =
     // Gap between columns. Single value applies to BOTH desktop grid
     // (horizontal spacing) and mobile flex stacked (vertical spacing).
     gap?: number;
+    // Stretch Rows placed directly inside this Row's columns (cards) to the
+    // tallest column, so a grid of cards lines up regardless of text length.
+    equalHeightCards?: boolean;
     children?: ReactNode;
   };
 

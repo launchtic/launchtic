@@ -60,8 +60,10 @@ const RowMain = styled.div<{
   $disableStacking?: boolean;
   $reverseColumns?: boolean;
   $gap?: number;
+  $stretch?: boolean;
 }>`
   position: relative;
+  ${({ $stretch }) => $stretch && "flex: 1;"}
   /* CSS gap shorthand — works for both grid (desktop, horizontal between
      columns) and flex column (mobile stacked, vertical between rows).
      Single value applies in both viewports. */
@@ -154,11 +156,16 @@ const RowMain = styled.div<{
 `;
 
 // Dedicated container that hosts the resizable handle
-const ResizableContainer = styled.div`
+const ResizableContainer = styled.div<{ $stretch?: boolean }>`
   position: relative;
   width: 100%;
   height: 100%;
-  
+  ${({ $stretch }) => $stretch && css`
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  `}
+
   /* Show the Resizer when hovering over ResizableContainer */
   &:hover .resizer-handle {
     opacity: 1;
@@ -169,7 +176,15 @@ export const Row: UserComponent<RowProps> = ({ children, ...props }) => {
   const { viewMode } = useAppContext();
   const { ref, elementId, UUIDWrapper } = useDraggableElement("row", "htmlAttrId");
   const { id, query , isActive, isHover, enabled} = useNodeState();
-  const { actions: editorActions } = useEditor();
+  // A card (Row directly inside a Column) stretches to the column height when
+  // the Row owning that Column has equalHeightCards on. Every wrapper between
+  // the Column (flex column) and RowMain must grow for the height to reach it.
+  const { actions: editorActions, stretch } = useEditor((state) => {
+    const column = id ? state.nodes[state.nodes[id]?.data.parent ?? ""] : undefined;
+    if (column?.data.displayName !== "Column") return { stretch: false };
+    const owner = column.data.parent ? state.nodes[column.data.parent] : undefined;
+    return { stretch: !!owner?.data.props.equalHeightCards };
+  });
 
   // Get the list of Columns so the Resizer can be placed between them
   const childNodes = useMemo(() => {
@@ -205,7 +220,7 @@ export const Row: UserComponent<RowProps> = ({ children, ...props }) => {
 
   return (
     <DelayedRender delay={resolvedProps.delay}>
-      <RowDrag elementType="Row">
+      <RowDrag elementType="Row" stretch={stretch}>
         <ElementWrapper
           ref={ref}
           id={enabled ? UUIDWrapper : undefined}
@@ -215,6 +230,7 @@ export const Row: UserComponent<RowProps> = ({ children, ...props }) => {
           $margin={resolvedProps.margin}
           $mobileMargin={resolvedProps.mobileMargin}
           $appearance={resolvedProps.appearance}
+          $cssDefault={stretch ? "flex: 1; display: flex; flex-direction: column;" : undefined}
         >
           
           {/*
@@ -250,8 +266,9 @@ export const Row: UserComponent<RowProps> = ({ children, ...props }) => {
 
           {enabled && (isHover || isActive) && <Indicator name={"Row"} />}
 
-          <ResizableContainer>
+          <ResizableContainer $stretch={stretch}>
             <RowMain
+              $stretch={stretch}
               $viewMode={viewMode}
               id={props.htmlAttrId || elementId}
               $padding={resolvedProps.padding}

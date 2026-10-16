@@ -9,12 +9,19 @@ interface DragWrapperStyledProps {
   $dropPosition?: "before" | "after" | null;
   $dropTargetType?: string | null;
   $elementType: string;
+  $stretch?: boolean;
 }
 
 const StyledDragWrapper = styled.div<DragWrapperStyledProps>`
   transition: box-shadow 0.3s, background-color 0.3s, padding 0.3s;
   position: relative;
-  
+
+  ${({ $stretch }) => $stretch && css`
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  `}
+
   /* While dragging a Row element, show a dotted outline around it */
   ${({ $isDragging, $elementType }) =>
     $isDragging && $elementType === "Row" &&
@@ -70,7 +77,8 @@ const StyledDragWrapper = styled.div<DragWrapperStyledProps>`
 export const RowDrag: React.FC<{
   children: React.ReactNode;
   elementType: string;
-}> = ({ children, elementType }) => {
+  stretch?: boolean;
+}> = ({ children, elementType, stretch }) => {
   const { id } = useNode();
   const { query, enabled } = useEditor((state) => ({
     enabled: state.options.enabled
@@ -120,6 +128,7 @@ export const RowDrag: React.FC<{
       $dropPosition={dropIndicator?.position}
       $dropTargetType={dropIndicator?.targetType}
       $elementType={elementType}
+      $stretch={stretch}
     >
       {children}
     </StyledDragWrapper>

@@ -10,7 +10,8 @@ import { BackgroundImageSettings } from "../../editor/toolbar/BackgroundImageSet
 import { BoxShadowSettings } from "../../editor/toolbar/BoxShadowSettings";
 import { BorderSettings } from "../../editor/toolbar/BorderSettings";
 import { RowColumnSettings } from "../../editor/toolbar/RowColumnSettings";
-import { SliderControl, SettingsGroup, Label } from "../../editor/common/SettingsUI";
+import { SliderControl, SettingsGroup, Label, CheckboxWrapper, CheckboxInput } from "../../editor/common/SettingsUI";
+import { HelpTooltip } from "../../editor/common/settings/HelpTooltip";
 
 import { RowProps } from "../ElementProps"; // Import the canonical type
 import { DEFAULT_STYLES } from "../DefaultStyles"; // Import default styles
@@ -36,6 +37,7 @@ export const RowSettings: React.FC = () => {
     disableStacking,
     reverseColumns,
     gap,
+    equalHeightCards,
   } = useNode<RowProps>((node) => ({
     appearance: node.data.props.appearance,
     delay: node.data.props.delay,
@@ -54,6 +56,7 @@ export const RowSettings: React.FC = () => {
     disableStacking: node.data.props.disableStacking,
     reverseColumns: node.data.props.reverseColumns,
     gap: node.data.props.gap,
+    equalHeightCards: node.data.props.equalHeightCards,
   }));
 
   // ✅ Helper function to update props dynamically
@@ -83,6 +86,20 @@ export const RowSettings: React.FC = () => {
           max={100}
           onChange={updateProp("gap")}
         />
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <CheckboxWrapper>
+          <Label>
+            Equal height cards
+            <HelpTooltip text="Rows placed inside this row's columns (cards) stretch to the tallest column, so cards line up even when their text length differs." />
+          </Label>
+          <CheckboxInput
+            type="checkbox"
+            checked={!!equalHeightCards}
+            onChange={() => updateProp("equalHeightCards")(!equalHeightCards)}
+          />
+        </CheckboxWrapper>
       </SettingsGroup>
 
       {/* ✅ Margin Settings */}
