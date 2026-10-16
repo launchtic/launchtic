@@ -21,9 +21,15 @@ type Field = {
   kind: string;
   section: number;   // 1-based top-level section the field sits in (0 = unknown)
   group?: string;    // e.g. "column 2/4" — parallel items in a multi-column row
+  lineStarts?: number[];  // run indexes that begin a new line (paragraph / <br>)
+  // label: interface text (placeholders, timer units, menu items, button states).
+  // legal: consent wording. Both are only ever translated, never reworded.
+  role?: "label" | "legal";
   runs: string[];
   write: (runs: string[]) => void;
 };
+
+type Role = Field["role"];
 
 export type RewriteChange = { id: string; kind: string; before: string; after: string };
 
@@ -35,12 +41,22 @@ type JobResult = {
   failed: number;     // model omitted the field or broke its run count, even after a retry
 };
 
-// Form inputs, timers, prices and product blocks carry data or UI labels, not
-// marketing copy — leave them alone.
-const SKIP_KINDS = new Set([
-  "Field", "Checkbox", "Countdown", "OfferPrice", "PhysicalProduct",
-  "Coupon", "PaymentMethod", "Embed", "Menu",
-]);
+// Prices, products and payment methods render data from the product/plan
+// records — editing their text on the page would contradict that data.
+const SKIP_KINDS = new Set(["OfferPrice", "PhysicalProduct", "PaymentMethod", "Embed"]);
+
+// Top-level interface-label props per element (role "label").
+const LABEL_PROPS: Record<string, string[]> = {
+  Countdown: ["daysLabel", "hoursLabel", "minutesLabel", "secondsLabel"],
+  Coupon: ["placeholder", "buttonText"],
+  PaymentButton: ["loadingText", "validationText"],
+  Checkbox: ["validationMessage"],
+};
+
+// Marketing copy props beyond rawContentState/text/subText.
+const COPY_PROPS: Record<string, string[]> = {
+  OrderBump: ["orderBumpName"],
+};
 
 // Smaller batches keep cheaper models from dropping fields at the end of a long list.
 const CHUNK_SIZE = 40;
@@ -53,29 +69,37 @@ const decode = (s: string) =>
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 const encode = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// Rich text split into tags and text runs. Each run remembers its block (list
-// item / paragraph / heading) so every block becomes its own field: a model
-// that mangles one bullet then doesn't cost the whole list.
-type Rich = { tokens: string[]; runToken: number[]; runs: string[]; blocks: number[] };
+// Rich text split into tags and text runs. Each run remembers its list item
+// (block) and its line (paragraph/heading/<br>). Every list item becomes its
+// own field — a model that mangles one bullet then doesn't cost the whole
+// list — while the lines of a Text/Headline stay in one field, because a
+// sentence is often broken over lines just for looks ("SECURED WITH 256-BIT" /
+// "ENCRYPTION") and must be rewritten as a whole.
+type Rich = { tokens: string[]; runToken: number[]; runs: string[]; blocks: number[]; lines: number[] };
 
 const TOKEN_RE = /<[^>]+>|[^<]+/g;
-const BLOCK_BREAK = /^<(\/(p|li|div|h[1-6]|blockquote)|br)\b/i;
+const ITEM_BREAK = /^<\/li\b/i;
+const LINE_BREAK = /^<(\/(p|li|div|h[1-6]|blockquote)|br)\b/i;
 
 function parseRich(html: string): Rich {
   const tokens = html.match(TOKEN_RE) ?? [];
-  const rich: Rich = { tokens, runToken: [], runs: [], blocks: [] };
+  const rich: Rich = { tokens, runToken: [], runs: [], blocks: [], lines: [] };
   let block = 0;
+  let line = 0;
   let blockHasRun = false;
+  let lineHasRun = false;
   tokens.forEach((t, i) => {
     if (t.startsWith("<")) {
-      if (blockHasRun && BLOCK_BREAK.test(t)) { block++; blockHasRun = false; }
+      if (lineHasRun && LINE_BREAK.test(t)) { line++; lineHasRun = false; }
+      if (blockHasRun && ITEM_BREAK.test(t)) { block++; blockHasRun = false; }
       return;
     }
     if (!t.trim()) return;
     rich.runToken.push(i);
     rich.runs.push(decode(t));
     rich.blocks.push(block);
-    blockHasRun = true;
+    rich.lines.push(line);
+    blockHasRun = lineHasRun = true;
   });
   return rich;
 }
@@ -116,26 +140,28 @@ const deviceTag = (props: any): string => {
 function nodeFields(nodeId: string, node: any, section: number, group: string | undefined, out: Field[]) {
   const props = node?.props;
   if (!props || typeof props !== "object") return;
-  const kind = nameOf(node) + deviceTag(props);
-  if (SKIP_KINDS.has(nameOf(node))) return;
+  const name = nameOf(node);
+  const kind = name + deviceTag(props);
+  if (SKIP_KINDS.has(name)) return;
 
   const base = { nodeId, section, group };
   // One field per block; all blocks write into a shared value list and the
   // html is re-rendered from it, so several blocks of one element can change.
-  const addHtml = (id: string, k: string, html: string, set: (html: string) => void) => {
+  const addHtml = (id: string, k: string, html: string, set: (html: string) => void, role?: Role) => {
     const rich = parseRich(html);
     if (!rich.runs.length) return;
     const values = [...rich.runs];
     const blockCount = rich.blocks[rich.blocks.length - 1] + 1;
-    const unit = k.startsWith("BulletedList") ? "item" : "paragraph";
     for (let b = 0; b < blockCount; b++) {
       const idx = rich.blocks.flatMap((blk, i) => (blk === b ? [i] : []));
       if (!idx.length) continue;
       out.push({
         ...base,
+        role,
         id: blockCount > 1 ? `${id}.b${b}` : id,
-        kind: blockCount > 1 ? `${k} ${unit} ${b + 1}` : k,
+        kind: blockCount > 1 ? `${k} item ${b + 1}` : k,
         runs: idx.map((i) => rich.runs[i]),
+        lineStarts: idx.flatMap((i, j) => (j > 0 && rich.lines[i] !== rich.lines[idx[j - 1]] ? [j] : [])),
         write: (next) => {
           idx.forEach((i, j) => { values[i] = next[j]; });
           set(renderRich(rich, values));
@@ -143,36 +169,52 @@ function nodeFields(nodeId: string, node: any, section: number, group: string | 
       });
     }
   };
-  const addPlain = (id: string, k: string, text: string, set: (text: string) => void) => {
-    if (text.trim()) out.push({ ...base, id, kind: k, runs: [text], write: (next) => set(next[0]) });
+  const addPlain = (id: string, k: string, text: string, set: (text: string) => void, role?: Role) => {
+    if (text.trim()) out.push({ ...base, role, id, kind: k, runs: [text], write: (next) => set(next[0]) });
   };
 
   if (typeof props.rawContentState === "string" && props.rawContentState) {
     const raw = props.rawContentState;
+    // A Checkbox's text is the consent the visitor agrees to.
+    const role: Role = name === "Checkbox" ? "legal" : undefined;
     let parsed: any = null;
     try { parsed = JSON.parse(raw); } catch { /* raw html */ }
     if (parsed && typeof parsed.html === "string") {
       addHtml(`${nodeId}#rawContentState`, kind, parsed.html, (html) => {
         props.rawContentState = JSON.stringify({ ...parsed, html });
-      });
+      }, role);
     } else {
-      addHtml(`${nodeId}#rawContentState`, kind, raw, (html) => { props.rawContentState = html; });
+      addHtml(`${nodeId}#rawContentState`, kind, raw, (html) => { props.rawContentState = html; }, role);
     }
   }
-  for (const key of ["text", "subText"] as const) {
+  for (const key of ["text", "subText", ...(COPY_PROPS[name] ?? [])]) {
     if (typeof props[key] === "string") {
       addPlain(`${nodeId}#${key}`, kind, props[key], (t) => { props[key] = t; });
     }
+  }
+  for (const key of LABEL_PROPS[name] ?? []) {
+    if (typeof props[key] === "string") {
+      addPlain(`${nodeId}#${key}`, `${kind} ${key}`, props[key], (t) => { props[key] = t; }, "label");
+    }
+  }
+  if (name === "Field" && typeof props.inputDetail?.placeholder === "string") {
+    addPlain(`${nodeId}#placeholder`, `${kind} placeholder`, props.inputDetail.placeholder, (t) => { props.inputDetail.placeholder = t; }, "label");
   }
   if (props.imageDetail && typeof props.imageDetail.alt === "string") {
     addPlain(`${nodeId}#alt`, `${kind} (alt text)`, props.imageDetail.alt, (t) => { props.imageDetail.alt = t; });
   }
   if (Array.isArray(props.items)) {
+    const itemRole: Role = name === "Menu" ? "label" : undefined;
     props.items.forEach((item: any, i: number) => {
       if (!item || typeof item !== "object") return;
       if (typeof item.text === "string") {
-        addPlain(`${nodeId}#items.${i}.text`, `${kind} item`, item.text, (t) => { item.text = t; });
+        addPlain(`${nodeId}#items.${i}.text`, `${kind} item`, item.text, (t) => { item.text = t; }, itemRole);
       }
+      (Array.isArray(item.submenuItems) ? item.submenuItems : []).forEach((sub: any, j: number) => {
+        if (typeof sub?.text === "string") {
+          addPlain(`${nodeId}#items.${i}.sub.${j}`, `${kind} submenu item`, sub.text, (t) => { sub.text = t; }, itemRole);
+        }
+      });
       if (typeof item.questionHtml === "string") {
         addHtml(`${nodeId}#items.${i}.q`, `${kind} question`, item.questionHtml, (h) => { item.questionHtml = h; });
       }
@@ -231,8 +273,10 @@ function collectFields(pageJson: any, scopeNodeId?: string): Field[] {
 
 // Runs of one field are consecutive pieces of the same block — join as-is
 // (they carry their own spacing; a formatting split can fall mid-word).
-const joinRuns = (runs: string[]) => runs.join("").replace(/\s+/g, " ").trim();
-const plain = (f: Field) => joinRuns(f.runs);
+// (Runs on separate lines get a space so they read as words, not glued.)
+const joinRuns = (runs: string[], lineStarts: number[] = []) =>
+  runs.map((r, j) => (lineStarts.includes(j) ? " " : "") + r).join("").replace(/\s+/g, " ").trim();
+const plain = (f: Field) => joinRuns(f.runs, f.lineStarts);
 
 // Section number → its title: the first headline, else the first text.
 function outlineOf(fields: Field[]): Map<number, string> {
@@ -247,46 +291,57 @@ function outlineOf(fields: Field[]): Map<number, string> {
   return outline;
 }
 
-const COMMON_RULES = `- Return an entry for EVERY field id you were given.
-- Placeholder / dummy text (Lorem ipsum and other Latin filler, "Your headline here", "Add your description") has no meaning to keep or translate — ALWAYS replace it with real copy that fits its surrounding fields and the page, written in the language the rest of the result uses. This applies even when the request is only a translation or a tone change.
-- Return EXACTLY the same number of runs for every field, in the same order. Reading the runs in sequence must form natural text.
-- Runs are given verbatim, including leading/trailing spaces. A run boundary may fall inside a word (formatting applied to part of a word) — you may move it to a word edge. Wherever a new word starts in the next run, end your run with a space.
-- Keep each run's role: a short highlighted run stays a short highlight; a headline stays a headline.
-- Fields are listed top-to-bottom, grouped by page section. Fields tagged "column k/n" are parallel items (cards) in one row — keep their structure, tone and length consistent with each other.
-- Fields tagged "(mobile only)" / "(desktop only)" are device variants of the same content — give them the same wording as their counterpart.
-- NEVER change prices, amounts, currencies, percentages, numbers, dates, coupon codes, URLs, emails or phone numbers unless the request gives the new value. Copy them verbatim.
-- Generic UI labels (e.g. "Submit", "Next", "Days", "Hours", copyright lines) — return them unchanged.
-- Plain text only: no Markdown, no HTML, no surrounding quotes.`;
+// Prompts are split into what the model may change freely (the wording) and
+// the few things it must keep fixed. Over-constraining made cheap models play
+// safe and return text unchanged, so the freedom is stated explicitly.
 
-const REWRITE_PROMPT = `You are a senior conversion copywriter. You rewrite the copy of an existing landing page so it fits a new business brief, while the page design stays exactly the same.
+const COMMON_RULES = `Format — required so the page design survives:
+- Return an entry for EVERY field id, with EXACTLY the same number of runs in the same order. Runs are given verbatim (spaces included); read in sequence they form the field's text.
+- A run boundary may fall inside a word (formatting on part of a word) — you may move it to a word edge. End a run with a space wherever the next run starts a new word.
+- Runs of one field on separate lines are usually ONE sentence broken for layout: write the whole sentence, then split it across the runs — e.g. ["SECURED WITH 256-BIT ", "ENCRYPTION"] into Spanish → ["PROTEGIDO CON CIFRADO ", "DE 256 BITS"].
+- Plain text only: no Markdown, no HTML, no surrounding quotes.
 
-Input: a brief, an outline of the page's sections, then the text fields. Each field has an id, an element kind, and "runs" — consecutive text pieces of ONE sentence/paragraph that carry different formatting (e.g. run 1 is highlighted, run 2 is plain).
+Keep fixed:
+- Numbers, prices, currencies, percentages, dates, coupon codes, URLs, emails, phone numbers — copy them verbatim unless the request gives new values.
+- Fields with "role": "label" (form input hints, countdown units, menu items, button loading/validation messages) and "role": "legal" (consent wording the visitor agrees to): never reword them. Only translate them — faithfully, keeping every condition of legal text — when the page's copy is being written in another language.
+- Fields tagged "(mobile only)" / "(desktop only)" are device variants of the same content — same wording as their counterpart.
 
-Output: one entry per field id with the rewritten runs.
+Always fix:
+- Dummy filler copy (Lorem ipsum, "Your headline here", "Add your description") — replace it with real copy that fits its context, even if the request is only a translation or a tone change.
 
-Hard rules:
-- Rewrite ALL marketing copy (headlines, descriptions, benefits, testimonials' quotes, buttons) in fresh wording for the brief — do not keep the original wording just because it already sounds acceptable. Keep the page's story coherent from the first section to the last.
-- Keep each run close to its original length (within about 25%) so the layout does not break. Buttons stay 2-5 words.
-- Write in the language of the brief. If the brief does not imply a language, keep the page's current language.
-- Keep person names in testimonials unchanged. You may rewrite the quote itself, but no invented statistics or specific claims.
+Context:
+- Fields are listed top-to-bottom, grouped by page section. Fields tagged "column k/n" are parallel items (cards) in one row — keep them consistent with each other.
+- When translating, leave no source-language words behind.`;
+
+const REWRITE_PROMPT = `You are a senior conversion copywriter. Rewrite the copy of an existing landing page for a new business brief; the page design stays exactly the same.
+
+Input: a brief, an outline of the page's sections, then its text fields. Each field has an id, an element kind and "runs" — consecutive pieces of one text that carry different formatting.
+
+You have full creative freedom over the wording: write every headline, description, benefit, testimonial quote and button fresh for the brief, and keep the story coherent from the first section to the last. Keep lengths roughly similar so the layout holds (buttons stay short). Write in the language of the brief (if it implies none, keep the page's language). Don't invent statistics or specific claims, and keep testimonial authors' names.
+
 ${COMMON_RULES}`;
 
-const EDIT_PROMPT = `You are a senior conversion copywriter editing PART of an existing landing page. The page design stays exactly the same; only text changes.
+const EDIT_PROMPT = `You are a senior conversion copywriter editing an existing landing page, or one part of it; the page design stays exactly the same.
 
-Input: an instruction, an outline of the whole page (context only — do not edit it), then the text fields of the part being edited. Each field has an id, an element kind, and "runs" — consecutive text pieces of ONE sentence/paragraph that carry different formatting.
+Input: an instruction, an outline of the whole page (context only), then the text fields to edit. Each field has an id, an element kind and "runs" — consecutive pieces of one text that carry different formatting.
 
-Output: one entry per field id with the edited runs.
+Do what the instruction asks, generously:
+- Broad instructions (tone, style, more persuasive, premium, friendlier, shorter) apply to ALL marketing copy — section titles, headlines, descriptions, buttons, guarantees, testimonials. Rewrite each of them noticeably; don't play it safe by returning them unchanged.
+- Targeted instructions ("change the headline", "set the price to $49", "rename X to Y") change only their target; return the other fields unchanged.
+- Keep lengths roughly similar unless the instruction asks for shorter or longer text.
+- Language: keep the page's language — the language the instruction is typed in doesn't matter. Switch only when asked to translate or to write in a named language; then translate faithfully instead of rewording.
+- Keep the offer, brand, product and person names unless the instruction says otherwise.
 
-Hard rules:
-- Apply the instruction to these fields only. Change only what the instruction asks; fields it does not affect must be returned unchanged.
-- Keep each run close to its original length unless the instruction asks for shorter or longer text.
-- Language: keep each field in the language it is already written in. The language the instruction itself is typed in means NOTHING — "make it shorter" typed in Spanish about English text must still return English. Switch language only when the instruction explicitly asks to translate or to write in a named language; then translate faithfully, don't reword.
-- Keep brand, product and person names unless the instruction says otherwise.
-- Stay consistent with the rest of the page (product, brand, tone) shown in the outline.
 ${COMMON_RULES}`;
 
 const fieldLine = (f: Field) =>
-  JSON.stringify({ id: f.id, kind: f.kind, ...(f.group ? { group: f.group } : {}), runs: f.runs.map((r) => r.replace(/\s+/g, " ")) });
+  JSON.stringify({
+    id: f.id,
+    kind: f.kind,
+    ...(f.role ? { role: f.role } : {}),
+    ...(f.group ? { group: f.group } : {}),
+    runs: f.runs.map((r) => r.replace(/\s+/g, " ")),
+  });
 
 function buildPrompt(header: string, outline: Map<number, string>, fields: Field[]): string {
   const parts = [header, ""];
@@ -391,37 +446,65 @@ async function runCopyJob(opts: {
   });
 
   const answers = new Map<string, string[]>();
-  const ask = async (batch: Field[]) => {
-    const results = await Promise.all(chunkBySection(batch).map((chunk) =>
-      generateObject({ model, schema, system: opts.system, prompt: buildPrompt(opts.header, outline, chunk) }),
-    ));
-    for (const { object } of results) for (const f of object.fields) answers.set(f.id, f.runs);
+  // A chunk whose answer comes back as malformed JSON is retried once; if it
+  // still fails, only its fields count as failed — the rest of the page goes on.
+  const askChunk = async (chunk: Field[], header: string) => {
+    const run = () => generateObject({ model, schema, system: opts.system, prompt: buildPrompt(header, outline, chunk) });
+    try {
+      return (await run()).object;
+    } catch {
+      return (await run().catch(() => null))?.object ?? null;
+    }
+  };
+  const ask = async (batch: Field[], header: string) => {
+    const results = await Promise.all(chunkBySection(batch).map((chunk) => askChunk(chunk, header)));
+    for (const object of results) for (const f of object?.fields ?? []) answers.set(f.id, f.runs);
   };
 
-  await ask(fields);
-  // Models sometimes drop fields from long lists or merge runs — one retry for those.
-  const missing = fields.filter((f) => !isExact(f, answers.get(f.id)));
-  if (missing.length) {
-    const first = new Map(missing.map((f) => [f.id, answers.get(f.id)]));
-    await ask(missing);
-    // Keep the first answer if the retry came back worse (e.g. omitted).
-    for (const f of missing) if (!hasText(answers.get(f.id)) && hasText(first.get(f.id))) answers.set(f.id, first.get(f.id)!);
+  const collect = async (header: string) => {
+    answers.clear();
+    await ask(fields, header);
+    // Models sometimes drop fields from long lists or merge runs — one retry for those.
+    const missing = fields.filter((f) => !isExact(f, answers.get(f.id)));
+    if (missing.length) {
+      const first = new Map(missing.map((f) => [f.id, answers.get(f.id)]));
+      await ask(missing, header);
+      // Keep the first answer if the retry came back worse (e.g. omitted).
+      for (const f of missing) if (!hasText(answers.get(f.id)) && hasText(first.get(f.id))) answers.set(f.id, first.get(f.id)!);
+    }
+  };
+
+  type Outcome = { field: Field; next?: string[]; before: string; after?: string; simplified?: boolean; status: "changed" | "unchanged" | "failed" };
+  const evaluate = (): Outcome[] => fields.map((field) => {
+    const before = plain(field);
+    const answer = answers.get(field.id);
+    if (!hasText(answer)) return { field, before, status: "failed" };
+    const fitted = fitRuns(field, answer);
+    const next = spaceRuns(field.runs, fitted.runs);
+    const after = joinRuns(next, field.lineStarts);
+    const same = before === after || changesNumbers(before, after, opts.request);
+    return { field, next, before, after, simplified: fitted.simplified, status: same ? "unchanged" : "changed" };
+  });
+
+  await collect(opts.header);
+  let outcomes = evaluate();
+  // Cheaper models sometimes play safe and return every field untouched. If no
+  // marketing copy (labels/legal excluded) changed at all, ask once more.
+  const copyChanged = (list: Outcome[]) => list.some((o) => o.status === "changed" && !o.field.role);
+  if (fields.some((f) => !f.role) && !copyChanged(outcomes)) {
+    await collect(`${opts.header}\n\nNOTE: a previous attempt returned every field unchanged. Apply the request now — visibly rewrite the copy it concerns.`);
+    const retry = evaluate();
+    if (copyChanged(retry)) outcomes = retry;
   }
 
   const changes: RewriteChange[] = [];
   let unchanged = 0;
   let failed = 0;
-  for (const field of fields) {
-    const answer = answers.get(field.id);
-    if (!hasText(answer)) { failed++; continue; }
-    const fitted = fitRuns(field, answer);
-    const next = spaceRuns(field.runs, fitted.runs);
-    const simplified = fitted.simplified;
-    const before = plain(field);
-    const after = joinRuns(next);
-    if (before === after || changesNumbers(before, after, opts.request)) { unchanged++; continue; }
-    field.write(next);
-    changes.push({ id: field.id, kind: simplified ? `${field.kind} · formatting simplified` : field.kind, before, after });
+  for (const o of outcomes) {
+    if (o.status === "failed") { failed++; continue; }
+    if (o.status === "unchanged") { unchanged++; continue; }
+    o.field.write(o.next!);
+    changes.push({ id: o.field.id, kind: o.simplified ? `${o.field.kind} · formatting simplified` : o.field.kind, before: o.before, after: o.after! });
   }
   return { clone, fields, changes, unchanged, failed };
 }
@@ -446,14 +529,15 @@ export async function rewritePageCopy(opts: {
   return { pageJson: r.clone, changes: r.changes, total: r.fields.length, unchanged: r.unchanged, failed: r.failed };
 }
 
-// Edit the text inside one section/element per an instruction. Returns the new
-// props of each changed node so the editor can apply them in place.
+// Edit text per an instruction — one section/element (scopeNodeId) or the whole
+// page. Returns the new props of each changed node (applied in place by the
+// editor) and the full updated page (for "new step" / "replace page").
 export async function editPageCopy(opts: {
   workspaceId: string;
   pageJson: unknown;
-  scopeNodeId: string;
+  scopeNodeId?: string;
   instruction: string;
-}): Promise<{ updates: Record<string, any>; changes: RewriteChange[]; total: number; unchanged: number; failed: number }> {
+}): Promise<{ pageJson: any; updates: Record<string, any>; changes: RewriteChange[]; total: number; unchanged: number; failed: number }> {
   const r = await runCopyJob({
     workspaceId: opts.workspaceId,
     pageJson: opts.pageJson,
@@ -465,7 +549,22 @@ export async function editPageCopy(opts: {
   const changedNodes = new Set(r.changes.map((c) => c.id.split("#")[0]));
   const updates: Record<string, any> = {};
   for (const nodeId of changedNodes) updates[nodeId] = r.clone[nodeId]?.props;
-  return { updates, changes: r.changes, total: r.fields.length, unchanged: r.unchanged, failed: r.failed };
+  return { pageJson: r.clone, updates, changes: r.changes, total: r.fields.length, unchanged: r.unchanged, failed: r.failed };
+}
+
+// One free-text box serves both modes: decide whether the user described a
+// (new) offer to write the page for, or asked to change the existing wording.
+export async function classifyRequest(workspaceId: string, request: string): Promise<"rewrite" | "edit"> {
+  const { object } = await generateObject({
+    model: await modelFor(workspaceId),
+    schema: z.object({ kind: z.enum(["new_offer", "edit"]) }),
+    system:
+      "Classify a request about a landing page's copy.\n" +
+      "new_offer — it names a product, service, business, offer or audience the page should be about (a brief) — even when phrased as \"rewrite for X\" or \"make this page about X\". E.g. \"Online yoga course for busy professionals, 30% off, friendly tone\", \"Rewrite this for a pet grooming salon in Austin\".\n" +
+      "edit — it only asks to change the existing wording while keeping the same offer: translate, change tone, shorten, fix grammar, make more persuasive, change a price or a single name.",
+    prompt: request,
+  });
+  return object.kind === "new_offer" ? "rewrite" : "edit";
 }
 
 // SEO title + meta description for a page, written from the brief.

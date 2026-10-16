@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import styled from "styled-components";
 import { useEditor } from "@launchtic/editor-core";
 import { useEditorContext } from "./EditorContext";
 import { ModalOverlay, ModalContainer, CloseButton, ErrorContainer, ActionButton } from "../common/ImageUploadModal.styles";
-import { AiProgress, BLUE, SectionLabel, Spinner, Stat, post, useStageIndex } from "./AiRewriteModal";
+import { AiProgress, BLUE, Chip, ChipRow, LinkButton, Spinner, post, useStageIndex } from "./AiRewriteModal";
 
 type Change = { id: string; kind: string; before: string; after: string };
 type Preview = { updates: Record<string, any>; changes: Change[]; total: number; unchanged: number; failed: number };
@@ -13,31 +12,14 @@ type Preview = { updates: Record<string, any>; changes: Change[]; total: number;
 export const AI_EDIT_EVENT = "launchtic:ai-edit";
 export type AiEditTarget = { nodeId: string; name: string };
 
-const QUICK_ACTIONS: { label: string; icon: string; instruction: string }[] = [
-  { label: "More compelling", icon: "fa-solid fa-fire", instruction: "Make this copy more compelling and persuasive." },
-  { label: "Shorter", icon: "fa-solid fa-scissors", instruction: "Make the text shorter and punchier." },
-  { label: "More formal", icon: "fa-solid fa-user-tie", instruction: "Use a more formal, professional tone." },
-  { label: "Friendlier", icon: "fa-regular fa-face-smile", instruction: "Use a warmer, friendlier tone." },
+const SUGGESTIONS: { label: string; icon: string; text: string }[] = [
+  { label: "More compelling", icon: "fa-solid fa-fire", text: "Make this copy more compelling and persuasive." },
+  { label: "Shorter", icon: "fa-solid fa-scissors", text: "Make the text shorter and punchier." },
+  { label: "More formal", icon: "fa-solid fa-user-tie", text: "Use a more formal, professional tone." },
+  { label: "Friendlier", icon: "fa-regular fa-face-smile", text: "Use a warmer, friendlier tone." },
   // Ends open so the user types the target language.
-  { label: "Translate…", icon: "fa-solid fa-language", instruction: "Translate to " },
+  { label: "Translate…", icon: "fa-solid fa-language", text: "Translate to " },
 ];
-
-const Chip = styled.button<{ $active: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
-  border: 1px solid ${({ $active }) => ($active ? BLUE : "#ddd")};
-  background: ${({ $active }) => ($active ? "#f0f7ff" : "#fff")};
-  color: ${({ $active }) => ($active ? BLUE : "#444")};
-  &:hover:not(:disabled) { border-color: ${BLUE}; color: ${BLUE}; }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
-`;
 
 export const AiEditModal: React.FC<{ target: AiEditTarget; onClose: () => void }> = ({ target, onClose }) => {
   const { query, actions } = useEditor();
@@ -46,17 +28,9 @@ export const AiEditModal: React.FC<{ target: AiEditTarget; onClose: () => void }
   const label = target.name.toLowerCase();
 
   const [total, setTotal] = useState<number | null>(null);
-  const [instruction, setInstruction] = useState("");
-  const instructionRef = useRef<HTMLTextAreaElement>(null);
-
-  const pickQuickAction = (text: string) => {
-    setInstruction(text);
-    // Caret at the end so an open-ended action ("Translate to ") can be finished.
-    requestAnimationFrame(() => {
-      const el = instructionRef.current;
-      if (el) { el.focus(); el.setSelectionRange(text.length, text.length); }
-    });
-  };
+  const [text, setText] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +55,15 @@ export const AiEditModal: React.FC<{ target: AiEditTarget; onClose: () => void }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepId, target.nodeId]);
 
+  const pickSuggestion = (value: string) => {
+    setText(value);
+    // Caret at the end so an open-ended suggestion ("Translate to ") can be finished.
+    requestAnimationFrame(() => {
+      const el = textRef.current;
+      if (el) { el.focus(); el.setSelectionRange(value.length, value.length); }
+    });
+  };
+
   const generate = async () => {
     setLoading(true);
     setError(null);
@@ -90,7 +73,7 @@ export const AiEditModal: React.FC<{ target: AiEditTarget; onClose: () => void }
         mode: "edit",
         pageJson: query.serialize(),
         scopeNodeId: target.nodeId,
-        instruction,
+        instruction: text,
       }));
     } catch (e) {
       setError((e as Error).message);
@@ -109,55 +92,57 @@ export const AiEditModal: React.FC<{ target: AiEditTarget; onClose: () => void }
   };
 
   const count = preview?.changes.length ?? 0;
+  const empty = total === 0;
 
   return createPortal(
     <ModalOverlay style={{ zIndex: 100000 }}>
       <ModalContainer style={{ color: "#222", fontSize: 14, width: 640 }}>
         <CloseButton onClick={onClose}>✖</CloseButton>
-        <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>
           <i className="fa-solid fa-wand-magic-sparkles" style={{ color: BLUE, marginRight: 8 }} />
           Edit this {label} with AI
         </h3>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#888" }}>
-          {total === null
-            ? "Scanning…"
-            : total === 0
-              ? `This ${label} has no text to edit.`
-              : `${total} text field${total !== 1 ? "s" : ""} in this ${label}. Only the text changes — layout and styles stay the same.`}
-        </p>
 
         <div style={{ overflowY: "auto", flex: 1, paddingRight: 2 }}>
-          <SectionLabel>Quick actions</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-            {QUICK_ACTIONS.map((a) => (
-              <Chip key={a.label} type="button" $active={instruction === a.instruction} disabled={loading} onClick={() => pickQuickAction(a.instruction)}>
-                <i className={a.icon} /> {a.label}
-              </Chip>
-            ))}
-          </div>
+          {empty ? (
+            <p style={{ margin: 0, fontSize: 13, color: "#888" }}>This {label} has no text to edit.</p>
+          ) : (
+            <>
+              <textarea
+                ref={textRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={3}
+                maxLength={2000}
+                disabled={loading}
+                autoFocus
+                placeholder={`What should change? E.g. "Make the headline about saving time", "Shorter", "Translate to French".`}
+                style={{ width: "100%", boxSizing: "border-box", padding: 12, border: "1px solid #ddd", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "vertical", color: "#222", background: "#fff" }}
+              />
+              <LinkButton type="button" disabled={loading} onClick={() => setShowSuggestions((s) => !s)}>
+                <i className="fa-regular fa-lightbulb" />
+                {showSuggestions ? "Hide suggestions" : "Suggestions"}
+              </LinkButton>
+              {showSuggestions && (
+                <ChipRow>
+                  {SUGGESTIONS.map((s) => (
+                    <Chip key={s.label} type="button" $active={text === s.text} disabled={loading} onClick={() => pickSuggestion(s.text)}>
+                      <i className={s.icon} /> {s.label}
+                    </Chip>
+                  ))}
+                </ChipRow>
+              )}
+            </>
+          )}
 
-          <SectionLabel>What should change?</SectionLabel>
-          <textarea
-            ref={instructionRef}
-            value={instruction}
-            onChange={(e) => setInstruction(e.target.value)}
-            rows={3}
-            maxLength={2000}
-            disabled={loading}
-            placeholder={`E.g. "Make the headline about saving time", "Change the price to $49", "Translate to French"`}
-            style={{ width: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical", color: "#222", background: "#fff", marginBottom: 14 }}
-          />
-
-          {error && <ErrorContainer>{error}</ErrorContainer>}
+          {error && <div style={{ marginTop: 14 }}><ErrorContainer>{error}</ErrorContainer></div>}
           {loading && <AiProgress stages={stages} index={index} />}
 
           {preview && (
-            <>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <Stat label="Text fields" value={preview.total} />
-                <Stat label="Will change" value={count} color={BLUE} />
-                <Stat label="Unchanged" value={preview.unchanged} color="#888" />
-                <Stat label="Failed" value={preview.failed} color={preview.failed ? "#f44336" : "#888"} />
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, color: "#555", marginBottom: 8 }}>
+                <strong style={{ color: BLUE }}>{count}</strong> of {preview.total} texts will change
+                {preview.failed > 0 && <span style={{ color: "#f44336" }}> · {preview.failed} failed</span>}
               </div>
               <div style={{ border: "1px solid #eee", borderRadius: 10 }}>
                 {preview.changes.map((c) => (
@@ -169,25 +154,29 @@ export const AiEditModal: React.FC<{ target: AiEditTarget; onClose: () => void }
                 ))}
                 {count === 0 && <div style={{ padding: 20, textAlign: "center", color: "#888", fontSize: 13 }}>No text was changed.</div>}
               </div>
-            </>
+            </div>
           )}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-          <ActionButton
-            onClick={generate}
-            disabled={loading || !instruction.trim() || !total}
-            style={{ background: "#fff", color: "#333", border: "1px solid #ddd", display: "inline-flex", alignItems: "center", gap: 8 }}
-          >
-            {loading && <Spinner $size={13} />}
-            {loading ? `${stages[index]}…` : preview ? "Regenerate" : "Generate preview"}
-          </ActionButton>
-          {preview && count > 0 && (
-            <ActionButton onClick={apply} disabled={loading}>
-              Apply {count} change{count !== 1 ? "s" : ""}
+        {!empty && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+            <ActionButton
+              onClick={generate}
+              disabled={loading || !text.trim() || !total}
+              style={preview
+                ? { background: "#fff", color: "#333", border: "1px solid #ddd", display: "inline-flex", alignItems: "center", gap: 8 }
+                : { display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              {loading && <Spinner $size={13} $light={!preview} />}
+              {loading ? `${stages[index]}…` : preview ? "Regenerate" : "Generate preview"}
             </ActionButton>
-          )}
-        </div>
+            {preview && count > 0 && (
+              <ActionButton onClick={apply} disabled={loading}>
+                Apply {count} change{count !== 1 ? "s" : ""}
+              </ActionButton>
+            )}
+          </div>
+        )}
       </ModalContainer>
     </ModalOverlay>,
     document.body,

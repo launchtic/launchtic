@@ -3,12 +3,13 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../../lib/api";
 import { requireAccess } from "../../../../../lib/permissions";
-import { editPageCopy, rewritePageCopy, scanPageCopy } from "../../../../../lib/page-templates/ai-rewrite";
+import { classifyRequest, editPageCopy, rewritePageCopy, scanPageCopy } from "../../../../../lib/page-templates/ai-rewrite";
 
 // POST /api/funnel-steps/:id/ai-rewrite
 //   { mode: "scan",    pageJson?, scopeNodeId? }        → { total }  (no AI call)
+//   { mode: "auto",    pageJson?, request }             → classify, then rewrite or edit the whole page
 //   { mode: "rewrite", pageJson?, brief }               → whole page rewritten for a brief
-//   { mode: "edit",    pageJson?, scopeNodeId, instruction } → one section/element edited
+//   { mode: "edit",    pageJson?, scopeNodeId?, instruction } → section/element (or whole page) edited
 // Saves nothing — the editor applies the result. pageJson is the editor's
 // current (possibly unsaved) content; when omitted the step's stored page is used.
 
@@ -17,10 +18,11 @@ const pageJson = z.union([z.string(), z.record(z.unknown())]).optional();
 const schema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("scan"), pageJson, scopeNodeId: z.string().min(1).optional() }),
   z.object({ mode: z.literal("rewrite"), pageJson, brief: z.string().trim().min(1).max(2000) }),
+  z.object({ mode: z.literal("auto"), pageJson, request: z.string().trim().min(1).max(2000) }),
   z.object({
     mode: z.literal("edit"),
     pageJson,
-    scopeNodeId: z.string().min(1),
+    scopeNodeId: z.string().min(1).optional(),  // omitted = whole page
     instruction: z.string().trim().min(1).max(2000),
   }),
 ]);
@@ -47,6 +49,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       return err("You don't have permission to use AI features.", 403);
     }
     try {
+      if (body.mode === "auto") {
+        const kind = await classifyRequest(r.workspaceId, body.request);
+        const result = kind === "rewrite"
+          ? await rewritePageCopy({ workspaceId: r.workspaceId, pageJson: source, brief: body.request })
+          : await editPageCopy({ workspaceId: r.workspaceId, pageJson: source, instruction: body.request });
+        return ok({ ...result, mode: kind });
+      }
       const result = body.mode === "rewrite"
         ? await rewritePageCopy({ workspaceId: r.workspaceId, pageJson: source, brief: body.brief })
         : await editPageCopy({

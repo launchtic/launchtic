@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import styled, { css, keyframes } from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { useEditor } from "@launchtic/editor-core";
 import { useEditorContext } from "./EditorContext";
 import {
@@ -12,8 +12,14 @@ import {
 } from "../common/ImageUploadModal.styles";
 
 type Change = { id: string; kind: string; before: string; after: string };
-type Preview = { pageJson: unknown; changes: Change[]; total: number; unchanged: number; failed: number };
-type Target = "replace" | "new";
+type Preview = {
+  pageJson: unknown;
+  changes: Change[];
+  total: number;
+  unchanged: number;
+  failed: number;
+  mode?: "rewrite" | "edit";  // how the server read the request
+};
 
 export const BLUE = "#2196F3";
 
@@ -28,95 +34,58 @@ export async function post<T>(url: string, body: unknown, method = "POST"): Prom
   return json?.data as T;
 }
 
-// ─── Target option cards ─────────────────────────────────────────────────────
+// ─── Suggestions ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const OptionGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
+export const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 `;
 
-const OptionCard = styled.button<{ $selected: boolean }>`
-  position: relative;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  text-align: left;
-  padding: 14px;
-  border-radius: 12px;
+export const Chip = styled.button<{ $active: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
   font-family: inherit;
-  color: #222;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  border: 2px solid ${({ $selected }) => ($selected ? BLUE : "#e6e6e6")};
-  background: ${({ $selected }) => ($selected ? "#f0f7ff" : "#fff")};
-  ${({ $selected }) => $selected && css`box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.12);`}
-
-  &:hover:not(:disabled) { border-color: ${BLUE}; }
+  transition: all 0.15s;
+  border: 1px solid ${({ $active }) => ($active ? BLUE : "#ddd")};
+  background: ${({ $active }) => ($active ? "#f0f7ff" : "#fff")};
+  color: ${({ $active }) => ($active ? BLUE : "#444")};
+  &:hover:not(:disabled) { border-color: ${BLUE}; color: ${BLUE}; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 
-const OptionIcon = styled.div<{ $selected: boolean }>`
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
+export const LinkButton = styled.button`
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  color: ${({ $selected }) => ($selected ? "#fff" : "#666")};
-  background: ${({ $selected }) => ($selected ? BLUE : "#f2f2f2")};
-`;
-
-const OptionCheck = styled.div<{ $selected: boolean }>`
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid ${({ $selected }) => ($selected ? BLUE : "#ccc")};
-  background: ${({ $selected }) => ($selected ? BLUE : "#fff")};
-  color: #fff;
-  font-size: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const Badge = styled.span`
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
+  gap: 6px;
+  margin-top: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
   color: ${BLUE};
-  background: rgba(33, 150, 243, 0.12);
+  cursor: pointer;
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 
-const TargetOption: React.FC<{
-  selected: boolean;
-  disabled: boolean;
-  icon: string;
-  title: string;
-  description: string;
-  badge?: string;
-  onSelect: () => void;
-}> = ({ selected, disabled, icon, title, description, badge, onSelect }) => (
-  <OptionCard type="button" role="radio" aria-checked={selected} $selected={selected} disabled={disabled} onClick={onSelect}>
-    <OptionIcon $selected={selected}><i className={icon} /></OptionIcon>
-    <div style={{ paddingRight: 18 }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>
-        {title}
-        {badge && <Badge>{badge}</Badge>}
-      </div>
-      <div style={{ fontSize: 12, color: "#777", lineHeight: 1.45 }}>{description}</div>
-    </div>
-    <OptionCheck $selected={selected}>{selected && <i className="fa-solid fa-check" />}</OptionCheck>
-  </OptionCard>
-);
+// The first one fills a brief outline — the [brackets] are for the user to replace.
+const SUGGESTIONS: { label: string; icon: string; text: string }[] = [
+  { label: "New offer brief", icon: "fa-solid fa-rocket",
+    text: "Offer: [what you sell]\nWho it's for: [audience]\nKey benefits: [2-3 benefits]\nPrice / promo: [e.g. 30% off the first month]\nTone: friendly\nLanguage: English" },
+  { label: "Translate…", icon: "fa-solid fa-language", text: "Translate the whole page to " },
+  { label: "More persuasive", icon: "fa-solid fa-fire", text: "Make the copy more persuasive and benefit-driven. Keep the same offer." },
+  { label: "Shorter", icon: "fa-solid fa-scissors", text: "Make the copy shorter and punchier." },
+  { label: "Premium tone", icon: "fa-solid fa-gem", text: "Rewrite in a more premium, high-end tone." },
+  { label: "Friendlier", icon: "fa-regular fa-face-smile", text: "Use a warmer, friendlier, more conversational tone." },
+  { label: "Fix grammar", icon: "fa-solid fa-spell-check", text: "Fix grammar, spelling and awkward phrasing only. Don't change the meaning." },
+];
 
 // ─── Progress while the AI writes ────────────────────────────────────────────
 
@@ -146,7 +115,7 @@ const ProgressBox = styled.div`
   background: #f8fbff;
   border-radius: 12px;
   padding: 16px 18px;
-  margin-bottom: 14px;
+  margin-top: 14px;
 `;
 
 const ShimmerBar = styled.div`
@@ -186,7 +155,7 @@ export function useStageIndex(active: boolean, count: number): number {
 const pageStages = (total: number | null) => [
   "Reading your page",
   total !== null ? `Collecting ${total} text fields` : "Collecting text fields",
-  "Understanding your brief",
+  "Understanding your request",
   "Analyzing customer insights",
   "Drafting headlines & hooks",
   "Writing benefits & calls-to-action",
@@ -213,32 +182,22 @@ export const AiProgress: React.FC<{ stages: string[]; index: number }> = ({ stag
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 
-export const Stat: React.FC<{ label: string; value: number; color?: string }> = ({ label, value, color = "#111" }) => (
-  <div style={{ flex: 1, padding: "10px 12px", border: "1px solid #eee", borderRadius: 10 }}>
-    <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
-    <div style={{ fontSize: 12, color: "#888" }}>{label}</div>
-  </div>
-);
-
-export const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{children}</label>
-);
-
-// Brief → preview (nothing saved) → new step (default) or replace this page.
-// Only text changes; layout and styles are untouched (see ai-rewrite.ts).
+// One box for both kinds of request — a brief for a new offer, or an edit
+// ("translate", "shorter"…). The server decides which (mode "auto").
+// Preview first (nothing saved), then the result replaces this page.
 export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { query, actions } = useEditor();
   const { pageData, updatePage } = useEditorContext();
   const stepId = pageData.code;
 
   const [total, setTotal] = useState<number | null>(null);
-  const [brief, setBrief] = useState("");
-  const [target, setTarget] = useState<Target>("new");
+  const [text, setText] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [newStepUrl, setNewStepUrl] = useState<string | null>(null);
   const stages = pageStages(total);
   const index = useStageIndex(loading, stages.length);
 
@@ -249,14 +208,27 @@ export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepId]);
 
+  const pickSuggestion = (value: string) => {
+    setText(value);
+    // Select the first [placeholder] to type over, else put the caret at the end.
+    requestAnimationFrame(() => {
+      const el = textRef.current;
+      if (!el) return;
+      el.focus();
+      const start = value.indexOf("[");
+      const end = start >= 0 ? value.indexOf("]", start) + 1 : value.length;
+      el.setSelectionRange(start >= 0 ? start : value.length, end);
+    });
+  };
+
   const generate = async () => {
     setLoading(true);
     setError(null);
     setPreview(null);
     try {
       setPreview(await post<Preview>(`/api/funnel-steps/${stepId}/ai-rewrite`, {
-        mode: "rewrite",
-        brief,
+        mode: "auto",
+        request: text,
         pageJson: query.serialize(),
       }));
     } catch (e) {
@@ -272,18 +244,11 @@ export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     setError(null);
     try {
       const json = JSON.stringify(preview.pageJson);
-      if (target === "replace") {
-        actions.deserialize(json);
-        await updatePage(json);
-        onClose();
-        return;
-      }
-      const created = await post<{ id: string; name: string }>(`/api/funnel-steps/${stepId}/clone`, {});
-      await post(`/api/funnel-steps/${created.id}`, { pageJson: json }, "PATCH");
-      setNewStepUrl(window.location.pathname.replace(/\/editor\/[^/]+$/, `/editor/${created.id}`));
+      actions.deserialize(json);
+      await updatePage(json);
+      onClose();
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setApplying(false);
     }
   };
@@ -297,75 +262,49 @@ export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     <ModalOverlay style={{ zIndex: 100000 }}>
       <ModalContainer style={{ color: "#222", fontSize: 14 }}>
         <CloseButton onClick={onClose} disabled={applying}>✖</CloseButton>
-        <h3 style={{ margin: "0 0 4px", fontSize: 18 }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>
           <i className="fa-solid fa-wand-magic-sparkles" style={{ color: BLUE, marginRight: 8 }} />
           Rewrite copy with AI
         </h3>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#888" }}>
-          {total === null
-            ? "Scanning page…"
-            : `${total} text field${total !== 1 ? "s" : ""} found on this page. Only the text changes — layout, styles and images stay the same.`}
-        </p>
 
-        {newStepUrl ? (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <i className="fa-solid fa-circle-check" style={{ fontSize: 36, color: "#22a06b", marginBottom: 12 }} />
-            <p style={{ fontSize: 15, margin: "0 0 16px" }}>New step created with the rewritten copy.</p>
-            <ActionButton onClick={() => { window.location.href = newStepUrl; }}>Open new step</ActionButton>
-            <button onClick={onClose} style={{ marginLeft: 10, background: "none", border: "none", color: "#666", cursor: "pointer" }}>
-              Stay here
-            </button>
-          </div>
-        ) : (
-          <div style={{ overflowY: "auto", flex: 1, paddingRight: 2 }}>
-            <SectionLabel>Brief</SectionLabel>
+        <div style={{ overflowY: "auto", flex: 1, paddingRight: 2 }}>
             <textarea
-              value={brief}
-              onChange={(e) => setBrief(e.target.value)}
+              ref={textRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               rows={4}
               maxLength={2000}
               disabled={busy}
-              placeholder="What you sell, who it's for, the offer, tone and language. E.g. Online yoga course for busy professionals, 30% off the first month, friendly tone, English."
-              style={{ width: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical", color: "#222", background: "#fff" }}
+              autoFocus
+              placeholder={`Describe a new offer, or say what to change — e.g. "Online yoga course for busy professionals, 30% off", "Translate to Spanish", "Make it more persuasive".`}
+              style={{ width: "100%", boxSizing: "border-box", padding: 12, border: "1px solid #ddd", borderRadius: 10, fontSize: 14, fontFamily: "inherit", resize: "vertical", color: "#222", background: "#fff" }}
             />
-            <p style={{ margin: "4px 0 16px", fontSize: 12, color: "#999" }}>
-              Prices and numbers are kept unless your brief gives new ones.
-            </p>
 
-            <SectionLabel>Where should the new copy go?</SectionLabel>
-            <OptionGrid role="radiogroup">
-              <TargetOption
-                selected={target === "new"}
-                disabled={busy}
-                icon="fa-regular fa-copy"
-                title="Create a new step"
-                badge="Recommended"
-                description="Copies this step (prices, order bumps, settings) with the new text. The current page stays untouched."
-                onSelect={() => setTarget("new")}
-              />
-              <TargetOption
-                selected={target === "replace"}
-                disabled={busy}
-                icon="fa-solid fa-arrows-rotate"
-                title="Replace this step"
-                description="Overwrites the text on this page and saves it right away."
-                onSelect={() => setTarget("replace")}
-              />
-            </OptionGrid>
+            <LinkButton type="button" disabled={busy} onClick={() => setShowSuggestions((s) => !s)}>
+              <i className="fa-regular fa-lightbulb" />
+              {showSuggestions ? "Hide suggestions" : "Suggestions"}
+            </LinkButton>
+            {showSuggestions && (
+              <ChipRow>
+                {SUGGESTIONS.map((s) => (
+                  <Chip key={s.label} type="button" $active={text === s.text} disabled={busy} onClick={() => pickSuggestion(s.text)}>
+                    <i className={s.icon} /> {s.label}
+                  </Chip>
+                ))}
+              </ChipRow>
+            )}
 
-            {error && <ErrorContainer>{error}</ErrorContainer>}
-
+            {error && <div style={{ marginTop: 14 }}><ErrorContainer>{error}</ErrorContainer></div>}
             {loading && <AiProgress stages={stages} index={index} />}
 
             {preview && (
-              <>
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <Stat label="Text fields found" value={preview.total} />
-                  <Stat label="Will be replaced" value={count} color={BLUE} />
-                  <Stat label="Kept unchanged" value={preview.unchanged} color="#888" />
-                  <Stat label="Failed" value={preview.failed} color={preview.failed ? "#f44336" : "#888"} />
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 13, color: "#555", marginBottom: 8 }}>
+                  <strong style={{ color: BLUE }}>{count}</strong> of {preview.total} texts will change
+                  {preview.mode && <span style={{ color: "#999" }}> · {preview.mode === "rewrite" ? "written for a new offer" : "current copy edited"}</span>}
+                  {preview.failed > 0 && <span style={{ color: "#f44336" }}> · {preview.failed} failed</span>}
                 </div>
-                <div style={{ border: "1px solid #eee", borderRadius: 10, marginBottom: 4 }}>
+                <div style={{ border: "1px solid #eee", borderRadius: 10 }}>
                   {preview.changes.map((c) => (
                     <div key={c.id} style={{ padding: "10px 14px", borderBottom: "1px solid #f3f3f3", fontSize: 13 }}>
                       <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "#aaa", marginBottom: 2 }}>{c.kind}</div>
@@ -375,33 +314,28 @@ export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                   ))}
                   {count === 0 && <div style={{ padding: 20, textAlign: "center", color: "#888", fontSize: 13 }}>No text was changed.</div>}
                 </div>
-              </>
+              </div>
             )}
-          </div>
-        )}
+        </div>
 
-        {!newStepUrl && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginTop: 16 }}>
             <ActionButton
               onClick={generate}
-              disabled={busy || !brief.trim() || total === 0}
-              style={{ background: "#fff", color: "#333", border: "1px solid #ddd", display: "inline-flex", alignItems: "center", gap: 8 }}
+              disabled={busy || !text.trim() || total === 0}
+              style={preview
+                ? { background: "#fff", color: "#333", border: "1px solid #ddd", display: "inline-flex", alignItems: "center", gap: 8 }
+                : { display: "inline-flex", alignItems: "center", gap: 8 }}
             >
-              {loading && <Spinner $size={13} />}
+              {loading && <Spinner $size={13} $light={!preview} />}
               {loading ? `${stages[index]}…` : preview ? "Regenerate" : "Generate preview"}
             </ActionButton>
             {preview && count > 0 && (
               <ActionButton onClick={apply} disabled={busy} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 {applying && <Spinner $size={13} $light />}
-                {applying
-                  ? target === "replace" ? "Replacing…" : "Creating step…"
-                  : target === "replace"
-                    ? `Replace ${count} text${count !== 1 ? "s" : ""}`
-                    : `Create step with ${count} new text${count !== 1 ? "s" : ""}`}
+                {applying ? "Applying…" : `Apply ${count} change${count !== 1 ? "s" : ""}`}
               </ActionButton>
             )}
-          </div>
-        )}
+        </div>
       </ModalContainer>
     </ModalOverlay>,
     document.body,
