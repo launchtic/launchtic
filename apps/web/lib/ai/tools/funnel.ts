@@ -8,7 +8,8 @@ import { defineTool, type ToolContext } from "./define";
 import { fmtMoney, findOrCreateTag, findOrCreatePhysicalProduct, findOrSkipTag, findOrSkipPhysicalProduct } from "./helpers";
 import { extractSlotsFromPageJson } from "../../page-templates/slots";
 import { fillSlotsInPageJson } from "../../page-templates/slot-filler";
-import { fillSlotsWithAI } from "../../page-templates/ai-fill";
+import { generateSampleSlotValues } from "../../page-templates/sample-fill";
+import { rewritePageCopy, generateSeoMeta } from "../../page-templates/ai-rewrite";
 import { generateUniqueSlug } from "../../funnels/slug-validation";
 
 // Stripe + PayPal intersection. Source of truth: @launchtic/types.
@@ -194,18 +195,17 @@ const createFunnelFromSpec = defineTool({
     "Funnel created as DRAFT — operator customizes in editor after.\n\n" +
     "BEST PRACTICE — gather a `brief` BEFORE calling so page copy is meaningful:\n" +
     "  Ask user: audience, key benefits, pain point, tone (urgent/friendly/premium/professional).\n" +
-    "  User may say 'skip' — pass whatever you have. Tool ALWAYS fills slots (generic fallback).\n" +
-    "  Slots like {{headline}} are NEVER left raw in the output.\n\n" +
+    "  User may say 'skip' — pass whatever you have. Tool always rewrites the copy (from the offer name if needed).\n\n" +
     "DON'T pre-confirm template choices in chat — pick the best match silently using\n" +
     "  list_page_templates with `tags` filter (niche/style/mood from product context).\n" +
     "  Tool requires operator confirmation via confirm card before executing.\n" +
     "  Listing template names + asking 'OK?' in chat is redundant friction.\n\n" +
     "Be concise. Don't explain validation logic or workarounds in chat — pick the right\n" +
     "  funnelType + brief and call the tool. The confirm card shows the plan to the operator.\n\n" +
-    "Templates are language-neutral scaffolds (structure + {{slot}} placeholders). The AI\n" +
-    "  slot-fill generates copy in whatever language the brief / user request implies.\n" +
-    "  DO NOT comment on template's placeholder language being English vs the user's language\n" +
-    "  — it's irrelevant, output language depends on brief context, not template metadata.",
+    "Templates contain English demo copy for a sample brand. The tool rewrites every page's\n" +
+    "  text for this offer (layout/styles unchanged), in the language set in brief.language.\n" +
+    "  DO NOT comment on the template's demo copy being English or about another brand\n" +
+    "  — it's irrelevant, the output copy is written from the brief.",
   inputSchema: z.object({
     funnelName: z.string().min(1).describe("Funnel name. E.g. 'SEO Ebook Funnel', '10 SEO Mistakes Lead Magnet'."),
     currency: z.enum(CURRENCY_TUPLE).default("usd").describe(
@@ -239,9 +239,10 @@ const createFunnelFromSpec = defineTool({
       painPoint: z.string().optional().describe("The main pain solved."),
       benefits: z.array(z.string()).max(5).optional().describe("Top 2-5 benefits (short phrases)."),
       tone: z.enum(["professional", "friendly", "urgent", "premium"]).optional().describe("Brand voice. Defaults to 'professional'."),
+      language: z.string().optional().describe("Language for the page copy, e.g. 'Vietnamese'. Use the language the user is chatting in."),
     }).optional().describe(
-      "Context for AI to fill page copy slots. All sub-fields optional. " +
-      "Sparse brief → tool generates generic on-brand copy from name. Pass whatever user shared."
+      "Context for AI to rewrite the template copy. All sub-fields optional. " +
+      "Sparse brief → tool writes on-brand copy from the offer name. Pass whatever user shared."
     ),
   }),
   requiresConfirm: true,
@@ -295,28 +296,23 @@ const createFunnelFromSpec = defineTool({
       }
     }
 
-    // ─── PHASE 1: resolve + slot-fill all templates OUTSIDE the transaction ───
-    // AI slot-fill takes ~5-15s per step. Doing it inside db.$transaction()
+    // ─── PHASE 1: resolve + rewrite all templates OUTSIDE the transaction ───
+    // The AI rewrite takes ~5-15s per step. Doing it inside db.$transaction()
     // would hold the DB connection open and exceed the default 5s timeout
     // (Prisma error: "Transaction already closed"). Resolve to plain objects
     // first, then the transaction only writes DB rows — fast (<1s).
-    const benefitNotes = [
-      args.brief?.painPoint && `Pain point: ${args.brief.painPoint}`,
-      args.brief?.benefits?.length && `Key benefits: ${args.brief.benefits.join("; ")}`,
-    ].filter(Boolean).join("\n");
-
-    const briefIndustry = isLeadCapture
+    const offerName = isLeadCapture
       ? (args.leadMagnet?.name ?? args.funnelName)
       : (args.product?.name ?? args.funnelName);
 
-    const briefForFill = {
-      industry: briefIndustry,
-      audience: args.brief?.audience,
-      tone:     args.brief?.tone ?? "professional",
-      notes:    benefitNotes || undefined,
-    };
-
-    const SEO_SLOTS = ["seo_title", "seo_description"] as const;
+    const baseBrief = [
+      `Offer: ${offerName}`,
+      args.brief?.audience && `Target audience: ${args.brief.audience}`,
+      args.brief?.painPoint && `Pain point: ${args.brief.painPoint}`,
+      args.brief?.benefits?.length && `Key benefits: ${args.brief.benefits.join("; ")}`,
+      `Tone: ${args.brief?.tone ?? "professional"}`,
+      args.brief?.language && `Language: ${args.brief.language}`,
+    ].filter(Boolean).join("\n");
 
     const resolveTemplate = async (
       type: string,
@@ -347,20 +343,22 @@ const createFunnelFromSpec = defineTool({
         pageJson = t?.pageJson ?? {};
       }
 
-      const templateSlots = extractSlotsFromPageJson(pageJson);
-      const allSlots = [...templateSlots, ...SEO_SLOTS];
-      const brief = stepPrice ? { ...briefForFill, productPrice: stepPrice } : briefForFill;
-      try {
-        const values = await fillSlotsWithAI({ workspaceId: ctx.workspaceId, slots: allSlots, brief });
-        const { seo_title, seo_description, ...pageValues } = values;
-        return {
-          pageJson: templateSlots.length ? fillSlotsInPageJson(pageJson, pageValues) : pageJson,
-          seoMeta:  { title: seo_title ?? "", description: seo_description ?? "" },
-        };
-      } catch (e) {
-        console.warn("[create_funnel_from_spec] AI slot-fill failed:", e);
-        return { pageJson, seoMeta: emptySeo };
-      }
+      // Templates created before real-copy templates may still hold {{slot}}
+      // placeholders — give them sample text so the rewrite has something to work from.
+      const legacySlots = extractSlotsFromPageJson(pageJson);
+      if (legacySlots.length) pageJson = fillSlotsInPageJson(pageJson, generateSampleSlotValues(legacySlots));
+
+      const brief = stepPrice
+        ? `${baseBrief}\nPrice: ${stepPrice} — use exactly this for any price on the page.`
+        : baseBrief;
+      const [copy, seoMeta] = await Promise.all([
+        rewritePageCopy({ workspaceId: ctx.workspaceId, pageJson, brief })
+          .then((r) => r.pageJson)
+          .catch((e) => { console.warn("[create_funnel_from_spec] AI rewrite failed:", e); return pageJson; }),
+        generateSeoMeta({ workspaceId: ctx.workspaceId, brief })
+          .catch((e) => { console.warn("[create_funnel_from_spec] SEO meta failed:", e); return emptySeo; }),
+      ]);
+      return { pageJson: copy, seoMeta };
     };
 
     // Resolve templates in parallel — set varies per funnelType.
@@ -533,8 +531,8 @@ const createFunnelFromSpec = defineTool({
 
       // 4. Page templates + slugs already resolved OUTSIDE the transaction
       //    (Phase 1 above). Slug uniqueness is enforced cross-funnel via
-      //    generateUniqueSlug. Templates resolved out of tx because AI
-      //    slot-fill takes 5-15s and would exceed Prisma's 5s tx timeout.
+      //    generateUniqueSlug. Templates resolved out of tx because the AI
+      //    rewrite takes 5-15s and would exceed Prisma's 5s tx timeout.
 
       const stepsCreated: { id: string; name: string; type: string }[] = [];
       let order = 0;

@@ -6,7 +6,7 @@ import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
   FileText, TrendingUp, ShoppingCart, CheckCircle, ArrowUpCircle, ArrowDownCircle,
   Search, ChevronLeft, ChevronRight, Settings, Image as ImageIcon, Filter, Copy,
-  Power, Sparkles,
+  Power,
 } from "lucide-react";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { apiFetch } from "../../lib/api-client";
@@ -211,25 +211,6 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [slotting, setSlotting] = useState(false);
-  const [slotInfo, setSlotInfo] = useState<{ count: number; slots: string[] } | null>(null);
-
-  async function handleSlotify() {
-    if (!window.confirm("Convert this template's copy into {{slot}} placeholders? This rewrites the template content (you can still edit it after).")) return;
-    setSlotting(true); setError(null); setSlotInfo(null);
-    try {
-      const res = await apiFetch(`/api/page-templates/${template.id}/slotify`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apply: true }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) { setError(json.error ?? "Slotify failed"); return; }
-      setSlotInfo({ count: json.data.count, slots: json.data.slots });
-    } catch {
-      setError("Slotify failed");
-    } finally {
-      setSlotting(false);
-    }
-  }
 
   function addTag(raw: string) {
     const t = normalizeTag(raw);
@@ -403,23 +384,6 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
           </div>
         )}
 
-        {/* Dev-only tool: AI-convert a designed template's copy into {{slot}} placeholders. */}
-        {process.env.NODE_ENV === "development" && canManagePageTemplates && (
-          <div className="px-5 pb-4 space-y-2">
-            <button onClick={handleSlotify} disabled={slotting}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl text-sm font-medium disabled:opacity-60 transition-colors">
-              {slotting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {slotting ? "Converting…" : "Convert to slots (AI)"}
-            </button>
-            <p className="text-[11px] text-gray-400">Dev tool — replaces copy with {"{{slot}}"} placeholders for AI fill.</p>
-            {error && <p className="text-[11px] text-red-600">{error}</p>}
-            {slotInfo && (
-              <div className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-lg p-2">
-                Created <strong>{slotInfo.count}</strong> slots: <span className="font-mono break-all">{slotInfo.slots.join(", ")}</span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
