@@ -15,9 +15,9 @@ type Change = { id: string; kind: string; before: string; after: string };
 type Preview = { pageJson: unknown; changes: Change[]; total: number; unchanged: number; failed: number };
 type Target = "replace" | "new";
 
-const BLUE = "#2196F3";
+export const BLUE = "#2196F3";
 
-async function post<T>(url: string, body: unknown, method = "POST"): Promise<T> {
+export async function post<T>(url: string, body: unknown, method = "POST"): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -130,7 +130,7 @@ const fadeIn = keyframes`
   to { opacity: 1; transform: none; }
 `;
 
-const Spinner = styled.span<{ $size?: number; $light?: boolean }>`
+export const Spinner = styled.span<{ $size?: number; $light?: boolean }>`
   display: inline-block;
   flex-shrink: 0;
   width: ${({ $size = 14 }) => $size}px;
@@ -171,28 +171,30 @@ const StageRow = styled.div<{ $state: "done" | "active" | "pending" }>`
 
 const STAGE_MS = 1700;
 
-function useStages(active: boolean, total: number | null): { stages: string[]; index: number } {
-  const stages = [
-    "Reading your page",
-    total !== null ? `Collecting ${total} text fields` : "Collecting text fields",
-    "Understanding your brief",
-    "Analyzing customer insights",
-    "Drafting headlines & hooks",
-    "Writing benefits & calls-to-action",
-    "Polishing tone, keeping prices & numbers",
-    "Checking formatting stays intact",
-  ];
+// Index of the stage to show while the AI works: advances on a timer, then
+// holds on the last stage until the request returns.
+export function useStageIndex(active: boolean, count: number): number {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     if (!active) { setIndex(0); return; }
-    // Advance through the stages, then hold on the last one until the AI returns.
-    const t = setInterval(() => setIndex((i) => Math.min(i + 1, stages.length - 1)), STAGE_MS);
+    const t = setInterval(() => setIndex((i) => Math.min(i + 1, count - 1)), STAGE_MS);
     return () => clearInterval(t);
-  }, [active, stages.length]);
-  return { stages, index };
+  }, [active, count]);
+  return index;
 }
 
-const AiProgress: React.FC<{ stages: string[]; index: number }> = ({ stages, index }) => (
+const pageStages = (total: number | null) => [
+  "Reading your page",
+  total !== null ? `Collecting ${total} text fields` : "Collecting text fields",
+  "Understanding your brief",
+  "Analyzing customer insights",
+  "Drafting headlines & hooks",
+  "Writing benefits & calls-to-action",
+  "Polishing tone, keeping prices & numbers",
+  "Checking formatting stays intact",
+];
+
+export const AiProgress: React.FC<{ stages: string[]; index: number }> = ({ stages, index }) => (
   <ProgressBox>
     <ShimmerBar />
     {stages.slice(0, index + 1).map((label, i) => {
@@ -211,14 +213,14 @@ const AiProgress: React.FC<{ stages: string[]; index: number }> = ({ stages, ind
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 
-const Stat: React.FC<{ label: string; value: number; color?: string }> = ({ label, value, color = "#111" }) => (
+export const Stat: React.FC<{ label: string; value: number; color?: string }> = ({ label, value, color = "#111" }) => (
   <div style={{ flex: 1, padding: "10px 12px", border: "1px solid #eee", borderRadius: 10 }}>
     <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
     <div style={{ fontSize: 12, color: "#888" }}>{label}</div>
   </div>
 );
 
-const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{children}</label>
 );
 
@@ -237,7 +239,8 @@ export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newStepUrl, setNewStepUrl] = useState<string | null>(null);
-  const { stages, index } = useStages(loading, total);
+  const stages = pageStages(total);
+  const index = useStageIndex(loading, stages.length);
 
   useEffect(() => {
     post<{ total: number }>(`/api/funnel-steps/${stepId}/ai-rewrite`, { mode: "scan", pageJson: query.serialize() })
@@ -322,7 +325,7 @@ export const AiRewriteModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
               rows={4}
               maxLength={2000}
               disabled={busy}
-              placeholder="What you sell, who it's for, the offer, tone and language. E.g. Healthy meal delivery for office workers in Ho Chi Minh City, 50% off the first month, friendly tone, Vietnamese."
+              placeholder="What you sell, who it's for, the offer, tone and language. E.g. Online yoga course for busy professionals, 30% off the first month, friendly tone, English."
               style={{ width: "100%", boxSizing: "border-box", padding: 10, border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical", color: "#222", background: "#fff" }}
             />
             <p style={{ margin: "4px 0 16px", fontSize: 12, color: "#999" }}>

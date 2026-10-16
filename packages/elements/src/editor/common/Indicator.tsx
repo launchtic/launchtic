@@ -3,6 +3,10 @@ import styled from "styled-components";
 import { getRandomId } from "@launchtic/editor-utils";
 import { useNodeState } from "../hooks/useNodeState";
 import { Node } from "@launchtic/editor-core";
+import { AI_EDIT_EVENT, type AiEditTarget } from "../app/AiEditModal";
+
+// Elements whose text the AI edit modal can work on.
+const AI_EDITABLE = new Set(["Section", "Row", "Headline", "Text", "Button", "FAQ", "BulletedList"]);
 
 // Editor chrome must use the system font, not the page-level font
 // chosen via PageFontApplier (which wraps the canvas). Any styled component
@@ -390,6 +394,13 @@ export const Indicator: React.FC<IndicatorProps> = ({ name }) => {
     }
   };
 
+  // The modal lives in the editor Header: this toolbar unmounts as soon as the
+  // node loses hover/selection, which would close a modal rendered here.
+  const openAiEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent<AiEditTarget>(AI_EDIT_EVENT, { detail: { nodeId: id, name } }));
+  };
+
   const handleDuplicate = (e: React.MouseEvent) => {
     e.stopPropagation();
     const nodeToClone = query.node(id).get();
@@ -487,6 +498,11 @@ export const Indicator: React.FC<IndicatorProps> = ({ name }) => {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
+        {AI_EDITABLE.has(name) && (
+          <IndicatorButton onClick={openAiEdit} title="Edit text with AI">
+            <i className="fa-solid fa-wand-magic-sparkles"></i>
+          </IndicatorButton>
+        )}
         <IndicatorButton onClick={handleSelectParent}>
           <i className="fas fa-arrow-up"></i>
         </IndicatorButton>

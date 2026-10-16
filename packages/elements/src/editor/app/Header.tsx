@@ -13,9 +13,17 @@ import {
   HeaderActionsWrapper,
 } from "./layout/EditorUI";
 import AiRewriteModal from "./AiRewriteModal";
+import AiEditModal, { AI_EDIT_EVENT, type AiEditTarget } from "./AiEditModal";
 
 const Header: React.FC = () => {
   const [showAiRewrite, setShowAiRewrite] = useState(false);
+  const [aiEditTarget, setAiEditTarget] = useState<AiEditTarget | null>(null);
+
+  useEffect(() => {
+    const open = (e: Event) => setAiEditTarget((e as CustomEvent<AiEditTarget>).detail);
+    window.addEventListener(AI_EDIT_EVENT, open);
+    return () => window.removeEventListener(AI_EDIT_EVENT, open);
+  }, []);
   // Simple and clean — only pull what we need
   const { selectedNodeId, actions, query, canUndo, canRedo } = useEditor((state, query) => ({
     selectedNodeId: Array.from(state.events.selected)[0] || null,
@@ -174,6 +182,7 @@ const Header: React.FC = () => {
         </LightButton>
       </HeaderActionsWrapper>
       {showAiRewrite && <AiRewriteModal onClose={() => setShowAiRewrite(false)} />}
+      {aiEditTarget && <AiEditModal target={aiEditTarget} onClose={() => setAiEditTarget(null)} />}
     </HeaderContainer>
   );
 };
