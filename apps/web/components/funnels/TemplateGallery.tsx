@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Loader2, LayoutTemplate, CheckCircle, Sparkles, Search,
+  Loader2, LayoutTemplate, CheckCircle, Search,
   FileText, TrendingUp, ShoppingCart, ArrowUpCircle, ArrowDownCircle, FilePlus,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
-import { useRole } from "../../lib/role";
 
 const PAGE_SIZE = 24;
 
@@ -43,7 +42,6 @@ const TYPE_COLOR: Record<StepType, string> = {
 export default function TemplateGallery({
   stepId,
   stepType,
-  funnelName,
   title = "Choose a template",
   subtitle,
   onApplied,
@@ -51,15 +49,12 @@ export default function TemplateGallery({
 }: {
   stepId: string;
   stepType: StepType;
-  funnelName?: string;
   title?: string;
   subtitle?: string;
   onApplied: () => void;
   /** Optional "Start from blank" escape hatch (e.g. open the editor). */
   onBlank?: () => void;
 }) {
-  const { canUseAi } = useRole();
-
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -68,8 +63,6 @@ export default function TemplateGallery({
   const [hasMore, setHasMore] = useState(false);
   const [selected, setSelected] = useState<Template | null>(null);
   const [applying, setApplying] = useState(false);
-  const [aiFill, setAiFill] = useState(canUseAi);
-  const [brief, setBrief] = useState(funnelName?.trim() ?? "");
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchTemplates = useCallback(
@@ -104,16 +97,13 @@ export default function TemplateGallery({
     fetchTemplates(search, next, true);
   }
 
-  const showAiPanel = canUseAi && !!selected && selected.slotCount > 0;
-  const wantsAiFill = showAiPanel && aiFill && brief.trim().length > 0;
-
   async function handleApply() {
     if (!selected) return;
     setApplying(true);
     await apiFetch(`/api/funnel-steps/${stepId}/apply-template`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId: selected.id, brief: wantsAiFill ? brief.trim() : undefined }),
+      body: JSON.stringify({ templateId: selected.id }),
     });
     setApplying(false);
     onApplied();
@@ -213,38 +203,6 @@ export default function TemplateGallery({
         )}
       </div>
 
-      {/* AI fill (only when picked template has slots + user has ai:use) */}
-      {showAiPanel && (
-        <div className="px-4 py-3 border-t border-gray-100 bg-gradient-to-b from-violet-50/40 to-white shrink-0">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={aiFill}
-              onChange={(e) => setAiFill(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500 focus:ring-offset-0"
-            />
-            <Sparkles size={13} className="text-violet-500" />
-            <span className="text-xs font-medium text-gray-700">
-              Auto-fill {selected!.slotCount} slot{selected!.slotCount === 1 ? "" : "s"} with AI
-            </span>
-          </label>
-          {aiFill && (
-            <div className="mt-2 ml-6">
-              <textarea
-                value={brief}
-                onChange={(e) => setBrief(e.target.value)}
-                placeholder="Tell AI about your offer (audience, key benefits, tone)…"
-                rows={2}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white resize-none"
-              />
-              {brief.trim().length === 0 && (
-                <p className="text-[11px] text-gray-400 mt-1">Required to fill slots — leave blank to paste raw template.</p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Apply bar */}
       <div className="px-1 py-3 border-t border-gray-100 flex items-center justify-between shrink-0">
         <p className="text-xs text-gray-400">{selected ? `Selected: ${selected.name}` : "Pick a template to apply"}</p>
@@ -253,8 +211,8 @@ export default function TemplateGallery({
           onClick={handleApply}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {applying ? <Loader2 size={13} className="animate-spin" /> : wantsAiFill ? <Sparkles size={13} /> : null}
-          {wantsAiFill ? "Apply with AI" : "Apply template"}
+          {applying && <Loader2 size={13} className="animate-spin" />}
+          Apply template
         </button>
       </div>
     </div>

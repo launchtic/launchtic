@@ -749,7 +749,6 @@ export default function FunnelStepManager({
                 key={selectedStep.id}
                 stepId={selectedStep.id}
                 stepType={selectedStep.type as any}
-                funnelName={funnel.name}
                 title={selectedStep.hasContent ? "Change template" : "Choose a template to get started"}
                 subtitle={`For "${selectedStep.name}" — applying a template builds this page.`}
                 onApplied={handleTemplateApplied}
