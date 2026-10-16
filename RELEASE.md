@@ -5,15 +5,18 @@ How a new version reaches self-hosted instances. Two repos are involved:
 - **`launchtic`** (this repo) — the app. CI builds 3 Docker images (web /
   renderer / worker) and publishes them **publicly** to GHCR — no auth needed
   to pull them.
-- **`launchtic-com`** — the marketing site (+ Agency billing/license API). It
-  serves `install.sh` / `update.sh` / `docker-compose.yml` / `Caddyfile` at
-  `/dist`, and holds the `LAUNCHTIC_CURRENT_VERSION` env that `/api/version`
-  (public, unauthenticated) advertises.
+- **`launchtic-com`** — the marketing site (+ Agency billing/license API), a
+  separate private repo. It serves `install.sh` / `update.sh` /
+  `docker-compose.yml` / `Caddyfile` at `/dist`, and exposes `/api/version`
+  (public, unauthenticated) which reads `LAUNCHTIC_CURRENT_VERSION` from its
+  own `.env`. That repo's `RELEASE_VERSION` file (tracked in git, repo root)
+  is the single source of truth for that env var — its CI syncs the two on
+  every push to `main` (see "Bump the site to that version" below).
 
 Updates are free for every self-hosted instance, Free or Agency — there is no
 license/entitlement gate on versions. The two repos only meet at **release
-time**, via one value: `LAUNCHTIC_CURRENT_VERSION` must equal a published
-`:YYYY.MM.DD` tag.
+time**, via one value: `launchtic-com`'s `RELEASE_VERSION` must equal a
+published `:YYYY.MM.DD` tag from this repo.
 
 ---
 
@@ -24,8 +27,9 @@ time**, via one value: `LAUNCHTIC_CURRENT_VERSION` must equal a published
 - [ ] Merge `main` → CI tự build `:latest` → test trên demo.launchtic.com.
 - [ ] GitHub → **Actions → "Build & Push" → Run workflow**, nhập **version** = `YYYY.MM.DD`.
 - [ ] Đợi 3 job (web/renderer/worker) xanh → check tag tại `github.com/orgs/launchtic/packages`.
-- [ ] Trên `launchtic-com`: `.env` set `LAUNCHTIC_CURRENT_VERSION=<đúng ngày đó>` → `docker compose up -d`.
-- [ ] **Có sửa `docker-compose.yml` / `Caddyfile` / `install.sh` / `update.sh`?** → copy sang `launchtic-com/public/` (install.sh) hoặc `public/dist/` (compose, Caddyfile, update.sh) → **redeploy site** → verify `curl -fsSL https://launchtic.com/dist/docker-compose.yml | head`.
+- [ ] Repo `launchtic-com`: sửa file `RELEASE_VERSION` (repo root) = đúng ngày đó → commit + push `main`.
+- [ ] `launchtic-com`'s CI tự build image + SSH deploy + sync `.env` (`LAUNCHTIC_CURRENT_VERSION`) — không cần thao tác tay trên VPS, chỉ cần đợi Actions xanh.
+- [ ] **Có sửa `docker-compose.yml` / `Caddyfile` / `install.sh` / `update.sh` trong `launchtic-com`?** → sửa trong cùng repo, cùng push ở trên — CI tự deploy luôn, verify sau khi xanh: `curl -fsSL https://launchtic.com/dist/docker-compose.yml | head`.
 
 Khách update: `cd launchtic && curl -fsSL https://launchtic.com/update | bash`
 Rollback nhanh: trên VPS đổi `.env` `LAUNCHTIC_VERSION=<tag cũ>` → `docker compose up -d`.
@@ -62,12 +66,20 @@ license key required, always returns `LAUNCHTIC_CURRENT_VERSION`.
    `2026.07.01` (leave blank to use today's UTC date). Wait for all 3 services
    to finish — this publishes `:stable` + `:2026.07.01` + `:sha-…`.
 
-3. **Bump the site to that version.** On `launchtic-com`'s server, set in `.env`:
+3. **Bump the site to that version.** In the `launchtic-com` repo, edit
+   `RELEASE_VERSION` (tracked in git, repo root) to the same string:
    ```
-   LAUNCHTIC_CURRENT_VERSION=2026.07.01
+   2026.07.01
    ```
-   then `docker compose up -d` (env-only change — no rebuild needed).
-   Use the **same string** you typed in step 2.
+   Commit + push to `main`. Its own `Build & Push` workflow builds the site
+   image, then the `deploy` job SSHes into the VPS automatically — `git pull`,
+   sync `RELEASE_VERSION` into `.env` as `LAUNCHTIC_CURRENT_VERSION`,
+   `docker compose pull && up -d`. No manual server step — just watch the
+   Actions run go green. Use the **same string** you typed in step 2.
+
+   Note: that container also runs `prisma migrate deploy` on boot, so this
+   push auto-applies any pending migration to `launchtic-com`'s production DB
+   — review data-affecting migrations before merging to its `main`.
 
 4. **Done.** Everyone gets `:2026.07.01` on their next
    `curl -fsSL https://launchtic.com/update | bash`.
@@ -89,9 +101,11 @@ license key required, always returns `LAUNCHTIC_CURRENT_VERSION`.
 
 A bad release went out:
 
-1. **Stop new pulls of it:** set `LAUNCHTIC_CURRENT_VERSION` back to the
-   previous good date tag on `launchtic-com`, `docker compose up -d`. New
-   installs/updates now serve the old version again.
+1. **Stop new pulls of it:** in `launchtic-com`, revert `RELEASE_VERSION` to
+   the previous good date tag, commit + push `main` — CI rebuilds/redeploys
+   the site and syncs `.env` automatically (a few minutes, not instant — it's
+   a full pipeline run, not a bare env flip). New installs/updates now serve
+   the old version again.
 2. **Instances already on the bad version:** tell operators to set
    `LAUNCHTIC_VERSION=<previous tag>` in their `.env` and run
    `docker compose up -d` (it's local — no token needed, images are public).
@@ -103,6 +117,9 @@ A bad release went out:
 ## Where customer-facing scripts live
 
 `install.sh`, `update.sh`, `docker-compose.yml`, `Caddyfile` are served from
-`launchtic-com/public` + `/public/dist`. Editing them and **deploying the site**
-takes effect immediately (each install/update fetches them live) — that is a
-*site deploy*, separate from an *app release* above.
+`launchtic-com/public` + `/public/dist`. Editing them, committing, and pushing
+to `launchtic-com`'s `main` is enough — the same CI (`build.yml`) builds the
+site image and auto-deploys it (SSH, no manual step), so each install/update
+fetches the new files live moments later. That's a *site deploy*, separate
+from an *app release* above — bumping `RELEASE_VERSION` is just one kind of
+push to that repo; editing these files is another.
