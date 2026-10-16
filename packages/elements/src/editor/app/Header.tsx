@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 
 declare global { interface Window { data?: any } }
 import { useEditor } from "@launchtic/editor-core";
@@ -12,8 +12,10 @@ import {
   LightButton,
   HeaderActionsWrapper,
 } from "./layout/EditorUI";
+import AiRewriteModal from "./AiRewriteModal";
 
 const Header: React.FC = () => {
+  const [showAiRewrite, setShowAiRewrite] = useState(false);
   // Simple and clean — only pull what we need
   const { selectedNodeId, actions, query, canUndo, canRedo } = useEditor((state, query) => ({
     selectedNodeId: Array.from(state.events.selected)[0] || null,
@@ -144,6 +146,10 @@ const Header: React.FC = () => {
       </BreadcrumbsWrapper>
 
       <HeaderActionsWrapper>
+        <LightButton $small onClick={() => setShowAiRewrite(true)} title="Rewrite copy with AI">
+          <i className="fa-solid fa-wand-magic-sparkles"></i>
+          <span style={{ marginLeft: '5px' }}>AI</span>
+        </LightButton>
         <LightButton $small onClick={handleSave} disabled={isSaving}>
           {isSaving ? (
             <>
@@ -167,6 +173,7 @@ const Header: React.FC = () => {
           <i className="fas fa-sign-out-alt"></i>
         </LightButton>
       </HeaderActionsWrapper>
+      {showAiRewrite && <AiRewriteModal onClose={() => setShowAiRewrite(false)} />}
     </HeaderContainer>
   );
 };
