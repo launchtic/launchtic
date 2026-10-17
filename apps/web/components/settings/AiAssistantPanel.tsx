@@ -5,6 +5,7 @@ import { Bot, Loader2, Check, AlertCircle, Eye, EyeOff, ExternalLink, History, C
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
+import { AVAILABLE_MODELS as MODELS, DEFAULT_MODEL_BY_PROVIDER, DEFAULT_PROVIDER } from "../../lib/ai/models";
 
 type Provider = "anthropic" | "google" | "deepseek" | "openai";
 
@@ -16,30 +17,12 @@ type Settings = {
   apiKey: string;
 };
 
-const MODELS: { id: string; provider: Provider; label: string; hint: string }[] = [
-  { id: "claude-haiku-4-5-20251001", provider: "anthropic", label: "Claude Haiku 4.5", hint: "Fast + cheap." },
-  { id: "claude-sonnet-4-6",         provider: "anthropic", label: "Claude Sonnet 4.6", hint: "Balanced." },
-  { id: "claude-opus-4-7",           provider: "anthropic", label: "Claude Opus 4.7",   hint: "Most capable. Costly." },
-  { id: "gemini-2.5-flash",          provider: "google",    label: "Gemini 2.5 Flash",  hint: "Higher quality, free tier." },
-  { id: "gemini-2.5-pro",            provider: "google",    label: "Gemini 2.5 Pro",    hint: "Most capable Gemini." },
-  { id: "deepseek-chat",             provider: "deepseek",  label: "DeepSeek V3 (chat)", hint: "Cheapest. Top up $5 covers months of use." },
-  { id: "gpt-4o-mini",               provider: "openai",    label: "GPT-4o mini",       hint: "Cheap + fast." },
-  { id: "gpt-4o",                    provider: "openai",    label: "GPT-4o",            hint: "Balanced quality + speed." },
-];
-
 const PROVIDERS: { id: Provider; label: string; keyHint: string; consoleUrl: string; badge?: string }[] = [
   { id: "google",    label: "Google Gemini",     keyHint: "AIzaSy...",  consoleUrl: "https://aistudio.google.com/apikey",          },
   { id: "openai",    label: "OpenAI (ChatGPT)",  keyHint: "sk-...",     consoleUrl: "https://platform.openai.com/api-keys",        },
   { id: "deepseek",  label: "DeepSeek",          keyHint: "sk-...",     consoleUrl: "https://platform.deepseek.com/api_keys", },
   { id: "anthropic", label: "Anthropic Claude",  keyHint: "sk-ant-...", consoleUrl: "https://console.anthropic.com/settings/keys" },
 ];
-
-const DEFAULT_MODEL_BY_PROVIDER: Record<Provider, string> = {
-  anthropic: "claude-haiku-4-5-20251001",
-  google:    "gemini-2.0-flash",
-  deepseek:  "deepseek-chat",
-  openai:    "gpt-4o-mini",
-};
 
 const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white " +
@@ -51,10 +34,10 @@ export default function AiAssistantPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [provider, setProvider] = useState<Provider>("google");
+  const [provider, setProvider] = useState<Provider>(DEFAULT_PROVIDER);
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [model, setModel] = useState("gemini-2.0-flash");
+  const [model, setModel] = useState(DEFAULT_MODEL_BY_PROVIDER[DEFAULT_PROVIDER]);
   const [enabled, setEnabled] = useState(true);
 
   const currentProvider = PROVIDERS.find((p) => p.id === provider)!;
@@ -131,9 +114,9 @@ export default function AiAssistantPanel() {
       const res = await apiFetch("/api/ai/settings", { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        setSettings({ provider: "google", model: "gemini-2.0-flash", enabled: false, hasApiKey: false, apiKey: "" });
-        setProvider("google");
-        setModel("gemini-2.0-flash");
+        setSettings({ provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL_BY_PROVIDER[DEFAULT_PROVIDER], enabled: false, hasApiKey: false, apiKey: "" });
+        setProvider(DEFAULT_PROVIDER);
+        setModel(DEFAULT_MODEL_BY_PROVIDER[DEFAULT_PROVIDER]);
         setEnabled(false);
         setApiKey("");
         toast.success("AI assistant disconnected");

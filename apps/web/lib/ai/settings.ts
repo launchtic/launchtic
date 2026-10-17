@@ -8,15 +8,18 @@
 // the operator controls the DB; encryption at this layer was security
 // theater. If the DB is compromised the encryption key (env-derived) is too.
 //
-// Adding a new provider:
-//   1. Append to AiProvider union
-//   2. Add entries to AVAILABLE_MODELS with provider tag
-//   3. Add factory branch in lib/ai/llm.ts → getModel()
+// The model catalog lives in ./models (client-safe, shared with the panel).
 
 import { db } from "@launchtic/database";
 import { maskInDemo } from "../demo";
+import {
+  DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_PROVIDER,
+  RETIRED_MODEL_REPLACEMENTS,
+  type AiProvider,
+} from "./models";
 
-export type AiProvider = "anthropic" | "google" | "deepseek" | "openai";
+export type { AiProvider } from "./models";
 
 export type AiSettings = {
   provider: AiProvider;
@@ -31,42 +34,6 @@ export type PublicAiSettings = {
   enabled: boolean;
   hasApiKey: boolean;
   apiKey: string;
-};
-
-// Whitelist — models verified to handle tool calling reliably. Letting users
-// pick arbitrary models leads to silent failures (model returns text instead
-// of tool_use, assistant appears broken).
-export type ModelEntry = {
-  id: string;
-  label: string;
-  provider: AiProvider;
-  hint: string;
-};
-
-export const AVAILABLE_MODELS: ModelEntry[] = [
-  // Anthropic
-  { id: "claude-haiku-4-5-20251001", provider: "anthropic", label: "Claude Haiku 4.5", hint: "Fast + cheap. Recommended." },
-  { id: "claude-sonnet-4-6",         provider: "anthropic", label: "Claude Sonnet 4.6", hint: "Balanced quality + speed." },
-  { id: "claude-opus-4-7",           provider: "anthropic", label: "Claude Opus 4.7",   hint: "Most capable. Slower + costly." },
-  // Google — Gemini has a generous free tier (15 RPM, 1M tokens/day) for dev.
-  { id: "gemini-2.0-flash",          provider: "google",    label: "Gemini 2.0 Flash",  hint: "Free tier · fast · good tool calling." },
-  { id: "gemini-2.5-flash",          provider: "google",    label: "Gemini 2.5 Flash",  hint: "Higher quality, free tier." },
-  { id: "gemini-2.5-pro",            provider: "google",    label: "Gemini 2.5 Pro",    hint: "Most capable Gemini." },
-  // DeepSeek — paid only but ~$0.27/1M cheap. No region restrictions. Good
-  // tool-calling on V3 (deepseek-chat). Reasoner skips tools, so we don't list it.
-  { id: "deepseek-chat",             provider: "deepseek",  label: "DeepSeek V3 (chat)", hint: "Cheap, no region restrictions, decent tool calling." },
-  // OpenAI — broad ecosystem, strong tool calling. gpt-4o-mini is cheap baseline,
-  // gpt-4o is the balanced workhorse.
-  { id: "gpt-4o-mini",               provider: "openai",    label: "GPT-4o mini",        hint: "Cheap + fast. Solid tool calling." },
-  { id: "gpt-4o",                    provider: "openai",    label: "GPT-4o",             hint: "Balanced quality + speed." },
-];
-
-export const DEFAULT_PROVIDER: AiProvider = "google";  // Free-tier-friendly default
-export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
-  anthropic: "claude-haiku-4-5-20251001",
-  google:    "gemini-2.0-flash",
-  deepseek:  "deepseek-chat",
-  openai:    "gpt-4o-mini",
 };
 
 export const PROVIDER_LABELS: Record<AiProvider, { label: string; keyHint: string; consoleUrl: string }> = {
@@ -96,7 +63,8 @@ export async function getAiSettings(workspaceId: string): Promise<AiSettings | n
   const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
   const ai = (settings?.ai as AiSettings | null) ?? null;
   if (!ai?.apiKey) return null;
-  return ai;
+  const replacement = RETIRED_MODEL_REPLACEMENTS[ai.model];
+  return replacement ? { ...ai, model: replacement } : ai;
 }
 
 export async function getPublicAiSettings(workspaceId: string): Promise<PublicAiSettings> {
