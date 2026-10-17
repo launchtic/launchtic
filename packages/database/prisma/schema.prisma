@@ -156,6 +156,9 @@ model Asset {
   // directly — no driver call needed at render. Storage migration is the
   // only event that requires rewriting this field.
   url         String
+  // Small WebP for media-library grids (or `url` itself when the original is
+  // already small / SVG). Null = not generated yet; filled lazily on listing.
+  thumbUrl    String?
   // Which driver wrote this file. Lets a mixed-storage workspace (some files
   // on local, some on S3 after a switch) read each file with the right driver.
   driver      String

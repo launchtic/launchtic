@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { getDriver } from "../../../../lib/storage";
+import { getDriver, thumbKey } from "../../../../lib/storage";
 
 const bodySchema = z.object({ key: z.string().min(1) });
 
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
 
     const driver = await getDriver(workspaceId);
     await driver.delete(key);
+    await driver.delete(thumbKey(key)).catch(() => {});   // may not exist
 
     // Also drop the Asset row tracking this file. Idempotent — works whether
     // the row existed (modern uploads) or didn't (legacy uploads pre-Asset).

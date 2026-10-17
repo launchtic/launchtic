@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
+import { HelpTooltip } from "../common/settings/HelpTooltip";
 import { uploadImage, deleteImage, getImages, pinImage, type ImageFile } from "../../lib/pageApi";
 import {
   ModalOverlay,
@@ -18,6 +19,10 @@ import {
   ActionButton,
   BottomContainer,
 } from "../common/ImageUploadModal.styles";
+
+// Fired by the upload button on an Image's toolbar (see Indicator) to open this
+// modal from the editor Header; detail = the Image nodeId.
+export const IMAGE_PICK_EVENT = "launchtic:image-pick";
 
 type Props = {
   onClose: () => void;
@@ -47,6 +52,8 @@ const DELETE_IMAGE_MESSAGE =
 
 const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
   const [activeTab, setActiveTab] = useState<"upload" | "yourImages">("upload");
+  // "Optimize uploaded images" — on every time the modal opens.
+  const [optimize, setOptimize] = useState(true);
 
   // ── Upload tab state ──
   const [preview, setPreview] = useState<string | null>(null);
@@ -139,7 +146,7 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
     setIsUploading(true);
     setError(null);
     try {
-      const result = await uploadImage(acceptedFiles[0]);   // flat library — no folder
+      const result = await uploadImage(acceptedFiles[0], undefined, optimize);   // flat library — no folder
       if (result.success && result.url) {
         setPreview(result.url);
         setUploadedImageKey(result.key);
@@ -153,7 +160,7 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
     } finally {
       setIsUploading(false);
     }
-  }, []);
+  }, [optimize]);
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
@@ -236,6 +243,14 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
               )}
             </UploadContainer>
 
+            <div style={{ display: "flex", alignItems: "center", marginTop: 12, fontSize: 13, color: "#333" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+                <input type="checkbox" checked={optimize} disabled={isUploading} onChange={(e) => setOptimize(e.target.checked)} />
+                Optimize uploaded images
+              </label>
+              <HelpTooltip text="Makes your pages load faster and helps your SEO. Keep this on unless you need the original file." />
+            </div>
+
             {preview && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#f9f9f9", display: "flex", alignItems: "center", gap: 12 }}>
@@ -282,8 +297,10 @@ const ImageUploadModal: React.FC<Props> = ({ onClose, onSelect }) => {
                   {displayImages.length > 0 ? displayImages.map(image => (
                     <div key={image.key} className="lt-img-tile" style={{ position: "relative" }}>
                       <ImageItem
-                        src={image.url}
+                        src={image.thumbUrl || image.url}
                         alt={image.name}
+                        loading="lazy"
+                        decoding="async"
                         onClick={() => { onSelect(image.url, image.assetId ?? null); onClose(); }}
                         style={{ opacity: deletingKey === image.key ? 0.4 : 1 }}
                         title={`${image.name} (${(image.size / 1024).toFixed(1)} KB)`}

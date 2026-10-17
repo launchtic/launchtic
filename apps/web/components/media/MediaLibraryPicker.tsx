@@ -4,7 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useRef, useState } from "re
 import { X, Loader2, ImageOff, Search, UploadCloud, Pin } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
-type MediaFile = { key: string; name: string; url: string; size: number; assetId?: string | null; pinned?: boolean };
+type MediaFile = { key: string; name: string; url: string; thumbUrl?: string | null; size: number; assetId?: string | null; pinned?: boolean };
 
 const PAGE_SIZE = 30;
 
@@ -185,10 +185,11 @@ export default function MediaLibraryPicker({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={f.url}
+                      src={f.thumbUrl || f.url}
                       alt={f.name}
                       title={f.name}
                       loading="lazy"
+                      decoding="async"
                       onClick={() => { onSelect(f.url); onClose(); }}
                       style={CHECKERBOARD_STYLE}
                       className="w-full h-full object-cover cursor-pointer"

@@ -5,6 +5,7 @@ import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { getDriver, getDriverName, buildKey } from "../../../../lib/storage";
 import { processUploadedImage } from "../../../../lib/media/process-image";
+import { storeThumbnail } from "../../../../lib/media/thumbnails";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"];
@@ -25,7 +26,9 @@ export async function POST(req: NextRequest) {
     const rawBuffer = Buffer.from(await file.arrayBuffer());
 
     // Resize, strip EXIF, recompress. SVG / GIF pass through unchanged.
-    const processed = await processUploadedImage(rawBuffer, file.type);
+    // optimize=false keeps the uploaded bytes as-is (default: optimize).
+    const optimize = formData.get("optimize") !== "false";
+    const processed = await processUploadedImage(rawBuffer, file.type, optimize);
 
     // Dedup: if an Asset with the same content hash already exists in this
     // workspace, reuse it. Saves storage + bandwidth + lets the editor
@@ -57,6 +60,9 @@ export async function POST(req: NextRequest) {
     const key = buildKey(workspaceId, file.name);
     const driver = await getDriver(workspaceId);
     const url = await driver.upload(key, processed.buffer, processed.mimeType);
+    // Best-effort: on failure the listing backfills it later.
+    const thumbUrl = await storeThumbnail(driver, key, processed.buffer, processed.mimeType, url)
+      .catch(() => null);
 
     const asset = await db.asset.create({
       data: {
@@ -69,6 +75,7 @@ export async function POST(req: NextRequest) {
         height:      processed.height,
         storagePath: key,
         url,
+        thumbUrl,
         driver:      driverName,
       },
       select: { id: true },

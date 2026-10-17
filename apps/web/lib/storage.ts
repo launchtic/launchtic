@@ -1,4 +1,4 @@
-import { mkdir, writeFile, unlink, readdir, stat, copyFile, rm } from "fs/promises";
+import { mkdir, writeFile, readFile, unlink, readdir, stat, copyFile, rm } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
@@ -24,6 +24,7 @@ export interface ListResult {
 export interface StorageDriver {
   upload(key: string, buffer: Buffer, mimeType: string): Promise<string>;
   delete(key: string): Promise<void>;
+  read(key: string): Promise<Buffer>;
   list(prefix: string, limit?: number, continuationToken?: string): Promise<ListResult>;
   /** Native server-side copy (no buffer through this app). Returns new public URL. */
   copy(srcKey: string, destKey: string): Promise<string>;
@@ -72,6 +73,14 @@ export function buildKey(workspaceId: string, filename: string, folder?: string)
   return `${workspaceId}/${file}`;
 }
 
+/**
+ * Storage key of a file's grid thumbnail. Lives outside the workspace prefix
+ * (`_thumbs/{ws}/…`) so library listings and their pagination never see it.
+ */
+export function thumbKey(key: string): string {
+  return `_thumbs/${key}.webp`;
+}
+
 // ─── Local driver ────────────────────────────────────────────────────────────
 
 export class LocalDriver implements StorageDriver {
@@ -88,6 +97,10 @@ export class LocalDriver implements StorageDriver {
   async delete(key: string): Promise<void> {
     const filePath = join(this.root, ...key.split("/"));
     await unlink(filePath);
+  }
+
+  async read(key: string): Promise<Buffer> {
+    return readFile(join(this.root, ...key.split("/")));
   }
 
   /**
@@ -158,8 +171,8 @@ export class LocalDriver implements StorageDriver {
 
   /** Wipe the entire workspace folder. force:true → no error if missing. */
   async purge(workspaceId: string): Promise<void> {
-    const dir = join(this.root, workspaceId);
-    await rm(dir, { recursive: true, force: true });
+    await rm(join(this.root, workspaceId), { recursive: true, force: true });
+    await rm(join(this.root, "_thumbs", workspaceId), { recursive: true, force: true });
   }
 }
 
@@ -230,6 +243,13 @@ class S3Driver implements StorageDriver {
     await client.send(new DeleteObjectCommand({ Bucket: this.cfg.bucket, Key: key }));
   }
 
+  async read(key: string): Promise<Buffer> {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.client();
+    const res = await client.send(new GetObjectCommand({ Bucket: this.cfg.bucket, Key: key }));
+    return Buffer.from(await res.Body!.transformToByteArray());
+  }
+
   async list(prefix: string, limit = 20, continuationToken?: string): Promise<ListResult> {
     const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
     const client = await this.client();
@@ -264,22 +284,24 @@ class S3Driver implements StorageDriver {
   async purge(workspaceId: string): Promise<void> {
     const { ListObjectsV2Command, DeleteObjectsCommand } = await import("@aws-sdk/client-s3");
     const client = await this.client();
-    let token: string | undefined;
-    do {
-      const list = await client.send(new ListObjectsV2Command({
-        Bucket: this.cfg.bucket,
-        Prefix: `${workspaceId}/`,
-        ContinuationToken: token,
-      }));
-      const keys = (list.Contents ?? []).map((o) => ({ Key: o.Key! }));
-      if (keys.length > 0) {
-        await client.send(new DeleteObjectsCommand({
+    for (const prefix of [`${workspaceId}/`, `_thumbs/${workspaceId}/`]) {
+      let token: string | undefined;
+      do {
+        const list = await client.send(new ListObjectsV2Command({
           Bucket: this.cfg.bucket,
-          Delete: { Objects: keys, Quiet: true },
+          Prefix: prefix,
+          ContinuationToken: token,
         }));
-      }
-      token = list.IsTruncated ? list.NextContinuationToken ?? undefined : undefined;
-    } while (token);
+        const keys = (list.Contents ?? []).map((o) => ({ Key: o.Key! }));
+        if (keys.length > 0) {
+          await client.send(new DeleteObjectsCommand({
+            Bucket: this.cfg.bucket,
+            Delete: { Objects: keys, Quiet: true },
+          }));
+        }
+        token = list.IsTruncated ? list.NextContinuationToken ?? undefined : undefined;
+      } while (token);
+    }
   }
 }
 

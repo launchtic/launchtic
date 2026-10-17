@@ -4,6 +4,7 @@ import { getRandomId } from "@launchtic/editor-utils";
 import { useNodeState } from "../hooks/useNodeState";
 import { Node } from "@launchtic/editor-core";
 import { AI_EDIT_EVENT, type AiEditTarget } from "../app/AiEditModal";
+import { IMAGE_PICK_EVENT } from "../toolbar/ImageUploadModal";
 
 // Elements whose text the AI edit modal can work on.
 const AI_EDITABLE = new Set(["Section", "Row", "Headline", "Text", "Button", "FAQ", "BulletedList"]);
@@ -401,6 +402,11 @@ export const Indicator: React.FC<IndicatorProps> = ({ name }) => {
     window.dispatchEvent(new CustomEvent<AiEditTarget>(AI_EDIT_EVENT, { detail: { nodeId: id, name } }));
   };
 
+  const openImagePicker = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent<string>(IMAGE_PICK_EVENT, { detail: id }));
+  };
+
   const handleDuplicate = (e: React.MouseEvent) => {
     e.stopPropagation();
     const nodeToClone = query.node(id).get();
@@ -501,6 +507,11 @@ export const Indicator: React.FC<IndicatorProps> = ({ name }) => {
         {AI_EDITABLE.has(name) && (
           <IndicatorButton onClick={openAiEdit} title="Edit text with AI">
             <i className="fa-solid fa-wand-magic-sparkles"></i>
+          </IndicatorButton>
+        )}
+        {name === "Image" && (
+          <IndicatorButton onClick={openImagePicker} title="Change image">
+            <i className="fas fa-upload"></i>
           </IndicatorButton>
         )}
         <IndicatorButton onClick={handleSelectParent}>

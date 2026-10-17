@@ -44,6 +44,8 @@ export interface ImageFile {
   key: string;
   name: string;
   url: string;
+  /** Small WebP for grids; null when not generated (legacy files) — use url. */
+  thumbUrl?: string | null;
   size: number;
   lastModified?: string;
   /** Asset id when the file has a tracked DB row (new uploads). null for legacy
@@ -98,12 +100,14 @@ export const pinImage = async (
 
 export const uploadImage = async (
   file: File,
-  folder?: string
+  folder?: string,
+  optimize = true,
 ): Promise<{ success: boolean; url: string; key: string; assetId: string | null; message: string }> => {
   try {
     const formData = new FormData();
     formData.append("file", file);
     if (folder) formData.append("folder", folder);
+    if (!optimize) formData.append("optimize", "false");
 
     const res = await fetch("/api/media/upload", { method: "POST", body: formData });
     const result = await res.json();

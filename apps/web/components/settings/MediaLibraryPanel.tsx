@@ -12,6 +12,7 @@ type MediaFile = {
   key:           string;
   name:          string;
   url:           string;
+  thumbUrl?:     string | null;
   size:          number;
   lastModified?: string;
   assetId?:      string | null;
@@ -229,10 +230,11 @@ function MediaCard({
       <div className="aspect-square bg-gray-50 relative overflow-hidden flex items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={file.url}
+          src={file.thumbUrl || file.url}
           alt={file.name}
           className="w-full h-full object-cover"
           loading="lazy"
+          decoding="async"
           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
         />
         {busy && (

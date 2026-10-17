@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 declare global { interface Window { data?: any } }
 import { useEditor } from "@launchtic/editor-core";
@@ -14,6 +15,7 @@ import {
 } from "./layout/EditorUI";
 import AiRewriteModal from "./AiRewriteModal";
 import AiEditModal, { AI_EDIT_EVENT, type AiEditTarget } from "./AiEditModal";
+import ImageUploadModal, { IMAGE_PICK_EVENT } from "../toolbar/ImageUploadModal";
 
 const Header: React.FC = () => {
   const [showAiRewrite, setShowAiRewrite] = useState(false);
@@ -23,6 +25,13 @@ const Header: React.FC = () => {
     const open = (e: Event) => setAiEditTarget((e as CustomEvent<AiEditTarget>).detail);
     window.addEventListener(AI_EDIT_EVENT, open);
     return () => window.removeEventListener(AI_EDIT_EVENT, open);
+  }, []);
+
+  const [imagePickNodeId, setImagePickNodeId] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (e: Event) => setImagePickNodeId((e as CustomEvent<string>).detail);
+    window.addEventListener(IMAGE_PICK_EVENT, open);
+    return () => window.removeEventListener(IMAGE_PICK_EVENT, open);
   }, []);
   // Simple and clean — only pull what we need
   const { selectedNodeId, actions, query, canUndo, canRedo } = useEditor((state, query) => ({
@@ -183,6 +192,18 @@ const Header: React.FC = () => {
       </HeaderActionsWrapper>
       {showAiRewrite && <AiRewriteModal onClose={() => setShowAiRewrite(false)} />}
       {aiEditTarget && <AiEditModal target={aiEditTarget} onClose={() => setAiEditTarget(null)} />}
+      {imagePickNodeId && createPortal(
+        // Own stacking context above the canvas toolbars.
+        <div style={{ position: "relative", zIndex: 100000 }}>
+          <ImageUploadModal
+            onClose={() => setImagePickNodeId(null)}
+            onSelect={(url, assetId) => actions.setProp(imagePickNodeId, (p: any) => {
+              p.imageDetail = { ...p.imageDetail, url, assetId };
+            })}
+          />
+        </div>,
+        document.body,
+      )}
     </HeaderContainer>
   );
 };
