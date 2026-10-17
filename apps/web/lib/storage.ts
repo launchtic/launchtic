@@ -40,23 +40,72 @@ const LEADING_SHORT_ID_RE = /^[0-9a-f]{8}-/i;     // matches our own short-id pr
 const MAX_BASE_LEN = 40;
 
 function sanitizeName(filename: string): string {
-  return filename.replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase();
+  return filename
+    // Drop diacritics instead of the whole letter: "hình" → "hinh", not "h_nh".
+    .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D")
+    .replace(/[^a-zA-Z0-9._-]/g, "_").toLowerCase();
+}
+
+// Names that image tools give files on export ("ChatGPT Image 16_17_30 12 thg
+// 8, 2026", "Gemini_Generated_Image_8y47no…", "Screenshot 2026-08-14 at
+// 11.00.38", "Untitled 2", Canva's Vietnamese "Thiết kế chưa có tên"). They end up in public URLs and say nothing about
+// the image, so cleanFilename() drops them along with their date/hash noise.
+const GENERATED_NAME_RE = /\b(chat\s*gpt|gemini|dall[\s·-]*e|midjourney|copilot|firefly|screen\s*shot|untitled)\b/i;
+// Tokens left over from such names: generic words, month names (en + vi
+// "thg"), numbers, and hash-like ids (mixed letters + digits, 8+ chars).
+const GENERATED_NOISE_RE =
+  /^(image|img|generated|at|am|pm|thg|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)$|^\d+$|^(?=.*\d)[a-z0-9]{8,}$/i;
+
+/**
+ * Human-meaningful display name for an uploaded file:
+ *  - strips our own leading id prefixes (re-uploads of downloaded files);
+ *  - always drops editing-tool marks: "Photoroom", "Background Removed",
+ *    "removebg-preview", and
+ *    trailing " copy 2" / " (1)";
+ *  - for tool-generated names, drops the tool name and its date/hash noise.
+ * Falls back to "image" when nothing meaningful is left. Keeps the extension.
+ */
+export function cleanFilename(filename: string): string {
+  // NFC: macOS uploads arrive decomposed ("e" + combining marks).
+  const name = filename.normalize("NFC").trim();
+  const lastDot = name.lastIndexOf(".");
+  let base  = lastDot > 0 ? name.slice(0, lastDot) : name;
+  const ext = lastDot > 0 ? name.slice(lastDot)    : "";
+
+  // A bare UUID name ("3ed99709-f4d1-….png") is as meaningless as a tool name.
+  base = base.replace(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}(?=[\s(]|$)/i, "");
+  // Strip ANY leading ID prefix(es) from previous hops — UUID v4 or short hex id.
+  while (LEADING_UUID_RE.test(base) || LEADING_SHORT_ID_RE.test(base)) {
+    base = base.replace(LEADING_UUID_RE, "").replace(LEADING_SHORT_ID_RE, "");
+  }
+
+  base = base.replace(/_+/g, " ").replace(/photoroom|background\s+removed|-?removebg(-preview)?/gi, " ");
+  for (let prev = ""; prev !== base;) {
+    prev = base;
+    base = base.replace(/[\s.,_-]+$/, "").replace(/\s*\(\d+\)$/, "").replace(/\s+copy(\s+\d+)?$/i, "");
+  }
+
+  if (GENERATED_NAME_RE.test(base)) {
+    base = base
+      .replace(new RegExp(GENERATED_NAME_RE.source, "gi"), " ")
+      .split(/[\s.,()-]+/)
+      .filter((t) => t && !GENERATED_NOISE_RE.test(t))
+      .join(" ");
+  }
+
+  base = base.replace(/\s+/g, " ").trim();
+  return `${base || "image"}${ext}`;
 }
 
 /**
  * Build a short, predictable storage key. Output filename format:
  *   {8-hex-id}-{sanitized-base-up-to-40-chars}.{ext}
  *
- * Strips any leading UUID (or our own short-id prefix) recursively so a file
- * making multiple round trips (download → re-upload → export → import) does
- * not accumulate IDs in its name.
+ * The name goes through cleanFilename(): no accumulated IDs from round trips
+ * (download → re-upload → export → import), no tool-generated noise.
  */
 export function buildKey(workspaceId: string, filename: string, folder?: string): string {
-  let name = filename;
-  // Strip ANY leading ID prefix(es) from previous hops — UUID v4 or short hex id.
-  while (LEADING_UUID_RE.test(name) || LEADING_SHORT_ID_RE.test(name)) {
-    name = name.replace(LEADING_UUID_RE, "").replace(LEADING_SHORT_ID_RE, "");
-  }
+  const name = cleanFilename(filename);
 
   const lastDot = name.lastIndexOf(".");
   const base = lastDot > 0 ? name.slice(0, lastDot) : name;
@@ -71,6 +120,16 @@ export function buildKey(workspaceId: string, filename: string, folder?: string)
     return `${workspaceId}/${sanitizeName(folder.trim())}/${file}`;
   }
   return `${workspaceId}/${file}`;
+}
+
+/**
+ * Library display name. A name that cleaned down to the bare "image" fallback
+ * shows the storage file name instead ("2a7fa121-image.png") so such files
+ * stay tellable apart.
+ */
+export function assetDisplayName(filename: string, key: string): string {
+  const name = cleanFilename(filename);
+  return /^image(\.[^.]*)?$/i.test(name) ? key.slice(key.lastIndexOf("/") + 1) : name;
 }
 
 /**

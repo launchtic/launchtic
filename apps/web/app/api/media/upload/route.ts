@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { db } from "@launchtic/database";
 import { ok, err } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
-import { getDriver, getDriverName, buildKey } from "../../../../lib/storage";
+import { getDriver, getDriverName, buildKey, assetDisplayName } from "../../../../lib/storage";
 import { processUploadedImage } from "../../../../lib/media/process-image";
 import { storeThumbnail } from "../../../../lib/media/thumbnails";
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     const asset = await db.asset.create({
       data: {
         workspaceId,
-        filename:    file.name,
+        filename:    assetDisplayName(file.name, key),
         mimeType:    processed.mimeType,
         sha256,
         bytes:       processed.bytesOut,
