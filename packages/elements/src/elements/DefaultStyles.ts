@@ -197,8 +197,8 @@ export const DEFAULT_STYLES = {
     rawContentState: "",
     padding: { paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 },
     mobilePadding: { paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 },
-    margin: { marginTop: 20, marginBottom: 20, marginLeft: 0, marginRight: 0 },
-    mobileMargin: { marginTop: 10, marginBottom: 10, marginLeft: 0, marginRight: 0 },
+    margin: { marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 },
+    mobileMargin: { marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 },
     backgroundColor: undefined,
     mobileBackgroundColor: undefined,
     textAlign: "left", // Default text alignment
