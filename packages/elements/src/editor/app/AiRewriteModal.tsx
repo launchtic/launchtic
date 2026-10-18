@@ -163,20 +163,14 @@ const pageStages = (total: number | null) => [
   "Checking formatting stays intact",
 ];
 
+// Compact: the shimmer bar + only the current stage.
 export const AiProgress: React.FC<{ stages: string[]; index: number }> = ({ stages, index }) => (
   <ProgressBox>
     <ShimmerBar />
-    {stages.slice(0, index + 1).map((label, i) => {
-      const state = i < index ? "done" : "active";
-      return (
-        <StageRow key={label} $state={state}>
-          {state === "done"
-            ? <i className="fa-solid fa-circle-check" style={{ color: "#22a06b", width: 14 }} />
-            : <Spinner />}
-          {label}{state === "active" && "…"}
-        </StageRow>
-      );
-    })}
+    <StageRow $state="active">
+      <Spinner />
+      {stages[index]}…
+    </StageRow>
   </ProgressBox>
 );
 
