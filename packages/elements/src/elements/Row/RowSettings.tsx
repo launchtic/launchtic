@@ -10,13 +10,16 @@ import { BackgroundImageSettings } from "../../editor/toolbar/BackgroundImageSet
 import { BoxShadowSettings } from "../../editor/toolbar/BoxShadowSettings";
 import { BorderSettings } from "../../editor/toolbar/BorderSettings";
 import { RowColumnSettings } from "../../editor/toolbar/RowColumnSettings";
-import { SliderControl, SettingsGroup, Label, CheckboxWrapper, CheckboxInput } from "../../editor/common/SettingsUI";
+import { SliderControl, SettingsGroup, Label, CheckboxWrapper, CheckboxInput, Select } from "../../editor/common/SettingsUI";
 import { HelpTooltip } from "../../editor/common/settings/HelpTooltip";
+import { ViewModeIcon } from "../../editor/common/settings/ViewModeIcon";
+import { useAppContext } from "../../contexts/AppContext";
 
 import { RowProps } from "../ElementProps"; // Import the canonical type
 import { DEFAULT_STYLES } from "../DefaultStyles"; // Import default styles
 
 export const RowSettings: React.FC = () => {
+  const { viewMode } = useAppContext();
 
   const {
     actions: { setProp },
@@ -37,6 +40,8 @@ export const RowSettings: React.FC = () => {
     disableStacking,
     reverseColumns,
     gap,
+    mobileGap,
+    verticalAlign,
     equalHeightCards,
   } = useNode<RowProps>((node) => ({
     appearance: node.data.props.appearance,
@@ -56,6 +61,8 @@ export const RowSettings: React.FC = () => {
     disableStacking: node.data.props.disableStacking,
     reverseColumns: node.data.props.reverseColumns,
     gap: node.data.props.gap,
+    mobileGap: node.data.props.mobileGap,
+    verticalAlign: node.data.props.verticalAlign,
     equalHeightCards: node.data.props.equalHeightCards,
   }));
 
@@ -76,16 +83,31 @@ export const RowSettings: React.FC = () => {
         setMobilePadding={updateProp("mobilePadding")}
       />
 
-      {/* Column gap — single value applies to both desktop (horizontal
-          between columns) and mobile (vertical between stacked columns). */}
+      {/* Column gap — desktop: horizontal between columns; mobile: vertical
+          between stacked columns, inheriting the desktop value until set. */}
       <SettingsGroup>
-        <Label>Spacing between columns</Label>
+        <Label>Spacing between columns <ViewModeIcon /></Label>
         <SliderControl
-          value={gap ?? 10}
+          value={viewMode === "mobile" ? (mobileGap ?? gap ?? 10) : (gap ?? 10)}
           min={0}
           max={100}
-          onChange={updateProp("gap")}
+          onChange={updateProp(viewMode === "mobile" ? "mobileGap" : "gap")}
         />
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <Label>
+          Vertical alignment
+          <HelpTooltip text="Aligns the columns vertically, e.g. an icon centered next to a headline. Applies while columns sit side by side." />
+        </Label>
+        <Select
+          value={verticalAlign ?? "top"}
+          onChange={(e) => updateProp("verticalAlign")(e.target.value as RowProps["verticalAlign"])}
+        >
+          <option value="top">Top</option>
+          <option value="center">Center</option>
+          <option value="bottom">Bottom</option>
+        </Select>
       </SettingsGroup>
 
       <SettingsGroup>

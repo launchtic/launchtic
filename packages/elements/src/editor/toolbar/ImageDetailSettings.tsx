@@ -240,6 +240,26 @@ export const ImageDetailSettings: React.FC<ImageDetailSettingsProps> = ({
       </InputWrapper>
 
       <Divider/>
+
+      <Label>Aspect ratio <ViewModeIcon /></Label>
+      <Select
+        value={(viewMode === "mobile" ? (imageDetail?.mobileAspectRatio ?? imageDetail?.aspectRatio) : imageDetail?.aspectRatio) ?? "auto"}
+        onChange={(e) => {
+          const value = e.target.value;
+          if (viewMode === "mobile") updateImageProperty("mobileAspectRatio", value);
+          else updateImageProperty("aspectRatio", value === "auto" ? undefined : value);
+        }}
+      >
+        <option value="auto">Original</option>
+        <option value="1/1">1:1 (Square)</option>
+        <option value="4/3">4:3</option>
+        <option value="3/2">3:2</option>
+        <option value="16/9">16:9</option>
+        <option value="3/4">3:4 (Portrait)</option>
+        <option value="4/5">4:5 (Portrait)</option>
+      </Select>
+
+      <Divider/>
       
       <CheckboxWrapper>
         <Label>Fill 100% width <ViewModeIcon /></Label>

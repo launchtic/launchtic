@@ -60,13 +60,15 @@ const RowMain = styled.div<{
   $disableStacking?: boolean;
   $reverseColumns?: boolean;
   $gap?: number;
+  $mobileGap?: number;
+  $verticalAlign?: RowProps["verticalAlign"];
   $stretch?: boolean;
 }>`
   position: relative;
   ${({ $stretch }) => $stretch && "flex: 1;"}
   /* CSS gap shorthand — works for both grid (desktop, horizontal between
      columns) and flex column (mobile stacked, vertical between rows).
-     Single value applies in both viewports. */
+     Mobile overrides it with mobileGap when set (media query below). */
   gap: ${({ $gap }) => ($gap ?? 10)}px;
 
   ${({ $viewMode, $disableStacking }) =>
@@ -75,6 +77,12 @@ const RowMain = styled.div<{
       display: grid;
       grid-template-columns: repeat(12, 1fr);
   `}
+
+  /* Columns side by side: center/bottom them instead of stretching. */
+  ${({ $viewMode, $disableStacking, $verticalAlign }) =>
+    ($viewMode === "desktop" || $disableStacking) &&
+    ($verticalAlign === "center" || $verticalAlign === "bottom") &&
+    `align-items: ${$verticalAlign === "center" ? "center" : "end"};`}
   
   ${({ $viewMode, $disableStacking, $reverseColumns }) =>
     $viewMode === "mobile" && !$disableStacking &&
@@ -115,6 +123,10 @@ const RowMain = styled.div<{
   `}
 
   @media (max-width: 800px) {
+    ${({ $mobileGap }) => $mobileGap !== undefined && `gap: ${$mobileGap}px;`}
+    /* Stacked columns: align-items would act horizontally, so reset it. */
+    ${({ $disableStacking, $verticalAlign }) => !$disableStacking && $verticalAlign && "align-items: stretch;"}
+
     ${({ $disableStacking, $reverseColumns }) =>
     !$disableStacking &&
     css`
@@ -214,7 +226,9 @@ export const Row: UserComponent<RowProps> = ({ children, ...props }) => {
     mobileBackgroundColor: props.mobileBackgroundColor,
     mobileBackgroundImage: props.mobileBackgroundImage,
     mobileBoxShadow: props.mobileBoxShadow,
-    gap: props.gap,
+    gap: getValueByViewMode(viewMode, props.gap, props.mobileGap),
+    mobileGap: props.mobileGap,
+    verticalAlign: props.verticalAlign,
   };
 
 
@@ -284,6 +298,8 @@ export const Row: UserComponent<RowProps> = ({ children, ...props }) => {
               $disableStacking={resolvedProps.disableStacking}
               $reverseColumns={resolvedProps.reverseColumns}
               $gap={resolvedProps.gap}
+              $mobileGap={resolvedProps.mobileGap}
+              $verticalAlign={resolvedProps.verticalAlign}
             >
               {children}
             </RowMain>

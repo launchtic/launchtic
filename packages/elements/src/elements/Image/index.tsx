@@ -45,6 +45,8 @@ const PictureWrapper = styled.picture`
 const StyledImage = styled.img<{
   $width?: number;
   $mobileWidth?: number;
+  $aspectRatio?: string;
+  $mobileAspectRatio?: string;
   $boxShadow?: string;
   $mobileBoxShadow?: string;
   $border?: ImageProps["border"];
@@ -70,6 +72,8 @@ const StyledImage = styled.img<{
 
   ${({ $width }) => $width !== undefined ? `width: ${$width}px;` : `width: 100%;`}
 
+  ${({ $aspectRatio }) => $aspectRatio && `aspect-ratio: ${$aspectRatio}; height: auto; object-fit: cover;`}
+
   @media (max-width: 800px) {
     ${({ $mobileBorder, $mobileBoxShadow }) => css`
       ${$mobileBorder?.style && `border-style: ${$mobileBorder.style};`}
@@ -90,6 +94,13 @@ const StyledImage = styled.img<{
                      (used when desktop is fixed but designer wants mobile
                      edge-to-edge — common landing page pattern)
        - >0        → fixed pixel width on mobile */
+    ${({ $mobileAspectRatio }) =>
+      $mobileAspectRatio === "auto"
+        ? `aspect-ratio: auto; height: 100%; object-fit: contain;`
+        : $mobileAspectRatio
+          ? `aspect-ratio: ${$mobileAspectRatio}; height: auto; object-fit: cover;`
+          : ""}
+
     ${({ $mobileWidth }) =>
       $mobileWidth === 0
         ? `width: 100%;`
@@ -123,6 +134,11 @@ export const Image: UserComponent<ImageProps> = ({ ...props }) => {
     }
     return rawDetail.width;
   })();
+  // Same idea for the crop ratio; "auto" on mobile = original ratio.
+  const resolvedAspectRatio: string | undefined = (() => {
+    const ratio = viewMode === "mobile" ? (rawDetail.mobileAspectRatio ?? rawDetail.aspectRatio) : rawDetail.aspectRatio;
+    return ratio === "auto" ? undefined : ratio;
+  })();
 
   const resolvedProps = {
     delay: props.delay,
@@ -142,6 +158,7 @@ export const Image: UserComponent<ImageProps> = ({ ...props }) => {
     // Image specific properties
     imageDetail: rawDetail,
     resolvedWidth,
+    resolvedAspectRatio,
   };
 
   const { isActive, isHover, enabled } = useNodeState();
@@ -168,6 +185,8 @@ export const Image: UserComponent<ImageProps> = ({ ...props }) => {
         /* raw mobileWidth — kept for CSS @media (max-width: 800px) so the
            rendered page on a real mobile device still switches correctly */
         $mobileWidth={resolvedProps.imageDetail.mobileWidth}
+        $aspectRatio={resolvedProps.resolvedAspectRatio}
+        $mobileAspectRatio={resolvedProps.imageDetail.mobileAspectRatio}
         $boxShadow={resolvedProps.boxShadow}
         $mobileBoxShadow={resolvedProps.mobileBoxShadow}
         $border={resolvedProps.border}

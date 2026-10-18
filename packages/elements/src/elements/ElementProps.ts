@@ -232,6 +232,12 @@ export type ImageDetailProps = {
   alt?: string;
   width?: number;        // desktop width (px). undefined → fill 100%.
   mobileWidth?: number;  // mobile override. undefined → fall back to `width`.
+  /** Crop to a fixed ratio ("4/3", "16/9"…) with object-fit: cover, so images
+   * of different sizes line up. undefined → original ratio. */
+  aspectRatio?: string;
+  /** Mobile override. undefined → fall back to `aspectRatio`; "auto" →
+   * explicit original ratio on mobile. */
+  mobileAspectRatio?: string;
 };
 
 export type ImageProps = {
@@ -330,9 +336,13 @@ export type RowProps =
   {
     disableStacking?: boolean;
     reverseColumns?: boolean;
-    // Gap between columns. Single value applies to BOTH desktop grid
-    // (horizontal spacing) and mobile flex stacked (vertical spacing).
+    // Gap between columns: desktop grid (horizontal spacing). Also used on
+    // mobile (vertical spacing between stacked columns) unless mobileGap is set.
     gap?: number;
+    mobileGap?: number;
+    // Vertical alignment of the columns side by side (desktop, or mobile with
+    // stacking disabled). Unset/"top" = columns stretch to the tallest one.
+    verticalAlign?: "top" | "center" | "bottom";
     // Stretch Rows placed directly inside this Row's columns (cards) to the
     // tallest column, so a grid of cards lines up regardless of text length.
     equalHeightCards?: boolean;
