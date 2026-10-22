@@ -9,6 +9,7 @@
 // files, so files added to the product later show up as new.
 
 import { db } from "@launchtic/database";
+import { instanceIdOf } from "./license";
 
 export type ProductFile = { name: string; bytes: number };
 export type ProductListing = {
@@ -22,11 +23,12 @@ function serverUrl(): string {
   return process.env.LICENSE_SERVER_URL ?? "https://launchtic.com";
 }
 
-// Stable per-Organization id — the same one plan-license verification uses.
-// Created on first need so Free installs (no plan license) get one too.
+// Same id plan-license verification uses: the server's LAUNCHTIC_INSTANCE_ID
+// when set (stable across reinstalls), else one stored on the Organization —
+// created on first need so installs without the env var get one too.
 export async function instanceIdFor(organizationId: string): Promise<string> {
   const org = await db.organization.findUnique({ where: { id: organizationId }, select: { instanceId: true } });
-  let instanceId = org?.instanceId;
+  let instanceId = instanceIdOf(org?.instanceId);
   if (!instanceId) {
     instanceId = crypto.randomUUID();
     await db.organization.update({ where: { id: organizationId }, data: { instanceId } });

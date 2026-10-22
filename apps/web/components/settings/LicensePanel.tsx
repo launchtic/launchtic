@@ -50,8 +50,8 @@ export default function LicensePanel() {
 }
 
 // ─── Activate form ─────────────────────────────────────────────────────────
-// Free instances can activate an Agency key bought after install (install.sh
-// --license covers the at-install case). Reloads on success so plan-gated UI
+// Free instances activate a license key here — the installer no longer takes
+// one, so this is the only place keys are entered. Reloads on success so plan-gated UI
 // (sidebar, workspaces, white-label) picks up the new plan.
 
 function ActivateForm() {

@@ -19,16 +19,15 @@ Launchtic combines a drag-and-drop page builder with payment processing, email a
 
 ## Quick start
 
-One-line install on a fresh Ubuntu/Debian VPS (Docker auto-installed). Replace
-`LT-XXXX-XXXX-XXXX-XXXX` with your license key:
+One-line install on a fresh Ubuntu/Debian VPS (Docker auto-installed). No license needed:
 
 ```bash
-curl -fsSL https://launchtic.com/install | bash -s -- --license LT-XXXX-XXXX-XXXX-XXXX
+curl -fsSL https://launchtic.com/install | bash
 ```
 
-> Copy the command with your key already embedded from your [account](https://launchtic.com/account).
+The installer checks requirements, installs Docker, and starts everything. Then open `http://<your-server-ip>` — a browser wizard creates your admin account and points two subdomains (dashboard + pages) at your server, with SSL issued automatically by Caddy.
 
-The installer validates your license, installs Docker, and starts everything. Then open `http://<your-server-ip>` — a browser wizard creates your admin account and points two subdomains (dashboard + pages) at your server, with SSL issued automatically by Caddy.
+Bought Agency or an add-on? Paste the key in **Settings → License & Updates** after setup.
 
 ## Tech stack
 

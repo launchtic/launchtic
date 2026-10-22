@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
-import { verifyLicenseKey } from "../../../lib/license";
+import { verifyLicenseKey, instanceIdOf } from "../../../lib/license";
 import { demoGuard } from "../../../lib/demo";
 
 const activateSchema = z.object({
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     // Stable instanceId per Organization so the license server can detect key
     // sharing across installations.
-    const instanceId = organization.instanceId ?? crypto.randomUUID();
+    const instanceId = instanceIdOf(organization.instanceId) ?? crypto.randomUUID();
 
     const result = await verifyLicenseKey(licenseKey, instanceId);
     if (!result.valid) return err(result.error ?? "Invalid license key.", 400);
