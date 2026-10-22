@@ -62,6 +62,9 @@ model Organization {
   // Stable per-install ID sent with license verify so the license server can
   // detect key sharing across installations.
   instanceId        String?
+  // Purchased product keys (template packs…) entered under Settings → License.
+  // Their files are listed + downloaded from the license server on demand.
+  productKeys       String[]  @default([])
 
   // White-label branding overrides (Agency/Custom tier only). JSON shape:
   // Null/empty fields fall back to launchtic defaults. Gated at write time by

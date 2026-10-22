@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, ExternalLink, ShieldCheck, ShieldOff } from "lucide-react";
+import { Loader2, ExternalLink, ShieldCheck, Server } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 import { planLabel, planColor } from "@launchtic/database";
 import { useRole } from "../../lib/role";
@@ -71,10 +71,10 @@ function StatusHero({
         iconBg:   "bg-gray-100",
         iconFg:   "text-gray-500",
         accent:   "text-gray-900",
-        Icon:     ShieldOff,
-        eyebrow:  "No license",
-        title:    "Unlicensed",
-        subtitle: "No license detected on this instance. Get a license to unlock Launchtic.",
+        Icon:     Server,
+        eyebrow:  "Self-hosted",
+        title:    "Free plan",
+        subtitle: "All core features, free forever. Upgrade to Agency for multiple workspaces and white-label.",
       }
     : {
         bg:       "bg-green-50",
@@ -122,7 +122,7 @@ function StatusHero({
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-900 hover:bg-black text-white rounded-lg leading-none"
           >
-            <span>Get a license</span>
+            <span>View plans</span>
             <ExternalLink size={11} />
           </a>
         ) : isOwner && (
