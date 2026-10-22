@@ -35,7 +35,7 @@ const patchSchema = z.object({
   meta:         metaSchema,
   tags:         z.array(z.string().min(1).max(40)).max(20).optional(),
   isActive:     z.boolean().optional(),
-  type:         z.enum(["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional(),
+  type:         z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };

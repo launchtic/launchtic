@@ -8,8 +8,7 @@ import { apiFetch } from "../../lib/api-client";
 // CUSTOM = generic static page (About / Privacy / Terms / Contact / FAQ).
 // UPSELL/DOWNSELL = one-click post-purchase offers (charge the saved card).
 const STEP_TYPES = [
-  { value: "OPTIN",    label: "Opt-in" },
-  { value: "SALES",    label: "Sales" },
+  { value: "LANDING",  label: "Landing page" },
   { value: "CHECKOUT", label: "Checkout" },
   { value: "UPSELL",   label: "Upsell" },
   { value: "DOWNSELL", label: "Downsell" },
@@ -22,7 +21,7 @@ export default function AddStepDialog({ funnelId, fullWidth, onAdded }: { funnel
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [type, setType] = useState("OPTIN");
+  const [type, setType] = useState("LANDING");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -46,7 +45,7 @@ export default function AddStepDialog({ funnelId, fullWidth, onAdded }: { funnel
     }
 
     setOpen(false);
-    setName(""); setType("OPTIN");
+    setName(""); setType("LANDING");
     // Tell the parent which step was created so it can focus/select it. The
     // refresh below then reconciles the list with server data.
     onAdded?.(json.data);

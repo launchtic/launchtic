@@ -21,7 +21,7 @@ import {
 
 type Props = { templateId: string; workspaceSlug: string };
 
-function injectWindowData(templateId: string, pageJson: string, workspaceSlug: string, stepType: string = "OPTIN") {
+function injectWindowData(templateId: string, pageJson: string, workspaceSlug: string, stepType: string = "LANDING") {
   (window as any).data = {
     pageRender: false,
     pageData: { code: templateId, content: pageJson, type: "page", stepType, meta: null },
@@ -160,10 +160,10 @@ export default function PageTemplateEditorApp({ templateId, workspaceSlug }: Pro
         // Previous bug: passed template.type into the workspaceSlug slot, so
         // backUrl became `/OPTIN/settings...`. Fixed: pass workspaceSlug prop
         // explicitly, template.type as the 4th arg.
-        injectWindowData(templateId, pageJson, workspaceSlug, template.type ?? "OPTIN");
+        injectWindowData(templateId, pageJson, workspaceSlug, template.type ?? "LANDING");
         setReady(true);
       })
-      .catch(() => { injectWindowData(templateId, "", workspaceSlug, "OPTIN"); setReady(true); });
+      .catch(() => { injectWindowData(templateId, "", workspaceSlug, "LANDING"); setReady(true); });
   }, [templateId, workspaceSlug]);
 
   if (!ready) {

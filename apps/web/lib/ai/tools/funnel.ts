@@ -227,8 +227,8 @@ const createFunnelFromSpec = defineTool({
       .describe("Required when funnelType='lead_capture'. Omit when funnelType='direct_sale'."),
     bumps: z.array(bumpSchema).default([]).describe("Order bumps shown on the checkout page. Only used for direct_sale."),
     templateIds: z.object({
-      optin:    z.string().optional().describe("Template ID for OPTIN step (lead_capture only)."),
-      sales:    z.string().optional().describe("Template ID for SALES step (direct_sale only)."),
+      optin:    z.string().optional().describe("LANDING template ID for the opt-in step (lead_capture only)."),
+      sales:    z.string().optional().describe("LANDING template ID for the sales step (direct_sale only)."),
       checkout: z.string().optional().describe("Template ID for CHECKOUT step (direct_sale only)."),
       thankyou: z.string().optional().describe("Template ID for THANKYOU step (both flavors)."),
     }).optional().describe(
@@ -314,10 +314,13 @@ const createFunnelFromSpec = defineTool({
       args.brief?.language && `Language: ${args.brief.language}`,
     ].filter(Boolean).join("\n");
 
+    // purposeTag ("optin" / "sales") narrows LANDING templates to the right
+    // layout — lead capture vs sales — since both share the LANDING type.
     const resolveTemplate = async (
       type: string,
       overrideId?: string,
       stepPrice?: string,
+      purposeTag?: string,
     ): Promise<{ pageJson: any; seoMeta: { title: string; description: string } }> => {
       const emptySeo = { title: "", description: "" };
       let pageJson: any;
@@ -332,8 +335,14 @@ const createFunnelFromSpec = defineTool({
         }
         pageJson = explicit.pageJson;
       } else {
+        const base = { workspaceId: ctx.workspaceId, type: type as any, isActive: true };
+        const tagged = purposeTag ? { ...base, tags: { has: purposeTag } } : base;
         const t = await db.pageTemplate.findFirst({
-          where: { workspaceId: ctx.workspaceId, type: type as any, isDefault: true, isActive: true },
+          where: { ...tagged, isDefault: true },
+          select: { pageJson: true },
+        }) ?? await db.pageTemplate.findFirst({
+          where: tagged,
+          orderBy: { createdAt: "asc" },
           select: { pageJson: true },
         }) ?? await db.pageTemplate.findFirst({
           where: { workspaceId: ctx.workspaceId, type: type as any, isActive: true },
@@ -372,7 +381,7 @@ const createFunnelFromSpec = defineTool({
 
     if (isLeadCapture) {
       const [optin, thankyou] = await Promise.all([
-        resolveTemplate("OPTIN",    args.templateIds?.optin),
+        resolveTemplate("LANDING",  args.templateIds?.optin, undefined, "optin"),
         resolveTemplate("THANKYOU", args.templateIds?.thankyou),
       ]);
       ({ pageJson: optinPageJson,    seoMeta: optinSeo    } = optin);
@@ -380,7 +389,7 @@ const createFunnelFromSpec = defineTool({
     } else {
       const exactPrice = `$${args.product!.price} ${currency.toUpperCase()}`;
       const [sales, checkout, thankyou] = await Promise.all([
-        resolveTemplate("SALES",    args.templateIds?.sales,    exactPrice),
+        resolveTemplate("LANDING",  args.templateIds?.sales,    exactPrice, "sales"),
         resolveTemplate("CHECKOUT", args.templateIds?.checkout, exactPrice),
         resolveTemplate("THANKYOU", args.templateIds?.thankyou),
       ]);
@@ -544,13 +553,13 @@ const createFunnelFromSpec = defineTool({
             funnelId: funnel.id,
             name: args.leadMagnet!.name,
             slug: optinSlug,
-            type: "OPTIN",
+            type: "LANDING",
             order: order++,
             pageJson: optinPageJson,
             meta: toSeoMeta(optinSeo) ?? {},
           },
         });
-        stepsCreated.push({ id: optinStep.id, name: optinStep.name, type: "OPTIN" });
+        stepsCreated.push({ id: optinStep.id, name: optinStep.name, type: "LANDING" });
 
         // Tags granted on optin form submission — same wiring as paid step
         for (const tagName of args.leadMagnet!.grantTagNames ?? []) {
@@ -569,13 +578,13 @@ const createFunnelFromSpec = defineTool({
             funnelId: funnel.id,
             name: `${args.product!.name} — Sales`,
             slug: salesSlug,
-            type: "SALES",
+            type: "LANDING",
             order: order++,
             pageJson: salesPageJson,
             meta: toSeoMeta(salesSeo) ?? {},
           },
         });
-        stepsCreated.push({ id: salesStep.id, name: salesStep.name, type: "SALES" });
+        stepsCreated.push({ id: salesStep.id, name: salesStep.name, type: "LANDING" });
 
         // 6. CHECKOUT step.
         //    Shipping fee is bundled under funnels:price_plans:write (revenue-
@@ -740,14 +749,14 @@ const addFunnelStep = defineTool({
   name: "add_funnel_step",
   description:
     "Add a new step to an existing funnel. " +
-    "For SALES/OPTIN/THANKYOU/CUSTOM steps: only funnelId, type, name needed. " +
+    "For LANDING/THANKYOU/CUSTOM steps: only funnelId, type, name needed. " +
     "For CHECKOUT/UPSELL/DOWNSELL: include offerType + price/product details. " +
     "UPSELL/DOWNSELL = one-click post-purchase offers (charge the saved card after the main checkout). " +
     "CUSTOM = generic static page (About / Privacy / Terms / Contact / FAQ) — no form, no price. " +
-    "Step is auto-positioned by type (OPTIN first, CHECKOUT mid, UPSELL/DOWNSELL after, THANKYOU last; CUSTOM appended).",
+    "Step is auto-positioned by type (LANDING first, CHECKOUT mid, UPSELL/DOWNSELL after, THANKYOU last; CUSTOM appended).",
   inputSchema: z.object({
     funnelId: z.string().describe("Funnel ID. Use list_funnels to find."),
-    type: z.enum(["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]),
+    type: z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]),
     name: z.string().min(1).describe("Step name shown internally + on page."),
     offerType: z.enum(["DIGITAL", "PHYSICAL"]).optional(),
     price: z.number().positive().optional().describe("Price in dollars. Required for CHECKOUT."),
@@ -821,11 +830,11 @@ const addFunnelStep = defineTool({
         if (!physicalProductId) skippedProducts.push(productName);
       }
 
-      // Auto-position by type ordering: OPTIN < SALES < CHECKOUT < UPSELL < DOWNSELL < THANKYOU
+      // Auto-position by type ordering: LANDING < CHECKOUT < UPSELL < DOWNSELL < THANKYOU
       // CUSTOM steps (about/privacy/terms) sit AFTER thankyou — they're
       // not part of the conversion flow, just appended to the funnel for
       // routing/footer-link convenience.
-      const TYPE_ORDER: Record<string, number> = { OPTIN: 0, SALES: 1, CHECKOUT: 2, UPSELL: 3, DOWNSELL: 4, THANKYOU: 5, CUSTOM: 6 };
+      const TYPE_ORDER: Record<string, number> = { LANDING: 0, CHECKOUT: 1, UPSELL: 2, DOWNSELL: 3, THANKYOU: 4, CUSTOM: 5 };
       const existing = await tx.funnelStep.findMany({
         where: { funnelId: funnel.id },
         orderBy: { order: "asc" },

@@ -3,13 +3,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Loader2, LayoutTemplate, CheckCircle, Search,
-  FileText, TrendingUp, ShoppingCart, ArrowUpCircle, ArrowDownCircle, FilePlus,
+  FileText, ShoppingCart, ArrowUpCircle, ArrowDownCircle, FilePlus,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
 const PAGE_SIZE = 24;
 
-type StepType = "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
+type StepType = "LANDING" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
 
 type Template = {
   id: string;
@@ -21,16 +21,16 @@ type Template = {
 };
 
 const TYPE_LABEL: Record<StepType, string> = {
-  OPTIN: "Opt-in", SALES: "Sales", CHECKOUT: "Checkout", UPSELL: "Upsell",
+  LANDING: "Landing page", CHECKOUT: "Checkout", UPSELL: "Upsell",
   DOWNSELL: "Downsell", THANKYOU: "Thank You", CUSTOM: "Custom page",
 };
 const TYPE_ICON: Record<StepType, React.ReactNode> = {
-  OPTIN: <FileText size={13} />, SALES: <TrendingUp size={13} />, CHECKOUT: <ShoppingCart size={13} />,
+  LANDING: <FileText size={13} />, CHECKOUT: <ShoppingCart size={13} />,
   UPSELL: <ArrowUpCircle size={13} />, DOWNSELL: <ArrowDownCircle size={13} />,
   THANKYOU: <CheckCircle size={13} />, CUSTOM: <FileText size={13} />,
 };
 const TYPE_COLOR: Record<StepType, string> = {
-  OPTIN: "text-violet-600 bg-violet-50", SALES: "text-blue-600 bg-blue-50",
+  LANDING: "text-violet-600 bg-violet-50",
   CHECKOUT: "text-amber-600 bg-amber-50", UPSELL: "text-green-600 bg-green-50",
   DOWNSELL: "text-orange-600 bg-orange-50", THANKYOU: "text-teal-600 bg-teal-50",
   CUSTOM: "text-gray-700 bg-gray-100",

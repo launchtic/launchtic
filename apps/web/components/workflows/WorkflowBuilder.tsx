@@ -254,7 +254,7 @@ const FUNNEL_SCOPED_TRIGGERS = new Set([
 //
 // Separation of concerns:
 //   • Pages WITHOUT payment → FORM_SUBMIT (lead capture / opt-in forms).
-//     OPTIN, CUSTOM, THANKYOU. The form may sit on a thank-you page (e.g.
+//     LANDING, CUSTOM, THANKYOU. The form may sit on a thank-you page (e.g.
 //     post-purchase survey) — still a form, still belongs here.
 //   • Pages WITH payment → NEW_SALE / SALE_CANCELED / CHECKOUT_STARTED /
 //     SUBSCRIPTION_PAYMENT_FAILED. Those triggers fire on the payment
@@ -263,7 +263,7 @@ const FUNNEL_SCOPED_TRIGGERS = new Set([
 const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
   NEW_SALE:                    ["CHECKOUT", "UPSELL", "DOWNSELL"],
   SALE_CANCELED:               ["CHECKOUT", "UPSELL", "DOWNSELL"],
-  FORM_SUBMIT:                 ["OPTIN", "SALES", "CUSTOM", "THANKYOU"],
+  FORM_SUBMIT:                 ["LANDING", "CUSTOM", "THANKYOU"],
   CHECKOUT_STARTED:            ["CHECKOUT"],
   // Subscriptions are only created from steps that process recurring
   // payment — typically CHECKOUT, occasionally UPSELL/DOWNSELL with a
@@ -273,7 +273,7 @@ const STEP_TYPES_PER_TRIGGER: Record<string, string[]> = {
   // valid target (operator scopes to a specific funnel + step in the
   // dropdown). Identity comes from a cookie set when the contact clicks an
   // email link; anonymous visitors don't trigger PAGE_VISITED.
-  PAGE_VISITED:                ["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"],
+  PAGE_VISITED:                ["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"],
 };
 
 // One-line plain-English description shown under the trigger dropdown so the
@@ -2104,7 +2104,7 @@ function TriggerConfigForm({
 
   // Steps in the chosen funnel that this trigger can actually fire on. E.g.
   // for NEW_SALE we only show CHECKOUT / UPSELL / DOWNSELL steps — there's no
-  // point letting the operator pick an OPTIN step because no sale event will
+  // point letting the operator pick a LANDING step because no sale event will
   // ever come from it.
   const eligibleSteps = funnel
     ? (eligibleStepTypes.length > 0
@@ -2199,7 +2199,7 @@ function TriggerConfigForm({
       {/* Funnel + Step filters — sequential. User picks a funnel first, then
           the Step dropdown lists only steps from that funnel that can
           actually emit this trigger (e.g. NEW_SALE → only CHECKOUT/UPSELL/
-          DOWNSELL steps, not OPTIN). Each step shows its type in the label
+          DOWNSELL steps, not LANDING). Each step shows its type in the label
           so the operator can pick the right one at a glance. */}
       {isFunnelScoped && (
         <>

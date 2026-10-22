@@ -12,7 +12,7 @@ const createStepSchema = z.object({
   // collision (within funnel or across the URL space) by appending -2, -3...
   // Manual rename via PATCH still enforces strict 409 on conflict.
   slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, "Slug chỉ dùng chữ thường, số, gạch ngang").optional(),
-  type: z.enum(["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]),
+  type: z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]),
 });
 
 type Params = { params: Promise<{ id: string }> };

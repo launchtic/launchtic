@@ -14,11 +14,11 @@ type GoalId = "audience" | "sell" | "custom";
 
 const GOAL_STEPS: Record<GoalId, { name: string; slugSuffix: string; type: string }[]> = {
   audience: [
-    { name: "Opt-in Page",  slugSuffix: "optin",    type: "OPTIN"    },
+    { name: "Opt-in Page",  slugSuffix: "optin",    type: "LANDING"  },
     { name: "Thank You",    slugSuffix: "thankyou",  type: "THANKYOU" },
   ],
   sell: [
-    { name: "Sales Page",   slugSuffix: "sales",     type: "SALES"    },
+    { name: "Sales Page",   slugSuffix: "sales",     type: "LANDING"  },
     { name: "Checkout Page",   slugSuffix: "checkout",  type: "CHECKOUT" },
     { name: "Thank You",    slugSuffix: "thankyou",  type: "THANKYOU" },
   ],

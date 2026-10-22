@@ -81,7 +81,7 @@ function stepViewUrl(rendererUrl: string, primaryDomain: string | null, slug: st
 function injectWindowData(
   funnelStepId: string,
   pageJson: string,
-  stepType = "OPTIN",
+  stepType = "LANDING",
   meta: Record<string, unknown> | null = null,
   paymentData?: any,
   previewUrl?: string,
@@ -396,12 +396,12 @@ export default function EditorApp({ funnelStepId, rendererUrl, workspaceSlug, br
           injectWindowData(funnelStepId, pageJson, step.type, step.meta, paymentData, previewUrl, backUrl, brandLogoUrl, brandName, saveUrl);
           setReady(true);
         } else {
-          injectWindowData(funnelStepId, "", "OPTIN", null, undefined, undefined, undefined, brandLogoUrl, brandName);
+          injectWindowData(funnelStepId, "", "LANDING", null, undefined, undefined, undefined, brandLogoUrl, brandName);
           setReady(true);
         }
       })
       .catch(() => {
-        injectWindowData(funnelStepId, "", "OPTIN", null, undefined, undefined, undefined, brandLogoUrl, brandName);
+        injectWindowData(funnelStepId, "", "LANDING", null, undefined, undefined, undefined, brandLogoUrl, brandName);
         setReady(true);
       });
     // brandLogoUrl + brandName are stable per render (server-side resolved

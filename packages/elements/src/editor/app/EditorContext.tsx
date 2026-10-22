@@ -34,7 +34,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
   });
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [stepType, setStepType] = useState<string>("OPTIN");
+  const [stepType, setStepType] = useState<string>("LANDING");
   const [meta, setMeta] = useState<Record<string, any> | null>(null);
 
   // Unsaved Changes State
@@ -63,7 +63,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({ children }) => {
             : JSON.stringify(windowPageData.content || {});
           setPageData({ code: windowPageData.code, content });
           lastSavedContentRef.current = content; // baseline for the skip-if-unchanged check
-          setStepType(windowPageData.stepType ?? "OPTIN");
+          setStepType(windowPageData.stepType ?? "LANDING");
           setMeta(windowPageData.meta ?? null);
           setHasUnsavedChanges(false);
         }

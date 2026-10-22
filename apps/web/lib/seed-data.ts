@@ -27,7 +27,7 @@ export type SeedPageTemplate = {
   name: string;
   description: string | null;
   thumbnailUrl: string | null;
-  type: "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
+  type: "LANDING" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
   tags: string[];
   pageJson: Record<string, unknown>;
   meta: Record<string, unknown>;

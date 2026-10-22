@@ -29,7 +29,6 @@ import {
   Trash2,
   Loader2,
   FileText,
-  TrendingUp,
   ShoppingCart,
   ArrowUpCircle,
   ArrowDownCircle,
@@ -89,8 +88,7 @@ function stepUrlPrefix(rendererUrl: string, primaryDomain: string | null) {
 }
 
 const TYPE_ICON_MAP: Record<string, React.ReactNode> = {
-  OPTIN:    <FileText size={15} />,
-  SALES:    <TrendingUp size={15} />,
+  LANDING:  <FileText size={15} />,
   CHECKOUT: <ShoppingCart size={15} />,
   UPSELL:   <ArrowUpCircle size={15} />,
   DOWNSELL: <ArrowDownCircle size={15} />,
@@ -99,8 +97,7 @@ const TYPE_ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 const TYPE_LABEL_MAP: Record<string, string> = {
-  OPTIN:    "Opt-in page",
-  SALES:    "Sales page",
+  LANDING:  "Landing page",
   CHECKOUT: "Checkout page",
   UPSELL:   "Upsell page",
   DOWNSELL: "Downsell page",
@@ -109,8 +106,7 @@ const TYPE_LABEL_MAP: Record<string, string> = {
 };
 
 const TYPE_COLOR_MAP: Record<string, string> = {
-  OPTIN:    "text-violet-600 bg-violet-50",
-  SALES:    "text-blue-600 bg-blue-50",
+  LANDING:  "text-violet-600 bg-violet-50",
   CHECKOUT: "text-amber-600 bg-amber-50",
   UPSELL:   "text-green-600 bg-green-50",
   DOWNSELL: "text-orange-600 bg-orange-50",

@@ -4,7 +4,7 @@
 // the operator created or imported).
 //
 // AI usage pattern:
-//   1. list_page_templates({ type: "SALES" }) → see options + descriptions
+//   1. list_page_templates({ type: "LANDING" }) → see options + descriptions
 //   2. Pick best ID based on product context
 //   3. Pass to create_funnel_from_spec({ templateIds: { sales: "..." } })
 //      OR add_funnel_step({ templateId: "..." })
@@ -26,7 +26,7 @@ const listPageTemplates = defineTool({
     "  - layout: short-form, medium, long-form, hero-only, vsl, comparison\n" +
     "  - features: countdown, video, testimonials, faq, pricing-table, comparison-table, bullet-benefits, social-proof-numbers, risk-reversal, scarcity-banner, objection-handling, step-by-step",
   inputSchema: z.object({
-    type: z.enum(["OPTIN", "SALES", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional()
+    type: z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional()
       .describe("Filter by step type. CUSTOM = generic static page (about/privacy/terms)."),
     tags: z.array(z.string()).optional()
       .describe("Filter by tags (any-of match). Pick from convention above based on product context — e.g. ['ebook', 'urgent', 'long-form'] for info-product launch."),

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
-  FileText, TrendingUp, ShoppingCart, CheckCircle, ArrowUpCircle, ArrowDownCircle,
+  FileText, ShoppingCart, CheckCircle, ArrowUpCircle, ArrowDownCircle,
   Search, ChevronLeft, ChevronRight, Settings, Image as ImageIcon, Filter, Copy,
   Power,
 } from "lucide-react";
@@ -13,7 +13,7 @@ import { apiFetch } from "../../lib/api-client";
 import ExportButton from "../ui/ExportButton";
 import { useRole } from "../../lib/role";
 
-type StepType = "OPTIN" | "SALES" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
+type StepType = "LANDING" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "CUSTOM";
 
 type Template = {
   id: string;
@@ -68,8 +68,7 @@ type StatusFilter = "all" | "active" | "disabled";
 type PageMeta = { total: number; page: number; pageSize: number; totalPages: number };
 
 const STEP_TYPES: { value: StepType; label: string; icon: React.ReactNode; color: string }[] = [
-  { value: "OPTIN",    label: "Opt-in",    icon: <FileText size={12} />,       color: "text-violet-600 bg-violet-50" },
-  { value: "SALES",    label: "Sales",     icon: <TrendingUp size={12} />,     color: "text-blue-600 bg-blue-50" },
+  { value: "LANDING",  label: "Landing page", icon: <FileText size={12} />,    color: "text-violet-600 bg-violet-50" },
   { value: "CHECKOUT", label: "Checkout",  icon: <ShoppingCart size={12} />,   color: "text-amber-600 bg-amber-50" },
   { value: "UPSELL",   label: "Upsell",    icon: <ArrowUpCircle size={12} />,  color: "text-green-600 bg-green-50" },
   { value: "DOWNSELL", label: "Downsell",  icon: <ArrowDownCircle size={12} />, color: "text-orange-600 bg-orange-50" },
@@ -392,7 +391,7 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
 /* ─── Create Modal ─── */
 function CreateTemplateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (id: string) => void }) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<StepType>("OPTIN");
+  const [type, setType] = useState<StepType>("LANDING");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
