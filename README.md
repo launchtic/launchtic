@@ -69,12 +69,25 @@ You **may**:
 - Self-host Launchtic for your own company's internal use — for any size company.
 - Modify the source for your own use.
 - Use it personally or for non-commercial projects.
+- Set it up on a client's own server, for that client's own use.
 
-You **may not** (without a separate commercial license):
-- Run Launchtic as a hosted SaaS that you charge third parties to use.
-- Rebrand and sell it as your own product.
+Running funnels for **multiple clients from your own installation** (and
+white-labeling them) requires an active [Agency plan](https://launchtic.com/pricing).
+
+You **may not** (without a separate written agreement):
+- Run Launchtic itself as a hosted SaaS for third parties.
+- Resell it, or build a competing funnel / page builder from it.
+
+Template packs bought on [launchtic.com/add-ons](https://launchtic.com/add-ons) are covered by the
+separate [Add-on License](https://launchtic.com/add-on-license).
 
 For commercial licensing, OEM, or partnership inquiries: **hello@launchtic.com**.
+
+## Contributing
+
+We don't accept pull requests — Launchtic is developed by its core team so the
+licensing stays simple. Bug reports, ideas, and feature requests are very
+welcome in [Issues](../../issues). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
 

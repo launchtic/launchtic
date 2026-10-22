@@ -18,7 +18,10 @@ You may use, modify, and self-host the software only for:
 * your own personal use;
 * educational or non-commercial purposes; or
 * your own internal business operations (i.e. for the operations of you or
-  your company).
+  your company); or
+* installing, configuring, and maintaining the software on a client's own
+  systems so that client can use it for its own internal business operations.
+  The client is then the user of that installation under this license.
 
 You may share or distribute the software free of charge only for
 non-commercial purposes and only under this same license.
@@ -38,8 +41,39 @@ Without prior written permission from the licensor, you may not:
   or service;
 * alter, remove, hide, or obscure any licensing, copyright, trademark,
   attribution, or other notices of the licensor in the software;
-* use the software in a way that competes with the licensor's commercial
-  offerings.
+* use the software, or any part of it, to build or offer a funnel builder,
+  page builder, or marketing-automation product or service to others.
+
+---
+
+## Commercial License
+
+If you hold an active paid license from the licensor (for example an Agency or
+Enterprise plan bought at launchtic.com), then for as long as it stays active
+and within the limits of your plan, you may additionally:
+
+* use one installation that you run to build, host, and run funnels, pages,
+  emails, and related assets for multiple clients, including in separate client
+  workspaces; and
+* use the software's white-label features to show your own branding to your
+  clients.
+
+A paid license does not permit offering the software itself to the public as a
+general hosted or software-as-a-service product, reselling or sublicensing the
+software, or removing the licensor's notices from the source code. Those
+require a separate written agreement with the licensor (Enterprise / OEM).
+
+Paid licenses are also subject to the terms shown at purchase. When a paid
+license ends, these additional permissions end with it.
+
+---
+
+## Add-ons
+
+Templates and other content sold separately as add-ons (for example template
+packs) are not part of the software and are not licensed under these terms.
+They are licensed under the Add-on License at
+https://launchtic.com/add-on-license.
 
 ---
 
@@ -140,16 +174,24 @@ You **may**:
 * Use Launchtic internally for funnels, landing pages, CRM, automations,
   email campaigns, and related operations.
 * Modify the source code for your own use.
-* Contribute improvements back to the upstream project.
+* Set Launchtic up on a client's own server, for that client's own use.
 * Share the software for free under this same license.
 
-You **may not** (without a separate commercial agreement from Launchtic):
+With an active paid plan (Agency / Enterprise) you **may also**:
 
-* Offer Launchtic as a hosted or managed SaaS platform for third parties.
-* Create a competing commercial product or hosted service using Launchtic.
-* White-label or rebrand Launchtic as your own platform.
-* Sell, sublicense, or commercially redistribute Launchtic.
-* Remove or hide Launchtic branding, licensing, or attribution notices.
+* Run funnels, pages, and emails for multiple clients from your own installation.
+* Show your own branding to your clients with the white-label features.
+
+You **may not** (without a separate written agreement from Launchtic):
+
+* Offer Launchtic itself as a hosted or managed SaaS platform for third parties.
+* Build a competing funnel builder, page builder, or marketing-automation
+  product or service from Launchtic.
+* Resell, sublicense, or commercially redistribute Launchtic.
+* Remove Launchtic licensing, copyright, or attribution notices from the
+  source code.
+
+Template packs and other add-ons are covered by the separate Add-on License.
 
 ---
 

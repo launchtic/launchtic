@@ -1,0 +1,42 @@
+# Launchtic doesn't accept outside contributions (see CONTRIBUTING.md).
+# Close pull requests from anyone who isn't a member of the repo, with a note
+# pointing to Issues. pull_request_target runs with the base repo's token but
+# never checks out the PR's code, so it's safe for forks.
+name: Close external pull requests
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  close:
+    if: ${{ !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+            const branch = context.payload.repository.default_branch;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: [
+                "Thanks for taking the time to open this!",
+                "",
+                `Launchtic doesn't accept pull requests — it's developed by the core team to keep the licensing simple (see [CONTRIBUTING.md](${repoUrl}/blob/${branch}/CONTRIBUTING.md)).`,
+                "",
+                `If this fixes a bug or adds something useful, please [open an issue](${repoUrl}/issues/new) describing it — we read every one.`,
+              ].join("\n"),
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              state: "closed",
+            });
