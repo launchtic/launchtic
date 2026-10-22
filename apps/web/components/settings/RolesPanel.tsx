@@ -138,7 +138,7 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
     perms: [
       {
         key:   "ai:use",
-        label: "Use all AI features — chat assistant, template auto-fill, copy generation",
+        label: "Use AI features — copy rewrite, template auto-fill",
       },
     ],
   },
@@ -185,9 +185,9 @@ const PERMISSION_CATEGORIES: { label: string; perms: { key: string; label: strin
     ],
   },
   {
-    label: "Settings — AI Assistant",
+    label: "Settings — AI",
     perms: [
-      { key: "settings:ai:read",  label: "View AI config + use AI Assistant" },
+      { key: "settings:ai:read",  label: "View AI config" },
       { key: "settings:ai:write", label: "Edit AI provider + API key" },
     ],
   },

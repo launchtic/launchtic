@@ -146,8 +146,6 @@ export async function assertAllStepSlugsAvailable(
 
 const MAX_SLUG_ATTEMPTS = 100;
 
-// Mirror of lib/ai/tools/helpers.ts slugify — duplicated to avoid pulling in
-// the AI tool helpers from non-AI code paths.
 function slugifyText(s: string): string {
   const base = s
     .toLowerCase()

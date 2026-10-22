@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Loader2, Check, AlertCircle, Eye, EyeOff, ExternalLink, History, ChevronDown, ChevronUp, X as XIcon } from "lucide-react";
+import { Bot, Loader2, Check, AlertCircle, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { useToast } from "../ui/Toast";
 import { apiFetch } from "../../lib/api-client";
 import { useRole } from "../../lib/role";
@@ -28,7 +28,7 @@ const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white " +
   "focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400";
 
-export default function AiAssistantPanel() {
+export default function AiSettingsPanel() {
   const toast = useToast();
   const { canManageAi } = useRole();
   const [loading, setLoading] = useState(true);
@@ -98,7 +98,7 @@ export default function AiAssistantPanel() {
       if (json.success) {
         setSettings(json.data);
         setApiKey(json.data.apiKey ?? "");
-        toast.success("AI assistant settings saved");
+        toast.success("AI settings saved");
       } else {
         toast.error(json.error ?? "Failed to save");
       }
@@ -108,7 +108,7 @@ export default function AiAssistantPanel() {
   }
 
   async function handleDisconnect() {
-    if (!confirm("Remove the API key and disable the AI assistant?")) return;
+    if (!confirm("Remove the API key and turn off AI features?")) return;
     setSaving(true);
     try {
       const res = await apiFetch("/api/ai/settings", { method: "DELETE" });
@@ -119,7 +119,7 @@ export default function AiAssistantPanel() {
         setModel(DEFAULT_MODEL_BY_PROVIDER[DEFAULT_PROVIDER]);
         setEnabled(false);
         setApiKey("");
-        toast.success("AI assistant disconnected");
+        toast.success("AI disconnected");
       }
     } finally {
       setSaving(false);
@@ -141,7 +141,7 @@ export default function AiAssistantPanel() {
           <Bot size={18} />
         </div>
         <div>
-          <h2 className="text-base font-semibold text-gray-900">AI Assistant</h2>
+          <h2 className="text-base font-semibold text-gray-900">AI</h2>
           <p className="text-xs text-gray-500">Bring your own API key — usage billed by the provider, not by us.</p>
         </div>
       </div>
@@ -149,12 +149,12 @@ export default function AiAssistantPanel() {
       {settings?.hasApiKey && settings.enabled && (
         <div className="mt-4 mb-4 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
           <Check size={14} /> Connected via {PROVIDERS.find((p) => p.id === settings.provider)?.label}.
-          Floating chat widget is available.
+          AI features are available in the editor.
         </div>
       )}
       {settings?.hasApiKey && !settings.enabled && (
         <div className="mt-4 mb-4 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-          <AlertCircle size={14} /> API key on file but assistant is disabled.
+          <AlertCircle size={14} /> API key on file but AI features are turned off.
         </div>
       )}
 
@@ -258,7 +258,7 @@ export default function AiAssistantPanel() {
             disabled={!canManageAi}
             className="rounded border-gray-300"
           />
-          Enable AI assistant
+          Enable AI features
         </label>
 
         {canManageAi && (
@@ -283,121 +283,6 @@ export default function AiAssistantPanel() {
         )}
       </div>
 
-      {settings?.hasApiKey && <AuditLogSection />}
-    </div>
-  );
-}
-
-// ─── Audit log section ──────────────────────────────────────────────────────
-// Lists every tool the AI executed on user's behalf — important for trust +
-// "what did AI do yesterday?" lookups. Reads from AiMessage table directly.
-
-type AuditAction = {
-  id: string;
-  toolName: string | null;
-  status: string | null;
-  args: any;
-  result: any;
-  createdAt: string;
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  executed:        "bg-emerald-50 text-emerald-700 border-emerald-200",
-  rejected:        "bg-gray-50 text-gray-600 border-gray-200",
-  error:           "bg-red-50 text-red-700 border-red-200",
-  pending_confirm: "bg-amber-50 text-amber-700 border-amber-200",
-  approved:        "bg-blue-50 text-blue-700 border-blue-200",
-};
-
-function AuditLogSection() {
-  const [actions, setActions] = useState<AuditAction[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await apiFetch("/api/ai/audit");
-      const json = await res.json();
-      if (json.success) setActions(json.data.actions);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="mt-8 pt-6 border-t border-gray-200">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <History size={16} className="text-gray-500" />
-          <h3 className="text-sm font-semibold text-gray-900">Recent AI actions</h3>
-          {actions !== null && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
-              {actions.length}
-            </span>
-          )}
-        </div>
-        <button onClick={load} disabled={loading} className="text-xs text-blue-600 hover:text-blue-700 disabled:opacity-50">
-          {loading ? <Loader2 size={12} className="animate-spin inline" /> : "Refresh"}
-        </button>
-      </div>
-      <p className="text-xs text-gray-400 mb-3">
-        Every tool call AI made on your behalf — newest first. Use this to verify what the assistant did.
-      </p>
-
-      {actions === null ? (
-        <div className="flex items-center justify-center py-8 text-gray-400">
-          <Loader2 size={16} className="animate-spin" />
-        </div>
-      ) : actions.length === 0 ? (
-        <div className="text-center py-6 text-xs text-gray-400 bg-gray-50 rounded-lg">
-          No AI actions yet. They'll appear here as you chat.
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {actions.map((a) => (
-            <div key={a.id} className="border border-gray-200 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setExpanded(expanded === a.id ? null : a.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
-              >
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${STATUS_BADGE[a.status ?? ""] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
-                  {a.status ?? "unknown"}
-                </span>
-                <code className="flex-1 text-xs font-mono text-gray-800 truncate">{a.toolName}</code>
-                <span className="text-[10px] text-gray-400 shrink-0">
-                  {new Date(a.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </span>
-                {expanded === a.id
-                  ? <ChevronUp size={12} className="text-gray-400 shrink-0" />
-                  : <ChevronDown size={12} className="text-gray-400 shrink-0" />}
-              </button>
-              {expanded === a.id && (
-                <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 space-y-2">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Args</p>
-                    <pre className="text-[11px] font-mono text-gray-700 bg-white p-2 rounded border border-gray-200 overflow-x-auto whitespace-pre-wrap break-all">
-                      {JSON.stringify(a.args, null, 2)}
-                    </pre>
-                  </div>
-                  {a.result !== null && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Result</p>
-                      <pre className="text-[11px] font-mono text-gray-700 bg-white p-2 rounded border border-gray-200 overflow-x-auto whitespace-pre-wrap break-all">
-                        {typeof a.result === "string" ? a.result : JSON.stringify(a.result, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

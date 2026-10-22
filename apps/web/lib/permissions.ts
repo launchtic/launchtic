@@ -122,7 +122,7 @@ export type Permission =
 
   // ── AI Features (separate from settings:ai:* which gates the config) ──
   // Workspace-wide gate for USING any AI-powered feature in the app:
-  //   - Chat assistant widget (/api/ai/chat + AssistantWidget)
+  //   - Page copy rewrite in the editor (/api/funnel-steps/[id]/ai-rewrite)
   //   - Template slot auto-fill when applying a template
   //     (/api/funnel-steps/[id]/apply-template with `brief`)
   //   - Page-template AI build (/api/page-templates/build with `aiBrief`)
@@ -131,12 +131,6 @@ export type Permission =
   // Admins grant this to roles that should be allowed to burn LLM tokens
   // (cost control). Revoking it hides every AI UI affordance and blocks
   // every AI-invoking endpoint.
-  //
-  // Per-tool authority for individual actions the AI proposes is still
-  // enforced separately (e.g. `funnels:write` to actually create a funnel
-  // when the user asks the assistant to). Granting `ai:use` alone doesn't
-  // let the assistant do anything destructive — it only lets the user
-  // *invoke* AI; what the AI can then *do* is still gated per-tool.
   | "ai:use"
 
   // ── Settings: General (workspace name, defaults) ──

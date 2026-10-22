@@ -13,7 +13,7 @@ Launchtic combines a drag-and-drop page builder with payment processing, email a
 - **Funnel flow** — Opt-in → Sales → Checkout → Thank You with custom domains per funnel
 - **Payments** — Stripe + PayPal, one-time + subscription, order bumps
 - **Email** — broadcasts, automated sequences, behavior-triggered automations
-- **AI assistant** — generate funnel copy from a brief; auto-fill template slots
+- **Built-in AI** — AI tools for your copy, with your own API key
 - **Templates library** — multi-tier tagged templates per page type
 - **Self-host friendly** — single Docker Compose, auto SSL via Caddy
 

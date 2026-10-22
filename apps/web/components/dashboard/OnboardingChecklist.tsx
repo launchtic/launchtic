@@ -9,9 +9,6 @@ import type { OnboardingStatus, OnboardingItem } from "../../lib/onboarding";
 import { apiFetch } from "../../lib/api-client";
 
 // Floating "Getting Started" guide pinned bottom-right.
-// Coexists with AssistantWidget (also bottom-right): when AI is configured
-// the widget is visible — we stack the checklist above it; otherwise the
-// checklist takes the normal bottom-right slot.
 //
 // Two minimization levels:
 //   - Expanded panel (default first visit): full list with active item open.
@@ -25,10 +22,6 @@ const COLLAPSE_KEY = "onboarding-collapsed";
 export default function OnboardingChecklist({ status }: { status: OnboardingStatus }) {
   const params = useParams();
   const slug = params.workspaceSlug as string;
-
-  // Position: if AI is configured the AssistantWidget shows bottom-5 right-5
-  // (12×12 button, ~68px tall with margin). Lift the checklist above it.
-  const hasAi = status.items.find((i) => i.key === "ai")?.done ?? false;
 
   const firstPendingKey = status.items.find((i) => !i.done)?.key ?? null;
   const [expandedKey, setExpandedKey] = useState<OnboardingItem["key"] | null>(firstPendingKey);
@@ -84,7 +77,7 @@ export default function OnboardingChecklist({ status }: { status: OnboardingStat
     setExpandedKey(expandedKey === key ? null : key);
   }
 
-  const positionClass = hasAi ? "bottom-20" : "bottom-5";
+  const positionClass = "bottom-5";
 
   // ─── Collapsed pill ──────────────────────────────────────────────────────
   if (collapsed) {
@@ -175,7 +168,7 @@ function ChecklistRow({
   onToggle: () => void;
 }) {
   // /settings is now a parent route with per-tab sub-pages (/settings/email,
-  // /settings/payment, /settings/ai-assistant) — replaces the legacy
+  // /settings/payment, /settings/ai) — replaces the legacy
   // /settings?tab=xxx query-param pattern.
   const href = item.tab
     ? `/${slug}/settings/${item.tab}`

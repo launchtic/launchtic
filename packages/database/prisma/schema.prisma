@@ -129,7 +129,6 @@ model Workspace {
   workflows        Workflow[]
   workflowRuns     WorkflowRun[]
   senderIdentities SenderIdentity[]
-  aiConversations  AiConversation[]
   savedBlocks      SavedBlock[]
   pageTemplates    PageTemplate[]
   roles            Role[]
@@ -411,8 +410,6 @@ model PageTemplate {
   name         String
   thumbnailUrl String?
   type         StepType
-  // The AI picks templates from a summary read from pageJson itself
-  // (apps/web/lib/page-templates/summarize.ts) — no hand-written tags.
   pageJson     Json     @default("{}")
   // Page-level metadata mirroring FunnelStep.meta — { seo, tracking, font, ... }.
   // Cloned onto a FunnelStep when the template is applied so things like the
@@ -886,53 +883,6 @@ model WorkspaceSettings {
   onboardingDismissed Boolean @default(false)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-}
-
-// ─────────────────────────────────────────
-// AI ASSISTANT
-// ─────────────────────────────────────────
-// Per-user conversation with the workspace AI assistant. One conversation
-// per user per workspace — each user has their own chat history. Cleared
-// explicitly via /api/ai/clear.
-model AiConversation {
-  id          String   @id @default(cuid())
-  workspaceId String
-  userId      String // FK without back-relation to keep User model untouched
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  messages  AiMessage[]
-
-  @@unique([workspaceId, userId])
-  @@index([workspaceId, userId])
-}
-
-model AiMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  // role: "user" | "assistant" | "tool_use" | "tool_result"
-  // - user: text from operator
-  // - assistant: text from LLM (no tool call)
-  // - tool_use: LLM proposes a tool call (content = { name, args })
-  // - tool_result: outcome of executing the tool (content = result JSON)
-  role           String
-  content        Json
-  // Set when role = tool_use. Tracks the lifecycle:
-  //   pending_confirm → user must confirm (write tools)
-  //   approved → user approved, server is executing
-  //   rejected → user dismissed
-  //   executed → ran successfully (paired tool_result follows)
-  //   error → ran but failed (paired tool_result follows with error)
-  // Read-only tools skip pending_confirm and go straight to executed.
-  toolCallId     String?
-  toolName       String?
-  toolStatus     String?
-  createdAt      DateTime @default(now())
-
-  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId, createdAt])
 }
 
 // ─────────────────────────────────────────

@@ -9,7 +9,6 @@ import DemoBanner from "../../../components/DemoBanner";
 import { ConfirmProvider } from "../../../components/ui/ConfirmDialog";
 import { ToastProvider } from "../../../components/ui/Toast";
 import { UnsavedChangesProvider } from "../../../contexts/UnsavedChangesContext";
-import AssistantWidget from "../../../components/ai/AssistantWidget";
 import OnboardingChecklist from "../../../components/dashboard/OnboardingChecklist";
 import { WorkspaceRoleProvider } from "../../../components/WorkspaceRoleProvider";
 import { getOnboardingStatus } from "../../../lib/onboarding";
@@ -118,7 +117,6 @@ export default async function DashboardLayout({
           {isOwner && onboarding && !onboarding.isComplete && !onboarding.isDismissed && (
             <OnboardingChecklist status={onboarding} />
           )}
-          <AssistantWidget />
         </UnsavedChangesProvider>
       </ToastProvider>
     </ConfirmProvider>

@@ -35,7 +35,7 @@ import { cloneAssets, rewriteWorkspaceContentAssets } from "../../../../../lib/a
 //
 // What's NEVER cloned: contacts, orders, subscriptions, coupons, broadcasts,
 // emailSends, automationRuns, sequenceEnrollments, senderIdentities, domains,
-// aiConversations, members, products, tags.
+// members, products, tags.
 //
 // FunnelStep.pageJson is Craft.js JSON that may embed product/sequence IDs
 // from the source workspace (eg. form actions). These IDs are NOT remapped —

@@ -69,7 +69,7 @@ const NAV_SECTIONS: { label: string; items: NavItemDef[] }[] = [
       { segment: "media",          label: "Media Library",    icon: ImageIcon,                      requirePerm: "media:read"                     },
       { segment: "page-templates", label: "Page Templates",   icon: LayoutTemplate,                 requirePerm: "settings:page_templates:read"   },
       { segment: "import",         label: "Import",           icon: Upload,        ownerOnly: true                                                 },
-      { segment: "ai-assistant",   label: "AI Assistant",     icon: Bot,                            requirePerm: "settings:ai:read"               },
+      { segment: "ai",             label: "AI",               icon: Bot,                            requirePerm: "settings:ai:read"               },
     ],
   },
 ];

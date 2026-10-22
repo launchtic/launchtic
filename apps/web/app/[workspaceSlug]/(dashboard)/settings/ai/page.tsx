@@ -1,9 +1,9 @@
-// AiAssistantPanel fetches its own data via /api/ai/settings.
+// AiSettingsPanel fetches its own data via /api/ai/settings.
 
 import { requireWorkspaceFromSlug } from "../../../../../lib/permissions";
-import AiAssistantPanel from "../../../../../components/settings/AiAssistantPanel";
+import AiSettingsPanel from "../../../../../components/settings/AiSettingsPanel";
 
-export const metadata = { title: "AI Assistant" };
+export const metadata = { title: "AI" };
 
 export default async function Page({
   params,
@@ -15,7 +15,7 @@ export default async function Page({
 
   return (
     <div className="p-6 sm:p-8">
-      <AiAssistantPanel />
+      <AiSettingsPanel />
     </div>
   );
 }

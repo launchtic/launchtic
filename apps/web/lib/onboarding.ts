@@ -13,7 +13,7 @@ export type OnboardingItem = {
   // Where the action button takes the operator. Either a Settings sub-page
   // (`tab` resolves to /[workspaceSlug]/settings/<tab>) or a top-level
   // workspace route (`route` for /[workspaceSlug]/<route>).
-  tab?:   "email" | "payment" | "ai-assistant";
+  tab?:   "email" | "payment" | "ai";
   route?: string;
   cta:    string;
 };
@@ -60,16 +60,16 @@ export async function getOnboardingStatus(workspaceId: string): Promise<Onboardi
     },
     {
       key:   "ai",
-      label: "Configure AI Assistant",
-      help:  "Let the assistant build for you — generate landing-page copy, fill templates, scaffold complete funnels, draft email sequences, and write broadcasts from a one-line description. Bring your own API key for Claude, ChatGPT, DeepSeek, or Gemini.",
+      label: "Set up AI",
+      help:  "Turn on the built-in AI tools — like rewriting the copy on any page in the editor. Bring your own API key for Claude, ChatGPT, DeepSeek, or Gemini.",
       done:  hasAiKey,
-      tab:   "ai-assistant",
+      tab:   "ai",
       cta:   "Configure",
     },
     {
       key:   "funnel",
       label: "Create your first funnel",
-      help:  "The final step — combine templates into a complete customer journey: opt-in → sales → checkout → thank-you. Pick from the seeded templates to start fast, or let the AI Assistant scaffold the whole funnel from a one-line description of your business.",
+      help:  "The final step — combine templates into a complete customer journey: opt-in → sales → checkout → thank-you. Pick from the seeded templates to start fast.",
       done:  funnelCount > 0,
       route: "funnels",
       cta:   "Start",
