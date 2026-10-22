@@ -10,16 +10,10 @@ import { extractSlotsFromPageJson } from "../../../lib/page-templates/slots";
 const createSchema = z.object({
   name: z.string().min(1).max(100),
   type: z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]),
-  description: z.string().max(500).optional(),
-  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
 });
 
 // ─── GET /api/page-templates ──────────────────────────────────────────────────
-// Query: ?type=LANDING &status=active|disabled|all &search= &tag=foo&tag=bar
-//        &page= &pageSize=
-//
-// `tag` filter accepts multiple values — returns templates that have ANY of
-// the tags (overlap match). Use repeated query params, e.g. `?tag=saas&tag=premium`.
+// Query: ?type=LANDING &status=active|disabled|all &search= &page= &pageSize=
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +24,6 @@ export async function GET(req: NextRequest) {
     const type     = sp.get("type") as any | null;
     const status   = sp.get("status") ?? "all";
     const search   = sp.get("search") ?? "";
-    const tagList  = sp.getAll("tag").map((t) => t.trim()).filter(Boolean);
     const page     = Math.max(1, parseInt(sp.get("page") ?? "1", 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(sp.get("pageSize") ?? "25", 10)));
 
@@ -39,7 +32,6 @@ export async function GET(req: NextRequest) {
     if (status === "active")    where.isActive = true;
     if (status === "disabled")  where.isActive = false;
     if (search) where.name = { contains: search, mode: "insensitive" };
-    if (tagList.length > 0) where.tags = { hasSome: tagList };
 
     const [total, templates] = await Promise.all([
       db.pageTemplate.count({ where }),
@@ -50,7 +42,7 @@ export async function GET(req: NextRequest) {
         take: pageSize,
         // Include pageJson so we can compute slot count, then strip it
         // before sending — clients only need the count, not the bytes.
-        select: { id: true, name: true, description: true, thumbnailUrl: true, type: true, tags: true, isActive: true, createdAt: true, pageJson: true },
+        select: { id: true, name: true, thumbnailUrl: true, type: true, isActive: true, createdAt: true, pageJson: true },
       }),
     ]);
 
@@ -82,11 +74,9 @@ export async function POST(req: NextRequest) {
         workspaceId,
         name: data.name,
         type: data.type,
-        description: data.description ?? null,
-        tags: data.tags ?? [],
         pageJson: defaultPageJson,
       },
-      select: { id: true, name: true, type: true, tags: true, createdAt: true },
+      select: { id: true, name: true, type: true, createdAt: true },
     });
 
     return ok(template, 201);

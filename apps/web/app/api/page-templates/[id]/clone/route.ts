@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     const source = await db.pageTemplate.findFirst({
       where: { id, workspaceId },
-      select: { name: true, description: true, type: true, tags: true, pageJson: true, meta: true },
+      select: { name: true, type: true, pageJson: true, meta: true },
     });
     if (!source) return err("Template not found", 404);
 
@@ -27,13 +27,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
       data: {
         workspaceId,
         name: nextCopyName(source.name),
-        description: source.description,
         type: source.type,
-        tags: source.tags,
         pageJson: source.pageJson ?? {},
         meta: (source.meta ?? {}) as any,
       },
-      select: { id: true, name: true, description: true, thumbnailUrl: true, type: true, tags: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, thumbnailUrl: true, type: true, isActive: true, createdAt: true },
     });
 
     return ok(cloned, 201);

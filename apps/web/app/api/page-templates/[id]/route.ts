@@ -29,11 +29,9 @@ const metaSchema = z.object({
 
 const patchSchema = z.object({
   name:         z.string().min(1).max(100).optional(),
-  description:  z.string().max(500).nullable().optional(),
   thumbnailUrl: z.string().nullable().optional(),
   pageJson:     z.union([z.string(), z.record(z.unknown())]).optional(),
   meta:         metaSchema,
-  tags:         z.array(z.string().min(1).max(40)).max(20).optional(),
   isActive:     z.boolean().optional(),
   type:         z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional(),
 });
@@ -71,11 +69,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const updateData: Record<string, unknown> = {};
     if (data.name         !== undefined) updateData.name         = data.name;
-    if (data.description  !== undefined) updateData.description  = data.description;
     if (data.thumbnailUrl !== undefined) updateData.thumbnailUrl = data.thumbnailUrl;
     if (data.pageJson     !== undefined) updateData.pageJson     = normalizeJson(data.pageJson);
     if (data.meta         !== undefined) updateData.meta         = data.meta;
-    if (data.tags         !== undefined) updateData.tags         = data.tags;
     if (data.isActive     !== undefined) updateData.isActive     = data.isActive;
     if (data.type         !== undefined) updateData.type         = data.type;
 
@@ -95,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const template = await db.pageTemplate.update({
       where: { id },
       data: updateData,
-      select: { id: true, name: true, description: true, thumbnailUrl: true, type: true, tags: true, isActive: true, updatedAt: true },
+      select: { id: true, name: true, thumbnailUrl: true, type: true, isActive: true, updatedAt: true },
     });
 
     return ok(template);

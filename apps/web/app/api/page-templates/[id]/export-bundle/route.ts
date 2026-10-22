@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const tpl = await db.pageTemplate.findFirst({
       where:  { id, workspaceId },
       select: {
-        name: true, description: true, type: true, tags: true,
+        name: true, type: true,
         pageJson: true, meta: true, thumbnailUrl: true,
       },
     });
@@ -33,9 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       kind: "page",
       template: {
         name:         tpl.name,
-        description:  tpl.description,
         type:         tpl.type,
-        tags:         tpl.tags,
         pageJson:     tpl.pageJson,
         meta:         tpl.meta,
         thumbnailUrl: tpl.thumbnailUrl,

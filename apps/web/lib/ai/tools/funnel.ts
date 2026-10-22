@@ -7,6 +7,7 @@ import { SUPPORTED_CURRENCY_CODES } from "@launchtic/types";
 import { defineTool, type ToolContext } from "./define";
 import { fmtMoney, findOrCreateTag, findOrCreatePhysicalProduct, findOrSkipTag, findOrSkipPhysicalProduct } from "./helpers";
 import { extractSlotsFromPageJson } from "../../page-templates/slots";
+import { summarizeTemplate, type TemplatePurpose } from "../../page-templates/summarize";
 import { fillSlotsInPageJson } from "../../page-templates/slot-filler";
 import { generateSampleSlotValues } from "../../page-templates/sample-fill";
 import { rewritePageCopy, generateSeoMeta } from "../../page-templates/ai-rewrite";
@@ -314,13 +315,13 @@ const createFunnelFromSpec = defineTool({
       args.brief?.language && `Language: ${args.brief.language}`,
     ].filter(Boolean).join("\n");
 
-    // purposeTag ("optin" / "sales") narrows LANDING templates to the right
-    // layout — lead capture vs sales — since both share the LANDING type.
+    // purpose narrows LANDING templates to the right layout — lead capture vs
+    // sales — since both share the LANDING type.
     const resolveTemplate = async (
       type: string,
       overrideId?: string,
       stepPrice?: string,
-      purposeTag?: string,
+      purpose?: TemplatePurpose,
     ): Promise<{ pageJson: any; seoMeta: { title: string; description: string } }> => {
       const emptySeo = { title: "", description: "" };
       let pageJson: any;
@@ -335,20 +336,20 @@ const createFunnelFromSpec = defineTool({
         }
         pageJson = explicit.pageJson;
       } else {
-        const base = { workspaceId: ctx.workspaceId, type: type as any, isActive: true };
-        const tagged = purposeTag ? { ...base, tags: { has: purposeTag } } : base;
-        const t = await db.pageTemplate.findFirst({
-          where: { ...tagged, isDefault: true },
-          select: { pageJson: true },
-        }) ?? await db.pageTemplate.findFirst({
-          where: tagged,
-          orderBy: { createdAt: "asc" },
-          select: { pageJson: true },
-        }) ?? await db.pageTemplate.findFirst({
+        // Pick from the step type's active templates: a default whose content
+        // fits the purpose (lead capture vs sales, read from the page itself),
+        // then any that fits, then the default / oldest regardless.
+        const candidates = await db.pageTemplate.findMany({
           where: { workspaceId: ctx.workspaceId, type: type as any, isActive: true },
           orderBy: { createdAt: "asc" },
-          select: { pageJson: true },
+          select: { pageJson: true, isDefault: true },
         });
+        const fits = (c: (typeof candidates)[number]) =>
+          !purpose || summarizeTemplate(c.pageJson, type).purpose === purpose;
+        const t = candidates.find((c) => c.isDefault && fits(c))
+          ?? candidates.find(fits)
+          ?? candidates.find((c) => c.isDefault)
+          ?? candidates[0];
         pageJson = t?.pageJson ?? {};
       }
 
@@ -381,7 +382,7 @@ const createFunnelFromSpec = defineTool({
 
     if (isLeadCapture) {
       const [optin, thankyou] = await Promise.all([
-        resolveTemplate("LANDING",  args.templateIds?.optin, undefined, "optin"),
+        resolveTemplate("LANDING",  args.templateIds?.optin, undefined, "lead capture"),
         resolveTemplate("THANKYOU", args.templateIds?.thankyou),
       ]);
       ({ pageJson: optinPageJson,    seoMeta: optinSeo    } = optin);

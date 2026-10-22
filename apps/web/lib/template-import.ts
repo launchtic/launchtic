@@ -18,11 +18,6 @@ function stepType(t: unknown): string {
   return t === "OPTIN" || t === "SALES" ? "LANDING" : String(t);
 }
 
-// Keep the old purpose as an "optin" / "sales" tag, like the DB migration did.
-function legacyTags(t: unknown, tags: string[]): string[] {
-  const tag = t === "OPTIN" ? "optin" : t === "SALES" ? "sales" : null;
-  return tag && !tags.includes(tag) ? [...tags, tag] : tags;
-}
 
 // Materialize the bundle's embedded assets in the workspace (dedup by sha256).
 // Returns a urlMap (originalUrl → new url) used to rewrite content references.
@@ -90,9 +85,7 @@ export async function importBundle(workspaceId: string, buf: Buffer): Promise<Im
       data: {
         workspaceId,
         name,
-        description:  (template.description as string | null) ?? null,
         type:         stepType(template.type) as never,
-        tags:         legacyTags(template.type, (template.tags as string[] | undefined) ?? []),
         pageJson:     rewriteAssetRefs(template.pageJson ?? {}, refs) as never,
         meta:         rewriteAssetRefs(template.meta ?? {}, refs) as never,
         thumbnailUrl: template.thumbnailUrl

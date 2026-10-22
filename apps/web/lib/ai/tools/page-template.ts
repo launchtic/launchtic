@@ -4,7 +4,7 @@
 // the operator created or imported).
 //
 // AI usage pattern:
-//   1. list_page_templates({ type: "LANDING" }) → see options + descriptions
+//   1. list_page_templates({ type: "LANDING" }) → see options + content summaries
 //   2. Pick best ID based on product context
 //   3. Pass to create_funnel_from_spec({ templateIds: { sales: "..." } })
 //      OR add_funnel_step({ templateId: "..." })
@@ -13,68 +13,48 @@
 import { z } from "zod";
 import { db } from "@launchtic/database";
 import { defineTool } from "./define";
+import { summarizeTemplate, summaryLine } from "../../page-templates/summarize";
 
 const listPageTemplates = defineTool({
   name: "list_page_templates",
   description:
     "List page templates available for funnel steps. Use BEFORE create_funnel_from_spec, add_funnel_step, or swap_step_template to pick the best template per step type. " +
-    "Pass `tags` to narrow by niche/style/mood/layout/features. Match by tag overlap (more matches = better fit). " +
-    "Tag conventions:\n" +
-    "  - niche: info-product, ebook, course, saas, coaching, consulting, ecommerce, physical-product, webinar, b2b, b2c\n" +
-    "  - style: minimal, bold, dense, story-driven, editorial, modern, classic\n" +
-    "  - mood: urgent, premium, friendly, professional, edgy, playful\n" +
-    "  - layout: short-form, medium, long-form, hero-only, vsl, comparison\n" +
-    "  - features: countdown, video, testimonials, faq, pricing-table, comparison-table, bullet-benefits, social-proof-numbers, risk-reversal, scarcity-banner, objection-handling, step-by-step",
+    "Each template comes with a summary read from its content: purpose (landing pages: 'lead capture' = has a form, 'sales' = no form), " +
+    "section count, notable elements (form, price / buy button, countdown, faq, video) and its first headlines — " +
+    "use the headlines to judge niche and tone. Pass `purpose` to list only lead-capture or sales landing pages.",
   inputSchema: z.object({
     type: z.enum(["LANDING", "CHECKOUT", "UPSELL", "DOWNSELL", "THANKYOU", "CUSTOM"]).optional()
       .describe("Filter by step type. CUSTOM = generic static page (about/privacy/terms)."),
-    tags: z.array(z.string()).optional()
-      .describe("Filter by tags (any-of match). Pick from convention above based on product context — e.g. ['ebook', 'urgent', 'long-form'] for info-product launch."),
+    purpose: z.enum(["lead capture", "sales"]).optional()
+      .describe("Landing pages only: 'lead capture' for opt-in / lead magnet pages, 'sales' for pages that sell."),
   }),
   requiresConfirm: false,
   requiredPermission: "settings:page_templates:read",
-  execute: async ({ type, tags }, ctx) => {
+  execute: async ({ type, purpose }, ctx) => {
     const where: any = { workspaceId: ctx.workspaceId, isActive: true };
     if (type) where.type = type;
-    if (tags && tags.length > 0) where.tags = { hasSome: tags };
+    else if (purpose) where.type = "LANDING";
 
     const templates = await db.pageTemplate.findMany({
       where,
       // Defaults first so AI knows the recommended baseline; alphabetical
       // within group for predictable order.
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-      select: {
-        id: true, name: true, description: true, tags: true,
-        type: true, isDefault: true,
-      },
+      select: { id: true, name: true, type: true, isDefault: true, pageJson: true },
     });
 
-    // Compute tag overlap score for ranking (server-side instead of DB
-    // because Postgres doesn't have a native array-intersect-count operator
-    // that's both indexable and easy to express; for ~100 templates this
-    // is fine in app code).
-    const requested = new Set((tags ?? []).map((t) => t.toLowerCase()));
-    const ranked = templates
-      .map((t) => {
-        const overlap = (t.tags ?? []).filter((x) => requested.has(x.toLowerCase())).length;
-        return { t, overlap };
-      })
-      .sort((a, b) => {
-        if (b.overlap !== a.overlap) return b.overlap - a.overlap;
-        if (Number(b.t.isDefault) !== Number(a.t.isDefault)) return Number(b.t.isDefault) - Number(a.t.isDefault);
-        return a.t.name.localeCompare(b.t.name);
-      });
+    const rows = templates
+      .map((t) => ({ t, summary: summarizeTemplate(t.pageJson, t.type) }))
+      .filter(({ summary }) => !purpose || summary.purpose === purpose);
 
     return {
-      count: ranked.length,
-      templates: ranked.map(({ t, overlap }) => ({
+      count: rows.length,
+      templates: rows.map(({ t, summary }) => ({
         id: t.id,
         name: t.name,
-        description: t.description?.trim() || "(no description — pick by name + tags)",
-        tags: t.tags ?? [],
         stepType: t.type,
         isDefault: t.isDefault,
-        ...(requested.size > 0 ? { tagMatchCount: overlap } : {}),
+        summary: summaryLine(summary),
       })),
     };
   },

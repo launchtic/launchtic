@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, LayoutTemplate, X, Save,
   FileText, ShoppingCart, CheckCircle, ArrowUpCircle, ArrowDownCircle,
@@ -18,50 +18,11 @@ type StepType = "LANDING" | "CHECKOUT" | "UPSELL" | "DOWNSELL" | "THANKYOU" | "C
 type Template = {
   id: string;
   name: string;
-  description: string | null;
   thumbnailUrl: string | null;
   type: StepType;
-  tags: string[];
   isActive: boolean;
   createdAt: string;
 };
-
-// Curated tag taxonomy — operator picks from suggestions but free entry
-// allowed for niche-specific tags. AI tool list_page_templates uses the
-// same conventions for matching.
-const TAG_SUGGESTIONS: { group: string; tags: string[] }[] = [
-  {
-    group: "Niche",
-    tags: [
-      "info-product", "ebook", "course", "saas", "coaching", "consulting",
-      "ecommerce", "physical-product", "webinar", "agency", "b2b", "b2c",
-    ],
-  },
-  {
-    group: "Style",
-    tags: ["minimal", "bold", "dense", "story-driven", "editorial", "modern", "classic"],
-  },
-  {
-    group: "Mood",
-    tags: ["urgent", "premium", "friendly", "professional", "edgy", "playful"],
-  },
-  {
-    group: "Layout",
-    tags: ["short-form", "medium", "long-form", "hero-only", "vsl", "comparison"],
-  },
-  {
-    group: "Features",
-    tags: [
-      "countdown", "video", "testimonials", "faq", "pricing-table",
-      "comparison-table", "bullet-benefits", "social-proof-numbers",
-      "risk-reversal", "scarcity-banner", "objection-handling", "step-by-step",
-    ],
-  },
-];
-
-function normalizeTag(raw: string): string {
-  return raw.trim().toLowerCase().replace(/\s+/g, "-").slice(0, 40);
-}
 
 type StatusFilter = "all" | "active" | "disabled";
 
@@ -81,13 +42,13 @@ function TypeBadge({ type }: { type: StepType }) {
   const t = STEP_TYPES.find((s) => s.value === type);
   if (!t) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-gray-500 bg-gray-100">
+      <span className="inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-gray-500 bg-gray-100">
         {String(type)}
       </span>
     );
   }
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>
+    <span className={`inline-flex items-center whitespace-nowrap gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>
       {t.icon} {t.label}
     </span>
   );
@@ -202,43 +163,24 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
   const { canManagePageTemplates, canUploadMedia } = useRole();
   const canUploadThumb = canManagePageTemplates && canUploadMedia;
   const [name, setName] = useState(template.name);
-  const [description, setDescription] = useState(template.description ?? "");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(template.thumbnailUrl);
   const [isActive, setIsActive] = useState(template.isActive);
   const [type, setType] = useState<StepType>(template.type);
-  const [tags, setTags] = useState<string[]>(template.tags ?? []);
-  const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function addTag(raw: string) {
-    const t = normalizeTag(raw);
-    if (!t) return;
-    setTags((prev) => (prev.includes(t) || prev.length >= 20 ? prev : [...prev, t]));
-    setTagInput("");
-  }
-
-  function removeTag(t: string) {
-    setTags((prev) => prev.filter((x) => x !== t));
-  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setError(null);
-    // Flush whatever's in the tag input before submit so users don't lose
-    // a half-typed tag they forgot to enter.
-    const finalTags = tagInput.trim()
-      ? [...tags, normalizeTag(tagInput)].filter((t, i, a) => t && a.indexOf(t) === i)
-      : tags;
     const res = await apiFetch(`/api/page-templates/${template.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description: description || null, thumbnailUrl, isActive, type, tags: finalTags }),
+      body: JSON.stringify({ name, thumbnailUrl, isActive, type }),
     });
     const json = await res.json();
     setSaving(false);
     if (!res.ok) { setError(json.error ?? "Failed to save"); return; }
-    onSaved({ ...template, name, description: description || null, thumbnailUrl, isActive, type, tags: finalTags });
+    onSaved({ ...template, name, thumbnailUrl, isActive, type });
     onClose();
   }
 
@@ -262,67 +204,6 @@ function TemplateSettingsPanel({ template, onClose, onSaved }: {
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Name <span className="text-red-500">*</span></label>
             <input required value={name} onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-              placeholder="Short description…"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Tags <span className="text-gray-400 font-normal">— help AI pick the right template</span>
-            </label>
-            <div className="flex flex-wrap gap-1.5 px-2 py-1.5 border border-gray-200 rounded-xl min-h-[40px] focus-within:ring-2 focus-within:ring-blue-500">
-              {tags.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded-md">
-                  {t}
-                  <button type="button" onClick={() => removeTag(t)} className="text-blue-500 hover:text-red-500">
-                    <X size={11} />
-                  </button>
-                </span>
-              ))}
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    addTag(tagInput);
-                  } else if (e.key === "Backspace" && !tagInput && tags.length) {
-                    setTags((prev) => prev.slice(0, -1));
-                  }
-                }}
-                onBlur={() => tagInput && addTag(tagInput)}
-                placeholder={tags.length === 0 ? "saas, urgent, long-form…" : ""}
-                className="flex-1 min-w-[100px] px-1 py-0.5 text-xs outline-none bg-transparent"
-              />
-            </div>
-            <details className="mt-2">
-              <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-700 select-none">
-                Suggested tags
-              </summary>
-              <div className="mt-2 space-y-2">
-                {TAG_SUGGESTIONS.map(({ group, tags: groupTags }) => (
-                  <div key={group}>
-                    <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">{group}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {groupTags.filter((t) => !tags.includes(t)).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => addTag(t)}
-                          className="text-[11px] px-2 py-0.5 border border-gray-200 rounded-md text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                        >
-                          + {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </details>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Type</label>
@@ -471,7 +352,6 @@ export default function PageTemplatesPanel() {
   const [showCreate, setShowCreate] = useState(false);
   const [settingsFor, setSettingsFor] = useState<Template | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const router = useRouter();
   const params = useParams();
   const slug = params.workspaceSlug as string;
   const confirm = useConfirm();
@@ -545,15 +425,22 @@ export default function PageTemplatesPanel() {
     fetchData(search, page, typeFilter, statusFilter);
   }
 
+  // Full page load, same as the funnel editor's Edit link: the browser leaves
+  // right away and the editor shows its own loading state. router.push kept
+  // the list on screen (button spinner) until the whole editor route — a very
+  // large bundle — had been fetched.
+  function openEditor(id: string) {
+    setNavigating(id);
+    window.location.assign(`/${slug}/page-template-editor/${id}`);
+  }
+
   function handleCreated(id: string) {
     setShowCreate(false);
-    setNavigating(id);
-    router.push(`/${slug}/page-template-editor/${id}`);
+    openEditor(id);
   }
 
   function handleDesign(id: string) {
-    setNavigating(id);
-    router.push(`/${slug}/page-template-editor/${id}`);
+    openEditor(id);
   }
 
   function handleSaved(updated: Template) {
@@ -639,8 +526,6 @@ export default function PageTemplatesPanel() {
                     <th className="text-left px-6 py-3 font-semibold">Name</th>
                     <th className="text-left px-4 py-3 font-semibold">Type</th>
                     <th className="text-left px-4 py-3 font-semibold">Status</th>
-                    <th className="text-left px-4 py-3 font-semibold">Tags</th>
-                    <th className="text-left px-4 py-3 font-semibold">Description</th>
                     <th className="text-left px-4 py-3 font-semibold">Created</th>
                     <th className="text-right px-4 py-3 font-semibold">Actions</th>
                   </tr>
@@ -667,30 +552,6 @@ export default function PageTemplatesPanel() {
                           <span className={`w-1.5 h-1.5 rounded-full ${t.isActive ? "bg-green-500" : "bg-gray-400"}`} />
                           {t.isActive ? "Active" : "Disabled"}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 max-w-[220px]">
-                        {t.tags && t.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {t.tags.slice(0, 3).map((tag) => (
-                              <span key={tag} className="inline-block px-1.5 py-0.5 text-[10px] bg-blue-50 text-blue-700 rounded">
-                                {tag}
-                              </span>
-                            ))}
-                            {t.tags.length > 3 && (
-                              <span className="inline-block px-1.5 py-0.5 text-[10px] text-gray-400">
-                                +{t.tags.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-300 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs leading-relaxed align-top max-w-xs">
-                        {t.description
-                          ? <span className="line-clamp-2 break-words" title={t.description}>{t.description}</span>
-                          : <span className="text-gray-300">—</span>
-                        }
                       </td>
                       <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                         {new Date(t.createdAt).toLocaleDateString()}

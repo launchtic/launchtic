@@ -409,13 +409,10 @@ model PageTemplate {
   // own copy (seeded on register from packages/database/src/seed-data/).
   workspaceId  String
   name         String
-  description  String?
   thumbnailUrl String?
   type         StepType
-  // Multi-dimensional tags driving AI template selection: niche, style,
-  // mood, layout, features. Free-form but conventions documented in
-  // scripts_test/page-templates.seed.json. AI matches by tag overlap.
-  tags         String[] @default([])
+  // The AI picks templates from a summary read from pageJson itself
+  // (apps/web/lib/page-templates/summarize.ts) — no hand-written tags.
   pageJson     Json     @default("{}")
   // Page-level metadata mirroring FunnelStep.meta — { seo, tracking, font, ... }.
   // Cloned onto a FunnelStep when the template is applied so things like the
@@ -436,7 +433,6 @@ model PageTemplate {
   @@index([workspaceId, type, isDefault])
   @@index([workspaceId])
   @@index([isActive])
-  @@index([tags], type: Gin)
 }
 
 // User-saved reusable blocks (Section / Row subtree from the editor).
@@ -455,7 +451,6 @@ model SavedBlock {
 
   @@index([workspaceId, kind])
   @@index([workspaceId, createdAt])
-  @@index([tags], type: Gin)
 }
 
 // ─────────────────────────────────────────

@@ -142,10 +142,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             data: {
               workspaceId:  newWsId,
               name:         pt.name,
-              description:  pt.description,
               thumbnailUrl: pt.thumbnailUrl,
               type:         pt.type,
-              tags:         pt.tags,
               pageJson:     pt.pageJson ?? {},
               meta:         pt.meta ?? {},
               isDefault:    pt.isDefault,
