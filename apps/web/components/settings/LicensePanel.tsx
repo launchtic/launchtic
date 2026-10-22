@@ -35,16 +35,69 @@ export default function LicensePanel() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-gray-900">License</h2>
+        <h2 className="text-base font-semibold text-gray-900">Plan</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Your license and plan for this instance. Activation happens automatically at install.
+          Your license and plan for this instance.
         </p>
       </div>
 
       {/* Status hero — color-coded license health with the key inline. Renew /
           upgrade / billing live on launchtic.com/account. */}
       <StatusHero status={status} isOwner={isOwner} />
+      {status && !status.plan && isOwner && <ActivateForm />}
     </div>
+  );
+}
+
+// ─── Activate form ─────────────────────────────────────────────────────────
+// Free instances can activate an Agency key bought after install (install.sh
+// --license covers the at-install case). Reloads on success so plan-gated UI
+// (sidebar, workspaces, white-label) picks up the new plan.
+
+function ActivateForm() {
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function activate(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    // Add-on keys (LTP-…) look alike — point the user to the right tab.
+    if (/^LTP-/i.test(key.trim())) return setError("This is an add-on key — add it in the Add-ons tab.");
+    setBusy(true);
+    try {
+      const r = await apiFetch("/api/license", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ licenseKey: key.trim() }),
+      }).then((res) => res.json());
+      if (!r.success) return setError(r.error ?? "Invalid license key.");
+      window.location.reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={activate} className="space-y-1.5">
+      <label className="text-xs font-medium text-gray-600">Have a license key?</label>
+      <div className="flex gap-2">
+        <input
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder="LT-XXXX-XXXX-XXXX-XXXX"
+          className="flex-1 min-w-0 px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
+        <button
+          type="submit"
+          disabled={busy || key.trim().length < 10}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-gray-900 hover:bg-black text-white rounded-lg disabled:opacity-50"
+        >
+          {busy && <Loader2 size={14} className="animate-spin" />} Activate
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </form>
   );
 }
 

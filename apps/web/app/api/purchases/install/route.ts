@@ -4,7 +4,7 @@ import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
 import { demoGuard } from "../../../../lib/demo";
 import { importBundle } from "../../../../lib/template-import";
-import { downloadProductFile } from "../../../../lib/products";
+import { downloadProductFile, markInstalled, instanceIdFor } from "../../../../lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +29,14 @@ export async function POST(req: NextRequest) {
     });
     if (!org?.productKeys.includes(key)) return err("Unknown product key", 404);
 
+    const instanceId = await instanceIdFor(r.organizationId);
     try {
-      const buf = await downloadProductFile(key, file);
-      return ok(await importBundle(r.workspaceId, buf));
+      const buf = await downloadProductFile(key, file, instanceId);
+      const result = await importBundle(r.workspaceId, buf);
+      // Only counted as installed once the import succeeded. If this report
+      // fails the template still exists; the file just shows as not installed.
+      await markInstalled(key, file, instanceId).catch((e) => console.warn("[purchases] markInstalled failed:", e?.message));
+      return ok(result);
     } catch (e: any) {
       return err(e?.message ?? "Install failed", 400);
     }

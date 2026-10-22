@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { licenseKey } = activateSchema.parse(body);
+    if (/^LTP-/i.test(licenseKey.trim())) return err("This is an add-on key — add it in the Add-ons tab.", 400);
 
     const organization = await db.organization.findUnique({
       where: { id: organizationId },

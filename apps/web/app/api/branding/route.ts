@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest) {
     if (!org) return err("Organization not found", 404);
     if (!getPlanFeatures(org.plan).whiteLabel) {
       return err(
-        "White-label branding requires the Agency plan or higher. Upgrade in Settings → License.",
+        "White-label branding requires the Agency plan or higher. Upgrade in Settings → License & Updates.",
         402, // Payment Required — semantic match for plan-gate denials
       );
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Check, X, Download, Trash2, Package } from "lucide-react";
+import { Loader2, Check, Package, ChevronRight, Download, RotateCcw } from "lucide-react";
 import { apiFetch } from "../../lib/api-client";
 
 type ProductFile = { name: string; bytes: number };
@@ -9,11 +9,10 @@ type Purchase = {
   key: string;
   product?: { sku: string; name: string };
   files?: ProductFile[];
+  installed?: string[];   // files already installed on this server (from the license server)
+  activated?: boolean;    // key already bound to this server
   error?: string;
 };
-// Per-file install state, keyed by `${key}/${file}`. Session-only: we don't
-// track installs, so re-installing a file creates another copy.
-type FileState = { status: "busy" | "done" | "error"; message?: string };
 
 function fmtBytes(n: number): string {
   return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -24,25 +23,30 @@ function displayName(file: string): string {
 }
 
 export default function PurchasesPanel() {
+  const [workspace, setWorkspace] = useState("");
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [key, setKey] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
-  const [states, setStates] = useState<Record<string, FileState>>({});
-  const [running, setRunning] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch("/api/purchases")
       .then((r) => r.json())
-      .then((r) => { if (r.success) setPurchases(r.data); })
+      .then((r) => {
+        if (!r.success) return;
+        setWorkspace(r.data.workspace);
+        setPurchases(r.data.purchases);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    setAdding(true);
     setAddError("");
+    // Plan license keys (LT-…) look alike — point the user to the right tab.
+    if (/^LT-/i.test(key.trim())) return setAddError("This is a license key — enter it in the Plan tab.");
+    setAdding(true);
     try {
       const r = await apiFetch("/api/purchases", {
         method: "POST",
@@ -57,38 +61,8 @@ export default function PurchasesPanel() {
     }
   }
 
-  async function remove(p: Purchase) {
-    if (!confirm("Remove this key? Templates you already installed stay.")) return;
-    await apiFetch(`/api/purchases?key=${encodeURIComponent(p.key)}`, { method: "DELETE" });
-    setPurchases((ps) => ps.filter((x) => x.key !== p.key));
-  }
-
-  async function install(p: Purchase, file: string) {
-    const id = `${p.key}/${file}`;
-    setStates((s) => ({ ...s, [id]: { status: "busy" } }));
-    const r = await apiFetch("/api/purchases/install", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: p.key, file }),
-    }).then((res) => res.json()).catch(() => ({ success: false, error: "Network error" }));
-    setStates((s) => ({
-      ...s,
-      [id]: r.success ? { status: "done" } : { status: "error", message: r.error ?? "Install failed" },
-    }));
-  }
-
-  // One at a time: each install is a server-to-server download + import, and
-  // sequential runs keep progress readable and one failure from stopping the rest.
-  async function installAll(p: Purchase) {
-    setRunning(p.key);
-    try {
-      for (const f of p.files ?? []) {
-        if (states[`${p.key}/${f.name}`]?.status === "done") continue;
-        await install(p, f.name);
-      }
-    } finally {
-      setRunning(null);
-    }
+  function update(next: Purchase) {
+    setPurchases((ps) => ps.map((p) => (p.key === next.key ? next : p)));
   }
 
   if (loading) {
@@ -100,11 +74,11 @@ export default function PurchasesPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-900">Purchases</h2>
+        <h2 className="text-base font-semibold text-gray-900">Add-ons</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Enter a product key from launchtic.com to install its templates into this workspace.
+          Enter an add-on key from launchtic.com to install it into this workspace.
         </p>
       </div>
 
@@ -123,74 +97,170 @@ export default function PurchasesPanel() {
           {adding && <Loader2 size={14} className="animate-spin" />} Add key
         </button>
       </form>
-      {addError && <p className="text-sm text-red-600 -mt-4">{addError}</p>}
+      {addError && <p className="text-sm text-red-600">{addError}</p>}
 
-      {purchases.map((p) => {
-        const files = p.files ?? [];
-        const done = files.filter((f) => states[`${p.key}/${f.name}`]?.status === "done").length;
-        const isRunning = running === p.key;
-        return (
-          <div key={p.key} className="rounded-xl border border-gray-200">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                <Package size={15} className="text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-gray-900 truncate">{p.product?.name ?? "Unavailable"}</div>
-                <code className="text-[11px] font-mono text-gray-400">{p.key}</code>
-              </div>
-              {files.length > 0 && (
-                <button
-                  onClick={() => installAll(p)}
-                  disabled={running !== null}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-900 hover:bg-black text-white rounded-lg disabled:opacity-50"
-                >
-                  {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                  {isRunning || done > 0 ? `${done}/${files.length} installed` : `Install all (${files.length})`}
-                </button>
-              )}
-              <button onClick={() => remove(p)} className="p-1.5 text-gray-400 hover:text-red-600" title="Remove key">
-                <Trash2 size={14} />
-              </button>
+      {purchases.map((p) => (
+        <PurchaseCard key={p.key} purchase={p} workspace={workspace} onChange={update} />
+      ))}
+    </div>
+  );
+}
+
+function PurchaseCard({
+  purchase: p,
+  workspace,
+  onChange,
+}: {
+  purchase: Purchase;
+  workspace: string;
+  onChange: (p: Purchase) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [failed, setFailed] = useState<Record<string, string>>({});
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const files = p.files ?? [];
+  const installed = new Set(p.installed ?? []);
+  // Not-installed first, then by name.
+  const sorted = [...files].sort(
+    (a, b) => Number(installed.has(a.name)) - Number(installed.has(b.name)) || a.name.localeCompare(b.name),
+  );
+  const pending = sorted.filter((f) => !installed.has(f.name));
+  const failedCount = pending.filter((f) => failed[f.name]).length;
+  // Files added to the product after the first install are "new".
+  const isNew = (f: ProductFile) => p.activated && !installed.has(f.name);
+
+  async function installOne(file: string): Promise<boolean> {
+    setBusy((s) => new Set(s).add(file));
+    const r = await apiFetch("/api/purchases/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: p.key, file }),
+    }).then((res) => res.json()).catch(() => ({ success: false, error: "Network error" }));
+    setBusy((s) => { const n = new Set(s); n.delete(file); return n; });
+    if (r.success) {
+      setFailed((f) => { const { [file]: _, ...rest } = f; return rest; });
+      p = { ...p, activated: true, installed: [...(p.installed ?? []), file] };
+      onChange(p);
+      return true;
+    }
+    setFailed((f) => ({ ...f, [file]: r.error ?? "Install failed" }));
+    return false;
+  }
+
+  // One at a time: each install is a server-to-server download + import, and
+  // sequential runs keep progress readable and one failure from stopping the rest.
+  async function installPending() {
+    const todo = pending.map((f) => f.name);
+    setProgress({ done: 0, total: todo.length });
+    for (let i = 0; i < todo.length; i++) {
+      await installOne(todo[i]);
+      setProgress({ done: i + 1, total: todo.length });
+    }
+    setProgress(null);
+  }
+
+  const summary = p.error
+    ? null
+    : pending.length === 0
+      ? `✓ All ${files.length} templates installed`
+      : p.activated
+        ? `${files.length - pending.length}/${files.length} installed · ${pending.length} new`
+        : `${files.length} templates · ${fmtBytes(files.reduce((s, f) => s + f.bytes, 0))}`;
+
+  const actionLabel = failedCount > 0 && failedCount === pending.length
+    ? `Retry ${failedCount} failed`
+    : p.activated ? `Install ${pending.length} new` : `Install all (${pending.length})`;
+
+  return (
+    <div className="rounded-xl border border-gray-200">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+          <Package size={15} className="text-blue-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-gray-900 truncate">{p.product?.name ?? "Unavailable"}</div>
+          <div className="text-xs text-gray-500 mt-0.5">
+            {progress ? `Installing ${progress.done}/${progress.total}…` : summary}
+            <span className="font-mono text-[11px] text-gray-400 ml-2">{p.key}</span>
+          </div>
+          {!p.error && pending.length > 0 && workspace && (
+            <div className="text-xs text-gray-500 mt-0.5">
+              Installs into: <span className="font-medium text-gray-700">{workspace}</span>
             </div>
+          )}
+        </div>
+        {!p.error && pending.length > 0 && (
+          <button
+            onClick={installPending}
+            disabled={!!progress || busy.size > 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-900 hover:bg-black text-white rounded-lg disabled:opacity-50"
+          >
+            {progress ? <Loader2 size={12} className="animate-spin" /> : failedCount ? <RotateCcw size={12} /> : <Download size={12} />}
+            {progress ? "Installing" : actionLabel}
+          </button>
+        )}
+      </div>
 
-            {p.error ? (
-              <p className="px-4 py-3 text-sm text-red-600">{p.error}</p>
-            ) : (
-              <ul className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                {files.map((f) => {
-                  const st = states[`${p.key}/${f.name}`];
-                  return (
-                    <li key={f.name} className="flex items-center gap-3 px-4 py-2 text-sm">
-                      <span className="flex-1 min-w-0 truncate text-gray-700">{displayName(f.name)}</span>
-                      <span className="text-xs text-gray-400">{fmtBytes(f.bytes)}</span>
-                      {st?.status === "busy" ? (
-                        <Loader2 size={14} className="animate-spin text-gray-400" />
-                      ) : st?.status === "done" ? (
+      {progress && (
+        <div className="h-1 bg-gray-100">
+          <div className="h-1 bg-blue-600 transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+        </div>
+      )}
+
+      {p.error && (
+        <p className="px-4 pb-3 text-sm text-red-600">
+          {p.error}{" "}
+          <a href="https://launchtic.com/support" target="_blank" rel="noopener noreferrer" className="underline">Support</a>
+        </p>
+      )}
+
+      {!p.error && files.length > 0 && (
+        <>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="w-full flex items-center gap-1 px-4 py-2 text-xs font-medium text-gray-500 hover:text-gray-800 border-t border-gray-100"
+          >
+            <ChevronRight size={12} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+            {open ? "Hide templates" : "Show templates"}
+          </button>
+          {open && (
+            <ul className="max-h-80 overflow-y-auto divide-y divide-gray-50 border-t border-gray-100">
+              {sorted.map((f) => {
+                const done = installed.has(f.name);
+                return (
+                  <li key={f.name} className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <span className={`flex-1 min-w-0 truncate ${done ? "text-gray-400" : "text-gray-700"}`}>
+                      {displayName(f.name)}
+                      {isNew(f) && (
+                        <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">NEW</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-400">{fmtBytes(f.bytes)}</span>
+                    <span className="w-14 flex justify-end">
+                      {done ? (
                         <Check size={14} className="text-green-600" />
+                      ) : busy.has(f.name) ? (
+                        <Loader2 size={14} className="animate-spin text-gray-400" />
                       ) : (
                         <button
-                          onClick={() => install(p, f.name)}
-                          disabled={isRunning}
-                          className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
+                          onClick={() => installOne(f.name)}
+                          disabled={!!progress}
+                          title={failed[f.name]}
+                          className={`text-xs font-semibold hover:underline disabled:opacity-50 ${failed[f.name] ? "text-red-600" : "text-blue-600"}`}
                         >
-                          {st?.status === "error" ? "Retry" : "Install"}
+                          {failed[f.name] ? "Retry" : "Install"}
                         </button>
                       )}
-                      {st?.status === "error" && (
-                        <span className="text-xs text-red-600 inline-flex items-center gap-1" title={st.message}>
-                          <X size={12} /> Failed
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
-                {files.length === 0 && <li className="px-4 py-3 text-sm text-gray-400">No files yet.</li>}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }
