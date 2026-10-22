@@ -78,7 +78,10 @@ export default function PurchasesPanel() {
       <div>
         <h2 className="text-base font-semibold text-gray-900">Add-ons</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Enter an add-on key from launchtic.com to install it into this workspace.
+          Enter an add-on key from launchtic.com to install it into this workspace.{" "}
+          <a href="https://launchtic.com/add-ons" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            Browse add-ons →
+          </a>
         </p>
       </div>
 
