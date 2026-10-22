@@ -6,9 +6,10 @@
 // race past setup.
 //
 // The created User gets ownership of the auto-provisioned Organization +
-// default Workspace (Owner role is implicit via Organization.ownerId). Page
-// templates from packages/database/src/seed-data are bulk-inserted so the
-// editor opens with content from the first click — no empty-state friction.
+// default Workspace (Owner role is implicit via Organization.ownerId). Starter
+// page templates (.ltbundle files in packages/database/src/seed-data/templates)
+// are imported so the editor opens with content from the first click — no
+// empty-state friction.
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
@@ -16,11 +17,9 @@ import bcrypt from "bcryptjs";
 import { db } from "@launchtic/database";
 import { ok, err, handleError } from "../../../../lib/api";
 import { bootstrapLicenseFromEnv } from "../../../../lib/license";
-import {
-  loadPageTemplatesSeed,
-  resolveAssetPlaceholders,
-  copySeedAssetsToWorkspace,
-} from "../../../../lib/seed-data";
+import { loadSeedTemplateBundles } from "../../../../lib/seed-data";
+import { importBundle } from "../../../../lib/template-import";
+import { decodeBundle } from "../../../../lib/template-bundle";
 
 const schema = z.object({
   email:         z.string().email(),
@@ -71,40 +70,27 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Seed page templates. Asset URLs in the JSON use {{ASSET}} placeholder;
-      // resolve to /uploads/{workspaceId} so the matching files (copied below
-      // after the tx commits) resolve via the existing static handler.
-      const assetPrefix = `/uploads/${ws.id}`;
-      const seedTemplates = loadPageTemplatesSeed();
-      const seedData = seedTemplates.map((t) => {
-        const resolved = resolveAssetPlaceholders(t, assetPrefix);
-        return {
-          workspaceId:  ws.id,
-          name:         resolved.name,
-          description:  resolved.description,
-          thumbnailUrl: resolved.thumbnailUrl,
-          type:         resolved.type,
-          tags:         resolved.tags ?? [],
-          pageJson:     resolved.pageJson ?? {},
-          meta:         resolved.meta ?? {},
-          isDefault:    resolved.isDefault ?? false,
-          isActive:     resolved.isActive ?? true,
-        };
-      });
-      if (seedData.length > 0) {
-        await tx.pageTemplate.createMany({ data: seedData as any });
-      }
 
       return { workspaceId: ws.id, organizationId: org.id };
     });
 
-    // Copy seed assets to disk OUTSIDE the DB transaction. Failure here
-    // doesn't roll back the account — templates render with broken images
-    // but the workspace is still usable. Logged for ops visibility.
+    // Import starter templates OUTSIDE the DB transaction (importBundle writes
+    // image files through the storage driver). A failure doesn't roll back the
+    // account — the workspace just starts with fewer templates. The bundle's
+    // isDefault flag marks the template the AI funnel builder picks per type.
     try {
-      copySeedAssetsToWorkspace(workspaceId);
+      for (const { file, buf } of loadSeedTemplateBundles()) {
+        try {
+          const { id } = await importBundle(workspaceId, buf);
+          if (decodeBundle(buf).manifest.template.isDefault) {
+            await db.pageTemplate.update({ where: { id }, data: { isDefault: true } });
+          }
+        } catch (e) {
+          console.error(`[setup/admin] seed template ${file} failed:`, e);
+        }
+      }
     } catch (e) {
-      console.error("[setup/admin] seed asset copy failed:", e);
+      console.error("[setup/admin] seed templates failed:", e);
     }
 
     // If install.sh pre-wrote LAUNCHTIC_LICENSE into .env, auto-activate now
