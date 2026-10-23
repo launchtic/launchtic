@@ -12,8 +12,8 @@
   "dependencies": {
     "@launchtic/editor-core": "workspace:*",
     "@launchtic/editor-utils": "workspace:*",
-    "libphonenumber-js": "^1.12.15",
-    "lucide-react": "^1.8.0",
+    "libphonenumber-js": "^1.13.15",
+    "lucide-react": "^1.60.0",
     "uuid": "^11.1.0",
     "zod": "^3.24.4"
   },
@@ -38,8 +38,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/uuid": "^10.0.0",
     "typescript": "^5.8.3"
   }
