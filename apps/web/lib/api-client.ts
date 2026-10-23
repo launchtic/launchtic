@@ -38,7 +38,32 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   if (slug && !headers.has("x-workspace-slug")) {
     headers.set("x-workspace-slug", slug);
   }
-  return fetch(input, { ...init, headers });
+  const res = await fetch(input, { ...init, headers });
+  // Public demo: many callers ignore a failed response, so the visitor saw
+  // nothing happen. Show one notice here for every action the demo blocks.
+  if (res.status === 403 && res.headers.get("x-demo-blocked") === "1") showDemoNotice();
+  return res;
+}
+
+let demoNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showDemoNotice() {
+  if (typeof document === "undefined") return;
+  let el = document.getElementById("demo-blocked-notice");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "demo-blocked-notice";
+    el.setAttribute("role", "status");
+    el.style.cssText =
+      "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;" +
+      "max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;" +
+      "background:#1f2937;color:#fff;font:500 14px/1.4 system-ui,sans-serif;" +
+      "box-shadow:0 8px 24px rgba(0,0,0,.2);text-align:center;";
+    el.textContent = "This action is disabled in the live demo. Self-host Launchtic free to use every feature.";
+    document.body.appendChild(el);
+  }
+  if (demoNoticeTimer) clearTimeout(demoNoticeTimer);
+  demoNoticeTimer = setTimeout(() => el?.remove(), 4000);
 }
 
 /**

@@ -16,8 +16,12 @@ export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "launchtic-demo";
 // Drop in at the top of a mutation route that does real / destructive /
 // outbound work. Returns a 403 in demo mode, else null:
 //   const blocked = demoGuard(); if (blocked) return blocked;
+// The X-Demo-Blocked header lets apiFetch show a notice for every blocked call.
 export function demoGuard() {
-  return isDemoMode() ? err("This action is disabled in the live demo.", 403) : null;
+  if (!isDemoMode()) return null;
+  const res = err("This action is disabled in the live demo.", 403);
+  res.headers.set("X-Demo-Blocked", "1");
+  return res;
 }
 
 // Hide a secret in the public demo. Settings GETs return real secrets for the
