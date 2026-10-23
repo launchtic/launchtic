@@ -1,0 +1,31 @@
+# Dependabot: one grouped PR a week for patch/minor npm updates, separate PRs
+# for majors (review those by hand). Security updates still open right away.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Majors of these need a planned migration, not a bot PR.
+      - dependency-name: "@tiptap/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@ai-sdk/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: ai
+        update-types: [version-update:semver-major]
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

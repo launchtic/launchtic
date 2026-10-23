@@ -1,4 +1,4 @@
-import sharp from "sharp";
+import sharp, { type Metadata } from "sharp";
 
 // Full-HD width. Users needing more uncheck "Optimize" and keep the original.
 const MAX_WIDTH = 1920;
@@ -35,9 +35,9 @@ export async function processUploadedImage(
   const bytesIn = rawBuffer.byteLength;
 
   if (!optimize) {
-    const meta: Partial<sharp.Metadata> = mimeType === "image/svg+xml"
+    const meta: Partial<Metadata> = mimeType === "image/svg+xml"
       ? {}
-      : await sharp(rawBuffer, { failOn: "none" }).metadata().catch(() => ({} as sharp.Metadata));
+      : await sharp(rawBuffer, { failOn: "none" }).metadata().catch(() => ({} as Metadata));
     return { buffer: rawBuffer, mimeType, width: meta.width, height: meta.height, bytesIn, bytesOut: bytesIn };
   }
 
