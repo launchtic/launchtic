@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-**Don't open a public issue.** Email **security@launchtic.com** or use [GitHub private vulnerability reporting](https://github.com/launchtic/launchtic/security/advisories/new) with:
+**Don't open a public issue.** Report it privately through [GitHub private vulnerability reporting](https://github.com/launchtic/launchtic/security/advisories/new) (preferred), or email **hello@launchtic.com** with "Security" in the subject. Include:
 
 - what the issue is and how to reproduce it (a proof of concept helps)
 - the affected version (e.g. `2026.10.23`, shown in Settings → License & Updates) or commit
