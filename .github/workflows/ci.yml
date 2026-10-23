@@ -1,0 +1,71 @@
+# Checks every pull request (and every push to main) before it can ship.
+#
+#   • typecheck  — web / renderer / worker (tsc --noEmit)
+#   • migrations — `prisma migrate deploy` on an empty Postgres 16, the same
+#                  major version installs run; catches broken migrations
+#                  before they crash-loop a customer's web container
+#   • build      — Next.js production builds of web + renderer
+#
+# Lint is not run yet: ESLint has no config in this repo (`next lint` stops at
+# an interactive setup prompt). Add it here once a config is committed.
+#
+# Make "CI / checks" a required status check on main (Settings → Branches →
+# branch protection) so a red run blocks the merge.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: launchtic_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/launchtic_ci
+      # Placeholders so module-level env reads don't fail during `next build`.
+      NEXTAUTH_SECRET: ci-placeholder-secret
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4   # version from package.json "packageManager"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20          # same as the Docker images (node:20-alpine)
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile   # postinstall runs prisma generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Migrations apply on an empty database
+        run: pnpm --filter @launchtic/database exec prisma migrate deploy
+
+      - name: Build
+        run: pnpm turbo run build --filter=@launchtic/web --filter=@launchtic/renderer
