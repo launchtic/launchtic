@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, err, handleError } from "../../../../lib/api";
 import { requireAccess } from "../../../../lib/permissions";
+import { demoGuard } from "../../../../lib/demo";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -31,6 +32,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("email_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;
@@ -56,6 +59,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("email_templates:delete");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

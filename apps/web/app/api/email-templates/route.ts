@@ -3,6 +3,7 @@ import { db } from "@launchtic/database";
 import { z } from "zod";
 import { ok, handleError } from "../../../lib/api";
 import { requireAccess } from "../../../lib/permissions";
+import { demoGuard } from "../../../lib/demo";
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -50,6 +51,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const blocked = demoGuard();
+    if (blocked) return blocked;
     const r = await requireAccess("email_templates:write");
     if (!r.ok) return r.response;
     const { workspaceId } = r;

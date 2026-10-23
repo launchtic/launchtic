@@ -55,11 +55,12 @@ function showDemoNotice() {
     el.id = "demo-blocked-notice";
     el.setAttribute("role", "status");
     el.style.cssText =
-      "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;" +
-      "max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;" +
-      "background:#1f2937;color:#fff;font:500 14px/1.4 system-ui,sans-serif;" +
-      "box-shadow:0 8px 24px rgba(0,0,0,.2);text-align:center;";
-    el.textContent = "This action is disabled in the live demo. Self-host Launchtic free to use every feature.";
+      "position:fixed;top:16px;right:16px;z-index:9999;" +
+      "max-width:min(380px,calc(100vw - 32px));padding:12px 16px;border-radius:12px;" +
+      "background:#f59e0b;color:#1f2937;border:1px solid #d97706;" +
+      "font:600 14px/1.45 system-ui,sans-serif;" +
+      "box-shadow:0 10px 30px rgba(217,119,6,.35);";
+    el.textContent = "⚠ This action is disabled in the live demo. Self-host Launchtic free to use every feature.";
     document.body.appendChild(el);
   }
   if (demoNoticeTimer) clearTimeout(demoNoticeTimer);
