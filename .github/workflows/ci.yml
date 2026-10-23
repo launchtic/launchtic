@@ -55,7 +55,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20          # same as the Docker images (node:20-alpine)
+          node-version: 24          # same as the Docker images (node:24-alpine)
           cache: pnpm
 
       - name: Install

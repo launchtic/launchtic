@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 RUN corepack enable
 
 # ─── Stage 1: Install dependencies ───────────────────────────────────────────
@@ -33,7 +33,7 @@ RUN find /app/node_modules/.pnpm -name "libquery_engine-linux-musl-openssl-3.0.x
 
 # ─── Stage 3: Prisma CLI for migrations ──────────────────────────────────────
 # Installed separately to get the correct platform binary (musl/alpine)
-FROM node:20-alpine AS prisma-cli
+FROM node:24-alpine AS prisma-cli
 WORKDIR /prisma
 RUN npm install prisma@6.7.0 --save-exact
 
