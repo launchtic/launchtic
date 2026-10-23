@@ -238,13 +238,13 @@ importers:
         version: 15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       next-auth:
         specifier: ^5.0.0-beta.28
-        version: 5.0.0-beta.31(next@15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(nodemailer@8.0.5)(react@19.2.5)
+        version: 5.0.0-beta.31(next@15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(nodemailer@10.0.10)(react@19.2.5)
       nextjs-toploader:
         specifier: ^3.9.17
         version: 3.9.17(next@15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       nodemailer:
-        specifier: ^8.0.5
-        version: 8.0.5
+        specifier: ^10.0.10
+        version: 10.0.10
       react:
         specifier: ^19.1.0
         version: 19.2.5
@@ -556,8 +556,8 @@ importers:
         specifier: ^5.3.0
         version: 5.3.0(svgo@4.0.1)(typescript@5.9.3)
       nodemailer:
-        specifier: ^8.0.5
-        version: 8.0.5
+        specifier: ^10.0.10
+        version: 10.0.10
     devDependencies:
       '@types/nodemailer':
         specifier: ^6.4.0
@@ -2570,6 +2570,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -3570,9 +3571,9 @@ packages:
     resolution: {integrity: sha512-Uzmd6LXpouKo8EUK68IjH4+E01w/hXyV3R3g/geCJo+rXLNfh1xucB+LOzYEOQPSiUK3h/xZf0cQGcSsmyL2Og==}
     engines: {node: '>=18'}
 
-  nodemailer@8.0.5:
-    resolution: {integrity: sha512-0PF8Yb1yZuQfQbq+5/pZJrtF6WQcjTd5/S4JOHs9PGFxuTqoB/icwuB44pOdURHJbRKX1PPoJZtY7R4VUoCC8w==}
-    engines: {node: '>=6.0.0'}
+  nodemailer@10.0.10:
+    resolution: {integrity: sha512-He9XskOFms62SyAKkLu8CcGcYHAo+BSHSsORI8s4PJH8qZgZY4L4lDfvyN0twvmbpyG+eGrxpyBlskj9d9rJ8A==}
+    engines: {node: '>=20.0.0'}
 
   nopt@7.2.1:
     resolution: {integrity: sha512-taM24ViiimT/XntxbPyJQzCG+p4EKOpgD3mxFwW38mGjVUrfERQOeY4EDHjdnptttfHuHQXFx+lTP08Q+mLa/w==}
@@ -4439,7 +4440,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@auth/core@0.41.2(nodemailer@8.0.5)':
+  '@auth/core@0.41.2(nodemailer@10.0.10)':
     dependencies:
       '@panva/hkdf': 1.2.1
       jose: 6.2.3
@@ -4447,7 +4448,7 @@ snapshots:
       preact: 10.24.3
       preact-render-to-string: 6.5.11(preact@10.24.3)
     optionalDependencies:
-      nodemailer: 8.0.5
+      nodemailer: 10.0.10
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:
@@ -8131,13 +8132,13 @@ snapshots:
 
   native-promise-only@0.8.1: {}
 
-  next-auth@5.0.0-beta.31(next@15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(nodemailer@8.0.5)(react@19.2.5):
+  next-auth@5.0.0-beta.31(next@15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(nodemailer@10.0.10)(react@19.2.5):
     dependencies:
-      '@auth/core': 0.41.2(nodemailer@8.0.5)
+      '@auth/core': 0.41.2(nodemailer@10.0.10)
       next: 15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       react: 19.2.5
     optionalDependencies:
-      nodemailer: 8.0.5
+      nodemailer: 10.0.10
 
   next@15.5.24(@opentelemetry/api@1.9.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
     dependencies:
@@ -8182,7 +8183,7 @@ snapshots:
 
   node-releases@2.0.47: {}
 
-  nodemailer@8.0.5: {}
+  nodemailer@10.0.10: {}
 
   nopt@7.2.1:
     dependencies:
