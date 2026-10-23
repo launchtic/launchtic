@@ -47,7 +47,9 @@
     "overrides": {
       "@tiptap/pm": "2.27.2",
       "esbuild": ">=0.25.0",
-      "undici@6": "^6.28.0"
+      "undici@6": "^6.28.0",
+      "next>postcss": "^8.5.23",
+      "@prisma/config>deepmerge-ts": "^8.0.0"
     }
   },
   "devDependencies": {
