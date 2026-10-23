@@ -15,9 +15,26 @@
 name: CI
 
 on:
+  # Docs/config-only changes skip CI (same list as build.yml).
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE*'
+      - '.gitignore'
+      - '.dockerignore'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/assets/**'
+      - '.github/dependabot.yml'
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE*'
+      - '.gitignore'
+      - '.dockerignore'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/assets/**'
+      - '.github/dependabot.yml'
 
 concurrency:
   group: ci-${{ github.ref }}

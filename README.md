@@ -38,7 +38,7 @@ curl -fsSL https://launchtic.com/install | bash
 
 Open `http://<server-ip>` and follow the wizard: create the admin account, point two subdomains (dashboard + pages) at the server. SSL is automatic.
 
-Have an Agency key or an add-on? Paste it in **Settings → License & Updates**.
+Bought an Agency plan or an add-on? Paste the key in **Settings → License & Updates**.
 
 Update: `cd launchtic && curl -fsSL https://launchtic.com/update | bash`
 
@@ -61,15 +61,9 @@ Stack: Next.js 15, React 19, Craft.js, Prisma + PostgreSQL, Redis + BullMQ, Cadd
 
 Source-available under the **[Sustainable Use License](LICENSE.md)**.
 
-**You may** self-host it for your own business (any size), modify it for your own use, and set it up on a client's own server for that client.
+Free to self-host for your own business (any size), to modify for your own use, and to set up on a client's own server for that client.
 
-**You need an [Agency plan](https://launchtic.com/pricing)** to run funnels for multiple clients from your own installation, or to white-label it.
-
-**You may not** (without a written agreement) offer Launchtic as a hosted service to third parties, resell it, or build a competing funnel / page builder from it.
-
-Add-on template packs are covered by the [Add-on License](https://launchtic.com/add-on-license). Commercial / OEM inquiries: **hello@launchtic.com**.
-
-"Launchtic" and its logo are trademarks of Launchtic; the license grants no trademark rights.
+Running funnels for multiple clients from one installation, or white-labeling it, needs an [Agency plan](https://launchtic.com/pricing). You may not offer Launchtic as a hosted service, resell it, or build a competing product from it. Questions: **hello@launchtic.com**
 
 ## Contributing
 
