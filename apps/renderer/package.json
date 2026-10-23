@@ -40,7 +40,7 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
-    "@types/node": "^22.15.3",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "dotenv-cli": "^8.0.0",
