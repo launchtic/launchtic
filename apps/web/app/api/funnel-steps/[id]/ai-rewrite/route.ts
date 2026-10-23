@@ -12,6 +12,7 @@ import { classifyRequest, editPageCopy, rewritePageCopy, scanPageCopy } from "..
 //   { mode: "edit",    pageJson?, scopeNodeId?, instruction } → section/element (or whole page) edited
 // Saves nothing — the editor applies the result. pageJson is the editor's
 // current (possibly unsaved) content; when omitted the step's stored page is used.
+// :id may also be a page template id (page-template editor).
 
 const pageJson = z.union([z.string(), z.record(z.unknown())]).optional();
 
@@ -36,11 +37,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!r.ok) return r.response;
     const body = schema.parse(await req.json());
 
-    const step = await db.funnelStep.findUnique({
-      where: { id },
-      select: { pageJson: true, funnel: { select: { workspaceId: true } } },
+    // The page-template editor reuses this endpoint with a template id.
+    const step = await db.funnelStep.findFirst({
+      where: { id, funnel: { workspaceId: r.workspaceId } },
+      select: { pageJson: true },
+    }) ?? await db.pageTemplate.findFirst({
+      where: { id, workspaceId: r.workspaceId },
+      select: { pageJson: true },
     });
-    if (!step || step.funnel.workspaceId !== r.workspaceId) return err("Funnel step not found", 404);
+    if (!step) return err("Funnel step not found", 404);
 
     const source = body.pageJson ?? step.pageJson;
     if (body.mode === "scan") return ok(scanPageCopy(source, body.scopeNodeId));
