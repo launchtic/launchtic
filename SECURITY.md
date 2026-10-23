@@ -1,93 +1,28 @@
 # Security Policy
 
-We take the security of Launchtic seriously. This document explains how to
-report vulnerabilities and what to expect.
-
 ## Reporting a vulnerability
 
-**Please do NOT open public GitHub issues for security vulnerabilities.**
+**Don't open a public issue.** Email **security@launchtic.com** or use [GitHub private vulnerability reporting](https://github.com/launchtic/launchtic/security/advisories/new) with:
 
-Instead, email **security@launchtic.com** with:
-
-- A description of the issue
-- Steps to reproduce (proof-of-concept code if possible)
-- Affected version (e.g. `v0.1.0`) or commit hash
-- Your name (if you want public credit) or "anonymous"
-
-You can also use [GitHub's private vulnerability reporting](https://github.com/launchtic/launchtic/security/advisories/new)
-if you have a GitHub account.
+- what the issue is and how to reproduce it (a proof of concept helps)
+- the affected version (e.g. `2026.10.23`, shown in Settings → License & Updates) or commit
+- how you'd like to be credited, or "anonymous"
 
 ## What to expect
 
-| Step | Timeline |
-|---|---|
-| Initial acknowledgement | Within 72 hours |
-| Triage + severity assessment | Within 7 days |
-| Patch + coordinated disclosure | Depends on severity (see below) |
-| Public advisory | After fix is released |
-
-We follow [coordinated disclosure](https://en.wikipedia.org/wiki/Coordinated_vulnerability_disclosure):
-we ask reporters to give us a reasonable window to fix the issue before public
-disclosure.
-
-### Severity timeline targets
-
-| Severity | Patch target |
-|---|---|
-| **Critical** (RCE, auth bypass, data exfiltration) | 7 days |
-| **High** (privilege escalation, persistent XSS) | 14 days |
-| **Medium** (CSRF, info disclosure) | 30 days |
-| **Low** (minor info disclosure, edge-case) | 90 days |
+- Acknowledgement within **72 hours**, triage within **7 days**.
+- Patch targets: Critical (RCE, auth bypass, data exfiltration) **7 days** · High **14 days** · Medium **30 days** · Low **90 days**.
+- We ask for coordinated disclosure: please give us time to ship a fix before going public. Reporters are credited in the advisory unless they prefer not to be.
 
 ## Scope
 
-### In scope
+**In scope:** the latest release, self-hosted with the default configuration.
 
-- Latest released version of Launchtic on the `main` branch
-- Self-hosted deployments running default configuration
-- Hosted Launchtic Cloud (when available)
+**Out of scope:** issues in third-party dependencies (report upstream), physical server access, social engineering, self-XSS, scanner output without a working exploit, missing headers without impact, SPF/DKIM not configured, weak admin passwords.
 
-### Out of scope
+## Hardening a self-hosted install
 
-- Vulnerabilities in third-party dependencies (report upstream — we'll follow up)
-- Issues requiring physical access to the server
-- Social engineering of the maintainer
-- Self-XSS that requires the victim to paste payload into their own console
-- Reports from automated scanners without proof of exploitability
-- Missing security headers without demonstrated impact
-- Email-spoofing on workspaces with unconfigured SPF/DKIM
-- Brute-force on workspaces with weak admin passwords (use a strong password)
-
-## Recognition
-
-We don't currently run a paid bug bounty, but we maintain a public
-[Hall of Fame](#hall-of-fame) crediting reporters of valid issues.
-
-For high-impact reports, we may offer Launchtic Cloud credits or sponsor
-swag at our discretion.
-
-## Recommended self-hosted hardening
-
-If you self-host Launchtic, we strongly recommend:
-
-- **Use strong secrets**: regenerate `NEXTAUTH_SECRET`, `ENCRYPTION_KEY`,
-  `POSTGRES_PASSWORD` — never use defaults from `.env.example`.
-- **Keep updated**: subscribe to GitHub Releases for security patches.
-- **Restrict admin access**: don't expose port 5432 (Postgres) or 6379
-  (Redis) publicly — only Caddy ports 80/443 should be reachable.
-- **Enable backups**: regular Postgres dumps + offsite copy.
-- **Use HTTPS**: never run production on HTTP. Caddy handles TLS automatically.
-- **Review user-uploaded content**: image uploads go through `sharp`
-  reprocessing, but always validate at the application layer.
-- **Rotate API keys**: Stripe/PayPal/SMTP/AI keys are encrypted in DB but
-  rotate periodically as a defense-in-depth measure.
-
-## Hall of Fame
-
-Reporters who have responsibly disclosed valid vulnerabilities:
-
-_None yet — be the first!_
-
----
-
-**Contact**: security@launchtic.com · PGP key available on request.
+- Keep the secrets `install.sh` generates (`NEXTAUTH_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`); never reuse `.env.example` values.
+- Expose only ports 80/443. Keep Postgres (5432) and Redis (6379) private.
+- Update regularly: `curl -fsSL https://launchtic.com/update | bash`.
+- Back up Postgres and the `uploads` folder off-server.

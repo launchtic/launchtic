@@ -3,7 +3,7 @@
   "version": "0.2.5",
   "private": true,
   "description": "Launchtic's vendored fork of @craftjs/utils 0.2.5 — readable source under our control (undo-history coalescing + depth cap live in History). Consumed as source via transpilePackages.",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
   "types": "./types/index.d.ts",

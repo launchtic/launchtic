@@ -20,7 +20,7 @@ coverage
 *.db
 *.db-journal
 
-# Env files — KHÔNG commit
+# Env files — never commit
 .env
 .env.local
 .env.*.local
@@ -42,7 +42,7 @@ Thumbs.db
 .claude/
 CLAUDE.md
 
-# Docker volumes (nếu mount local)
+# Docker volumes (when mounted locally)
 postgres_data
 redis_data
 
