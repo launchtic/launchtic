@@ -15,6 +15,14 @@ const LICENSE_SERVER_URL = process.env.LICENSE_SERVER_URL ?? "https://launchtic.
 // YYYY.MM.DD, optionally with a same-day -N suffix (matches build.yml tags).
 const DATE_TAG = /^\d{4}\.\d{2}\.\d{2}(-\d+)?$/;
 
+// Date part compares as a string (zero-padded); the -N suffix compares as a
+// number, so 2026.10.23-10 is newer than 2026.10.23-9. No suffix = 1.
+function isNewer(a: string, b: string): boolean {
+  const [dateA, nA = "1"] = a.split("-");
+  const [dateB, nB = "1"] = b.split("-");
+  return dateA !== dateB ? dateA > dateB : Number(nA) > Number(nB);
+}
+
 export type VersionInfo = {
   current: string;                       // "2026.06.13" | "stable" | "dev"
   latest: string | null;                 // null = couldn't reach the server
@@ -64,13 +72,12 @@ export async function getVersionInfo(): Promise<VersionInfo> {
 
   // A confident, dated comparison is the only way we know a newer build exists.
   // Rolling tags (stable/latest) and dev builds carry no date to compare — the
-  // operator just re-runs the updater. YYYY.MM.DD is zero-padded so a
-  // lexicographic compare equals a date compare.
+  // operator just re-runs the updater.
   const newerExists =
     channel === "dated" &&
     latest != null &&
     DATE_TAG.test(latest) &&
-    latest > current;
+    isNewer(latest, current);
 
   return { current, latest, channel, updateAvailable: newerExists };
 }

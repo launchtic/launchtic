@@ -7,6 +7,14 @@
 
 Page builder, checkout, email automation and AI copy tools in one platform you run on your own server and domain. No monthly SaaS fees, no per-contact pricing.
 
+**[Live demo](https://demo.launchtic.com)** · [Website](https://launchtic.com) · [Docs](https://launchtic.com/docs)
+
+![Launchtic page editor](.github/assets/editor.jpg)
+
+| Checkout | Automations | Contacts |
+|---|---|---|
+| ![Checkout](.github/assets/checkout.jpg) | ![Automations](.github/assets/automation.jpg) | ![Contacts](.github/assets/crm.jpg) |
+
 ## Features
 
 - **Drag-and-drop page builder** — desktop + mobile breakpoints
