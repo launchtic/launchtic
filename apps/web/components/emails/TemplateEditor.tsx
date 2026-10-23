@@ -162,7 +162,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
 
     const res = await apiFetch(`/api/email-templates/${initial.id}`, { method: "DELETE" });
     const json = await res.json();
-    if (json.success) router.push(`/${slug}/emails/templates`);
+    if (json.success) router.push(`/${slug}/settings/email-templates`);
   }
 
   return (
@@ -170,7 +170,7 @@ export default function TemplateEditor({ initial }: { initial: Initial }) {
       {/* Single action bar — back · name · subject · category · test · save · delete */}
       <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-200 bg-white shrink-0">
         <Link
-          href={`/${slug}/emails/templates`}
+          href={`/${slug}/settings/email-templates`}
           className="p-1.5 -ml-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
         >
           <ArrowLeft size={18} />

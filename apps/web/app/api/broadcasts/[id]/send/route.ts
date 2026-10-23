@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const settings = await db.workspaceSettings.findUnique({ where: { workspaceId } });
     const smtp = (settings as { smtp?: unknown } | null)?.smtp as Record<string, unknown> | undefined;
     if (!smtp?.host || !smtp?.password) {
-      return err("SMTP not configured. Configure it in Settings → SMTP first.", 400);
+      return err("SMTP not configured. Configure it in Settings → Integrations → Email Settings first.", 400);
     }
 
     const body = await req.json().catch(() => ({}));

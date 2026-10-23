@@ -382,7 +382,7 @@ export default function TeamPanel({
                     <p className="mt-1 text-[11px] text-gray-400">
                       Manage roles in{" "}
                       <Link href={`/${workspaceSlug}/settings/roles`} className="text-blue-600 hover:underline">
-                        Settings → Roles
+                        Settings → Team &amp; Roles → Roles
                       </Link>.
                     </p>
                   </div>

@@ -151,7 +151,7 @@ export default function TemplateGallery({
             ) : (
               <>
                 <p className="text-sm text-gray-400">No {TYPE_LABEL[stepType]} templates found</p>
-                <p className="text-xs text-gray-300 mt-1">Create templates in Settings → Funnel Templates</p>
+                <p className="text-xs text-gray-300 mt-1">Create templates in Settings → Content → Page Templates</p>
               </>
             )}
           </div>

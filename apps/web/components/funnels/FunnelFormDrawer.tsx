@@ -369,7 +369,7 @@ export default function FunnelFormDrawer({ open, onClose, mode, editId, onSucces
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Domain</label>
               <p className="text-xs text-gray-400 mb-2">
                 Assign a custom domain to this funnel.{" "}
-                <a href={`/${slug}/settings`} className="text-blue-600 hover:underline">Manage domains</a>
+                <a href={`/${slug}/settings/domains`} className="text-blue-600 hover:underline">Manage domains</a>
               </p>
               <select
                 value={assignedDomainId}

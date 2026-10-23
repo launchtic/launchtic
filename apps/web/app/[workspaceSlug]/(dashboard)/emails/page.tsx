@@ -15,5 +15,5 @@ export default async function EmailsIndex({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  redirect(`/${workspaceSlug}/emails/templates`);
+  redirect(`/${workspaceSlug}/settings/email-templates`);
 }

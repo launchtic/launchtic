@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Anti-replay: refuse if a previous run already wrote SystemConfig.
     const existing = await db.systemConfig.findUnique({ where: { id: "system" } });
     if (existing?.setupCompletedAt) {
-      return err("Setup already completed. Use Settings → Domains to change later.", 409);
+      return err("Setup already completed. Use Settings → Custom Domains to change later.", 409);
     }
 
     const { appDomain, pagesDomain, skipDns } = schema.parse(await req.json());
