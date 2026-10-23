@@ -19,10 +19,10 @@ Updates are free for every instance; there is no license gate on versions.
 
 > Publish the image tag **first**, bump `RELEASE_VERSION` **second**. The other way round, `/api/version` advertises a tag that doesn't exist yet and updates fail.
 
-1. **CI is green** on the latest `main` commit, and `:latest` has run fine on demo.launchtic.com.
+1. **CI is green** on the latest `main` commit, and that build has run fine on demo.launchtic.com (`update.sh --channel latest`, see the demo runbook in `launchtic-com/ops/demo`).
 2. **Publish images:** Actions → *Build & Push* → *Run workflow*. Leave *version* blank (= today, UTC; a second release the same day becomes `-2`, `-3`, …). Wait for all jobs — the last one tags the commit and publishes the GitHub Release.
 3. **Point installs at it:** in `launchtic-com`, set `RELEASE_VERSION` to the same tag, commit, push `main`. Its CI rebuilds and deploys the site and syncs `.env`. That container also runs its own migrations on boot.
-4. **Verify:** `curl https://launchtic.com/api/version` shows the new tag; update a test VPS with `update.sh`.
+4. **Verify:** `curl https://launchtic.com/api/version` shows the new tag; move the demo back to the release with plain `update.sh`.
 
 Instances pick it up on their next `curl -fsSL https://launchtic.com/update | bash`.
 
