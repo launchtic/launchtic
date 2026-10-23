@@ -2,6 +2,8 @@
 
 > Fair-code funnel builder with native AI capabilities. Build landing pages, sales funnels and email campaigns visually. A self-hosted alternative to ClickFunnels, GoHighLevel and systeme.io.
 
+[![Release](https://img.shields.io/github/v/release/launchtic/launchtic?label=release)](https://github.com/launchtic/launchtic/releases)
+[![CI](https://github.com/launchtic/launchtic/actions/workflows/ci.yml/badge.svg)](https://github.com/launchtic/launchtic/actions/workflows/ci.yml)
 [![License: SUL](https://img.shields.io/badge/license-SUL-blue.svg)](LICENSE.md)
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)]()
 
@@ -71,4 +73,4 @@ Add-on template packs are covered by the [Add-on License](https://launchtic.com/
 
 ## Contributing
 
-We don't accept pull requests. Bug reports and feature requests are welcome in [Issues](../../issues) — see [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
+We don't accept pull requests. Bug reports and feature requests are welcome in [Issues](../../issues), questions in [Discussions](../../discussions) — see [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
