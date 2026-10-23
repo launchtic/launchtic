@@ -13,7 +13,7 @@
     "@launchtic/database": "workspace:*",
     "@launchtic/email": "workspace:*",
     "bullmq": "^5.34.0",
-    "ioredis": "^5.6.1"
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
