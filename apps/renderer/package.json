@@ -34,7 +34,7 @@
     "react-dom": "^19.1.0",
     "react-player": "^3.0.0",
     "react-select": "^5.10.2",
-    "stripe": "^22.0.2",
+    "stripe": "^23.0.0",
     "styled-components": "^6.4.0",
     "uuid": "^11.1.0",
     "zod": "^3.24.4"

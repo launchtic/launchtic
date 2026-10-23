@@ -98,8 +98,8 @@ importers:
         specifier: ^5.10.2
         version: 5.10.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       stripe:
-        specifier: ^22.0.2
-        version: 22.1.0(@types/node@22.19.17)
+        specifier: ^23.0.0
+        version: 23.0.0(@types/node@22.19.17)
       styled-components:
         specifier: ^6.4.0
         version: 6.4.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -270,8 +270,8 @@ importers:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@22.19.17)
       stripe:
-        specifier: ^22.0.2
-        version: 22.1.0(@types/node@22.19.17)
+        specifier: ^23.0.0
+        version: 23.0.0(@types/node@22.19.17)
       styled-components:
         specifier: ^6.1.14
         version: 6.4.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -2570,6 +2570,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -4127,11 +4128,11 @@ packages:
     resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
     engines: {node: '>=12'}
 
-  stripe@22.1.0:
-    resolution: {integrity: sha512-w/xHyJGxXWnLPbNHG13sz/fae0MrFGC80Oz7YbICQymbfpqfEcsoG+6yG+9BWb81PWc4rrkeSO4wmTcmefmbLw==}
-    engines: {node: '>=18'}
+  stripe@23.0.0:
+    resolution: {integrity: sha512-MDE2A5ZVVluYURORaZEVghSmnLJc3w6aHAlZSxDQMsOjOb3V0O6ro/CiaeFlJS4N7uIVmsg98ocRsPmUK6YfyA==}
+    engines: {node: '>=20'}
     peerDependencies:
-      '@types/node': '>=18'
+      '@types/node': '>=20'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -8864,7 +8865,7 @@ snapshots:
     dependencies:
       ansi-regex: 6.2.2
 
-  stripe@22.1.0(@types/node@22.19.17):
+  stripe@23.0.0(@types/node@22.19.17):
     optionalDependencies:
       '@types/node': 22.19.17
 
