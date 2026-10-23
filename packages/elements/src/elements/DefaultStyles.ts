@@ -226,6 +226,7 @@ export const DEFAULT_STYLES = {
     mobileIconSize: undefined,
     verticalSpacing: undefined,
     mobileVerticalSpacing: undefined,
+    verticalAlign: "center" as const,
     textAlign: "left",
     mobileTextAlign: undefined,
     fontSize: 20, 

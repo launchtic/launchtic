@@ -197,6 +197,7 @@ export type HeadlineProps = {
 
 export type BulletedListProps = {
   rawContentState?: string;
+  verticalAlign?: "top" | "center" | "bottom";
 } & htmlIdProps &
   AppearanceProps &
   DelayProps &

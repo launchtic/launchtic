@@ -14,6 +14,7 @@ import { IconColorSettings } from "../../editor/toolbar/IconColorSettings"; // A
 import { IconSizeSettings } from "../../editor/toolbar/IconSizeSettings"; // Added import
 import { VerticalSpacingSettings } from "../../editor/toolbar/VerticalSpacingSettings"; // Added import
 import { BulletedListProps } from "../ElementProps";
+import { SettingsGroup, Label, Select } from "../../editor/common/SettingsUI";
 import { IDAttributeSettings } from "../../editor/toolbar/IDAttributeSettings"; 
 
 export const BulletedListSettings: React.FC = () => {
@@ -43,7 +44,8 @@ export const BulletedListSettings: React.FC = () => {
     iconSize,
     mobileIconSize,
     verticalSpacing,
-    mobileVerticalSpacing
+    mobileVerticalSpacing,
+    verticalAlign
   } = useNode<BulletedListProps>((node) => ({
     text: node.data.props.text,
     appearance: node.data.props.appearance,
@@ -72,7 +74,8 @@ export const BulletedListSettings: React.FC = () => {
     iconSize: node.data.props.iconSize,
     mobileIconSize: node.data.props.mobileIconSize,
     verticalSpacing: node.data.props.verticalSpacing,
-    mobileVerticalSpacing: node.data.props.mobileVerticalSpacing
+    mobileVerticalSpacing: node.data.props.mobileVerticalSpacing,
+    verticalAlign: node.data.props.verticalAlign
   }));
 
   const updateProp = <K extends keyof BulletedListProps>(key: K) => (value: BulletedListProps[K]) => {
@@ -127,6 +130,18 @@ export const BulletedListSettings: React.FC = () => {
         }}
       />
       
+      <SettingsGroup>
+        <Label>Vertical alignment</Label>
+        <Select
+          value={verticalAlign ?? "center"}
+          onChange={(e) => updateProp("verticalAlign")(e.target.value as BulletedListProps["verticalAlign"])}
+        >
+          <option value="top">Top</option>
+          <option value="center">Center</option>
+          <option value="bottom">Bottom</option>
+        </Select>
+      </SettingsGroup>
+
       {/* Vertical Spacing Settings - newly added */}
       <VerticalSpacingSettings
         verticalSpacing={{ mobile: mobileVerticalSpacing, desktop: verticalSpacing }}

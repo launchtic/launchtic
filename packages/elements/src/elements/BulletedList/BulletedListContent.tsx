@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Editor } from '@tiptap/core';
 import { Extension } from '@tiptap/react';
-import BaseEditor from '../common/BaseEditor';
+import BaseEditor, { jsonToHtml } from '../common/BaseEditor';
 import { CustomBulletList } from './CustomBulletList';
 import { CustomListItem } from './CustomListItem';
 import IconSelector from '../../editor/common/IconSelector';
@@ -36,7 +36,17 @@ interface BulletedListContentProps {
 }
 
 const BulletedListContent: React.FC<BulletedListContentProps> = ({ rawContentState }) => {
-  const [currentIconType, setCurrentIconType] = useState<string>(POPULAR_ICONS[0]);
+  // Start from the icon saved in the content, not the default check
+  const [currentIconType, setCurrentIconType] = useState<string>(
+    () => {
+      try {
+        const html = rawContentState ? jsonToHtml(JSON.parse(rawContentState)) : '';
+        return html.match(/<i\s+class="([^"]+)"/)?.[1] || POPULAR_ICONS[0];
+      } catch {
+        return POPULAR_ICONS[0];
+      }
+    }
+  );
   const editorRef = useRef<Editor | null>(null);
   
   // Extensions for editor

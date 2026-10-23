@@ -34,12 +34,13 @@ const BulletedListMain = styled.div<{
   $iconSize?: number;
   $verticalSpacing?: number;
   $mobileVerticalSpacing?: number;
+  $verticalAlign?: BulletedListProps["verticalAlign"];
 }>`
   word-break: break-word;
   transition: box-shadow 0.1s ease-in-out;
   flex-basis: inherit;
 
-  ${({ $padding, $fontSize, $backgroundColor, $textAlign, $lineHeight, $letterSpacing, $fontFamily, $fontStyle, $iconColor, $iconSize, $verticalSpacing }) => css`
+  ${({ $padding, $fontSize, $backgroundColor, $textAlign, $lineHeight, $letterSpacing, $fontFamily, $fontStyle, $iconColor, $iconSize, $verticalSpacing, $verticalAlign }) => css`
     ${$padding && `padding: ${$padding.paddingTop}px ${$padding.paddingRight}px ${$padding.paddingBottom}px ${$padding.paddingLeft}px;`}
     ${$fontSize && `font-size: ${$fontSize}px;`}
     ${$backgroundColor && `background-color: ${$backgroundColor};`}
@@ -62,7 +63,7 @@ const BulletedListMain = styled.div<{
     }
     & li {
       display: flex;
-      align-items: baseline;
+      align-items: ${$verticalAlign === "top" ? "baseline" : $verticalAlign === "bottom" ? "flex-end" : "center"};
       list-style: none !important;
       margin-left: 0px !important;
       ${$verticalSpacing !== undefined && `margin-bottom: ${$verticalSpacing}px;`}
@@ -161,6 +162,7 @@ export const BulletedList: UserComponent<BulletedListProps> = ({ ...props }) => 
             $iconSize={resolvedProps.iconSize}
             $verticalSpacing={resolvedProps.verticalSpacing}
             $mobileVerticalSpacing={resolvedProps.mobileVerticalSpacing}
+            $verticalAlign={props.verticalAlign}
           >
             <BulletedListContent rawContentState={resolvedProps.rawContentState} />
           </BulletedListMain>

@@ -74,7 +74,7 @@ export const CustomBulletList = Node.create<CustomBulletListOptions>({
   
   addStorage() {
     return {
-      iconClass: 'fas fa-check',
+      iconClass: this.options.iconClass,
     }
   },
 
