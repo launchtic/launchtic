@@ -143,3 +143,41 @@ jobs:
           # graph, sharing a single scope would just cause cache misses.
           cache-from: type=gha,scope=${{ matrix.service.name }}
           cache-to:   type=gha,scope=${{ matrix.service.name }},mode=max
+
+  # Manual releases only, after all 3 images are published: tag the commit and
+  # create a GitHub Release whose notes list the commits since the last release
+  # (chore:/docs:/ci: commits left out).
+  release:
+    needs: [resolve-version, build]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history + tags, to find the previous release
+
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Previous dated release tag (ignores other tags like pre-revert-*).
+          PREV="$(git describe --tags --abbrev=0 --match '[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]*' 2>/dev/null || true)"
+          RANGE="${PREV:+$PREV..}HEAD"
+          {
+            echo "## What's changed"
+            echo
+            git log --no-merges --format='- %s' "$RANGE" \
+              | grep -viE '^- (chore|docs|ci|style|test)(\(.*\))?:' \
+              | head -n 100 || true
+            echo
+            echo "Update: \`cd launchtic && curl -fsSL https://launchtic.com/update | bash\`"
+            if [ -n "$PREV" ]; then
+              echo
+              echo "**Full diff:** https://github.com/${{ github.repository }}/compare/$PREV...$VERSION"
+            fi
+          } > notes.md
+          cat notes.md
+          gh release create "$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md
