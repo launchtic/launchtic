@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "^6.7.2",
+    "@fortawesome/fontawesome-free": "^7.3.1",
     "@launchtic/database": "workspace:*",
     "@launchtic/editor-core": "workspace:*",
     "@launchtic/elements": "workspace:*",
