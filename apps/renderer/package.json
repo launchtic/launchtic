@@ -15,7 +15,7 @@
     "@launchtic/editor-core": "workspace:*",
     "@launchtic/elements": "workspace:*",
     "@launchtic/types": "workspace:*",
-    "@stripe/react-stripe-js": "^5.6.1",
+    "@stripe/react-stripe-js": "^7.0.0",
     "@stripe/stripe-js": "^9.2.0",
     "@tiptap/extension-bullet-list": "^2.27.2",
     "@tiptap/extension-color": "^2.27.2",
